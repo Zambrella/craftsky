@@ -4,6 +4,15 @@ import { Work } from './work.svelte.ts';
 vi.mock('../diagnostics/client.ts', () => ({ reportFailure: vi.fn() }));
 
 describe('social async work', () => {
+	it('silently consumes canceled reads without leaving retry feedback', async () => {
+		const work = new Work();
+		await work.run(async () => {
+			throw new DOMException('Canceled', 'AbortError');
+		});
+		expect(work.error).toBe('');
+		expect(work.retry).toBeUndefined();
+		expect(work.busy).toBe(false);
+	});
 	it('does not retain an older retry after a non-retryable failure', async () => {
 		const work = new Work();
 		await work.run(async () => {
@@ -14,7 +23,7 @@ describe('social async work', () => {
 			throw new APIError(400, 'invalid', 'Invalid request');
 		});
 		expect(work.retry).toBeUndefined();
-		expect(work.error).toBe('Invalid request');
+		expect(work.error).toBe("That didn't work. Please try again.");
 		expect(work.busy).toBe(false);
 	});
 	it('retries the original operation and clears retry state on success', async () => {

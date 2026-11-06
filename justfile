@@ -249,6 +249,23 @@ web-preview:
 web-deploy:
     ./scripts/web-deploy production
 
+# Install pinned stats-site tooling and its browser test runtime.
+stats-setup:
+    npm ci --prefix stats
+    cd stats && npm exec -- playwright install chromium
+
+# Serve the buildless stats site at http://127.0.0.1:4186.
+stats-dev:
+    npm run --prefix stats dev
+
+# Verify stats rendering, API failures, accessibility and responsive behavior.
+stats-check:
+    npm run --prefix stats check
+
+# Package the static Worker locally without publishing it.
+stats-dry-run:
+    npm run --prefix stats deploy:dry-run
+
 # Repository release quality checks, also used for private beta.
 # Run online-safety-readiness separately before full public launch.
 public-release-check:
@@ -613,7 +630,7 @@ public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
     python3 -m unittest discover -s scripts -p test_release.py
     python3 -m unittest discover -s scripts -p test_web_client_deploy.py
-    cd web-client && npm run check && npm test && npm run build && npm run test:e2e && npm run test:e2e:app && WEB_CLIENT_WORKER=1 npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e:app
+    cd web-client && npm run test:release
 
 # Run the web client against this worktree's backend (start just dev-d first).
 public-app-dev *ARGS:

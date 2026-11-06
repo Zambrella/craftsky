@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
@@ -43,7 +44,8 @@
 					? 'Browser notifications enabled for this account.'
 					: 'Browser notifications disabled for this account.';
 			}
-		} catch {
+		} catch (cause) {
+			void reportFailure(cause, 'push.toggle');
 			if (!dead)
 				error =
 					'Could not update browser notifications. Check your browser notification permission and try again.';

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { APIError } from '#lib/api/client.ts';
+	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { onMount, onDestroy, tick } from 'svelte';
@@ -8,7 +10,7 @@
 		ModerationHistoryItem,
 		Profile
 	} from '#lib/api/client.ts';
-	import { dateTime, record, text, title, type Session } from './model.ts';
+	import { dateTime, record, text, type Session } from './model.ts';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
@@ -28,7 +30,7 @@
 		section: string;
 		reference?: string;
 	} = $props();
-	const work = new Work();
+	const work = new Work('settings.Account.action');
 	const version = __CRAFTSKY_VERSION__.trim();
 	let businessAccess = $state(false);
 	let profile = $state<Profile | null>(null),
@@ -49,7 +51,7 @@
 		method = body === undefined ? 'GET' : 'POST'
 	): Promise<T> {
 		if (!session.id)
-			throw new Error('Reopen your account settings to continue.');
+			throw new UserFacingError('Reopen your account settings to continue.');
 		const response = await fetch(`/api/auth/deletion/${path}`, {
 			method,
 			credentials: 'same-origin',
@@ -66,9 +68,10 @@
 			try {
 				value = await response.json();
 			} catch {}
-			throw new Error(
-				text(record(value).message) ||
-					'Could not complete account deletion. Please try again.'
+			throw new APIError(
+				response.status,
+				text(record(value).error) || 'request_failed',
+				'Account deletion failed'
 			);
 		}
 		return response.status === 204
@@ -93,7 +96,8 @@
 					standing = record(state);
 					history = page.items;
 					cursor = reference ? null : page.cursor || null;
-				}
+				},
+				'settings.Account.load'
 			);
 		return work.load(
 			async () => {
@@ -123,7 +127,8 @@
 						sessionStorage.removeItem('craftsky.deletion');
 					} catch {}
 				}
-			}
+			},
+			'settings.Account.load'
 		);
 	}
 	async function beginDeletion() {
@@ -160,7 +165,8 @@
 				} catch {}
 				window.location.assign(intent.authUrl);
 			},
-			'Opening your account provider for fresh verification…'
+			'Opening your account provider for fresh verification…',
+			'settings.Account.startDeletion'
 		);
 	}
 	function cancelDeletion() {
@@ -179,7 +185,8 @@
 					sessionStorage.removeItem('craftsky.deletion');
 				} catch {}
 			},
-			'Account deletion cancelled.'
+			'Account deletion cancelled.',
+			'settings.Account.cancelDeletion'
 		);
 	}
 	function confirmDeletion(event: SubmitEvent) {
@@ -206,7 +213,8 @@
 				} catch {}
 				window.location.assign('/sign-in');
 			},
-			'Account deletion requested.'
+			'Account deletion requested.',
+			'settings.Account.confirmDeletion'
 		);
 	}
 	function more() {
@@ -218,7 +226,8 @@
 				history = [...history, ...page.items];
 				cursor = page.cursor || null;
 			},
-			''
+			'',
+			'settings.Account.more'
 		);
 	}
 	function appeal(reference: string) {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { confirmNavigation } from '../social/navigation-prompt';
+	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { goto } from '$app/navigation';
@@ -39,6 +41,20 @@
 	} = $props();
 	let controller = $state<MessagesController>();
 	let viewState = $state<MessagesState>();
+	confirmNavigation(
+		() =>
+			!!viewState &&
+			!viewState.draftSaved &&
+			!!viewState.draft.text &&
+			viewState.draft.text !== viewState.draft.pending?.text,
+		{
+			title: 'Discard unsaved message?',
+			detail:
+				'Choose Save draft before leaving to keep your text on this device.',
+			confirmLabel: 'Discard',
+			danger: true
+		}
+	);
 	const settingsGate = $derived(
 		viewState?.view === 'settings' ||
 			['disabled', 'authorizationNeeded'].includes(
@@ -292,7 +308,8 @@
 			)
 				throw new Error('Invalid authorization target');
 			if (account === session.id) window.location.assign(target.href);
-		} catch {
+		} catch (error) {
+			void reportFailure(error, 'messages.authorize');
 			if (account === session.id) {
 				authorizationError =
 					'Messaging permissions could not be opened. Try again.';
@@ -959,10 +976,13 @@
 
 			{#if !viewState.draftSaved}<div class="feedback error" role="alert">
 					<p>
-						Could not save this draft on your device. Your text is kept here.
-						Try saving again before leaving.
+						Your changes are not saved. Choose Save draft to keep them on this
+						device.
 					</p>
-					<button onclick={() => controller?.saveDraft()}>Save draft</button>
+					<button
+						disabled={viewState.busy || !!viewState.draft.pending}
+						onclick={() => controller?.saveDraft()}>Save draft</button
+					>
 				</div>{/if}
 			{#if !viewState.peerBlocked && viewState.conversation.canSend && viewState.status.capabilities.canSend}<form
 					class="message-composer"

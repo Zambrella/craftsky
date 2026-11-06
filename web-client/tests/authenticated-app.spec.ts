@@ -498,7 +498,7 @@ test('project pattern and material annotations link to their makers and hashtags
 	).toHaveAttribute('href', '/profiles/did%3Aplc%3Aalice');
 	await expect(details.locator('a[href^="javascript:"]')).toHaveCount(0);
 });
-test('a conflicting published edit keeps a recoverable local draft', async ({
+test('a conflicting published edit keeps unsaved changes in the editor without automatically creating a draft', async ({
 	page
 }) => {
 	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
@@ -518,20 +518,16 @@ test('a conflicting published edit keeps a recoverable local draft', async ({
 			exact: true
 		})
 	).toBeEnabled();
-	await page.goto('/drafts');
-	const recovered = page
-		.getByRole('listitem')
-		.filter({ has: page.getByText('Conflict changes', { exact: true }) });
-	await expect(recovered).toBeVisible();
-	await recovered
-		.getByRole('link', { name: 'Continue editing', exact: true })
-		.click();
 	await expect(
 		page.getByRole('textbox', {
 			name: 'What would you like to share?',
 			exact: true
 		})
 	).toHaveValue('Conflict changes');
+	await page.goto('/drafts');
+	await expect(page.getByText('Conflict changes', { exact: true })).toHaveCount(
+		0
+	);
 	const edit = (await calls()).find(
 		(call) =>
 			call.method === 'PATCH' && call.path === '/v1/posts/did:plc:alice/first'

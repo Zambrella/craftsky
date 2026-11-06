@@ -91,10 +91,15 @@ export class CraftskyAPI {
 			this.transport.get<T.PostPresentation>(postPath(did, rkey)),
 		editSeed: (did: string, rkey: string) =>
 			this.transport.get<T.PostEditSeed>(`${postPath(did, rkey)}/edit`),
-		create: (payload: T.PostPayload, operationKey: string) =>
+		create: (
+			payload: T.PostPayload,
+			operationKey: string,
+			signal?: AbortSignal
+		) =>
 			this.transport.request<T.Post>('POST', '/v1/posts', {
 				body: payload,
 				operationKey,
+				signal,
 				validate: acceptedPost
 			}),
 		edit: (
@@ -102,12 +107,14 @@ export class CraftskyAPI {
 			rkey: string,
 			changes: T.PostEditChanges,
 			expectedCid: string,
-			operationKey: string
+			operationKey: string,
+			signal?: AbortSignal
 		) =>
 			this.transport.request<T.PostEditResult>('PATCH', postPath(did, rkey), {
 				body: { changes },
 				expectedCid,
 				operationKey,
+				signal,
 				validate: acceptedEdit
 			}),
 		delete: (
@@ -457,15 +464,26 @@ export class CraftskyAPI {
 			this.transport.page<T.ScheduledPostSummary>('/v1/scheduled-posts'),
 		get: (id: string) =>
 			this.transport.get<T.ScheduledPost>(`/v1/scheduled-posts/${segment(id)}`),
-		create: (operationId: string, scheduledAt: string, payload: T.JsonObject) =>
+		create: (
+			operationId: string,
+			scheduledAt: string,
+			payload: T.JsonObject,
+			signal?: AbortSignal
+		) =>
 			this.transport.request<T.ScheduledPost>('POST', '/v1/scheduled-posts', {
+				signal,
 				body: { operationId, scheduledAt, payload }
 			}),
-		update: (id: string, scheduledAt: string, payload: T.JsonObject) =>
+		update: (
+			id: string,
+			scheduledAt: string,
+			payload: T.JsonObject,
+			signal?: AbortSignal
+		) =>
 			this.transport.request<T.ScheduledPost>(
 				'PUT',
 				`/v1/scheduled-posts/${segment(id)}`,
-				{ body: { scheduledAt, payload } }
+				{ signal, body: { scheduledAt, payload } }
 			),
 		delete: (id: string) =>
 			this.transport.request<void>(
@@ -473,11 +491,11 @@ export class CraftskyAPI {
 				`/v1/scheduled-posts/${segment(id)}`,
 				{ response: 'empty' }
 			),
-		publish: (id: string, payload: T.JsonObject) =>
+		publish: (id: string, payload: T.JsonObject, signal?: AbortSignal) =>
 			this.transport.request<{ status: 'published' | 'publishing' }>(
 				'POST',
 				`/v1/scheduled-posts/${segment(id)}/publication`,
-				{ body: { payload } }
+				{ signal, body: { payload } }
 			),
 		stageMedia: (
 			id: string,

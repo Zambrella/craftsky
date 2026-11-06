@@ -216,8 +216,8 @@ test('two browser accounts switch independently and isolate API401 while preserv
 	expect(state.accounts.map((account) => account.did)).toEqual([alice.did]);
 	expect(state.active).toBe(aliceId);
 	expect(
-		(await context.cookies()).some(
-			(cookie) => cookie.name === 'craftsky_account_' + aliceId
+		(await context.cookies()).some((cookie) =>
+			cookie.name.startsWith('craftsky_account_' + aliceId + '_')
 		)
 	).toBe(true);
 });

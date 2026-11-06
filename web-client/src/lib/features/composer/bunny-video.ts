@@ -1,10 +1,11 @@
+import { UserFacingError, InputError } from '#lib/user-facing-error.ts';
 import type { JsonObject } from '#lib/api/client.ts';
 import type { DraftMedia } from '../drafts/store.ts';
 
 const endpoint = 'https://video.bunnycdn.com/tusupload';
 const chunkBytes = 8 * 1024 * 1024;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-class BunnyUploadProtocolError extends Error {}
+class BunnyUploadProtocolError extends UserFacingError {}
 const invalid = () =>
 	new BunnyUploadProtocolError(
 		'The video service returned an invalid upload response.'
@@ -47,7 +48,7 @@ export async function uploadBunnyVideo(
 		!title.length ||
 		title.length > 200
 	)
-		throw new Error('Could not authorize this video upload.');
+		throw new UserFacingError('Could not authorize this video upload.');
 	const source = media.blob;
 	if (
 		!source ||
@@ -55,7 +56,9 @@ export async function uploadBunnyVideo(
 		source.size > 300_000_000 ||
 		!['video/mp4', 'video/quicktime'].includes(media.mime)
 	)
-		throw new Error('Choose an MP4 or MOV video up to 300 MB and ten minutes.');
+		throw new InputError(
+			'Choose an MP4 or MOV video up to 300 MB and ten minutes.'
+		);
 	const headers = {
 		'Tus-Resumable': '1.0.0',
 		AuthorizationSignature: token,
@@ -93,7 +96,7 @@ export async function uploadBunnyVideo(
 		}
 	});
 	if (created.status !== 201)
-		throw new Error('The video service could not start this upload.');
+		throw new UserFacingError('The video service could not start this upload.');
 	const location = created.headers.get('Location');
 	if (!location) throw invalid();
 	let target: URL;
@@ -141,9 +144,11 @@ export async function uploadBunnyVideo(
 				![408, 409, 423, 429].includes(response.status) &&
 				response.status < 500
 			)
-				throw new Error('The video service could not accept this upload.');
+				throw new UserFacingError(
+					'The video service could not accept this upload.'
+				);
 			if (++recoveries > 3)
-				throw new Error(
+				throw new UserFacingError(
 					'Could not finish uploading this video. Your draft is still available.',
 					{ cause }
 				);

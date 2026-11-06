@@ -8,9 +8,9 @@ const branded = new Set([
 	'embroidery'
 ]);
 
-export function identityCrafts(crafts: readonly string[] = []) {
+export function identityCrafts(crafts?: readonly string[] | null) {
 	const entries = new Map<string, string>();
-	for (const craft of crafts) {
+	for (const craft of crafts ?? []) {
 		const id = craft.split('#').at(-1)?.trim().toLowerCase() || '';
 		if (id) entries.set(id, label(id));
 	}

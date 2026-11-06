@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f2e8" />
+    <meta name="description" content="Public CraftSky statistics: accounts, posts, project posts and projects by craft." />
+    <meta name="craftsky-stats-api" content="https://appview.craftsky.social/v1/public/stats" />
+    <link rel="canonical" href="https://stats.craftsky.social/" />
+    <meta property="og:title" content="CraftSky in numbers" />
+    <meta property="og:description" content="Public CraftSky statistics: accounts, posts, project posts and projects by craft." />
+    <meta property="og:url" content="https://stats.craftsky.social/" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/DMSerifDisplay-400.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/fonts/Outfit-400.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/main.js" defer></script>
+    <title>CraftSky in numbers</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#headline-numbers">Skip to the numbers</a>
+    <main>
+      <section class="hero wrap" aria-labelledby="page-title">
+        <h1 id="page-title">CraftSky<br /><em>in numbers.</em></h1>
+      </section>
+
+      <div id="stats-content" data-state="loading" aria-busy="true">
+        <section class="numbers wrap" aria-labelledby="numbers-title">
+          <div class="section-heading"><h2 id="numbers-title">Headline numbers</h2><p class="data-status" id="data-status" role="status">Loading…</p></div>
+          <div class="error-note" id="error-note" role="alert" hidden><p>Statistics couldn't load.</p><button type="button" id="retry">Try again <span aria-hidden="true">↻</span></button></div>
+          <dl class="number-grid" id="headline-numbers" tabindex="-1">
+            <div class="number-card card-lilac"><dt><span class="card-motif" aria-hidden="true">✳</span>Accounts</dt><dd data-stat="accounts" aria-label="Loading">—</dd></div>
+            <div class="number-card card-peach"><dt><span class="card-motif" aria-hidden="true">❋</span>Posts</dt><dd data-stat="posts" aria-label="Loading">—</dd></div>
+            <div class="number-card card-yellow"><dt><span class="card-motif" aria-hidden="true">✥</span>Project posts</dt><dd data-stat="projectPosts" aria-label="Loading">—</dd></div>
+            <div class="number-card card-sage"><dt><span class="card-motif" aria-hidden="true">✷</span>Finished project posts</dt><dd data-stat="finishedProjectPosts" aria-label="Loading">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="crafts wrap" aria-labelledby="crafts-title">
+          <div class="section-heading"><h2 id="crafts-title">Projects by craft</h2></div>
+          <div class="chart-board">
+            <div data-testid="craft-chart" class="craft-chart" id="craft-chart" aria-busy="true">
+              <p class="chart-message">Loading…</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="counting-note wrap">
+        <p class="snapshot-time" id="snapshot-time">Updated on page load.</p>
+        <details><summary>What's counted</summary><p>Public profiles and visible top-level posts. Posts include project posts, but not replies. Project counts exclude quotes. Each project post counts once under its primary craft; updates to the same make count separately. Finished project posts are marked finished.</p></details>
+      </div>
+      <div class="join-section wrap">
+        <a class="join-button" href="https://app.craftsky.social">Join CraftSky <span aria-hidden="true">↗</span></a>
+      </div>
+    </main>
+
+    <footer class="site-footer wrap"><div><a href="https://craftsky.social">About</a><a href="https://craftsky.social/privacy">Privacy</a><a href="https://craftsky.social/community-guidelines">Community guidelines</a></div></footer>
+    <noscript><div class="noscript-note">JavaScript is required to load statistics. <a href="https://app.craftsky.social">Open CraftSky</a></div></noscript>
+  </body>
+</html>

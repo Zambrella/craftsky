@@ -3,7 +3,10 @@ import { Buffer } from 'node:buffer';
 import type { Cookies } from '@sveltejs/kit';
 
 export type BrowserAccount = { id: string; did: string; handle: string };
-export type Credential = BrowserAccount & { token: string };
+export type Credential = BrowserAccount & {
+	token: string;
+	generation?: string;
+};
 export type Intent = {
 	state: string;
 	active: string;
@@ -270,9 +273,11 @@ export function credentials(cookies: Cookies, url: URL): Credential[] {
 		const value = decode<Record<string, unknown>>(item.value);
 		if (
 			value &&
-			keys(value, ['id', 'token', 'did', 'handle']) &&
+			keys(value, ['id', 'token', 'did', 'handle', 'generation']) &&
 			accountID(value.id) &&
-			item.name === key + value.id &&
+			(value.generation === undefined || accountID(value.generation)) &&
+			item.name ===
+				key + value.id + (value.generation ? '_' + value.generation : '') &&
 			capability(value.token) &&
 			did(value.did) &&
 			handle(value.handle) &&
@@ -294,29 +299,21 @@ export function selected(cookies: Cookies, url: URL, explicit?: string) {
 export function publicAccount(value: Credential): BrowserAccount {
 	return { id: value.id, did: value.did, handle: value.handle };
 }
+export function credentialCookie(url: URL, value: Credential) {
+	return (
+		prefix(url) +
+		'account_' +
+		value.id +
+		(value.generation ? '_' + value.generation : '')
+	);
+}
 export function remove(cookies: Cookies, url: URL, id: string) {
-	const wasActive = selected(cookies, url)?.id === id;
-	cookies.delete(prefix(url) + 'account_' + id, { path: '/' });
-	if (wasActive) {
-		const next = credentials(cookies, url).find((item) => item.id !== id);
-		if (next) cookies.set(prefix(url) + 'active', next.id, options(url));
-		else cookies.delete(prefix(url) + 'active', { path: '/' });
-	}
-	for (const suffix of [
-		'intent',
-		'pending',
-		'deletion_intent',
-		'deletion_pending'
-	]) {
-		const value = decode<Record<string, unknown>>(
-			cookies.get(prefix(url) + suffix)
-		);
-		if (
-			value &&
-			(value.source === id || value.accountId === id || value.active === id)
-		)
-			cookies.delete(prefix(url) + suffix, { path: '/' });
-	}
+	// The response may arrive after another tab refreshed credentials or selected an account.
+	// Only this activation's uniquely named credential may be invalidated. Selection
+	// falls back when its referenced credential is absent; shared intent cookies expire.
+	const credential = credentials(cookies, url).find((item) => item.id === id);
+	if (credential)
+		cookies.delete(credentialCookie(url, credential), { path: '/' });
 }
 export function store(cookies: Cookies, url: URL, pending: Pending) {
 	if (!readPending(encode(pending)))
@@ -329,16 +326,20 @@ export function store(cookies: Cookies, url: URL, pending: Pending) {
 			throw new Error('Messaging source account unavailable');
 	}
 	if (!existing && list.length >= 8) throw new Error('Account limit reached');
-	const id = existing?.id || crypto.randomUUID();
+	// Every credential activation gets a distinct cookie name. A late response for
+	// an old activation cannot overwrite or delete the new bearer.
+	const id = existing?.id ?? crypto.randomUUID();
 	const value: Credential = {
 		id,
+		generation: crypto.randomUUID(),
 		token: pending.token,
 		did: pending.did,
 		handle: pending.handle
 	};
 	const current = selected(cookies, url)?.id || '';
-	cookies.set(prefix(url) + 'account_' + id, encode(value), options(url));
-	if (!current || current === pending.active)
+	if (existing) remove(cookies, url, existing.id);
+	cookies.set(credentialCookie(url, value), encode(value), options(url));
+	if (!current || current === pending.active || current === existing?.id)
 		cookies.set(prefix(url) + 'active', id, options(url));
 	cookies.delete(prefix(url) + 'pending', { path: '/' });
 	return value;

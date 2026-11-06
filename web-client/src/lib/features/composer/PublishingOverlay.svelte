@@ -4,12 +4,14 @@
 		active,
 		label,
 		video = false,
-		fraction
+		fraction,
+		onstop
 	}: {
 		active: boolean;
 		label: string;
 		video?: boolean;
 		fraction?: number;
+		onstop: () => void;
 	} = $props();
 	let dialog: HTMLDialogElement;
 	$effect(() => {
@@ -33,6 +35,7 @@
 		<p>{label}</p>
 		{#if video}<progress max="100" value={fraction} aria-label="Video progress"
 			></progress>{/if}
+		<button type="button" onclick={onstop}>Stop waiting</button>
 	</div>
 </dialog>
 

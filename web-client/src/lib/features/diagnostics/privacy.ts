@@ -1,3 +1,4 @@
+import { InputError } from '#lib/user-facing-error.ts';
 import { APIError } from '#lib/api/transport.ts';
 import type { ErrorEvent, Event, EventHint, StackFrame } from '@sentry/browser';
 import type { Envelope, EventEnvelope, Transport } from '@sentry/core';
@@ -14,7 +15,11 @@ const nativeTypes = new Set([
 	'UnhandledRejection',
 	'APIError',
 	'MutationOutcomeUnknownError',
-	'QuotaExceededError'
+	'QuotaExceededError',
+	'UserFacingError',
+	'AbortError',
+	'TimeoutError',
+	'NotAllowedError'
 ]);
 const eventID = (value: unknown): value is string =>
 	typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
@@ -62,12 +67,13 @@ function frame(value: StackFrame): StackFrame {
 	};
 }
 export function expectedFailure(error: unknown): boolean {
+	if (error instanceof InputError) return true;
 	if (error instanceof APIError)
 		return error.status < 500 && error.code !== 'invalid_response';
 	if (
 		typeof DOMException !== 'undefined' &&
 		error instanceof DOMException &&
-		error.name === 'AbortError'
+		['AbortError', 'NotAllowedError'].includes(error.name)
 	)
 		return true;
 	if (
@@ -82,9 +88,140 @@ export function expectedFailure(error: unknown): boolean {
 	return false;
 }
 
-const operations = new Set(['framework', 'workspace', 'composer', 'startup']);
-export type DiagnosticOperation =
-	'framework' | 'workspace' | 'composer' | 'startup';
+const operationNames = [
+	'post.unsave',
+	'drafts.manage',
+	'push.open',
+	'messages.draft.load',
+	'messages.draft.save',
+	'messages.report.save',
+	'messages.send.prepare',
+	'composer.media.edit',
+	'messages.authorize',
+	'post.chooseFolder',
+	'post.createFolder',
+	'post.like',
+	'post.relationship',
+	'post.remove',
+	'post.report',
+	'post.repost',
+	'post.revealPost',
+	'post.revealQuote',
+	'post.save',
+	'post.toggle',
+	'post.togglePin',
+	'composer',
+	'composer.addAttachments',
+	'composer.addImages',
+	'composer.addVideo',
+	'composer.discardDraft',
+	'composer.initialize',
+	'composer.perform',
+	'composer.requestClose',
+	'composer.retry',
+	'composer.saveDraft',
+	'composer.submit',
+	'discovery.crafts',
+	'discovery.members',
+	'framework',
+	'messages.checkSend',
+	'messages.more',
+	'messages.navigate',
+	'messages.presented',
+	'messages.search',
+	'messages.send',
+	'messages.setPolicy',
+	'messages.start',
+	'messages.sync',
+	'page.import',
+	'push.toggle',
+	'settings.Account.action',
+	'settings.Account.cancelDeletion',
+	'settings.Account.confirmDeletion',
+	'settings.Account.load',
+	'settings.Account.more',
+	'settings.Account.startDeletion',
+	'settings.Billing.action',
+	'settings.Billing.assign',
+	'settings.Billing.load',
+	'settings.Billing.refresh',
+	'settings.Billing.unassign',
+	'settings.Business.action',
+	'settings.Business.deleteEvent',
+	'settings.Business.deleteProfile',
+	'settings.Business.load',
+	'settings.Business.more',
+	'settings.Business.saveEvent',
+	'settings.Business.saveProfile',
+	'settings.Business.useImage',
+	'settings.Connections.action',
+	'settings.Connections.load',
+	'settings.Connections.more',
+	'settings.Connections.remove',
+	'settings.Instagram.accept',
+	'settings.Instagram.action',
+	'settings.Instagram.importFollowing',
+	'settings.Instagram.load',
+	'settings.Instagram.moreImports',
+	'settings.Instagram.moreSuggestions',
+	'settings.Instagram.readFile',
+	'settings.Instagram.setDiscoverable',
+	'settings.Instagram.update',
+	'settings.Instagram.verify',
+	'settings.Preferences.action',
+	'settings.Preferences.changeIncoming',
+	'settings.Preferences.changePush',
+	'settings.Preferences.load',
+	'settings.Preferences.notification',
+	'settings.Preferences.replaceLanguages',
+	'settings.Preferences.saveCustomisation',
+	'settings.Preferences.setMessaging',
+	'settings.SettingsWorkspace.action',
+	'settings.SettingsWorkspace.loadMenu',
+	'settings.SettingsWorkspace.signOut',
+	'settings.load',
+	'settings.save',
+	'social',
+	'social.Activity.action',
+	'social.Activity.follow',
+	'social.Activity.load',
+	'social.Event.action',
+	'social.Event.load',
+	'social.Feed.action',
+	'social.Feed.load',
+	'social.MutualFollowers.action',
+	'social.MutualFollowers.load',
+	'social.Onboarding.action',
+	'social.Onboarding.finish',
+	'social.Profile.action',
+	'social.Profile.business.profileEvents',
+	'social.Profile.follow',
+	'social.Profile.more',
+	'social.Profile.profiles.get',
+	'social.Profile.profiles.posts',
+	'social.Profile.relationship',
+	'social.Profile.report',
+	'social.ProfileEditor.action',
+	'social.ProfileEditor.profiles.me',
+	'social.ProfileEditor.save',
+	'social.Saved.action',
+	'social.Saved.create',
+	'social.Saved.load',
+	'social.Saved.remove',
+	'social.Saved.rename',
+	'social.Search.action',
+	'social.Search.load',
+	'social.Search.suggest',
+	'social.Tag.action',
+	'social.Tag.load',
+	'social.Thread.action',
+	'social.Thread.load',
+	'social.Thread.replies',
+	'startup',
+	'workspace'
+] as const;
+const operations = new Set<string>(operationNames);
+export type DiagnosticOperation = (typeof operationNames)[number];
 const uuid = (value: unknown): value is string =>
 	typeof value === 'string' &&
 	/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
@@ -99,6 +236,11 @@ export function failureContext(
 		...(error instanceof APIError
 			? {
 					httpStatus: error.status,
+					...(error.responseKind ? { responseKind: error.responseKind } : {}),
+					...(error.httpMethod &&
+					/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(error.httpMethod)
+						? { httpMethod: error.httpMethod }
+						: {}),
 					...(/^[a-z][a-z0-9_]{0,63}$/.test(error.code)
 						? { errorCode: error.code }
 						: {}),
@@ -111,6 +253,14 @@ export function failureContext(
 }
 function selectedContext(value: Record<string, unknown> = {}) {
 	return {
+		...(typeof value.responseKind === 'string' &&
+		['appViewError', 'json', 'nonJson', 'empty'].includes(value.responseKind)
+			? { responseKind: value.responseKind }
+			: {}),
+		...(typeof value.httpMethod === 'string' &&
+		/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(value.httpMethod)
+			? { httpMethod: value.httpMethod }
+			: {}),
 		...(typeof value.operation === 'string' && operations.has(value.operation)
 			? { operation: value.operation }
 			: {}),

@@ -115,6 +115,9 @@ test('settings enables messaging in place and failed shared preferences keep the
 	]);
 	await push.click();
 	await expect(page.getByRole('alert')).toContainText(
+		"That didn't work. Please try again."
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Preference was not saved.'
 	);
 	await expect(push).not.toBeChecked();
@@ -123,6 +126,9 @@ test('settings enables messaging in place and failed shared preferences keep the
 	await incoming.click();
 	await page.getByRole('option', { name: 'Nobody', exact: true }).click();
 	await expect(page.getByRole('alert')).toContainText(
+		"That didn't work. Please try again."
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Preference was not saved.'
 	);
 	await expect(incoming).toHaveValue('People I follow');
@@ -189,6 +195,9 @@ test('failed native notification choices restore the saved category without chan
 		.getByRole('option', { name: 'People I follow', exact: true })
 		.click();
 	await expect(page.getByRole('alert')).toContainText(
+		"That didn't work. Please try again."
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Notification preferences were not saved.'
 	);
 	await expect(likes.getByRole('combobox')).toHaveValue('Everyone');
@@ -293,6 +302,9 @@ test('native content-language chips preserve authoritative preferences after fai
 		})
 		.click();
 	await expect(page.getByRole('alert')).toContainText(
+		"That didn't work. Please try again."
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Language preferences were not saved.'
 	);
 	await expect(
@@ -656,6 +668,9 @@ test('Instagram keeps the native private confirmation choice and describes all r
 	expect(writes[0].body).toEqual({ discoverable: false });
 	await discoverable.click();
 	await expect(page.getByRole('alert')).toContainText(
+		"That didn't work. Please try again."
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Discovery preference was not saved.'
 	);
 	await expect(discoverable).not.toBeChecked();

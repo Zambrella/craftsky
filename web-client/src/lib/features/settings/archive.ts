@@ -1,3 +1,4 @@
+import { InputError } from '#lib/user-facing-error.ts';
 import {
 	BlobReader,
 	ZipReader,
@@ -24,7 +25,7 @@ const maximum = {
 	directoryBytes: 64 * 1024 * 1024
 };
 type Limits = typeof maximum;
-class ExportError extends Error {}
+class ExportError extends InputError {}
 const invalid = () =>
 	new ExportError(
 		'This Instagram archive is invalid or damaged. Extract following.json and try that file instead.'

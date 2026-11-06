@@ -41,7 +41,8 @@ describe('AppView wire contracts', () => {
 		);
 		expect(request().method).toBe('POST');
 		expect(request().url).toBe(`/api/appview/v1/blobs/videos/${jobId}/status`);
-		expect(request().signal).toBe(controller.signal);
+		expect(request().signal).toBeInstanceOf(AbortSignal);
+		expect(request().signal?.aborted).toBe(false);
 		expect(request().body).toBeUndefined();
 		expect(() => api.media.videoStatus('../authorization')).toThrow(
 			'Invalid video job'
@@ -431,9 +432,36 @@ describe('transport failure and mutation semantics', () => {
 		await expect(
 			api.posts.timeline({ signal: controller.signal })
 		).rejects.toMatchObject({ name: 'AbortError' });
-		expect(fetcher.mock.calls[0][1]?.signal).toBe(controller.signal);
+		expect(fetcher).not.toHaveBeenCalled();
 		await expect(
 			api.posts.like('did:plc:a', 'post', key)
 		).rejects.toBeInstanceOf(MutationOutcomeUnknownError);
 	});
+});
+
+it('keeps video finalisation alive beyond ordinary request deadlines but bounded to seven minutes', async () => {
+	vi.useFakeTimers();
+	try {
+		const { api, fetcher, request } = setup();
+		fetcher.mockImplementationOnce(async () => new Promise(() => {}));
+		let settled = false;
+		const task = api.media.videoStatus('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa');
+		const result = expect(task).rejects.toMatchObject({ name: 'TimeoutError' });
+		void task.then(
+			() => {
+				settled = true;
+			},
+			() => {
+				settled = true;
+			}
+		);
+		await vi.advanceTimersByTimeAsync(120001);
+		expect(settled).toBe(false);
+		expect(request().signal?.aborted).toBe(false);
+		await vi.advanceTimersByTimeAsync(300000);
+		await result;
+		expect(request().signal?.aborted).toBe(true);
+	} finally {
+		vi.useRealTimers();
+	}
 });

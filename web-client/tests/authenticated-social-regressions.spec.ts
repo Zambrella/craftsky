@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 const base = 'http://127.0.0.1:19846';
 const alice = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',

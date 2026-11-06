@@ -167,7 +167,7 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 			BlockedBy:         row.BlockedBy,
 		},
 		ViewerIsFollowing: row.ViewerIsFollowing,
-		Crafts:            append([]string(nil), row.Crafts...),
+		Crafts:            append([]string{}, row.Crafts...),
 	}
 	if row.IsCraftskyProfile {
 		value := DefaultProfileCustomisation

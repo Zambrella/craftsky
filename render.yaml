@@ -27,7 +27,7 @@ projects:
           - name: craftsky-appview-prod-config
             envVars:
               - key: ALLOWED_ORIGINS
-                value: https://craftsky.social,https://www.craftsky.social
+                value: https://craftsky.social,https://www.craftsky.social,https://stats.craftsky.social
               - key: APPVIEW_REPLICA_COUNT
                 value: "1"
               - key: APPVIEW_EXPECTED_HOSTS

@@ -11,6 +11,8 @@ export default defineConfig({
 	use: {
 		baseURL: 'http://127.0.0.1:19846',
 		javaScriptEnabled: true,
+		trace: 'retain-on-failure',
+		screenshot: 'only-on-failure',
 		viewport: { width: 1280, height: 900 }
 	},
 	webServer: [

@@ -408,3 +408,38 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
   Production worker rollout, production failure delivery and release-device
   retrieval were not exercised. No production faults or issue-state changes
   were introduced. This backend change does not require a new client build.
+
+### 5 November 2026: web search crash and autocomplete recovery
+
+- Read-only inspection of `WEB-CLIENT-1` confirmed that the owner's opted-in
+  production reproduction was delivered and symbolicated to `identityCrafts`
+  through `CompactIdentity.svelte`. This is evidence for the existing release's
+  delivery and symbolication, not deployment evidence for these fixes.
+- The shared web renderer now accepts null/absent crafts; AppView search summaries
+  serialize empty crafts as arrays. Autocomplete uses the existing `Work` error
+  owner and privacy-filtered reporter, with retry UI and canceled/stale-request
+  fencing. Reporting consent and SDK privacy gates are unchanged.
+- The web unit suite passed all 320 tests. Svelte checking passed with zero
+  errors/warnings. Production builds and private source-map preparation passed;
+  the normal local build was restored after loopback diagnostic testing.
+- All 24 selected browser tests passed: search null/empty/absent crafts, native
+  grouping and counts, clearing/cancel/submission, stale requests, retry,
+  diagnostic consent/classification/correlation, accessibility and cached-tab
+  navigation. Intercepted local Sentry envelopes retained API status/request ID
+  and excluded query/server-message canaries; expected 400 errors emitted no
+  event, and a 500 error emitted one event. Mobile and desktop fixture screenshots
+  were visually inspected. No synthetic hosted Sentry event was sent.
+- Flutter/native-device tests were not rerun because no Flutter code changed.
+  Hosted verification of the new behavior, source-map upload and deployment have
+  not been performed. The existing Sentry issue remains unresolved pending a
+  release; no Sentry configuration or issue-state mutation occurred.
+- A further light/dark axe scan is scoped to the changed search form. The initial
+  whole-page scan also found an existing app-shell Create post button contrast
+  warning (3.54:1); that unrelated control is not changed in this search fix.
+- `just test` ran the full Go suite with the race detector. All packages passed
+  except scheduledposts, whose MinIO integration test found that this newly
+  created worktree fixture had no private bucket. After the checked-in
+  `minio-bootstrap` service initialized the buckets, the entire affected package
+  passed via `./scripts/appview-test focused -race ./internal/scheduledposts`.
+  The full command was not repeated; the only failing package was rerun after
+  repairing its fixture. The test services started for this run were then stopped.

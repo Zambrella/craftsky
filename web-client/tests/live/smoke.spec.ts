@@ -62,7 +62,27 @@ async function onboarding(page: Page, bio: string) {
 		'aria-valuenow',
 		'2'
 	);
-	await page.getByRole('button', { name: 'Next', exact: true }).click();
+	const next = page.getByRole('button', { name: 'Next', exact: true });
+	try {
+		await next.click();
+	} catch (error) {
+		// Static control state only: never print page contents, OAuth URLs, or account data.
+		const message = error instanceof Error ? error.message : '';
+		console.log(
+			'Onboarding next state: ' +
+				JSON.stringify({
+					present: (await next.count()) > 0,
+					visible: await next.isVisible(),
+					enabled: (await next.count()) > 0 && (await next.isEnabled()),
+					saveNext: await page
+						.getByRole('button', { name: 'Save & next', exact: true })
+						.isVisible(),
+					pointerBlocked: message.includes('intercepts pointer events'),
+					unstable: message.includes('not stable')
+				})
+		);
+		throw error;
+	}
 	await page.getByRole('checkbox', { name: /at least 16 years old/ }).check();
 	await page.getByRole('button', { name: 'Finish', exact: true }).click();
 	await expect(

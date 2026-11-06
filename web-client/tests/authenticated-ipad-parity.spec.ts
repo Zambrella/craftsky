@@ -191,7 +191,9 @@ test('video uploads are available without a release flag', async ({ page }) => {
 		page.getByText('Add photos or a video', { exact: true })
 	).toBeVisible();
 	await expect(
-		page.getByText('Choose up to 8 photos or a video, or drag and drop.', { exact: true })
+		page.getByText('Choose up to 8 photos or a video, or drag and drop.', {
+			exact: true
+		})
 	).toBeVisible();
 	await expect(
 		page.getByLabel('Choose a video', { exact: true })

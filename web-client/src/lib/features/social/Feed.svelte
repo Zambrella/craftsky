@@ -45,7 +45,7 @@
 	let loadedPages = snapshot?.pages || 0;
 	let disposed = false;
 	let loaded = !!snapshot;
-	const work = new Work();
+	const work = new Work('social.Feed.action');
 	let profile = $state<Profile | undefined>(
 		snapshot?.profile ?? untrack(() => currentProfile?.())
 	);
@@ -126,7 +126,9 @@
 				loadedPages = more ? loadedPages + 1 : 1;
 				loaded = true;
 				saveView();
-			}
+			},
+			undefined,
+			'social.Feed.load'
 		);
 	}
 	onMount(() => {

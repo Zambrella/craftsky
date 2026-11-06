@@ -1,3 +1,4 @@
+import { UserFacingError } from '#lib/user-facing-error.ts';
 import * as publicEnv from '$app/env/public';
 import { diagnosticOptions } from './options.ts';
 import {
@@ -21,8 +22,11 @@ export function consent(): boolean {
 export function setConsent(value: boolean) {
 	try {
 		localStorage.setItem(key, String(value));
-	} catch {
-		throw new Error('This browser could not save your privacy preference.');
+	} catch (error) {
+		throw new UserFacingError(
+			'This browser could not save your privacy preference.',
+			{ cause: error }
+		);
 	}
 	if (typeof window !== 'undefined')
 		window.dispatchEvent(new Event('craftsky-diagnostics-change'));

@@ -111,7 +111,7 @@ describe('Bunny upload and AppView publication', () => {
 			});
 			await vi.runAllTimersAsync();
 			await result;
-			expect(videoStatus).toHaveBeenCalledWith(jobId, activeSignal);
+			expect(videoStatus).toHaveBeenCalledWith(jobId, expect.any(AbortSignal));
 			expect(metadata(fetcher.mock.calls[0][1])).toEqual({
 				filetype: mime,
 				title: authorization().title,

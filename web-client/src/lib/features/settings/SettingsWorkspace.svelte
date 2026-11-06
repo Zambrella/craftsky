@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import type {
@@ -34,7 +35,7 @@
 		path.includes('settings') ? path.slice(path.indexOf('settings') + 1) : path
 	);
 	let section = $derived(parts[0] || '');
-	const menu = new Work();
+	const menu = new Work('settings.SettingsWorkspace.action');
 	let restricted = $state(false),
 		profile = $state<Profile>(),
 		access = $state<SubscriptionAccess>();
@@ -67,7 +68,8 @@
 								? 'Light'
 								: 'Use device setting';
 				} catch {}
-			}
+			},
+			'settings.SettingsWorkspace.loadMenu'
 		);
 	}
 	$effect(() => {
@@ -93,14 +95,16 @@
 			return;
 		void menu.run(
 			async () => {
-				if (!session.id) throw new Error('Reopen Settings to sign out.');
+				if (!session.id)
+					throw new UserFacingError('Reopen Settings to sign out.');
 				await disablePush(api, session.id).catch(() => {});
 				const response = await fetch('/api/auth/logout', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ accountId: session.id })
 				});
-				if (!response.ok) throw new Error('Could not sign out. Try again.');
+				if (!response.ok)
+					throw new UserFacingError('Could not sign out. Try again.');
 				await forgetPush(session.id).catch(() => {});
 				try {
 					clearAccountChat(localStorage, session.id, session.did);
@@ -108,7 +112,8 @@
 				location.assign('/feed');
 			},
 			() => {},
-			''
+			'',
+			'settings.SettingsWorkspace.signOut'
 		);
 	}
 </script>

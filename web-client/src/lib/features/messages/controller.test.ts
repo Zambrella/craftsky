@@ -1,3 +1,5 @@
+import { reportFailure } from '../diagnostics/client';
+vi.mock('../diagnostics/client', () => ({ reportFailure: vi.fn() }));
 import { describe, expect, it, vi } from 'vitest';
 import {
 	CraftskyAPI,
@@ -172,6 +174,9 @@ describe('account-owned messaging operations', () => {
 			() => new Promise((resolve) => (finish = resolve))
 		);
 		const pending = controller.send();
+		await vi.waitFor(() =>
+			expect(controller.state.draft.pending).toBeDefined()
+		);
 		const operationId = controller.state.draft.pending!.operationId;
 		controller.dispose();
 		publish.mockClear();
@@ -305,10 +310,10 @@ describe('account-owned messaging operations', () => {
 
 describe('account-owned shared-link recipient selection', () => {
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/post';
-	it('commits to the exact account/conversation before navigation and never sends', async () => {
+	it('keeps a shared link in memory until an explicit save and never sends', async () => {
 		const { api, controller, storage } = setup();
 		const store = new MessageDraftStore(storage, 'account-a');
-		store.save('existing', { text: 'My draft' });
+		await store.save('existing', { text: 'My draft' });
 		vi.spyOn(api.chat, 'availability').mockResolvedValue({
 			canChat: true,
 			conversationId: 'existing'
@@ -316,17 +321,17 @@ describe('account-owned shared-link recipient selection', () => {
 		const send = vi.spyOn(api.chat, 'send'),
 			start = vi.spyOn(api.chat, 'start');
 		expect(await controller.start('did:plc:peer', link)).toBe('existing');
-		expect(store.load('existing').text).toBe('My draft\n\n' + link);
+		expect(store.load('existing').text).toBe('My draft');
 		expect(
 			new MessageDraftStore(storage, 'account-b').load('existing')
 		).toEqual({ text: '' });
 		expect(send).not.toHaveBeenCalled();
 		expect(start).not.toHaveBeenCalled();
 	});
-	it('does not navigate when browser persistence fails and retains the prior draft', async () => {
+	it('does not require persistence to choose a recipient and retains the saved draft', async () => {
 		const { api, controller, storage } = setup();
 		const store = new MessageDraftStore(storage, 'account-a');
-		store.save('existing', { text: 'Keep' });
+		await store.save('existing', { text: 'Keep' });
 		vi.spyOn(api.chat, 'availability').mockResolvedValue({
 			canChat: true,
 			conversationId: 'existing'
@@ -334,9 +339,9 @@ describe('account-owned shared-link recipient selection', () => {
 		vi.spyOn(storage, 'setItem').mockImplementation(() => {
 			throw new Error('quota');
 		});
-		expect(await controller.start('did:plc:peer', link)).toBeUndefined();
+		expect(await controller.start('did:plc:peer', link)).toBe('existing');
 		expect(store.load('existing').text).toBe('Keep');
-		expect(controller.state.error).toContain('could not be saved');
+		expect(controller.state.error).toBe('');
 		expect(controller.state.busy).toBe(false);
 	});
 	it('discards a recipient result after the active controller is disposed', async () => {
@@ -362,4 +367,31 @@ describe('account-owned shared-link recipient selection', () => {
 		).toBeUndefined();
 		expect(read).not.toHaveBeenCalled();
 	});
+});
+
+it('reports a consumed message failure once with its original cause and action', async () => {
+	vi.mocked(reportFailure).mockClear();
+	const { api, controller } = setup();
+	const cause = new APIError(503, 'internal_error', 'PRIVATE_CANARY');
+	vi.spyOn(api.chat, 'status').mockRejectedValueOnce(cause);
+	await controller.navigate(['conversation']);
+	expect(reportFailure).toHaveBeenCalledExactlyOnceWith(
+		cause,
+		'messages.navigate'
+	);
+	expect(controller.state.error).toBe(
+		'CraftSky is having trouble right now. Please try again.'
+	);
+});
+
+it('does not repeatedly report the same failed polling cycle', async () => {
+	const { api, controller } = setup();
+	await controller.navigate(['conversation']);
+	vi.mocked(reportFailure).mockClear();
+	const cause = new Error('PRIVATE_CANARY');
+	vi.spyOn(api.chat, 'sync').mockRejectedValue(cause);
+	await controller.sync(true);
+	await controller.sync(true);
+	expect(reportFailure).toHaveBeenCalledExactlyOnceWith(cause, 'messages.sync');
+	expect(controller.state.error).not.toContain('PRIVATE_CANARY');
 });
