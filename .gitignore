@@ -76,3 +76,9 @@ web-client/.env*
 web-client/.sentry-artifacts/
 web-client/.deployments/
 .wrangler/
+
+# CraftSky in numbers standalone static site
+stats/node_modules/
+stats/playwright-report/
+stats/test-results/
+stats/.wrangler/

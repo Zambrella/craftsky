@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+# Let the worktree-aware Compose wrapper select the backend. Do not load any
+# backend credentials into the static site's process or change public assets.
+if ! appview_address=$(./scripts/compose-dev port appview 8080); then
+  echo 'Start this worktree’s backend with just dev-d first.' >&2
+  exit 1
+fi
+if [[ ! "$appview_address" =~ ^(127\.0\.0\.1|0\.0\.0\.0|localhost):([0-9]+)$ ]]; then
+  echo 'No local IPv4 AppView listener found. Run just dev-d first.' >&2
+  exit 1
+fi
+
+api_origin="http://127.0.0.1:${BASH_REMATCH[2]}"
+printf 'CraftSky stats: http://127.0.0.1:4186 (AppView: %s)\n' "$api_origin"
+exec python3 stats/dev_server.py --api-origin "$api_origin"

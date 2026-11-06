@@ -249,6 +249,23 @@ web-preview:
 web-deploy:
     ./scripts/web-deploy production
 
+# Install pinned stats-site tooling and its browser test runtime.
+stats-setup:
+    npm ci --prefix stats
+    cd stats && npm exec -- playwright install chromium
+
+# Serve the buildless stats site at http://127.0.0.1:4186.
+stats-dev:
+    npm run --prefix stats dev
+
+# Verify stats rendering, API failures, accessibility and responsive behavior.
+stats-check:
+    npm run --prefix stats check
+
+# Package the static Worker locally without publishing it.
+stats-dry-run:
+    npm run --prefix stats deploy:dry-run
+
 # Repository release quality checks, also used for private beta.
 # Run online-safety-readiness separately before full public launch.
 public-release-check:
