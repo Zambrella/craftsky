@@ -1701,7 +1701,7 @@ func TestBunnyVideoProviderConfiguration(t *testing.T) {
 func TestBunnyProductionRequiresCDNPurgeCredential(t *testing.T) {
 	const configuration = "VIDEO_PROVIDER=bunny\nBUNNY_STREAM_LIBRARY_ID=123\nBUNNY_STREAM_API_KEY=private-bunny-key\nBUNNY_STREAM_CDN_HOSTNAME=test.b-cdn.net\n"
 	_, err := LoadConfig(EnvProd, testConfigFile(t, configuration))
-	if err == nil || !strings.Contains(err.Error(), "Bunny CDN purge configuration is required") {
+	if err == nil || !strings.Contains(err.Error(), "bunny CDN purge configuration is required") {
 		t.Fatalf("missing production purge credential was not rejected: %v", err)
 	}
 }

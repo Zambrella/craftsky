@@ -12,7 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 void main() {
-  test('cancel aborts transfer, awaits remote cancellation, and never publishes a late proof', () async {
+  test('cancel aborts transfer, awaits remote cancellation, '
+      'and never publishes a late proof', () async {
     final transfer = Completer<VideoServiceResult>();
     final started = Completer<void>();
     final remote = Completer<void>();
@@ -29,11 +30,13 @@ void main() {
             required bypassDeduplication,
             required onProgress,
           }) async {
-            cancelToken.whenCancel.then((_) {
-              transportCanceled = true;
-            });
+            unawaited(
+              cancelToken.whenCancel.then((_) {
+                transportCanceled = true;
+              }),
+            );
             started.complete();
-            return transfer.future;
+            return await transfer.future;
           },
       poll: (_, _) async => throw StateError('must not poll'),
       publish: (_, {required allowBlobRecovery}) async {

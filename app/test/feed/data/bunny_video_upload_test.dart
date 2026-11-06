@@ -442,7 +442,7 @@ class _CancelTusAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     methods.add(options.method);
-    if (options.method == 'POST')
+    if (options.method == 'POST') {
       return ResponseBody.fromString(
         '',
         201,
@@ -450,6 +450,7 @@ class _CancelTusAdapter implements HttpClientAdapter {
           'location': ['https://video.bunnycdn.com/tusupload/test-resource'],
         },
       );
+    }
     started.complete();
     await cancelFuture;
     canceled.complete();

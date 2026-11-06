@@ -32,7 +32,7 @@ func init() {
 			}
 			defer cleanup()
 			if deps.Config.Env != app.EnvDev || deps.BunnyVideo == nil {
-				return errors.New("Bunny development configuration is required")
+				return errors.New("bunny development configuration is required")
 			}
 			var result any
 			switch cmd.Name() {

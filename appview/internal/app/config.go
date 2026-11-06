@@ -390,10 +390,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, fmt.Errorf("VIDEO_PROVIDER must be bluesky or bunny")
 	}
 	if cfg.VideoProvider == "bunny" && (cfg.BunnyStreamLibraryID == "" || cfg.BunnyStreamAPIKey == "" || cfg.BunnyStreamCDNHostname == "") {
-		return Config{}, fmt.Errorf("Bunny video configuration is incomplete")
+		return Config{}, fmt.Errorf("bunny video configuration is incomplete")
 	}
 	if cfg.VideoProvider == "bunny" && env == EnvProd && cfg.BunnyCDNPurgeAPIKey == "" {
-		return Config{}, fmt.Errorf("Bunny CDN purge configuration is required in production")
+		return Config{}, fmt.Errorf("bunny CDN purge configuration is required in production")
 	}
 	if strings.TrimSpace(cfg.RequiredPolicyVersion) != cfg.RequiredPolicyVersion || cfg.RequiredPolicyVersion == "" || len(cfg.RequiredPolicyVersion) > 128 {
 		return Config{}, fmt.Errorf("REQUIRED_POLICY_VERSION must be 1-128 trimmed characters")

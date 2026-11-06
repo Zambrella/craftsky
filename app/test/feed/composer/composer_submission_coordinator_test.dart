@@ -1,10 +1,11 @@
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('canceling video submission silently keeps the snapshot and releases the overlay', () async {
+  test('canceling video submission silently keeps the snapshot '
+      'and releases the overlay', () async {
     final events = <String>[];
     final coordinator = ComposerSubmissionCoordinator(
       screenAwake: _RecordingScreenAwake(events),

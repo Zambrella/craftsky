@@ -95,7 +95,7 @@ func newVideoDependencies(authCapability *authDependencies, federated *federated
 	}
 	if cfg.VideoProvider == "bunny" {
 		if len(options) != 1 || options[0].effects == nil {
-			return nil, errors.New("Bunny dependencies unavailable")
+			return nil, errors.New("bunny dependencies unavailable")
 		}
 		factory := func(ctx context.Context, owner syntax.DID, session string) (video.BunnyBlobEffects, error) {
 			return options[0].effects(ctx, owner, session)
