@@ -874,6 +874,9 @@ func TestExecutorUploadBlobUsesContentIdentityAndNeverRepeatsAfterDispatch(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
+	if pds.uploadRemaining > 10*time.Second {
+		t.Fatalf("ordinary blob timeout widened: %v", pds.uploadRemaining)
+	}
 	if uploaded == nil || uploaded.CID != predictedCID.String() || uploaded.MIME != request.MIME ||
 		uploaded.Size != int64(len(body)) || uploaded.Raw == nil {
 		t.Fatalf("uploaded blob = %+v", uploaded)
@@ -1212,6 +1215,7 @@ type effectPDS struct {
 	conditionalDeleteCalls         int
 	unconditionalDeleteCalls       int
 	uploadCalls                    int
+	uploadRemaining                time.Duration
 	putError                       error
 	acceptPutBeforeError           bool
 	deleteError                    error
@@ -1370,8 +1374,11 @@ func (pds *effectPDS) DeleteRecordWithSwap(
 }
 
 func (pds *effectPDS) UploadBlob(
-	context.Context, string, []byte,
+	ctx context.Context, _ string, _ []byte,
 ) (*auth.UploadedBlob, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		pds.uploadRemaining = time.Until(deadline)
+	}
 	pds.uploadCalls++
 	return pds.uploadResponse, pds.uploadError
 }
@@ -1499,6 +1506,9 @@ func TestExecutorStreamingBlobUsesContentIdentityAndNeverRepeatsAfterDispatch(t 
 		if err != nil || result.CID != contentCID.String() {
 			t.Fatal("stream upload/replay failed", err)
 		}
+	}
+	if pds.uploadRemaining < 4*time.Minute || pds.uploadRemaining > VideoUploadTimeout {
+		t.Fatalf("video upload budget = %v", pds.uploadRemaining)
 	}
 	if pds.uploadCalls != 1 {
 		t.Fatal("accepted stream dispatched twice")

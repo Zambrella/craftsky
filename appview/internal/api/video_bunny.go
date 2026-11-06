@@ -26,7 +26,10 @@ func BunnyVideoStatusHandler(service *video.Bunny) http.Handler {
 			envelope.WriteError(w, 503, "video_service_unavailable", "video service unavailable", runID, nil)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 100*time.Second)
+		// Finalisation includes a bounded CDN download and a five-minute PDS upload.
+		// Override only this response deadline; ordinary API writes retain their budget.
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(7 * time.Minute))
+		ctx, cancel := context.WithTimeout(r.Context(), 7*time.Minute)
 		defer cancel()
 		status, err := service.Status(ctx, owner, session, r.PathValue("jobId"))
 		if errors.Is(err, video.ErrVideoJobNotFound) {

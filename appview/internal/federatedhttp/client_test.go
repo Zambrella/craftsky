@@ -27,7 +27,7 @@ func TestBoundaryClientUsesFinitePurposeProfileAndHardenedTransport(t *testing.T
 		{purpose: PurposeOAuthMetadata, limit: MaxOAuthMetadataResponseBytes, maxTimeout: 10 * time.Second},
 		{purpose: PurposeOAuthRequest, limit: MaxOAuthResponseBytes, maxTimeout: 15 * time.Second},
 		{purpose: PurposePDSJSON, limit: MaxPDSJSONResponseBytes, maxTimeout: 15 * time.Second},
-		{purpose: PurposePDSUpload, limit: MaxPDSUploadResponseBytes, maxTimeout: 20 * time.Second},
+		{purpose: PurposePDSUpload, limit: MaxPDSUploadResponseBytes, maxTimeout: 5 * time.Minute},
 		{purpose: PurposePDSVideo, limit: 300_000_000, maxTimeout: 90 * time.Second},
 		{purpose: PurposePDSRepository, limit: MaxPDSRepositoryResponseBytes, maxTimeout: 2 * time.Minute},
 	}

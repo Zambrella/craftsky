@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 const fixture = 'http://127.0.0.1:19847';
 const account = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
@@ -29,15 +30,15 @@ test.beforeEach(async ({ page, context }) => {
 		}
 	]);
 });
-for (const failed of [false, true]) {
-	test(`MOV uploads through Bunny and ${failed ? 'keeps the draft on processing failure' : 'publishes the processed MP4 proof'}`, async ({
+for (const failed of [false, true, 'timeout'] as const) {
+	test(`MOV uploads through Bunny and ${failed === 'timeout' ? 'explains the PDS upload timeout and keeps the draft' : failed ? 'keeps the draft on processing failure' : 'publishes the processed MP4 proof'}`, async ({
 		page
 	}) => {
 		if (failed)
 			await fetch(fixture + '/__test/control', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ owners: { alice: { videoFailure: true } } })
+				body: JSON.stringify({ owners: { alice: { videoFailure: failed } } })
 			});
 		const uploaded: Buffer[] = [];
 		await page.route('https://video.bsky.app/**', () => {
@@ -117,7 +118,13 @@ for (const failed of [false, true]) {
 		).toBeVisible();
 		await page.getByRole('button', { name: 'Post', exact: true }).click();
 		if (failed) {
-			await expect(page.getByText(/Video processing failed/)).toBeVisible();
+			await expect(
+				page.getByText(
+					failed === 'timeout'
+						? 'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
+						: /Video processing failed/
+				)
+			).toBeVisible();
 			await expect(
 				page.getByRole('textbox', {
 					name: 'What would you like to share?',
@@ -512,7 +519,7 @@ test('oversized video selection explains the 300 MB limit and retains composer t
 	).toBeVisible();
 	await expect(page.getByText('0 described', { exact: true })).toHaveCount(0);
 	await expect(page.locator('.photo-picker small')).toHaveText(
-		'Choose up to 8 photos or a video.'
+		'Choose up to 8 photos or a video, or drag and drop.'
 	);
 	const text = page.getByRole('textbox', {
 		name: 'What would you like to share?',
@@ -632,3 +639,73 @@ for (const width of [1280, 820]) {
 		).toBeVisible();
 	});
 }
+
+test('media drop zone validates selections and opens photo and video details', async ({
+	page
+}) => {
+	await page.goto('/compose');
+	const png = await page.evaluate(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 20;
+		canvas.getContext('2d')!.fillRect(0, 0, 20, 20);
+		return canvas.toDataURL('image/png').split(',')[1];
+	});
+	const photo = { name: 'photo.png', type: 'image/png', data: png };
+	const videoData = {
+		name: 'clip.mp4',
+		type: 'video/mp4',
+		data: (
+			await readFile(resolve('tests/fixtures/video/local-preview.mp4'))
+		).toString('base64')
+	};
+	async function drop(files: { name: string; type: string; data: string }[]) {
+		const transfer = await page.evaluateHandle((files) => {
+			const transfer = new DataTransfer();
+			for (const file of files)
+				transfer.items.add(
+					new File(
+						[Uint8Array.from(atob(file.data), (c) => c.charCodeAt(0))],
+						file.name,
+						{ type: file.type }
+					)
+				);
+			return transfer;
+		}, files);
+		const zone = page.locator('.photo-picker');
+		try {
+			await zone.dispatchEvent('dragenter', { dataTransfer: transfer });
+			await expect(zone).toHaveClass(/drag-over/);
+			await zone.dispatchEvent('dragover', { dataTransfer: transfer });
+			await zone.dispatchEvent('drop', { dataTransfer: transfer });
+		} finally {
+			await transfer.dispose();
+		}
+	}
+	await drop([photo, videoData]);
+	await expect(
+		page.getByText('Choose photos or one video, rather than mixing them.', {
+			exact: true
+		})
+	).toBeVisible();
+	await expect(page.locator('.photo-picker')).not.toHaveClass(/drag-over/);
+	await drop(Array.from({ length: 9 }, () => photo));
+	await expect(
+		page.getByText('Choose up to eight images.', { exact: true })
+	).toBeVisible();
+	await drop([photo, { ...photo, name: 'second.png' }]);
+	await expect(
+		page.getByRole('heading', { name: 'Photo details', exact: true })
+	).toBeVisible();
+	await expect(page.locator('.photo-row')).toHaveCount(2);
+	await drop([photo]);
+	await expect(page.locator('.photo-row')).toHaveCount(3);
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
+	await page.getByRole('button', { name: 'Clear photos', exact: true }).click();
+	await drop([videoData]);
+	await expect(
+		page.getByRole('heading', { name: 'Video details', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByLabel('Local video preview', { exact: true })
+	).toHaveAttribute('src', /^blob:/);
+});

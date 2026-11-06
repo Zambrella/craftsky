@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -175,6 +176,7 @@ type bunnyJob struct {
 	createdAt         time.Time
 	imported          bool
 	video, state, cid string
+	failureCode       string
 	size, generation  int64
 }
 
@@ -183,9 +185,9 @@ func (b *Bunny) job(ctx context.Context, owner syntax.DID, id string) (bunnyJob,
 	if _, err := uuid.Parse(id); err != nil {
 		return j, ErrVideoJobNotFound
 	}
-	err := b.pool.QueryRow(ctx, `SELECT COALESCE(video_id::text,''),j.state,COALESCE(blob_cid,''),COALESCE(blob_size,0),owner_generation,j.imported,j.created_at
+	err := b.pool.QueryRow(ctx, `SELECT COALESCE(video_id::text,''),j.state,COALESCE(blob_cid,''),COALESCE(blob_size,0),owner_generation,j.imported,j.created_at,j.failure_code
  FROM bunny_video_jobs j JOIN owner_lifecycles o ON o.owner_did=j.owner_did
- WHERE j.id=$1 AND j.owner_did=$2 AND j.library_id=$3 AND o.state='active' AND o.generation=j.owner_generation`, id, owner, b.library).Scan(&j.video, &j.state, &j.cid, &j.size, &j.generation, &j.imported, &j.createdAt)
+ WHERE j.id=$1 AND j.owner_did=$2 AND j.library_id=$3 AND o.state='active' AND o.generation=j.owner_generation`, id, owner, b.library).Scan(&j.video, &j.state, &j.cid, &j.size, &j.generation, &j.imported, &j.createdAt, &j.failureCode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, ErrVideoJobNotFound
 	}
@@ -208,7 +210,10 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	}
 	if j.state == "failed" || j.state == "deleted" || j.state == "deleting" || j.state == "purging" {
 		pending.State = "JOB_STATE_FAILED"
-		pending.Error = "invalid_video"
+		pending.Error = j.failureCode
+		if pending.Error == "" {
+			pending.Error = "invalid_video"
+		}
 		return pending, nil
 	}
 	if j.video == "" {
@@ -249,7 +254,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	default:
 		return pending, nil
 	}
-	claim, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs SET lease_until=now()+interval '3 minutes' WHERE id=$1 AND state='created' AND lease_until<now()`, id)
+	claim, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs SET lease_until=now()+interval '8 minutes' WHERE id=$1 AND state='created' AND lease_until<now()`, id)
 	if err != nil {
 		return pending, err
 	}
@@ -299,9 +304,18 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 			return pending, err
 		}
 		if errors.Is(err, pdseffects.ErrOutcomeAmbiguous) || errors.Is(err, pdseffects.ErrEffectConflict) {
-			b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',updated_at=now() WHERE id=$1", id)
+			code := "processing_failed"
+			var timeout net.Error
+			if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout()) {
+				code = "video_upload_timeout"
+			}
+			saveCtx, saveCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer saveCancel()
+			if _, saveErr := b.pool.Exec(saveCtx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1", id, code); saveErr != nil {
+				return pending, saveErr
+			}
 			pending.State = "JOB_STATE_FAILED"
-			pending.Error = "processing_failed"
+			pending.Error = code
 			return pending, nil
 		}
 		return pending, err

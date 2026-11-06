@@ -235,7 +235,7 @@ projects:
               - key: FEDERATED_PDS_REPOSITORY_TIMEOUT
                 value: 2m
               - key: FEDERATED_PDS_UPLOAD_TIMEOUT
-                value: 20s
+                value: 5m
               - key: FEDERATED_OAUTH_METADATA_RESPONSE_LIMIT_BYTES
                 value: "65536"
               - key: OAUTH_AUTHORITY_METADATA_CACHE_TTL

@@ -25,11 +25,15 @@ func (f bunnyRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { ret
 
 type bunnyEffects struct {
 	calls int
+	err   error
 	body  []byte
 }
 
 func (f *bunnyEffects) UploadBlob(ctx context.Context, r pdseffects.UploadBlobRequest) (*auth.UploadedBlob, error) {
 	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
 	if r.Body == nil || len(r.Bytes) != 0 {
 		return nil, errors.New("video must be streamed")
 	}
@@ -224,5 +228,40 @@ func TestBunnyRejectsExpiredPDSSessionBeforeAllocating(t *testing.T) {
 		if _, err := b.IssueUpload(context.Background(), "did:plc:owner", "session"); !errors.Is(err, cause) {
 			t.Fatal("lost PDS authentication error", err)
 		}
+	}
+}
+
+func TestBunnyUploadTimeoutPersistsAcrossStatusPolls(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:timeout-owner")
+	if _, err := pool.Exec(ctx, "INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES($1,'active',1,1,'test',now())", owner); err != nil {
+		t.Fatal(err)
+	}
+	const job = "cccccccc-cccc-4ccc-accc-cccccccccccc"
+	const video = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+	if _, err := pool.Exec(ctx, "INSERT INTO bunny_video_jobs(id,owner_did,owner_generation,library_id,video_id) VALUES($1,$2,1,'123',$3)", job, owner, video); err != nil {
+		t.Fatal(err)
+	}
+	effects := &bunnyEffects{err: &pdseffects.OutcomeAmbiguousError{Cause: context.DeadlineExceeded}}
+	b, err := NewBunny(pool, "123", "private-key-canary", "test.b-cdn.net", func(context.Context, syntax.DID, string) (BunnyBlobEffects, error) { return effects, nil }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.client.Transport = bunnyRoundTrip(func(r *http.Request) (*http.Response, error) {
+		data := `{"guid":"` + video + `","videoLibraryId":123,"status":4,"length":600,"hasMP4Fallback":true,"availableResolutions":"720p"}`
+		if r.URL.Host == "test.b-cdn.net" {
+			data = "\x00\x00\x00\x18ftypisomsynthetic-video"
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(data)), ContentLength: int64(len(data))}, nil
+	})
+	for range 2 {
+		status, err := b.Status(ctx, owner, "session", job)
+		if err != nil || status.State != "JOB_STATE_FAILED" || status.Error != "video_upload_timeout" {
+			t.Fatalf("timeout status = %+v, error = %v", status, err)
+		}
+	}
+	if effects.calls != 1 {
+		t.Fatal("uncertain upload repeated")
 	}
 }

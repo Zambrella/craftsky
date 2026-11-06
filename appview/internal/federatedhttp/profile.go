@@ -55,7 +55,7 @@ func DefaultProfile(purpose Purpose) (Profile, error) {
 		profile.TotalTimeout = 15 * time.Second
 		profile.ResponseLimit = MaxPDSJSONResponseBytes
 	case PurposePDSUpload:
-		profile.TotalTimeout = 20 * time.Second
+		profile.TotalTimeout = 5 * time.Minute
 		profile.ResponseLimit = MaxPDSUploadResponseBytes
 	case PurposePDSVideo:
 		profile.TotalTimeout = 90 * time.Second

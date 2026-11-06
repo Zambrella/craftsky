@@ -2776,6 +2776,12 @@ abstract class AppLocalizations {
   /// **'The video service couldn\'t accept this video. Check its size and duration, then try another file.'**
   String get postVideoValidationFailed;
 
+  /// PDS upload timed out after successful video encoding.
+  ///
+  /// In en, this message translates to:
+  /// **'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'**
+  String get postVideoUploadTimedOut;
+
   /// Actionable failure for video processing.
   ///
   /// In en, this message translates to:

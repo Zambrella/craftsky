@@ -307,3 +307,14 @@ message and still permits a description and upload.
 Manual device acceptance should include iPhone H.264/HEVC MOV, Android MP4,
 fullscreen, leaving the app, Back, replacement, and reopening a persisted draft.
 Widget tests and desktop browser playback do not prove device codec support.
+
+### PDS finalisation deadlines
+
+The canonical MP4 upload to the PDS has a five-minute remote-effect deadline;
+ordinary record writes and image uploads keep their existing effect deadline.
+The hardened PDS upload HTTP client permits five minutes. Bunny status
+finalisation, its response write deadline, the web proxy, and Flutter's receive
+timeout permit seven minutes, with an eight-minute job lease to prevent overlap.
+Timeouts are persisted as `video_upload_timeout` and both clients explain that
+encoding succeeded but saving to the account timed out. An uncertain dispatched
+upload is not repeated under the same job; posting again starts a new upload job.

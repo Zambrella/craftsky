@@ -49,6 +49,7 @@ String _failureMessage(
     _,
   ) => l10n.postVideoProviderUnsupported,
   (VideoServiceOutcome.validationFailed, _) => l10n.postVideoValidationFailed,
+  (VideoServiceOutcome.uploadTimedOut, _) => l10n.postVideoUploadTimedOut,
   (VideoServiceOutcome.processingFailed, _) => l10n.postVideoProcessingFailed,
   _ => l10n.postVideoRetryableFailure,
 };

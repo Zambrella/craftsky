@@ -1583,6 +1583,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The video service couldn\'t accept this video. Check its size and duration, then try another file.';
 
   @override
+  String get postVideoUploadTimedOut =>
+      'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.';
+
+  @override
   String get postVideoProcessingFailed =>
       'The video couldn\'t be processed. Retry or choose another video.';
 

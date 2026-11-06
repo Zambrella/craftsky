@@ -361,7 +361,9 @@ export async function uploadVideo(
 			(status.error && status.error !== 'already_exists')
 		)
 			throw new Error(
-				'Video processing failed. Check your account allowance and choose a supported video.'
+				status.error === 'video_upload_timeout'
+					? 'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
+					: 'Video processing failed. Please try again or choose another video.'
 			);
 		if (!jobId || Date.now() - started >= (bunny ? 60 : 15) * 60 * 1000)
 			throw new Error(

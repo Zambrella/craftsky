@@ -1403,7 +1403,13 @@ createServer(async (req, res) => {
 			return send(404, { error: 'not_found', message: 'Unknown job' });
 		return send(200, {
 			jobStatus: flags.videoFailure
-				? { jobId: videoJob, state: 'JOB_STATE_FAILED' }
+				? {
+						jobId: videoJob,
+						state: 'JOB_STATE_FAILED',
+						...(flags.videoFailure === 'timeout'
+							? { error: 'video_upload_timeout' }
+							: {})
+					}
 				: {
 						jobId: videoJob,
 						state: 'JOB_STATE_COMPLETED',

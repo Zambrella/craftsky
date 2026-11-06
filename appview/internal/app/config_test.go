@@ -395,7 +395,7 @@ func TestLoadConfigFederatedHTTPBudgetsArePositiveAndLowerOnly(t *testing.T) {
 		cfg.FederatedHTTP.OAuthMetadata.TotalTimeout != 10*time.Second ||
 		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheTTL != 5*time.Minute ||
 		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheCapacity != 10_000 ||
-		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 20*time.Second ||
+		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 5*time.Minute ||
 		cfg.FederatedHTTP.PDSRepository.TotalTimeout != 2*time.Minute ||
 		cfg.FederatedHTTP.PDSRepository.ResponseLimit != 64<<20 {
 		t.Fatalf("federated defaults = %+v", cfg.FederatedHTTP)
@@ -1725,5 +1725,27 @@ func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
 				t.Fatalf("origin=%q err=%v", cfg.WebAppOrigin, err)
 			}
 		})
+	}
+}
+
+func TestCheckedInDevVideoUploadBudget(t *testing.T) {
+	contents, err := os.ReadFile("../../environments/dev.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(EnvDev, testConfigFile(t, string(contents)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, err := newFederatedClients(cfg.FederatedHTTP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clients.boundary.CloseIdleConnections()
+	if clients.pdsBlob.Timeout != 5*time.Minute {
+		t.Fatalf("configured PDS upload timeout = %v; checked-in config must permit large video uploads", clients.pdsBlob.Timeout)
+	}
+	if cfg.PDSEffectTimeout != 10*time.Second {
+		t.Fatal("ordinary PDS effect budget changed")
 	}
 }

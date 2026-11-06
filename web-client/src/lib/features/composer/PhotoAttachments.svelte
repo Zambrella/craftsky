@@ -65,6 +65,56 @@
 		await tick();
 		if (!disposed && images.length && !open) show();
 	}
+	function fileDrop(node: HTMLElement) {
+		let depth = 0;
+		const isFiles = (event: DragEvent) =>
+			event.dataTransfer?.types.includes('Files');
+		function enter(event: DragEvent) {
+			if (!isFiles(event)) return;
+			event.preventDefault();
+			depth++;
+			node.classList.toggle('drag-over', !disabled && !editing.length);
+		}
+		function over(event: DragEvent) {
+			if (!isFiles(event)) return;
+			event.preventDefault();
+			if (event.dataTransfer)
+				event.dataTransfer.dropEffect =
+					disabled || editing.length ? 'none' : 'copy';
+		}
+		function leave(event: DragEvent) {
+			if (!isFiles(event)) return;
+			if (--depth <= 0) {
+				depth = 0;
+				node.classList.remove('drag-over');
+			}
+		}
+		function drop(event: DragEvent) {
+			if (!isFiles(event)) return;
+			event.preventDefault();
+			depth = 0;
+			node.classList.remove('drag-over');
+			if (!disabled && !editing.length) {
+				// Keep files available after the browser protects the original drop data.
+				const selection = new DataTransfer();
+				for (const file of Array.from(event.dataTransfer!.files))
+					selection.items.add(file);
+				void add(selection.files);
+			}
+		}
+		node.addEventListener('dragenter', enter);
+		node.addEventListener('dragover', over);
+		node.addEventListener('dragleave', leave);
+		node.addEventListener('drop', drop);
+		return {
+			destroy() {
+				node.removeEventListener('dragenter', enter);
+				node.removeEventListener('dragover', over);
+				node.removeEventListener('dragleave', leave);
+				node.removeEventListener('drop', drop);
+			}
+		};
+	}
 	function move(from: number, to: number) {
 		if (disabled || from < 0 || to < 0 || to >= images.length) return;
 		const next = [...images];
@@ -98,6 +148,7 @@
 			<details class="media-picker" use:contextMenu>
 				<summary
 					class="photo-picker"
+					use:fileDrop
 					aria-disabled={disabled}
 					onclick={(event) => {
 						if (disabled) {
@@ -107,7 +158,7 @@
 					}}
 					><span class="add-icon"><Icon name="plus" size={34} /></span><span
 						><strong>Add photos or a video</strong><small
-							>Choose up to 8 photos or a video.</small
+							>Choose up to 8 photos or a video, or drag and drop.</small
 						></span
 					></summary
 				>
@@ -153,12 +204,13 @@
 					event.currentTarget.value = '';
 				}}
 			/>
-		{:else}<label class="photo-picker">
+		{:else}<label class="photo-picker" use:fileDrop>
 				<span class="add-icon"><Icon name="plus" size={34} /></span>
 				<span
 					><strong>{images.length ? 'Add another photo' : 'Add a photo'}</strong
 					>{#if images.length}<small>Up to {8 - images.length} more</small
-						>{/if}</span
+						>{/if}<span class="drop-hint">Or drag and drop photos here</span
+					></span
 				>
 				<input
 					type="file"
@@ -331,6 +383,16 @@
 	.photo-picker:has(input:focus-visible) {
 		outline: 3px solid var(--primary);
 		outline-offset: 3px;
+	}
+	.photo-picker:global(.drag-over) {
+		border-color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 8%, var(--paper));
+	}
+	.drop-hint {
+		display: block;
+		font-size: 13px;
+		color: var(--ink-3);
+		margin-top: 4px;
 	}
 	.photo-picker input {
 		position: absolute;

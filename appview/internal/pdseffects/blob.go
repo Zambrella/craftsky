@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
@@ -17,6 +18,9 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
+
+// VideoUploadTimeout bounds large video transfers without widening ordinary writes.
+const VideoUploadTimeout = 5 * time.Minute
 
 type UploadBlobRequest struct {
 	// OperationID and MutationKey have the same contract as PutRecordRequest.
@@ -102,6 +106,10 @@ func (executor *Executor) UploadBlob(
 		request.MIME,
 		size,
 	)
+	timeout := executor.timeout
+	if request.MIME == "video/mp4" {
+		timeout = VideoUploadTimeout
+	}
 	var uploaded *auth.UploadedBlob
 	err = executor.boundary.WithActiveEffects(
 		ctx,
@@ -119,7 +127,7 @@ func (executor *Executor) UploadBlob(
 					DeterministicKey:   exactKey,
 					RequestFingerprint: digest,
 					ExpectedCID:        predictedCID.String(),
-					RemoteDeadline:     executor.now().UTC().Add(executor.timeout),
+					RemoteDeadline:     executor.now().UTC().Add(timeout),
 				},
 			)
 			if errors.Is(err, ownerlifecycle.ErrAttemptConflict) {
@@ -167,7 +175,7 @@ func (executor *Executor) UploadBlob(
 			if err != nil {
 				return err
 			}
-			callCtx, cancel := context.WithTimeout(effectCtx, executor.timeout)
+			callCtx, cancel := context.WithTimeout(effectCtx, timeout)
 			if request.Body != nil {
 				streaming, ok := client.(auth.StreamingBlobPDSClient)
 				if !ok {

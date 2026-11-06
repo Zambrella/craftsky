@@ -216,3 +216,43 @@ describe('approved video capability transport', () => {
 		expect(fetcher.mock.calls[0][1]?.redirect).toBe('error');
 	});
 });
+
+it('reports an upload timeout without blaming the format or account allowance', async () => {
+	const api = {
+		media: {
+			videoLimits: async () => ({ canUpload: true }),
+			videoAuthorization: async () => ({
+				token: 'capability-canary',
+				expiresAt: new Date(Date.now() + 60000).toISOString()
+			})
+		}
+	} as unknown as CraftskyAPI;
+	const fetcher = vi.fn<typeof fetch>(
+		async () =>
+			new Response(
+				JSON.stringify({
+					jobId: 'job',
+					state: 'JOB_STATE_FAILED',
+					error: 'video_upload_timeout'
+				})
+			)
+	);
+	await expect(
+		uploadVideo(
+			api,
+			'did:plc:maker',
+			{
+				id: 'v',
+				name: 'v.mp4',
+				mime: 'video/mp4',
+				blob: new Blob(['video']),
+				alt: ''
+			},
+			new AbortController().signal,
+			() => {},
+			fetcher
+		)
+	).rejects.toThrow(
+		'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
+	);
+});

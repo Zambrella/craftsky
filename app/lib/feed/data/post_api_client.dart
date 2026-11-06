@@ -62,7 +62,7 @@ class PostApiClient {
       final response = await _dio.post<Map<String, dynamic>>(
         '/v1/blobs/videos/$jobId/status',
         cancelToken: cancelToken,
-        options: Options(receiveTimeout: const Duration(minutes: 2)),
+        options: Options(receiveTimeout: const Duration(minutes: 7)),
       );
       return VideoServiceResult.fromJson(
         response.data!['jobStatus'] as Map<String, dynamic>,
