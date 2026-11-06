@@ -1,5 +1,7 @@
 # Document Review: Logged-out browsing
 
+Scope revision on 6 November 2026: the user subsequently limited guest search to basic submitted-query results, excluding recent users, autocomplete/suggestions and top hashtags. Craft project feed sort controls stay available. Requirements, test design and coding plan have been updated; discovery-related references below describe the historical review and are superseded by that revision.
+
 ## Verdict
 
 Status: **Approved with notes**

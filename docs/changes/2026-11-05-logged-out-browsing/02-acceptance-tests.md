@@ -2,6 +2,8 @@
 
 ## 1. Test Strategy
 
+Revision on 6 November 2026: basic submitted-query guest search only; no recent users, autocomplete/suggestions or top hashtags. Craft project feed sort/filter controls stay available. Existing IDs are preserved.
+
 Design status: revised following document review DR-001–004 at the user’s request; **no test code has been created or run**. Existing test IDs and approved product scope are unchanged. `03-document-review.md` records the pre-revision review, not a fresh review of these edits. Requirements were approved on 5 November 2026, all assumptions confirmed, and backfill explicitly excluded. This specification uses the amended `01-requirements.md` and preserves its IDs.
 
 Risk remains **High** because anonymous exposure, shared PDS profile mutations, nested content and metadata must agree. Verify real server decisions first, then client workflows. A passing browser mock suite proves client behavior against that contract; it does not prove AppView queries, live PDS OAuth or a production deployment.
@@ -90,7 +92,7 @@ Scenario: Explore once and choose authentication later
 
 Exercise a second fresh session to verify recurrence. Do not equate every route change with a new session. Banner controls remain reachable during scroll and content respects the banner's occupied area.
 
-### AT-003: Public search without member history
+### AT-003: Basic public search without discovery or member history
 
 Requirement IDs: BR-001, FR-002
 Acceptance Criteria: AC-003, AC-006
@@ -101,9 +103,11 @@ Automation Target: `app/test/search/`, guest journey; web guest suite (**propose
 ```gherkin
 Scenario Outline: Search eligible public data
   Given eligible, opted-out and unknown authors matching a unique query
-  When a guest searches for <kind> and uses applicable filters and sorting
-  Then only eligible result content and suggestions are displayed
+  When a guest explicitly submits a query for <kind>
+  Then only eligible result content is displayed using the existing default order
   And result navigation and additional pages work
+  And no recent users, autocomplete/suggestions or top hashtags are shown or requested
+  And no advanced search filters or search sort controls are shown
   And member recent searches and saved filters are neither fetched nor written
   Examples:
     | kind     |
@@ -113,7 +117,7 @@ Scenario Outline: Search eligible public data
     | hashtag  |
 ```
 
-Include matching terms occurring only in excluded content; they must not generate derived suggestions/snippets. Preserve the existing search sort rather than imposing feed chronology on ranked search.
+Before submission, open blank search, type and clear a query, switch categories, navigate back and reopen search: no recent-user, autocomplete/suggestion, top-hashtag or query request may fire just from those empty/typing states. After submission, paginate and open results; hidden-only matches must not expose excluded snippets. Use the existing default result order; guest search has no advanced filter/sort controls. Verify craft project feed sort/filter controls separately under AT-001; those remain available.
 
 ### AT-004: Deep links and full public reading
 
@@ -320,11 +324,11 @@ Use the requirements section 16 inventory as the contract checklist, not only on
 | Ordinary profile tabs | Projects, Posts, Comments, Reposts; eligible/opted-out/unknown author combinations; pagination and nested authors | AT-004–005, IT-004, IT-008; AC-004–006, AC-010 |
 | Business public tabs/details | Products, Upcoming events, About and ordinary tabs; current non-owner conditional tab availability; public links and disclosures; no edit/manage actions | AT-004–005, AT-012, IT-004; AC-004–005, AC-013 |
 | Identity/counts | Public profile identity/customization, post/reply counts; identity lists exclude hidden participants while permitted aggregate totals can include them; no mutual-follower/owner analytics fields | AT-009, IT-004, IT-008; AC-006, AC-010 |
-| Search categories and query effects | People, posts, projects, hashtags; suggestions, blank query/recent eligible profiles/top hashtags, clear, category switch, result open, back navigation and additional pages | AT-003, UT-004, IT-003, IT-008; AC-003, AC-006, AC-010 |
-| Filters/sorts and craft/tag routes | Each client's existing applicable public filters/sorts and transient selections; preserve ranked search vs chronological feeds; saved-filter/recent-history fetch/save/delete request spies remain empty | AT-001, AT-003, IT-002–003; AC-001, AC-003, AC-006, AC-012 |
+| Search categories and query effects | People, posts, projects, hashtags; explicit submission, blank/typing/clear states, category switch, result open, back navigation and additional pages; no recent users/autocomplete/top hashtags or their requests | AT-003, UT-004, IT-003, IT-008; AC-003, AC-006, AC-010 |
+| Filters/sorts and craft/tag routes | Craft project feeds retain existing filters/sort controls and transient selections; basic guest search/tag results use default order without advanced controls; recent-user/autocomplete/top-hashtag/saved-filter/history request spies remain empty | AT-001, AT-003, IT-002–003; AC-001, AC-003, AC-006, AC-012 |
 | Thread/embed/media | Hidden intermediate ancestor, eligible descendant, excluded root permalink, mixed quote/repost authors, structured project fields, links, gallery/video/alt text and read-only reply policy | AT-004–005, AT-009–010, IT-004, IT-010; AC-004–006, AC-010–011 |
 
-Fixture adapters must reject unexpected private requests; hiding a recent-search panel while still fetching/saving history does not pass. In particular, guest entry must bypass the existing blank-search history fetch and query/result-triggered history-save effects. Map actual anonymous endpoints and response fields during coding planning; the inventory does not expose current member routes unchanged.
+Fixture adapters must also fail on guest recent-user/autocomplete/top-hashtag requests, including existing member endpoints. Guest blank/typing search must not run the current recent-profile or top-hashtag loaders. Fixture adapters must reject unexpected private requests; hiding a recent-search panel while still fetching/saving history does not pass. In particular, guest entry must bypass the existing blank-search history fetch and query/result-triggered history-save effects. Map actual anonymous endpoints and response fields during coding planning; the inventory does not expose current member routes unchanged.
 
 ## 4. Unit Test Cases
 
@@ -333,7 +337,7 @@ Fixture adapters must reject unexpected private requests; hiding a recent-search
 | UT-001 | FR-010, RULE-002 | AC-010 | Guest eligibility and nested subject policy | Known public, opted-out, unknown, malformed label and mixed-author quote/reply/repost fixtures | Only established public subjects render; excluded embeds/ancestors cannot leak through an eligible outer item; unrelated eligible commentary remains | Feature policy tests in `appview/internal/api/` (**proposed**) |
 | UT-002 | FR-006, RULE-001 | AC-005, AC-006 | Capability-to-control and route decisions | Signed-out/loading/signed-in states; public/private destination/action inventory | Reading actions available, mutation controls absent, protected routes offer auth; loading is not an owner bypass | Flutter router/shared action suites; Svelte shell/state unit tests (**proposed**) |
 | UT-003 | FR-004, FR-005 | AC-002 | Modal recurrence and retained destination | Fresh session, Explore, navigation, CTA reopen, legacy link, second session | Automatic prompt once per session; CTA reopens; current destination retained; no prompt on direct public content | Flutter welcome/router; Svelte guest state tests (**proposed**) |
-| UT-004 | FR-002 | AC-003, AC-006 | Guest search request shaping | Each existing search type/filter/sort; no viewer; member recent/saved state canaries | Correct anonymous parameters and pagination; no member-history reads/writes | `app/test/search/`; web search tests in `src/lib/features/` |
+| UT-004 | FR-002 | AC-003, AC-006 | Guest search request shaping | Each search category; blank/typing/submitted/cleared states; forbidden discovery and member-history request spies | Only submitted-query/page/category-result requests with allowed basic parameters; no autocomplete/recent-user/top-hashtag/history requests or advanced search controls | `app/test/search/`; web search tests in `src/lib/features/` |
 | UT-005 | FR-007, NFR-004 | AC-007 | Account-boundary and late response handling | Guest to member, member to guest, retained-account switch, stale outstanding request | Prior generations/caches discarded; late result ignored; safe destination survives; no mutation replay | `app/test/router/`, auth/provider tests; web session state tests |
 | UT-006 | FR-008 | AC-008, AC-014 | Settings UI state and failures | Unknown read, known true/false, saving, conflict, transport failure, reauth required | No false public default/success; accessible retry; cross-app/privacy copy present | Flutter Privacy widget; web settings Vitest/component suite |
 | UT-007 | FR-009 | AC-009 | Standard profile label patch construction | Multiple other labels, target already present/absent/duplicated, unknown profile fields and precision-sensitive values | Add/remove target idempotently; preserve other fields/labels and current authoritative record | Existing profile command tests in `appview/internal/api/profile_test.go` or feature-focused extension |
@@ -346,7 +350,7 @@ Fixture adapters must reject unexpected private requests; hiding a recent-search
 |---|---|---|---|---|---|---|---|
 | IT-001 | NFR-004, RULE-004 | AC-010, AC-017 | Migration and unknown-state semantics without backfill | Local database at prior schema with legacy profile/content rows and unrecorded labels | Apply candidate schema in test database; initialize app under instrumented adapters; request legacy profile | Schema permits unknown state; no guessed public value or existing-profile population; guest-hidden; zero sweep/replay/read-repair calls | Migrated-schema AppView tests (**proposed**), `public_pages_test.go` |
 | IT-002 | FR-001, FR-010, RULE-002 | AC-001, AC-010, AC-012 | Actual anonymous feed queries | TD-001/002/003 across primary/additional crafts with deterministic ties | Read all-crafts and craft pages under anonymous policy | Existing order/primary-craft eligibility; excluded/unknown authors filtered before limits; no duplication/skipping of eligible rows | Go feed/public store tests using real Postgres |
-| IT-003 | FR-002, FR-010, RULE-002 | AC-003, AC-010, AC-012 | Search query/suggestion isolation | Unique terms in eligible and excluded people/posts/projects/hashtags | Exercise applicable filters, sorts, suggestions and later pages | Eligible results only; hidden-only terms yield no derived suggestion/snippet; no member history persistence | `search_improvements_acceptance_test.go`, `search_cursor_test.go`, public/search extension |
+| IT-003 | FR-002, FR-010, RULE-002 | AC-003, AC-010, AC-012 | Basic search and prohibited discovery isolation | Unique terms in eligible and excluded people/posts/projects/hashtags | Submit category queries and later pages; probe excluded guest-discovery endpoints and unsupported advanced query parameters | Eligible results/snippets only in default order; no anonymous recent-user/autocomplete/top-hashtag route; unsupported advanced search parameters rejected; no member history persistence | `search_improvements_acceptance_test.go`, `search_cursor_test.go`, public/search extension |
 | IT-004 | FR-003, FR-010, RULE-002 | AC-004, AC-005, AC-010 | Thread, profile sections and nested serialization | Mixed eligible/excluded reply chain, opted-out root, quotes/reposts; rich public profile/project | Read direct detail, thread, profile tabs and existing public relationship/activity endpoints | Every nested subject checked; safe ancestor/embed states; eligible neighbours and public disclosures retained; identity lists exclude hidden subjects while allowed aggregate totals may remain | `public_pages_test.go`, thread/profile store tests (**feature extensions**) |
 | IT-005 | BR-002, FR-009, RULE-004 | AC-009 | Owner PDS write/local visibility acknowledgment | Fake PDS with real AppView command boundary, unknown fields/labels, record CID; concurrent edit barrier | Enable/disable; inject stale revision, hold/release a pre-save event after acknowledgment, PDS failure, local projection failure and retry | Delayed pre-save event cannot restore guests after acknowledged opt-out; correct owner record only; other data preserved; conflict recovered or reported; successful enablement already suppresses guests; partial failure recoverable without false completed success | Go profile command adapter integration with instrumented fake PDS |
 | IT-006 | BR-002, FR-009, RULE-004 | AC-010, AC-017 | Normal profile ingestion in both projection paths | Table-driven constructors for ordinary and image-safety profile indexers; known/unknown states including unknown legacy row at the incoming CID | Deliver normal create/update/delete, same-CID unknown initialization, duplicate established CID, replacement and stale event sequences via supported ingestion ordering boundary | Same-CID normal evidence establishes unknown visibility with target label present/absent; target label/verified absence retained; established duplicates idempotent; stale events cannot override newer effective state; failures remain safe; unknown becomes public only on authoritative evidence | `appview/internal/index/bluesky_profile_test.go` plus dispatcher/order harness as needed |
