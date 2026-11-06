@@ -197,6 +197,7 @@ export type QuotePreviewPost = Pick<
 		Pick<
 			Post,
 			| 'images'
+			| 'video'
 			| 'project'
 			| 'sponsored'
 			| 'editedAt'

@@ -86,6 +86,7 @@ abstract final class CraftskyIcons {
   static const IconData pin = PhosphorIconsRegular.pushPin;
   static const IconData pinned = PhosphorIconsFill.pushPin;
   static const IconData play = PhosphorIconsFill.playCircle;
+  static const IconData video = PhosphorIconsRegular.videoCamera;
   static const IconData previous = PhosphorIconsRegular.caretLeft;
   static const IconData privacy = PhosphorIconsRegular.shieldCheck;
   static const IconData privacySettings = PhosphorIconsRegular.lockKey;

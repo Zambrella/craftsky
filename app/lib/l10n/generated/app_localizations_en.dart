@@ -1557,6 +1557,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postVideoCaptionsOff => 'Captions off';
 
   @override
+  String get postVideoPreviewLabel => 'Video';
+
+  @override
   String get nativeVideoPlay => 'Play video';
 
   @override

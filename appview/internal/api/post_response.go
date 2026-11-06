@@ -235,6 +235,7 @@ type QuotePreviewPost struct {
 	Crafts         json.RawMessage         `json:"crafts,omitempty"`
 	Author         PostAuthor              `json:"author"`
 	Images         []PostImageView         `json:"images,omitempty"`
+	Video          *PostVideoView          `json:"video,omitempty"`
 	Project        *Project                `json:"project,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	EditedAt       *time.Time              `json:"editedAt,omitempty"`
@@ -472,7 +473,7 @@ func buildPostVideoView(row *PostRow, playback PlaybackURLBuilder) *PostVideoVie
 	return view
 }
 
-func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
+func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle, playbackBuilders ...PlaybackURLBuilder) *QuoteView {
 	if row == nil {
 		return nil
 	}
@@ -504,6 +505,14 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		RecordRevision: row.Post.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}
+	var playback PlaybackURLBuilder
+	if len(playbackBuilders) > 0 {
+		playback = playbackBuilders[0]
+	}
+	if playback == nil {
+		playback, _ = video.NewPlaybackURLBuilder(video.PlaybackConfig{})
+	}
+	view.Post.Video = buildPostVideoView(row.Post, playback)
 	if len(view.Post.Images) == 0 {
 		view.Post.External = buildExternalResponse(row.Post)
 	}

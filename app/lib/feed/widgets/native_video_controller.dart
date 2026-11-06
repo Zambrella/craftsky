@@ -405,7 +405,7 @@ final class NativeVideoController {
 
   Future<void> open(Uri playlist, {bool play = false}) async {
     if (_disposed) return;
-    await _adapter.setMuted(muted: true);
+    await _adapter.setMuted(muted: false);
     if (_disposed) return;
     await _adapter.open(playlist, play: play);
   }

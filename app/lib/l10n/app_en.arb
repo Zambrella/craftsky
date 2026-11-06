@@ -1339,6 +1339,8 @@
   "@postVideoCaptions": { "description": "Tooltip for selecting a native video's caption track." },
   "postVideoCaptionsOff": "Captions off",
   "@postVideoCaptionsOff": { "description": "Action that disables native video captions." },
+  "postVideoPreviewLabel": "Video",
+  "@postVideoPreviewLabel": { "description": "Accessible label on a static video thumbnail in quoted and saved post summaries." },
   "nativeVideoPlay": "Play video",
   "@nativeVideoPlay": { "description": "Tooltip for playing a native video." },
   "nativeVideoPause": "Pause video",

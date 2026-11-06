@@ -221,6 +221,12 @@ test('video picture toggles playback and buffering uses the primary colour', asy
 		.poll(() => video.evaluate((node) => (node as HTMLVideoElement).paused))
 		.toBe(false);
 	await expect(video).toHaveAttribute('controls', '');
+	expect(
+		await video.evaluate((node) => ({
+			muted: (node as HTMLVideoElement).muted,
+			volume: (node as HTMLVideoElement).volume
+		}))
+	).toEqual({ muted: false, volume: 1 });
 	await expect(page).toHaveURL(/\/feed$/);
 });
 
@@ -274,6 +280,7 @@ test('Bunny iframe is lazy, supports fullscreen and pauses when scrolled out of 
 	await expect(frame).toHaveAttribute('allowfullscreen', '');
 	const url = new URL((await frame.getAttribute('src'))!);
 	expect(url.searchParams.get('autoplay')).toBe('false');
+	expect(url.searchParams.get('muted')).toBe('false');
 	expect(url.searchParams.get('preload')).toBe('false');
 	expect(url.searchParams.get('rememberSettings')).toBe('false');
 	await expect(page.locator('.bunny-video [role=status]')).toHaveCount(0);
@@ -400,3 +407,84 @@ test('reported Bunny errors switch to the standard player', async ({
 	await expect(page.locator('.video-player video')).toHaveCount(1);
 	await expect(page.locator('.bunny-video iframe')).toHaveCount(0);
 });
+
+for (const surface of ['quote', 'saved', 'composer']) {
+	test(`${surface} video previews show a thumbnail and badge without loading a player`, async ({
+		page
+	}) => {
+		const video = {
+			cid: 'bafy-video',
+			mime: 'video/mp4',
+			size: 100,
+			alt: 'Knitting a sleeve',
+			aspectRatio: { width: 9, height: 16 },
+			thumbnail: 'https://video-fixture.craftsky.test/poster.png',
+			playlist: 'https://video-fixture.craftsky.test/playlist.m3u8'
+		};
+		let target: any;
+		await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+			const response = await route.fetch(),
+				body = await response.json();
+			const outer = body.items[0].post;
+			target = {
+				...outer,
+				uri: 'at://did:plc:alice/social.craftsky.feed.post/quoted-video',
+				rkey: 'quoted-video',
+				text: 'A video of knitting',
+				images: [],
+				video,
+				quote: null,
+				quoteView: null,
+				viewerHasSaved: true
+			};
+			outer.images = [];
+			delete outer.video;
+			outer.quote = { uri: target.uri, cid: target.cid };
+			outer.quoteView = { state: 'visible', post: target };
+			await route.fulfill({ response, json: body });
+		});
+		await page.route(
+			'https://video-fixture.craftsky.test/poster.png',
+			(route) =>
+				route.fulfill({
+					path: resolve('static/app-icon.png'),
+					contentType: 'image/png'
+				})
+		);
+		await page.goto('/feed');
+		await expect(page.locator('.quote-card .video-thumbnail')).toBeVisible();
+		const expected = '/posts/did%3Aplc%3Aalice/quoted-video';
+		if (surface === 'saved') {
+			await page.route('**/api/appview/v1/saved-posts*', (route) =>
+				route.fulfill({
+					json: {
+						items: [
+							{ post: target, savedAt: '2026-11-06T12:00:00Z', folderId: null }
+						]
+					}
+				})
+			);
+			await page.goto('/saved?all=true');
+		} else if (surface === 'composer') {
+			await page.route('**/api/appview/v1/posts/**', (route) =>
+				route.fulfill({ json: target })
+			);
+			await page.goto('/compose/quote?did=did%3Aplc%3Aalice&rkey=quoted-video');
+		}
+		const preview = page.getByRole('img', {
+			name: 'Video: Knitting a sleeve',
+			exact: true
+		});
+		await expect(preview).toBeVisible();
+		await expect(preview.locator('img')).toHaveAttribute(
+			'src',
+			video.thumbnail
+		);
+		await expect(preview.locator('svg')).toBeVisible();
+		await expect(preview).toHaveCSS('aspect-ratio', '16 / 9');
+		await expect(preview.locator('img')).toHaveCSS('object-fit', 'cover');
+		await expect(page.locator('video,iframe')).toHaveCount(0);
+		if (surface !== 'composer')
+			await expect(preview.locator('..')).toHaveAttribute('href', expected);
+	});
+}

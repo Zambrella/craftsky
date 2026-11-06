@@ -27,7 +27,7 @@ void main() {
       await controller.dispose();
 
       expect(adapter.playOnOpen, isFalse);
-      expect(adapter.mutedBeforeOpen, isTrue);
+      expect(adapter.mutedBeforeOpen, isFalse);
       expect(adapter.selectedCaption?.language, 'en');
       expect(adapter.pauseCount, 2);
       expect(adapter.disposed, isTrue);
@@ -44,7 +44,7 @@ void main() {
     );
 
     expect(adapter.playOnOpen, isTrue);
-    expect(adapter.mutedBeforeOpen, isTrue);
+    expect(adapter.mutedBeforeOpen, isFalse);
   });
 
   test(
@@ -170,7 +170,7 @@ final class _FakeAdapter implements NativeVideoFullscreenAdapter {
   int disposeCount = 0;
   Completer<void>? muteGate;
   bool mutedBeforeOpen = false;
-  bool _muted = false;
+  bool _muted = true;
 
   @override
   Future<void> open(Uri playlist, {required bool play}) async {

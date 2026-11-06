@@ -5,6 +5,7 @@
 	import { profileStyle, safeLink, name } from './model';
 	import CompactIdentity from './CompactIdentity.svelte';
 	import Icon from '../shell/Icon.svelte';
+	import VideoThumbnail from './VideoThumbnail.svelte';
 	let { post, href }: { post: QuotePreviewPost | Post; href: string } =
 		$props();
 	const image = $derived(post.images?.[0]);
@@ -42,7 +43,9 @@
 			>{/if}
 		{#if post.project?.common.title}<h3>{post.project.common.title}</h3>{/if}
 		{#if post.text}<p class="summary-text">{post.text}</p>{/if}
-		{#if image && safeLink(image.thumb || image.fullsize || '')}<div
+		{#if post.video}<VideoThumbnail
+				video={post.video}
+			/>{:else if image && safeLink(image.thumb || image.fullsize || '')}<div
 				class="summary-image"
 				style:--image-ratio={ratio || 1}
 				class:unknown-ratio={!ratio}

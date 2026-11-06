@@ -2752,6 +2752,12 @@ abstract class AppLocalizations {
   /// **'Captions off'**
   String get postVideoCaptionsOff;
 
+  /// Accessible label on a static video thumbnail in quoted and saved post summaries.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get postVideoPreviewLabel;
+
   /// Tooltip for playing a native video.
   ///
   /// In en, this message translates to:

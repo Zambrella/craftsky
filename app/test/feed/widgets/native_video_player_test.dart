@@ -98,7 +98,7 @@ void main() {
       expect(find.byKey(const ValueKey('fake-video-view')), findsOneWidget);
       expect(adapterCreateCount, 1);
       expect(adapter.playOnOpen, isTrue);
-      expect(adapter.mutedBeforeOpen, isTrue);
+      expect(adapter.mutedBeforeOpen, isFalse);
       expect(adapter.viewAspectRatio, 9 / 16);
       expect(
         find.byKey(const Key('native-video-caption-menu')),
@@ -355,7 +355,7 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
   bool disposed = false;
   bool mutedBeforeOpen = false;
   double? viewAspectRatio;
-  bool _muted = false;
+  bool _muted = true;
 
   @override
   Stream<Object> get playbackErrors => errors.stream;

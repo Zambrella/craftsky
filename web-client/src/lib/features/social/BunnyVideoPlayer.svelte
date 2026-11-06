@@ -20,6 +20,7 @@
 		const url = new URL(embed);
 		for (const [key, value] of Object.entries({
 			autoplay: 'false',
+			muted: 'false',
 			preload: 'false',
 			playsinline: 'true',
 			rememberSettings: 'false',

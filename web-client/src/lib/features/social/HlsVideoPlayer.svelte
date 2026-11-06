@@ -20,6 +20,8 @@
 		captionsStarted = false;
 	const abort = new AbortController();
 	onMount(() => {
+		player.muted = false;
+		player.volume = 1;
 		native = !!player.canPlayType('application/vnd.apple.mpegurl');
 	});
 	async function loadCaptions() {
