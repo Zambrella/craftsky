@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { notify } from './toasts.svelte';
-	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
@@ -23,7 +22,6 @@
 	import BusinessSummary from './BusinessSummary.svelte';
 	import ProductCard from './ProductCard.svelte';
 	import BusinessEventCard from './BusinessEventCard.svelte';
-	import RichText from './RichText.svelte';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import Icon from '../shell/Icon.svelte';
@@ -31,7 +29,7 @@
 	import CompactIdentity from './CompactIdentity.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
 	import { profileTabs, tabLabel, joinedAge } from './presentation';
-	import { name, profileStyle, texture, safeLink, visible } from './model';
+	import { profileStyle, texture, safeLink } from './model';
 	let {
 		api,
 		session,
@@ -197,8 +195,7 @@
 
 	function follow() {
 		if (!profile) return;
-		const current = profile,
-			key = newOperationKey(),
+		const key = newOperationKey(),
 			following = profile.viewerIsFollowing;
 		void work.run(
 			() =>

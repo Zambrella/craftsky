@@ -1,6 +1,6 @@
 import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
 import { FieldValidationError } from '#lib/field-validation.ts';
-import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
+import { MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import type { JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
@@ -313,7 +313,7 @@ export function productBody(products: Product[]): JsonObject[] {
 				'Product image',
 				'Add an image to each product.'
 			);
-		let amount = p.amount
+		const amount = p.amount
 			.trim()
 			.replace(/(\.\d*?)0+$/, '$1')
 			.replace(/\.$/, '');

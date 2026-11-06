@@ -1,3 +1,4 @@
+import { withDeadline } from '#lib/async.ts';
 import type { Page, PageQuery, QueryValue } from './types';
 
 export type Fetcher = typeof fetch;
@@ -115,10 +116,23 @@ export class APITransport {
 		options: RequestOptions = {}
 	): Promise<T> {
 		try {
-			return await this.performRequest<T>(method, path, options);
+			return await withDeadline(120000, options.signal, (signal) =>
+				this.performRequest<T>(method, path, { ...options, signal })
+			);
 		} catch (error) {
-			if (error instanceof APIError) error.httpMethod = method;
-			throw error;
+			const failure =
+				options.operationKey &&
+				error instanceof DOMException &&
+				['TimeoutError', 'AbortError'].includes(error.name)
+					? new MutationOutcomeUnknownError(
+							requireOperationKey(options.operationKey),
+							1,
+							false,
+							{ cause: error }
+						)
+					: error;
+			if (failure instanceof APIError) failure.httpMethod = method;
+			throw failure;
 		}
 	}
 	private async performRequest<T>(

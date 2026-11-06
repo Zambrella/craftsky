@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { remoteImage } from './media';
 	import { reportFailure } from '../diagnostics/client';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import Snackbar from '../social/Snackbar.svelte';
@@ -149,18 +150,7 @@
 				)
 			)
 				throw new UserFacingError('This published image cannot be edited.');
-			const response = await fetch(destination, {
-				credentials: 'omit',
-				redirect: 'error',
-				referrerPolicy: 'no-referrer',
-				cache: 'no-store',
-				signal: remote.signal
-			});
-			if (!response.ok)
-				throw new UserFacingError('Could not load the published image.');
-			const blob = await response.blob();
-			if (blob.size > 40_000_000)
-				throw new UserFacingError('This image is too large to edit.');
+			const blob = await remoteImage(destination, remote.signal);
 			if (
 				disposed ||
 				operation !== seq ||

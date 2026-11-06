@@ -48,15 +48,30 @@ remain aliases. For standalone frontend work,
 From `web-client/`:
 
 ```sh
+npm run format        # Apply Prettier to maintained source/configuration
+npm run format:check
+npm run lint
 npm run check
 npm test
-npm run build
 npx playwright install chromium
-npm run test:e2e
-npm run test:e2e:app
-WEB_CLIENT_WORKER=1 npm run test:e2e
-WEB_CLIENT_WORKER=1 npm run test:e2e:app
+npm run test:release  # Complete local fixture gate, also used by CI
 ```
+
+`test:release` builds with a loopback-only diagnostic DSN, executes consent/privacy
+envelope tests, and runs both enabled and disabled subscription/video cases.
+After successful fixture checks, the gate rebuilds using the original environment,
+so the deployment script receives the normal artifact. A failed gate prevents upload.
+ESLint covers JavaScript, TypeScript, and Svelte, including async promise-executor
+mistakes, unused variables, and Svelte correctness rules. Type analysis remains
+owned by `svelte-check`. Generated output and third-party static assets are excluded.
+CI retains failure traces/screenshots only for these synthetic fixture tests.
+
+Draft changes stay in memory until **Save draft** is chosen. Closing/discarding
+never rewrites another tab's saved data. Explicit saves and deletes check the
+stored revision atomically. Submitted post/message commands retain only the
+recovery needed to check their original outcome; this is independent of draft
+autosave. Chat saves use Web Locks plus a stored-value comparison. A conflicting
+tab retains its text in the editor and asks the user to reopen the latest version.
 
 Browser tests run both the production SSR build and, with `WEB_CLIENT_WORKER=1`,
 the actual Cloudflare Worker artifact against a separate local fixture
@@ -286,14 +301,16 @@ quote/comment rendering remain available in the authenticated application.
 
 ## Dependency audit
 
-The locked dependency audit on 2026-11-04 reported four moderate entries through
-`glob` 13.0.6 / `minimatch` 10.2.6 in Sentry's build plugin and four low entries
-through `deepmerge` 4.3.1 in the Vite Svelte plugin. These process build inputs,
-not public request data. `npm audit --omit=dev` reported no advisories.
-The latest Sentry plugin (11.10.0) still requires `glob` 13; the patched `glob`
-14.0.2 and `minimatch` 11.0.1 require major dependency changes. Track upstream
-updates rather than forcing an unverified override. Do not apply the audit
-tool's proposed downgrades to older Sentry or pre-release-era SvelteKit.
+The 2026-11-06 remediation upgrades `@sentry/vite-plugin` to 11.11.0,
+which uses the patched `glob` 14 chain. A `minimatch ^11.0.5` override also
+covers ESLint/typescript-eslint's development-only dependency; remove the
+override when their declared ranges include the fix. Lint, unit tests, builds,
+and private-map checks must pass after dependency updates.
+
+The remaining four low-severity audit entries are the transitive `deepmerge`
+4.3.1 chain in the Svelte build tools; its advisory has no patched version.
+`npm audit --omit=dev` reports no advisories. Do not apply the audit tool's
+suggested pre-release-era SvelteKit/adapter downgrades.
 
 ## Production deployment and rollback
 

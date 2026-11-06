@@ -10,7 +10,7 @@
 		ModerationHistoryItem,
 		Profile
 	} from '#lib/api/client.ts';
-	import { dateTime, record, text, title, type Session } from './model.ts';
+	import { dateTime, record, text, type Session } from './model.ts';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';

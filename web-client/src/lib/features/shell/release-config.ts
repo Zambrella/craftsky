@@ -1,10 +1,12 @@
 import { page } from '$app/state';
+import { authenticatedContext } from './page-context';
 
 /** Same opt-in release switch as Flutter's SUBSCRIPTIONS_ENABLED. */
 export const subscriptionsEnabled = () =>
-	page.data.subscriptionsEnabled === true;
+	authenticatedContext(page.data)?.subscriptionsEnabled === true;
 
-export const videoUploadsEnabled = () => page.data.videoUploadsEnabled === true;
+export const videoUploadsEnabled = () =>
+	authenticatedContext(page.data)?.videoUploadsEnabled === true;
 
 export function comingSoon(feature: string) {
 	window.dispatchEvent(

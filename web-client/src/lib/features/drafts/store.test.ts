@@ -88,7 +88,11 @@ describe('private draft storage', () => {
 		expect((await drafts.list(owner)).map((item) => item.text)).toEqual([
 			'First owner'
 		]);
-		await drafts.remove(owner, first.id);
+		await drafts.remove(
+			owner,
+			first.id,
+			(await drafts.get(owner, first.id))!.revision!
+		);
 		expect(await drafts.get(owner, first.id)).toBeUndefined();
 		expect((await drafts.get(other, first.id))?.text).toBe('Second owner');
 		await expect(drafts.save(other, first)).rejects.toThrow('another account');
@@ -136,4 +140,22 @@ it('restores a private draft scheduling choice and exact instant without leaking
 		sponsored: true
 	});
 	expect(await drafts.get(other, draft.id)).toBeUndefined();
+});
+
+it('rejects malformed recovery before it can issue a fresh publication', async () => {
+	const { decodeDraft } = await import('./store');
+	const draft = newDraft('did:plc:alice');
+	for (const pending of [
+		{ body: { text: 'PRIVATE_DRAFT_CANARY' } },
+		{ key: crypto.randomUUID(), body: 'PRIVATE_DRAFT_CANARY' },
+		{ key: crypto.randomUUID(), body: {}, kind: 'edit' },
+		{ key: crypto.randomUUID(), body: {}, kind: 'unknown' }
+	]) {
+		expect(() => decodeDraft({ ...draft, pending }, draft.owner)).toThrow(
+			'saved publication'
+		);
+	}
+	expect(() => decodeDraft({ ...draft, images: [null] }, draft.owner)).toThrow(
+		'saved draft'
+	);
 });

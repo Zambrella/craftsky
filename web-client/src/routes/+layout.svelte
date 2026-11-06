@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../style.css';
+	import { authenticatedContext } from '#lib/features/shell/page-context.ts';
 	import AppShell from '#lib/features/shell/AppShell.svelte';
 	import { installFieldValidation } from '#lib/field-validation.ts';
 	import { onMount, setContext } from 'svelte';
@@ -28,9 +29,7 @@
 	import DiagnosticsHost from '#lib/features/diagnostics/DiagnosticsHost.svelte';
 	import { page } from '$app/state';
 	let { children } = $props();
-	let authenticatedData = $derived(
-		page.data.authenticated || (page.data.session ? page.data : undefined)
-	);
+	let authenticatedData = $derived(authenticatedContext(page.data));
 	let authenticated = $derived(!!authenticatedData);
 </script>
 

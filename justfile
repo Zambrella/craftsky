@@ -613,7 +613,7 @@ public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
     python3 -m unittest discover -s scripts -p test_release.py
     python3 -m unittest discover -s scripts -p test_web_client_deploy.py
-    cd web-client && npm run check && npm test && npm run build && npm run test:e2e && npm run test:e2e:app && WEB_CLIENT_WORKER=1 npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e:app
+    cd web-client && npm run test:release
 
 # Run the web client against this worktree's backend (start just dev-d first).
 public-app-dev *ARGS:

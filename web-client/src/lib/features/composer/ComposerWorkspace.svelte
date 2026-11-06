@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { executePublication } from './publication';
 	import type { DiagnosticOperation } from '../diagnostics/privacy';
 	import {
 		UserFacingError,
@@ -30,8 +31,6 @@
 		type CraftskyAPI,
 		type JsonObject,
 		type Post,
-		type PostEditChanges,
-		type PostPayload,
 		type StrongRef
 	} from '#lib/api/client.ts';
 	import {
@@ -64,7 +63,6 @@
 		uploadVideo
 	} from './media.ts';
 	import ProjectEditor from './ProjectEditor.svelte';
-	import MediaEditor from './MediaEditor.svelte';
 	import PhotoAttachments from './PhotoAttachments.svelte';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
@@ -110,7 +108,6 @@
 	let progress = $state('');
 	let stored = $state('');
 	let mounted = $state(false);
-	let dirty = $state(false);
 	let recovery = $state<ComposerRecovery>();
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
@@ -118,7 +115,6 @@
 	let closeDestination = $state('/feed');
 	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
-	let editRevision = 0;
 	let context = $state<Post>();
 	let scheduleAt = $state('');
 	let showSchedule = $state(false);
@@ -136,6 +132,7 @@
 	let generation = 0;
 	let destroyed = false;
 	let controller = new AbortController();
+	let publicationController = new AbortController();
 	const tier =
 		getContext<
 			() => import('#lib/api/client.ts').SubscriptionAccess | undefined
@@ -253,34 +250,6 @@
 			if (video?.blob) URL.revokeObjectURL(next);
 		};
 	});
-	$effect(() => {
-		const lifecycle = recovery;
-		if (!mounted || loading || busy || closing || !lifecycle?.active) return;
-		const snapshot = $state.snapshot(draft as unknown) as Draft;
-		JSON.stringify(snapshot);
-		const revision = ++editRevision;
-		if (!changed && !snapshot.pending) {
-			dirty = false;
-			return;
-		}
-		dirty = true;
-		const seq = generation;
-		const timer = setTimeout(() => {
-			void lifecycle
-				.checkpoint(snapshot)
-				.then(() => {
-					if (seq === generation && revision === editRevision && !destroyed) {
-						stored = 'Draft saved on this device';
-						dirty = false;
-					}
-				})
-				.catch(() => {
-					if (seq === generation && !destroyed)
-						stored = 'Could not save draft on this device';
-				});
-		}, 1000);
-		return () => clearTimeout(timer);
-	});
 	onMount(() => {
 		mounted = true;
 	});
@@ -305,18 +274,7 @@
 		closeDialog?.close();
 	});
 	function preserveRecovery() {
-		const lifecycle = recovery;
-		if (
-			!approvedNavigation &&
-			initialized &&
-			lifecycle?.active &&
-			lifecycle.hasChanges(draft)
-		) {
-			void lifecycle
-				.checkpoint($state.snapshot(draft as unknown) as Draft)
-				.catch(() => {});
-		}
-		lifecycle?.abandon();
+		recovery?.abandon();
 	}
 	const returnTo =
 		getContext<(destination: string) => Promise<void>>('craftsky-return');
@@ -358,7 +316,7 @@
 		try {
 			await lifecycle.discard($state.snapshot(draft as unknown) as Draft);
 			if (seq !== generation || destroyed || recovery !== lifecycle) return;
-			dirty = false;
+
 			closeDialog.close();
 			await leaveEditor(closeTarget);
 		} catch (e) {
@@ -397,7 +355,7 @@
 		context = undefined;
 		stored = '';
 		busy = false;
-		dirty = false;
+
 		scheduleFull = false;
 		try {
 			let nextContext: Post | undefined;
@@ -434,7 +392,6 @@
 				const payload = item.payload;
 				next = {
 					...next,
-					id: item.operationId,
 					kind: payload.kind === 'project' ? 'project' : 'standard',
 					text: str(payload.text),
 					langs: Array.isArray(payload.langs)
@@ -711,7 +668,7 @@
 		try {
 			await lifecycle.checkpoint($state.snapshot(draft as unknown) as Draft);
 			if (seq !== generation || destroyed || recovery !== lifecycle) return;
-			dirty = false;
+
 			stored = 'Draft saved on this device';
 			closeDialog.close();
 			window.dispatchEvent(
@@ -796,13 +753,6 @@
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}
-	}
-	function moveImage(index: number, direction: number) {
-		const copy = [...draft.images];
-		const other = index + direction;
-		if (other < 0 || other >= copy.length) return;
-		[copy[index], copy[other]] = [copy[other], copy[index]];
-		draft.images = copy;
 	}
 	async function previewThumbnail(
 		thumb: JsonObject,
@@ -916,7 +866,7 @@
 		const lifecycle = recovery;
 		return lifecycle?.owner === owner && lifecycle.id === value.id
 			? lifecycle.checkpoint(value)
-			: drafts.save(owner, value);
+			: Promise.reject(new UserFacingError('This editor has already closed.'));
 	}
 	async function submit(
 		action: 'publish' | 'schedule' | 'publish-now' = 'publish'
@@ -929,7 +879,11 @@
 		}
 		const owner = session.did,
 			seq = generation;
-		const signal = controller.signal;
+		publicationController = new AbortController();
+		const signal = AbortSignal.any([
+			controller.signal,
+			publicationController.signal
+		]);
 		const working = $state.snapshot(draft as unknown) as Draft;
 		previews?.pause();
 		busy = true;
@@ -1115,7 +1069,10 @@
 			await perform(pending, owner, seq, working.id);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e, 'composer.submit');
+				error =
+					publicationController.signal.aborted && !draft.pending
+						? 'Publishing stopped. Your edits are still here; choose Save draft to keep them.'
+						: message(e, 'composer.submit');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -1126,6 +1083,7 @@
 	}
 	async function retry() {
 		if (busy || !draft.pending) return;
+		publicationController = new AbortController();
 		const seq = generation,
 			owner = session.did;
 		busy = true;
@@ -1164,66 +1122,30 @@
 				? recovery
 				: undefined;
 		try {
-			let destination = closeDestination;
-			let resultNotice = 'Your post has been published.';
-			if (pending.kind === 'schedule-create') {
-				await api.schedules.create(
-					pending.key,
-					str(pending.body.scheduledAt),
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice = 'Your post has been scheduled.';
-			} else if (pending.kind === 'schedule-update') {
-				await api.schedules.update(
-					pending.rkey!,
-					str(pending.body.scheduledAt),
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice = 'Your schedule has been updated.';
-			} else if (pending.kind === 'schedule-publish') {
-				const result = await api.schedules.publish(
-					pending.rkey!,
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice =
-					result.status === 'publishing'
-						? 'Your post is being published.'
-						: 'Your post has been published.';
-			} else if (pending.kind === 'edit') {
-				const result = await api.posts.edit(
-					pending.did!,
-					pending.rkey!,
-					pending.body as unknown as PostEditChanges,
-					pending.cid!,
-					pending.key
-				);
-				if (seq !== generation || destroyed) return;
-				publications?.watchEdit(pending.rkey!, result, () =>
+			const result = await executePublication(
+				api,
+				pending,
+				AbortSignal.any([controller.signal, publicationController.signal])
+			);
+			if (seq !== generation || destroyed) return;
+			if (result.post) publications?.accept(result.post, context);
+			if (result.edit)
+				publications?.watchEdit(pending.rkey!, result.edit, () =>
 					api.posts.get(pending.did!, pending.rkey!)
 				);
-				destination = `/posts/${encodeURIComponent(pending.did!)}/${encodeURIComponent(pending.rkey!)}`;
-				resultNotice = 'Your changes have been saved.';
-			} else {
-				const post = await api.posts.create(
-					pending.body as unknown as PostPayload,
-					pending.key
-				);
-				if (seq !== generation || destroyed) return;
-				publications?.accept(post, context);
-				destination = origin || closeDestination;
-			}
+			const destination =
+				pending.kind === 'edit'
+					? result.destination!
+					: origin || result.destination || closeDestination;
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
-			await (
-				lifecycle ? lifecycle.complete() : drafts.remove(owner, draftId)
-			).catch(() => {});
+			await (lifecycle?.complete() ?? Promise.resolve()).catch((error) => {
+				void reportFailure(error, 'composer.perform');
+			});
 			if (seq !== generation || destroyed) return;
 			draft.pending = undefined;
-			notify(resultNotice);
-			dirty = false;
+			notify(result.notice);
+
 			try {
 				await leaveEditor(destination);
 			} catch {
@@ -1240,7 +1162,6 @@
 			if (uncertain) {
 				error =
 					'This action is still being confirmed. The exact request has been saved. Retry to check the same action; do not create a second post.';
-				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
 			} else {
 				draft.pending = undefined;
 				if (
@@ -1250,10 +1171,10 @@
 				) {
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
-				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
+				await lifecycle?.rejected();
 				if (e instanceof APIError && e.status === 409)
 					error =
-						'This post changed while you were editing. Your draft is saved. Reload the current post before applying your changes.';
+						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
 				else if (e instanceof APIError && e.code === 'video_blob_missing')
 					error =
 						(draft.videoRecovery || 0) < 2
@@ -1264,7 +1185,7 @@
 		}
 	}
 	function beforeLeave(event: BeforeUnloadEvent) {
-		if ((dirty || mediaEdits.length) && !draft.pending) {
+		if ((changed || mediaEdits.length) && !draft.pending) {
 			event.preventDefault();
 			event.returnValue = '';
 		}
@@ -1273,6 +1194,7 @@
 
 <PublishingOverlay
 	active={publishing}
+	onstop={() => publicationController.abort()}
 	video={!!draft.video}
 	fraction={progress.match(/(\d+(?:\.\d+)?)%/)
 		? Number(progress.match(/(\d+(?:\.\d+)?)%/)![1])

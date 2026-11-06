@@ -3,8 +3,7 @@
 	import {
 		FieldValidationError,
 		presentFieldErrors,
-		showFieldError,
-		fieldError
+		showFieldError
 	} from '#lib/field-validation.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';

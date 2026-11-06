@@ -1,4 +1,4 @@
-import { UserFacingError } from '#lib/user-facing-error.ts';
+import { InputError, UserFacingError } from '#lib/user-facing-error.ts';
 import type {
 	BlobReference,
 	JsonObject,
@@ -33,6 +33,7 @@ export interface PendingWrite {
 		| 'schedule-publish';
 }
 export interface Draft {
+	revision?: string;
 	id: string;
 	owner: string;
 	updatedAt: string;
@@ -106,7 +107,11 @@ function open(): Promise<IDBDatabase> {
 				new UserFacingError('Close older CraftSky tabs to open local drafts.')
 			);
 		request.onerror = () =>
-			reject(new UserFacingError('Local draft storage could not be opened.'));
+			reject(
+				new UserFacingError('Local draft storage could not be opened.', {
+					cause: request.error
+				})
+			);
 		request.onsuccess = () => {
 			const db = request.result;
 			db.onversionchange = () => {
@@ -138,13 +143,15 @@ async function transaction<T>(
 		tx.onabort = () =>
 			reject(
 				new UserFacingError(
-					'Could not save local drafts. Check your browser storage.'
+					'Could not save local drafts. Check your browser storage.',
+					{ cause: tx.error }
 				)
 			);
 		tx.onerror = () =>
 			reject(
 				new UserFacingError(
-					'Could not save local drafts. Check your browser storage.'
+					'Could not save local drafts. Check your browser storage.',
+					{ cause: tx.error }
 				)
 			);
 	});
@@ -168,30 +175,125 @@ export const drafts = {
 				store.index('owner').getAll(owner)
 			)) as Draft[]
 		)
-			.filter((draft) => draft.owner === owner)
+			.filter(
+				(draft) =>
+					!(draft as Draft & { deleted?: boolean }).deleted &&
+					draft.owner === owner
+			)
+			.map((draft) => decodeDraft(draft, owner))
 			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 	},
 	async get(owner: string, id: string): Promise<Draft | undefined> {
 		const draft = (await transaction('readonly', (store) =>
 			store.get([owner, id])
 		)) as Draft | undefined;
-		if (draft) assertOwner(owner, draft);
-		return draft;
+		if ((draft as (Draft & { deleted?: boolean }) | undefined)?.deleted) return;
+		return draft ? decodeDraft(draft, owner) : undefined;
 	},
-	async save(owner: string, draft: Draft): Promise<void> {
+	async save(
+		owner: string,
+		draft: Draft,
+		expected: string | null = draft.revision ?? null
+	): Promise<string> {
 		assertOwner(owner, draft);
 		const copy = structuredClone(draft);
 		copy.updatedAt = new Date().toISOString();
-		await transaction('readwrite', (store) => store.put(copy));
+		copy.revision = crypto.randomUUID();
+		await change(owner, draft.id, expected, copy);
+		return copy.revision;
 	},
-	/** Explicit Discard restores the activation's original private snapshot without changing its timestamp. */
-	async restore(owner: string, draft: Draft): Promise<void> {
-		assertOwner(owner, draft);
-		await transaction('readwrite', (store) =>
-			store.put(structuredClone(draft))
-		);
-	},
-	async remove(owner: string, id: string): Promise<void> {
-		await transaction('readwrite', (store) => store.delete([owner, id]));
+	async remove(
+		owner: string,
+		id: string,
+		expected: string | null
+	): Promise<string> {
+		const revision = crypto.randomUUID();
+		await change(owner, id, expected, { owner, id, deleted: true, revision });
+		return revision;
 	}
 };
+
+/** Compare and replace in one IndexedDB transaction, including deletion tombstones.
+ * Tombstones contain no draft content and prevent an old, never-saved editor resurrecting a completed item.
+ */
+async function change(
+	owner: string,
+	id: string,
+	expected: string | null,
+	value: unknown
+): Promise<void> {
+	let conflict: Error | undefined;
+	try {
+		await transaction('readwrite', (store) => {
+			const read = store.get([owner, id]);
+			read.addEventListener('success', () => {
+				const current = read.result;
+				if (
+					(current ? (current.revision ?? current.updatedAt) : null) !==
+					expected
+				) {
+					conflict = new InputError(
+						'This draft changed in another tab. Your edits are still here. Open the latest draft before saving or publishing.'
+					);
+					store.transaction.abort();
+				} else store.put(value);
+			});
+			return read;
+		});
+	} catch (error) {
+		throw conflict ?? error;
+	}
+}
+
+/** Validate durable recovery before it can drive a write. Never infer a missing operation key. */
+export function decodeDraft(value: unknown, owner: string): Draft {
+	const draft = value as Draft;
+	const object = (v: unknown): v is Record<string, unknown> =>
+		!!v && typeof v === 'object' && !Array.isArray(v);
+	const media = (v: unknown) =>
+		object(v) &&
+		typeof v.id === 'string' &&
+		typeof v.mime === 'string' &&
+		typeof v.alt === 'string' &&
+		(!v.blob || v.blob instanceof Blob);
+	if (
+		!object(value) ||
+		draft.owner !== owner ||
+		typeof draft.id !== 'string' ||
+		typeof draft.updatedAt !== 'string' ||
+		typeof draft.text !== 'string' ||
+		!['standard', 'project'].includes(draft.kind) ||
+		typeof draft.sponsored !== 'boolean' ||
+		!Array.isArray(draft.langs) ||
+		!draft.langs.every((v) => typeof v === 'string') ||
+		!Array.isArray(draft.images) ||
+		!draft.images.every(media) ||
+		(draft.video !== undefined && !media(draft.video)) ||
+		(draft.externalImage !== undefined && !media(draft.externalImage)) ||
+		(draft.revision !== undefined && typeof draft.revision !== 'string')
+	)
+		throw new UserFacingError('This saved draft could not be read.');
+	if (draft.pending) {
+		const p = draft.pending;
+		if (
+			!object(p) ||
+			!/^[0-9a-f-]{36}$/.test(p.key) ||
+			!object(p.body) ||
+			(p.kind !== undefined &&
+				![
+					'create',
+					'edit',
+					'schedule-create',
+					'schedule-update',
+					'schedule-publish'
+				].includes(p.kind)) ||
+			(p.kind === 'edit' && (!p.did || !p.rkey || !p.cid)) ||
+			(['schedule-update', 'schedule-publish'].includes(p.kind ?? '') &&
+				!p.rkey)
+		)
+			throw new UserFacingError(
+				'This saved publication could not be read. Keep it until its outcome can be checked.'
+			);
+	}
+	return draft;
+}

@@ -7,10 +7,7 @@ import {
 	credentials,
 	publicAccount,
 	device,
-	remove,
-	prefix,
-	encode,
-	options
+	remove
 } from '#lib/server/auth/session.ts';
 import { upstream, UpstreamError } from '#lib/server/auth/upstream.ts';
 export async function authenticatedPage({
@@ -35,11 +32,6 @@ export async function authenticatedPage({
 			identity.handle !== account.handle
 		) {
 			account.handle = identity.handle;
-			cookies.set(
-				prefix(url) + 'account_' + account.id,
-				encode(account),
-				options(url)
-			);
 		}
 	} catch (error) {
 		if (error instanceof UpstreamError && error.status === 401) {

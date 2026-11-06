@@ -19,7 +19,7 @@ permissions:
 jobs:
   web-client:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: web-client
@@ -34,11 +34,16 @@ jobs:
       - run: python3 -m unittest discover -s ../scripts -p test_web_client_deploy.py
       - run: python3 -m unittest discover -s ../scripts -p test_release.py
       - run: npm ci
-      - run: npm run check
-      - run: npm test
-      - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - run: npm run test:e2e:app
-      - run: WEB_CLIENT_WORKER=1 npm run test:e2e
-      - run: WEB_CLIENT_WORKER=1 npm run test:e2e:app
+      - run: npm run test:release
+      - name: Upload local fixture failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-client-fixture-failures
+          path: |
+            web-client/test-results/
+            web-client/test-results-authenticated/
+            web-client/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

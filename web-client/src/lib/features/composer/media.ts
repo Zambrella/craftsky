@@ -1,3 +1,4 @@
+import { abortable, withDeadline } from '#lib/async.ts';
 import { UserFacingError, InputError } from '#lib/user-facing-error.ts';
 import type {
 	BlobReference,
@@ -233,6 +234,27 @@ export async function uploadVideo(
 	fetcher: typeof fetch = fetch,
 	bypassDeduplication = false
 ): Promise<NonNullable<PostPayload['embed']>> {
+	return withDeadline(15 * 60 * 1000, signal, (deadline) =>
+		uploadVideoWithinDeadline(
+			api,
+			owner,
+			media,
+			deadline,
+			progress,
+			fetcher,
+			bypassDeduplication
+		)
+	);
+}
+async function uploadVideoWithinDeadline(
+	api: CraftskyAPI,
+	owner: string,
+	media: DraftMedia,
+	signal: AbortSignal,
+	progress: (message: string) => void,
+	fetcher: typeof fetch = fetch,
+	bypassDeduplication = false
+): Promise<NonNullable<PostPayload['embed']>> {
 	if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
 	if (!media.blob)
 		throw new UserFacingError('The local video file is missing.');
@@ -263,24 +285,25 @@ export async function uploadVideo(
 		box.set([0, 0, 0, 16, 102, 114, 101, 101]);
 		source = new Blob([source, box], { type: 'video/mp4' });
 	}
-	const response = await fetcher(endpoint, {
-		method: 'POST',
-		body: source,
-		headers: {
-			'Content-Type': 'video/mp4',
-			Authorization: `Bearer ${authorization.token}`
+	let data = await videoRequest(
+		endpoint,
+		{
+			method: 'POST',
+			body: source,
+			headers: {
+				'Content-Type': 'video/mp4',
+				Authorization: `Bearer ${authorization.token}`
+			},
+			credentials: 'omit',
+			redirect: 'error',
+			referrerPolicy: 'no-referrer',
+			cache: 'no-store',
+			signal
 		},
-		credentials: 'omit',
-		redirect: 'error',
-		referrerPolicy: 'no-referrer',
-		cache: 'no-store',
-		signal
-	});
-	if (!response.ok && response.status !== 409)
-		throw new UserFacingError(
-			'The video service could not accept this upload.'
-		);
-	let data = await boundedJSON(response);
+		signal,
+		5 * 60 * 1000,
+		fetcher
+	);
 	let status = (data.jobStatus || data) as Record<string, unknown>;
 	const started = Date.now();
 	let jobId = '';
@@ -320,20 +343,77 @@ export async function uploadVideo(
 		await delay(2000, signal);
 		const query = new URL('/xrpc/app.bsky.video.getJobStatus', videoOrigin);
 		query.searchParams.set('jobId', jobId);
-		const poll = await fetcher(query, {
+		data = await videoRequest(
+			query,
+			{
+				credentials: 'omit',
+				redirect: 'error',
+				referrerPolicy: 'no-referrer',
+				cache: 'no-store'
+			},
+			signal,
+			30000,
+			fetcher
+		);
+		if (!data.jobStatus || typeof data.jobStatus !== 'object')
+			throw new UserFacingError('The video service returned an invalid job.');
+		status = data.jobStatus as Record<string, unknown>;
+	}
+}
+
+async function videoRequest(
+	url: URL,
+	options: RequestInit,
+	parent: AbortSignal,
+	timeout: number,
+	fetcher: typeof fetch
+) {
+	return withDeadline(timeout, parent, async (signal) => {
+		const response = await fetcher(url, { ...options, signal });
+		if (!response.ok && response.status !== 409)
+			throw new UserFacingError(
+				'The video service could not complete this request. Please try again.'
+			);
+		return boundedJSON(response);
+	});
+}
+
+/** Bound remote bytes while reading, before allocating a Blob. */
+export async function remoteImage(
+	url: URL,
+	parent: AbortSignal,
+	fetcher: typeof fetch = fetch
+): Promise<Blob> {
+	return withDeadline(60000, parent, async (signal) => {
+		const response = await fetcher(url, {
 			credentials: 'omit',
 			redirect: 'error',
 			referrerPolicy: 'no-referrer',
 			cache: 'no-store',
 			signal
 		});
-		if (!poll.ok)
-			throw new UserFacingError(
-				'Could not check video processing. Your draft is still available.'
-			);
-		data = await boundedJSON(poll);
-		if (!data.jobStatus || typeof data.jobStatus !== 'object')
-			throw new UserFacingError('The video service returned an invalid job.');
-		status = data.jobStatus as Record<string, unknown>;
-	}
+		if (!response.ok || !response.body)
+			throw new UserFacingError('Could not load the published image.');
+		const limit = 40_000_000;
+		const reader = response.body.getReader();
+		const parts: Uint8Array<ArrayBuffer>[] = [];
+		let length = 0;
+		try {
+			if (Number(response.headers.get('content-length')) > limit)
+				throw new UserFacingError('This image is too large to edit.');
+			for (;;) {
+				const next = await abortable(reader.read(), signal);
+				if (next.done) break;
+				length += next.value.length;
+				if (length > limit)
+					throw new UserFacingError('This image is too large to edit.');
+				parts.push(next.value as Uint8Array<ArrayBuffer>);
+			}
+			return new Blob(parts, {
+				type: response.headers.get('content-type') || ''
+			});
+		} finally {
+			void reader.cancel().catch(() => {});
+		}
+	});
 }

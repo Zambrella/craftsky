@@ -10,8 +10,7 @@
 		newOperationKey,
 		type Profile,
 		type ProfileLinkInput,
-		type ProfileUpdate,
-		type BlobReference
+		type ProfileUpdate
 	} from '#lib/api/client.ts';
 	import MediaEditor from '../composer/MediaEditor.svelte';
 	import type { DraftMedia } from '../drafts/store';

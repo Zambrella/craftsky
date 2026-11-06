@@ -24,10 +24,7 @@ export default defineConfig({
 	define: {
 		__CRAFTSKY_WEB_RELEASE__: JSON.stringify(webRelease),
 		__CRAFTSKY_VERSION__: JSON.stringify(
-			readFileSync(
-				new URL('./VERSION', import.meta.url),
-				'utf8'
-			).trim()
+			readFileSync(new URL('./VERSION', import.meta.url), 'utf8').trim()
 		)
 	},
 	plugins: [

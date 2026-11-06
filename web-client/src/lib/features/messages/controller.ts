@@ -1,3 +1,4 @@
+import { stageSharedLink, takeSharedLink } from './share';
 import { reportFailure } from '../diagnostics/client';
 import type { DiagnosticOperation } from '../diagnostics/privacy';
 import { userErrorMessage } from '#lib/user-facing-error.ts';
@@ -194,6 +195,11 @@ export class MessagesController {
 					let draftSaved = true;
 					try {
 						draft = this.store.load(id);
+						const link = takeSharedLink(this.account, id);
+						if (link) {
+							draft = prefillSharedLink(draft, link);
+							draftSaved = false;
+						}
 					} catch (error) {
 						void reportFailure(error, 'messages.draft.load');
 						draftSaved = false;
@@ -323,19 +329,7 @@ export class MessagesController {
 				availability.conversationId ||
 				(await this.api.chat.start(recipient)).id;
 			if (!this.current(epoch)) return;
-			if (link) {
-				// Persistence must complete before the recipient page is opened. No send is started here.
-				try {
-					const draft = prefillSharedLink(this.store.load(id), link);
-					this.store.save(id, draft);
-				} catch {
-					this.update({
-						error:
-							'The shared link could not be saved on this device. Your existing draft has been kept. Try again after checking browser storage.'
-					});
-					return;
-				}
-			}
+			if (link) stageSharedLink(this.account, id, link);
 			return id;
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error, 'messages.start');
@@ -345,25 +339,56 @@ export class MessagesController {
 	}
 	edit(text: string): void {
 		if (!this.state.id) return;
-		this.update({ draft: { ...this.state.draft, text } });
-		this.saveDraft();
+		this.update({ draft: { ...this.state.draft, text }, draftSaved: false });
 	}
-	saveDraft(): boolean {
-		if (!this.state.id) return false;
+	async saveDraft(): Promise<boolean> {
+		const { id, draft } = this.state,
+			epoch = this.epoch;
+		if (!id || this.state.busy || draft.pending) return false;
+		this.update({ busy: true });
 		try {
-			this.store.save(this.state.id, this.state.draft);
-			this.update({ draftSaved: true });
+			await this.store.save(id, draft);
+			if (this.current(epoch))
+				this.update({
+					draftSaved: this.state.draft.text === draft.text,
+					notice: 'Draft saved on this device.'
+				});
 			return true;
 		} catch (error) {
-			if (this.state.draftSaved)
-				void reportFailure(error, 'messages.draft.save');
-			this.update({ draftSaved: false });
+			void reportFailure(error, 'messages.draft.save');
+			if (this.current(epoch))
+				this.update({ error: userErrorMessage(error), draftSaved: false });
 			return false;
+		} finally {
+			if (this.current(epoch)) this.update({ busy: false });
 		}
 	}
-	private setDraft(draft: MessageDraft): boolean {
-		this.update({ draft });
-		return this.saveDraft();
+	private async setDraft(draft: MessageDraft): Promise<boolean> {
+		const epoch = this.epoch,
+			id = this.state.id,
+			textBefore = this.state.draft.text;
+		if (!id) return false;
+		try {
+			// Recovery stores only the submitted text; subsequent typing remains unsaved.
+			await this.store.save(
+				id,
+				draft.pending
+					? { text: draft.pending.text, pending: draft.pending }
+					: { text: '' }
+			);
+			if (!this.current(epoch)) return false;
+			if (this.state.draft.text !== textBefore)
+				draft = { ...draft, text: this.state.draft.text };
+			this.update({
+				draft,
+				draftSaved:
+					!draft.text || (!!draft.pending && draft.text === draft.pending.text)
+			});
+			return true;
+		} catch (error) {
+			if (this.current(epoch)) this.failure(error, 'messages.draft.save');
+			return false;
+		}
 	}
 	async send(retry = false): Promise<void> {
 		const { id, conversation } = this.state;
@@ -386,13 +411,13 @@ export class MessagesController {
 			});
 			return;
 		}
-		if (!this.setDraft(draft)) {
-			this.update({
-				error:
-					'Save this draft before sending so its delivery can be checked safely.'
-			});
+		this.update({ busy: true });
+		if (!(await this.setDraft(draft))) {
+			if (!this.current(epoch)) return;
+			this.update({ busy: false });
 			return;
 		}
+		if (!this.current(epoch)) return;
 		const attempt = draft.pending!;
 		this.update({ busy: true, error: '', notice: '' });
 		try {
@@ -402,7 +427,8 @@ export class MessagesController {
 				attempt.text
 			);
 			if (!this.current(epoch)) return;
-			this.setDraft(reconcileSend(this.state.draft, receipt));
+			await this.setDraft(reconcileSend(this.state.draft, receipt));
+			if (!this.current(epoch)) return;
 			if (receipt.message)
 				this.update({
 					messages: mergeMessages(this.state.messages, [receipt.message])
@@ -412,7 +438,7 @@ export class MessagesController {
 			if (!this.current(epoch)) return;
 			const pending = this.state.draft.pending;
 			if (pending?.operationId === attempt.operationId)
-				this.setDraft({
+				await this.setDraft({
 					...this.state.draft,
 					pending: { ...pending, state: 'uncertain' }
 				});
@@ -429,7 +455,8 @@ export class MessagesController {
 		try {
 			const receipt = await this.api.chat.receipt(pending.operationId);
 			if (!this.current(epoch)) return;
-			this.setDraft(reconcileSend(this.state.draft, receipt));
+			await this.setDraft(reconcileSend(this.state.draft, receipt));
+			if (!this.current(epoch)) return;
 			if (receipt.state === 'confirmed') await this.refreshContent(epoch);
 		} catch (error) {
 			if (this.current(epoch)) {
@@ -444,19 +471,19 @@ export class MessagesController {
 			if (this.current(epoch)) this.update({ busy: false });
 		}
 	}
-	dismissFailed(): void {
+	async dismissFailed(): Promise<void> {
 		if (this.state.draft.pending?.state === 'failed')
-			this.setDraft({
+			await this.setDraft({
 				text: this.state.draft.text || this.state.draft.pending.text
 			});
 	}
-	discardDraft(): void {
+	async discardDraft(): Promise<void> {
 		if (
 			this.state.draft.pending?.state === 'uncertain' ||
 			this.state.draft.pending?.state === 'pending'
 		)
 			return;
-		this.setDraft({ text: '' });
+		await this.setDraft({ text: '' });
 	}
 	private async refreshContent(epoch: number): Promise<void> {
 		const { id } = this.state;

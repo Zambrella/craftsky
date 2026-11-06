@@ -174,6 +174,9 @@ describe('account-owned messaging operations', () => {
 			() => new Promise((resolve) => (finish = resolve))
 		);
 		const pending = controller.send();
+		await vi.waitFor(() =>
+			expect(controller.state.draft.pending).toBeDefined()
+		);
 		const operationId = controller.state.draft.pending!.operationId;
 		controller.dispose();
 		publish.mockClear();
@@ -307,10 +310,10 @@ describe('account-owned messaging operations', () => {
 
 describe('account-owned shared-link recipient selection', () => {
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/post';
-	it('commits to the exact account/conversation before navigation and never sends', async () => {
+	it('keeps a shared link in memory until an explicit save and never sends', async () => {
 		const { api, controller, storage } = setup();
 		const store = new MessageDraftStore(storage, 'account-a');
-		store.save('existing', { text: 'My draft' });
+		await store.save('existing', { text: 'My draft' });
 		vi.spyOn(api.chat, 'availability').mockResolvedValue({
 			canChat: true,
 			conversationId: 'existing'
@@ -318,17 +321,17 @@ describe('account-owned shared-link recipient selection', () => {
 		const send = vi.spyOn(api.chat, 'send'),
 			start = vi.spyOn(api.chat, 'start');
 		expect(await controller.start('did:plc:peer', link)).toBe('existing');
-		expect(store.load('existing').text).toBe('My draft\n\n' + link);
+		expect(store.load('existing').text).toBe('My draft');
 		expect(
 			new MessageDraftStore(storage, 'account-b').load('existing')
 		).toEqual({ text: '' });
 		expect(send).not.toHaveBeenCalled();
 		expect(start).not.toHaveBeenCalled();
 	});
-	it('does not navigate when browser persistence fails and retains the prior draft', async () => {
+	it('does not require persistence to choose a recipient and retains the saved draft', async () => {
 		const { api, controller, storage } = setup();
 		const store = new MessageDraftStore(storage, 'account-a');
-		store.save('existing', { text: 'Keep' });
+		await store.save('existing', { text: 'Keep' });
 		vi.spyOn(api.chat, 'availability').mockResolvedValue({
 			canChat: true,
 			conversationId: 'existing'
@@ -336,9 +339,9 @@ describe('account-owned shared-link recipient selection', () => {
 		vi.spyOn(storage, 'setItem').mockImplementation(() => {
 			throw new Error('quota');
 		});
-		expect(await controller.start('did:plc:peer', link)).toBeUndefined();
+		expect(await controller.start('did:plc:peer', link)).toBe('existing');
 		expect(store.load('existing').text).toBe('Keep');
-		expect(controller.state.error).toContain('could not be saved');
+		expect(controller.state.error).toBe('');
 		expect(controller.state.busy).toBe(false);
 	});
 	it('discards a recipient result after the active controller is disposed', async () => {
