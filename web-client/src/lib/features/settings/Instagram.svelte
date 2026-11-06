@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { userErrorMessage } from '#lib/user-facing-error.ts';
 	import { fieldError } from '#lib/field-validation.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
@@ -23,7 +24,7 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	let { api }: { api: CraftskyAPI } = $props();
-	const work = new Work();
+	const work = new Work('settings.Instagram.action');
 	let loaded = $state(false);
 	let disposed = false;
 	const archiveAbort = new AbortController();
@@ -120,7 +121,7 @@
 		suggestionCursor = data.suggestions.cursor || null;
 	}
 	function load() {
-		return work.load(fetchData, apply);
+		return work.load(fetchData, apply, 'settings.Instagram.load');
 	}
 	function update(action: () => Promise<unknown>, notice: string) {
 		void work.run(
@@ -129,7 +130,8 @@
 				return fetchData();
 			},
 			apply,
-			notice
+			notice,
+			'settings.Instagram.update'
 		);
 	}
 	async function setDiscoverable(discoverable: boolean) {
@@ -142,7 +144,8 @@
 				return fetchData();
 			},
 			apply,
-			'Discovery preference saved.'
+			'Discovery preference saved.',
+			'settings.Instagram.setDiscoverable'
 		);
 		if (!disposed && work.error) account = previous;
 	}
@@ -157,7 +160,8 @@
 			(v) => {
 				verification = v;
 			},
-			'Verification started. Send the exact challenge below from your Instagram account.'
+			'Verification started. Send the exact challenge below from your Instagram account.',
+			'settings.Instagram.verify'
 		);
 	}
 	function parseManual(event: SubmitEvent) {
@@ -169,10 +173,7 @@
 			work.error = '';
 		} catch (error) {
 			parsed = null;
-			fieldError(
-				'Instagram usernames',
-				error instanceof Error ? error.message : 'Could not read usernames.'
-			);
+			fieldError('Instagram usernames', userErrorMessage(error));
 		}
 	}
 	async function readFile(event: Event) {
@@ -188,7 +189,8 @@
 				sourceType = 'instagramJson';
 				fileName = file.name;
 			},
-			'File ready to review.'
+			'File ready to review.',
+			'settings.Instagram.readFile'
 		);
 	}
 	function importFollowing() {
@@ -208,7 +210,8 @@
 				manual = '';
 				fileName = '';
 			},
-			'Following list imported. New matches will appear here.'
+			'Following list imported. New matches will appear here.',
+			'settings.Instagram.importFollowing'
 		);
 	}
 	function accept(suggestion: Suggestion) {
@@ -219,7 +222,8 @@
 			() => {
 				suggestions = suggestions.filter((s) => s.suggestionId !== id);
 			},
-			'Following this maker.'
+			'Following this maker.',
+			'settings.Instagram.accept'
 		);
 	}
 	function moreImports() {
@@ -234,7 +238,8 @@
 					imports = [...imports, ...page.items];
 					importCursor = page.cursor || null;
 				},
-				''
+				'',
+				'settings.Instagram.moreImports'
 			);
 	}
 	function moreSuggestions() {
@@ -249,7 +254,8 @@
 					suggestions = [...suggestions, ...page.items];
 					suggestionCursor = page.cursor || null;
 				},
-				''
+				'',
+				'settings.Instagram.moreSuggestions'
 			);
 	}
 	onMount(load);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { routeTitle } from './page-context';
 	import { authenticatedRoute } from '#lib/routes.ts';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { notify } from '../social/toasts.svelte';
@@ -609,10 +610,9 @@
 	><link rel="manifest" href="/manifest.webmanifest" /><link
 		rel="apple-touch-icon"
 		href="/app-icon.png"
-	/><meta name="theme-color" content="#f5efe4" /><title>CraftSky</title><meta
-		name="robots"
-		content="noindex, nofollow"
-	/></svelte:head
+	/><meta name="theme-color" content="#f5efe4" /><title
+		>{routeTitle(page.url.pathname)}</title
+	><meta name="robots" content="noindex, nofollow" /></svelte:head
 ><svelte:document
 	onvisibilitychange={() => {
 		if (!document.hidden) void counts();

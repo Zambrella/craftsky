@@ -1474,5 +1474,11 @@
     "path": "/v1/public/profiles/{handleOrDid}/projects",
     "category": "appview.public.profile.list",
     "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/stats",
+    "category": "appview.public.stats",
+    "public": true
   }
 ]

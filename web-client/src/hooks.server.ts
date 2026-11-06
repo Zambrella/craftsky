@@ -1,3 +1,5 @@
+import { logServerFailure } from '#lib/server/diagnostics.ts';
+import type { HandleServerError } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit/hooks';
 import login from '../../verified-links/auth/complete.html?raw';
 import deletion from '../../verified-links/account-deletion/reauth-complete.html?raw';
@@ -52,4 +54,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (response.status === 429 || response.status === 503)
 		response.headers.set('retry-after', '1');
 	return response;
+};
+
+export const handleError: HandleServerError = ({ error, kind }) => {
+	if (kind !== 'unknown') return;
+	logServerFailure(error, 'worker.unhandled', 'request');
+	return { message: 'Something went wrong. Please try again.' };
 };

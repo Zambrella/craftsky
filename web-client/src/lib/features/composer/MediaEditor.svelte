@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { remoteImage } from './media';
+	import { reportFailure } from '../diagnostics/client';
+	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
@@ -119,8 +122,8 @@
 			width = 100;
 			height = 100;
 		} catch (e) {
-			if (!disposed && operation === seq)
-				error = e instanceof Error ? e.message : 'Could not edit this image.';
+			void reportFailure(e, 'composer.media.edit');
+			if (!disposed && operation === seq) error = userErrorMessage(e);
 		} finally {
 			if (!disposed && operation === seq) busy = false;
 		}
@@ -146,18 +149,8 @@
 					['localhost', '127.0.0.1', '[::1]'].includes(destination.hostname)
 				)
 			)
-				throw new Error('This published image cannot be edited.');
-			const response = await fetch(destination, {
-				credentials: 'omit',
-				redirect: 'error',
-				referrerPolicy: 'no-referrer',
-				cache: 'no-store',
-				signal: remote.signal
-			});
-			if (!response.ok) throw new Error('Could not load the published image.');
-			const blob = await response.blob();
-			if (blob.size > 40_000_000)
-				throw new Error('This image is too large to edit.');
+				throw new UserFacingError('This published image cannot be edited.');
+			const blob = await remoteImage(destination, remote.signal);
 			if (
 				disposed ||
 				operation !== seq ||
@@ -168,11 +161,8 @@
 			onchange({ ...media, blob });
 			editing = true;
 		} catch (e) {
-			if (!disposed && operation === seq)
-				error =
-					e instanceof Error
-						? e.message
-						: 'Could not edit this published image.';
+			void reportFailure(e, 'composer.media.edit');
+			if (!disposed && operation === seq) error = userErrorMessage(e);
 		} finally {
 			if (!disposed && operation === seq) busy = false;
 		}

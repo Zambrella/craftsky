@@ -181,3 +181,53 @@ describe('approved video capability transport', () => {
 		expect(fetcher.mock.calls[0][1]?.redirect).toBe('error');
 	});
 });
+
+it.each(['upload', 'poll', 'body'])(
+	'bounds a stalled video %s and aborts its request',
+	async (stage) => {
+		vi.useFakeTimers();
+		try {
+			const api = {
+				media: {
+					videoLimits: async () => ({ canUpload: true }),
+					videoAuthorization: async () => ({
+						token: 'PRIVATE_CAPABILITY',
+						expiresAt: new Date(Date.now() + 60000).toISOString()
+					})
+				}
+			} as unknown as CraftskyAPI;
+			const signals: AbortSignal[] = [];
+			const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+				signals.push(init!.signal!);
+				if (stage === 'poll' && signals.length === 1)
+					return new Response(
+						JSON.stringify({ jobId: 'job', state: 'JOB_STATE_PROCESSING' })
+					);
+				if (stage === 'body') return new Response(new ReadableStream());
+				return new Promise(() => {});
+			});
+			const task = uploadVideo(
+				api,
+				'did:plc:a',
+				{
+					id: 'video',
+					name: 'v.mp4',
+					mime: 'video/mp4',
+					alt: '',
+					blob: new Blob(['video'])
+				},
+				new AbortController().signal,
+				() => {},
+				fetcher
+			);
+			const result = expect(task).rejects.toMatchObject({
+				name: 'TimeoutError'
+			});
+			await vi.advanceTimersByTimeAsync(stage === 'poll' ? 32001 : 300001);
+			await result;
+			expect(signals.at(-1)?.aborted).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	}
+);

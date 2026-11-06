@@ -38,13 +38,11 @@ var publicOwnerPredicate = `
 
 func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*PublicProfile, error) {
 	var row ProfileRow
-	var imageClear bool
 	err := s.pool.QueryRow(ctx, `
  SELECT cp.did,cp.crafts,bp.display_name,bp.description,bp.pronouns,
- bp.avatar_cid,bp.avatar_mime,bp.banner_cid,bp.banner_mime,
- COALESCE(appview_image_subject_is_clear('at://' || cp.did || '/app.bsky.actor.profile/self',bp.record_cid),false)
+ bp.avatar_cid,bp.avatar_mime,bp.banner_cid,bp.banner_mime
  FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did
- WHERE cp.did=$1 `+publicOwnerPredicate, did).Scan(&row.DID, &row.Crafts, &row.DisplayName, &row.Description, &row.Pronouns, &row.AvatarCID, &row.AvatarMime, &row.BannerCID, &row.BannerMime, &imageClear)
+ WHERE cp.did=$1 `+publicOwnerPredicate, did).Scan(&row.DID, &row.Crafts, &row.DisplayName, &row.Description, &row.Pronouns, &row.AvatarCID, &row.AvatarMime, &row.BannerCID, &row.BannerMime)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrProfileNotFound
 	}
@@ -60,13 +58,14 @@ func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*P
 		return nil, err
 	}
 	out := &PublicProfile{PublicAuthor: PublicAuthor{DID: did, Handle: handle, DisplayName: row.DisplayName, Business: accountType == business.AccountTypeBusiness}, Description: row.Description, Pronouns: row.Pronouns, Crafts: nonNilStrings(row.Crafts), Links: []PublicLink{}}
-	if imageClear {
-		if v := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); v != "" {
-			out.Avatar = &v
-		}
-		if v := synthBlobURL("banner", row.DID, row.BannerCID, row.BannerMime); v != "" {
-			out.Banner = &v
-		}
+	// Profile indexing promotes each cleared image into its serving columns,
+	// preserving the last cleared image while replacements are scanned. Profile
+	// images do not use the record-level image_subject_states used for posts.
+	if v := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); v != "" {
+		out.Avatar = &v
+	}
+	if v := synthBlobURL("banner", row.DID, row.BannerCID, row.BannerMime); v != "" {
+		out.Banner = &v
 	}
 	links, _, err := NewProfileStore(s.pool).readProfileLinks(ctx, did, "")
 	if err != nil {

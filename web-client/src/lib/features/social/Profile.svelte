@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { notify } from './toasts.svelte';
-	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
@@ -23,7 +22,6 @@
 	import BusinessSummary from './BusinessSummary.svelte';
 	import ProductCard from './ProductCard.svelte';
 	import BusinessEventCard from './BusinessEventCard.svelte';
-	import RichText from './RichText.svelte';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import Icon from '../shell/Icon.svelte';
@@ -31,7 +29,7 @@
 	import CompactIdentity from './CompactIdentity.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
 	import { profileTabs, tabLabel, joinedAge } from './presentation';
-	import { name, profileStyle, texture, safeLink, visible } from './model';
+	import { profileStyle, texture, safeLink } from './model';
 	let {
 		api,
 		session,
@@ -41,11 +39,11 @@
 		session: { id: string; did: string; handle: string };
 		id: string;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.Profile.action');
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
-	let contentWork = $state(new Work());
+	let contentWork = $state(new Work('social.Profile.action'));
 	const tabPages = new Map<
 		string,
 		{
@@ -110,7 +108,9 @@
 			() => api.profiles.get(id),
 			(value) => {
 				profile = value;
-			}
+			},
+			undefined,
+			'social.Profile.profiles.get'
 		);
 	});
 	onDestroy(() => {
@@ -129,7 +129,7 @@
 			loadedTab = current;
 			const revision = ++generation;
 			contentWork.dispose();
-			const pending = new Work();
+			const pending = new Work('social.Profile.action');
 			contentWork = pending;
 			const cached = tabPages.get(current);
 			cursor = cached?.cursor;
@@ -147,7 +147,9 @@
 							events = value.items;
 							cursor = value.cursor;
 						}
-					}
+					},
+					undefined,
+					'social.Profile.business.profileEvents'
 				);
 			else
 				void pending.run(
@@ -158,7 +160,9 @@
 							posts = value.items;
 							cursor = value.cursor;
 						}
-					}
+					},
+					undefined,
+					'social.Profile.profiles.posts'
 				);
 		});
 	});
@@ -172,7 +176,9 @@
 					if (revision !== generation) return;
 					events = [...events, ...value.items];
 					cursor = value.cursor;
-				}
+				},
+				undefined,
+				'social.Profile.more'
 			);
 		else
 			void contentWork.run(
@@ -181,14 +187,15 @@
 					if (revision !== generation) return;
 					posts = [...posts, ...value.items];
 					cursor = value.cursor;
-				}
+				},
+				undefined,
+				'social.Profile.more'
 			);
 	}
 
 	function follow() {
 		if (!profile) return;
-		const current = profile,
-			key = newOperationKey(),
+		const key = newOperationKey(),
 			following = profile.viewerIsFollowing;
 		void work.run(
 			() =>
@@ -197,7 +204,9 @@
 					: api.profiles.follow(id, key),
 			(value) => {
 				profile = value;
-			}
+			},
+			undefined,
+			'social.Profile.follow'
 		);
 	}
 	function relationship(action: 'mute' | 'block', confirmed = false) {
@@ -229,7 +238,8 @@
 					: 'Account muted.'
 				: current.blocking
 					? 'Account unblocked.'
-					: 'Account blocked.'
+					: 'Account blocked.',
+			'social.Profile.relationship'
 		);
 	}
 	function report(submission: ReportSubmission) {
@@ -243,7 +253,9 @@
 				reportOpen = false;
 				reportLink = undefined;
 				notify('Report submitted.');
-			}
+			},
+			undefined,
+			'social.Profile.report'
 		);
 	}
 </script>

@@ -1,3 +1,4 @@
+import { UserFacingError } from '#lib/user-facing-error.ts';
 import {
 	assertOwner,
 	drafts,
@@ -5,12 +6,13 @@ import {
 	type DraftMedia
 } from '../drafts/store';
 
-type Persistence = Pick<typeof drafts, 'save' | 'restore' | 'remove'>;
+type Persistence = Pick<typeof drafts, 'save' | 'remove'>;
 /** One editor activation owns its durable queue and the snapshot explicit Discard restores. */
 export class ComposerRecovery {
 	private tail: Promise<void> = Promise.resolve();
 	private phase: 'active' | 'discarding' | 'closed' = 'active';
-	private readonly original?: Draft;
+	private original?: Draft;
+	private revision: string | null;
 	private readonly baseline: string;
 	private blobs = new WeakMap<Blob, number>();
 	private nextBlob = 1;
@@ -23,7 +25,9 @@ export class ComposerRecovery {
 	) {
 		this.assert(initial);
 		this.baseline = this.fingerprint(initial);
-		this.original = existing ? structuredClone(initial) : undefined;
+		this.original =
+			existing && !initial.pending ? structuredClone(initial) : undefined;
+		this.revision = existing ? (initial.revision ?? initial.updatedAt) : null;
 	}
 	get active() {
 		return this.phase === 'active';
@@ -67,7 +71,7 @@ export class ComposerRecovery {
 	private assert(value: Draft) {
 		assertOwner(this.owner, value);
 		if (value.id !== this.id)
-			throw new Error('This editor belongs to another draft.');
+			throw new UserFacingError('This editor belongs to another draft.');
 	}
 	private enqueue(action: () => Promise<void>): Promise<void> {
 		const result = this.tail.then(action, action);
@@ -77,34 +81,56 @@ export class ComposerRecovery {
 	checkpoint(value: Draft): Promise<void> {
 		this.assert(value);
 		if (!this.active)
-			return Promise.reject(new Error('This editor has already closed.'));
+			return Promise.reject(
+				new UserFacingError('This editor has already closed.')
+			);
 		const frozen = structuredClone(value);
-		return this.enqueue(() => this.store.save(this.owner, frozen));
+		return this.enqueue(async () => {
+			this.revision = await this.store.save(this.owner, frozen, this.revision);
+			if (!frozen.pending)
+				this.original = { ...frozen, revision: this.revision };
+		});
 	}
-	/** Wait behind every accepted checkpoint; restoration/removal wins over in-flight autosaves. */
+	/** Unsaved edits live only in memory. Discard must never restore a stale row. */
 	discard(value: Draft): Promise<void> {
 		this.assert(value);
 		if (value.pending)
 			return Promise.reject(
-				new Error('Check the original action before discarding this draft.')
+				new UserFacingError(
+					'Check the original action before discarding this draft.'
+				)
 			);
 		if (!this.active)
-			return Promise.reject(new Error('This editor has already closed.'));
-		this.phase = 'discarding';
+			return Promise.reject(
+				new UserFacingError('This editor has already closed.')
+			);
+		this.phase = 'closed';
+		return this.tail;
+	}
+	/** A definitive rejection removes only recovery, restoring the last explicit save. */
+	rejected(): Promise<void> {
 		return this.enqueue(async () => {
 			if (this.original)
-				await this.store.restore(this.owner, structuredClone(this.original));
-			else await this.store.remove(this.owner, this.id);
-			this.phase = 'closed';
-		}).catch((error) => {
-			if (this.phase === 'discarding') this.phase = 'active';
-			throw error;
+				this.revision = await this.store.save(
+					this.owner,
+					this.original,
+					this.revision
+				);
+			else {
+				this.revision = await this.store.remove(
+					this.owner,
+					this.id,
+					this.revision
+				);
+			}
 		});
 	}
-	/** Confirmed publication may clear its recovery row; stale autosaves must never recreate it. */
+	/** Confirmed publication may clear its recovery row; stale editor writes must never recreate it. */
 	complete(): Promise<void> {
 		this.phase = 'closed';
-		return this.enqueue(() => this.store.remove(this.owner, this.id));
+		return this.enqueue(async () => {
+			await this.store.remove(this.owner, this.id, this.revision);
+		});
 	}
 	abandon(): void {
 		this.phase = 'closed';

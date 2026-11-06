@@ -1,5 +1,40 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+
+test('profile share images are present in initial HTML, including without a public avatar', async ({
+	request
+}) => {
+	for (const [profile, image, alt] of [
+		[
+			'alice.test',
+			'https://cdn.example/avatar.jpg',
+			'Alice &lt;script>unsafe&lt;/script>'
+		],
+		[
+			'no-avatar.test',
+			'https://app.craftsky.social/social-share.png',
+			'CraftSky'
+		],
+		[
+			'unsafe-avatar.test',
+			'https://app.craftsky.social/social-share.png',
+			'CraftSky'
+		]
+	]) {
+		const response = await request.get(`/profiles/${profile}`);
+		expect(response.status()).toBe(200);
+		const html = await response.text();
+		expect(html).toContain(`property="og:image" content="${image}"`);
+		expect(html).toContain(`property="og:image:alt" content="${alt}"`);
+		expect(html).toContain(`name="twitter:image" content="${image}"`);
+		expect(html).toContain('name="twitter:card" content="summary_large_image"');
+	}
+	const image = await request.get('/social-share.png');
+	expect(image.status()).toBe(200);
+	expect(image.headers()['content-type']).toContain('image/png');
+	expect(await image.body()).toEqual(readFileSync('static/social-share.png'));
+});
+
 test('serves post text, project details and share metadata in initial HTML', async ({
 	page,
 	request

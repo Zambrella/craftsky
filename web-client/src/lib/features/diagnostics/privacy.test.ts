@@ -241,3 +241,32 @@ describe('diagnostic source selection and serialization', () => {
 		).not.toContain(canary);
 	});
 });
+
+it('preserves a local storage failure cause without exporting draft or dependency prose', async () => {
+	const { UserFacingError } = await import('#lib/user-facing-error.ts');
+	const bodies: string[] = [];
+	const client = sdk.init(
+		diagnosticOptions(
+			sdk,
+			'https://public@o1.ingest.sentry.io/1',
+			() => true,
+			async (_request, init) => {
+				bodies.push(String(init?.body));
+				return new Response('', { status: 200 });
+			}
+		)
+	)!;
+	const cause = new DOMException(canary, 'QuotaExceededError');
+	sdk.captureException(
+		new UserFacingError(
+			'Could not save local drafts. Check your browser storage.',
+			{ cause }
+		),
+		{ contexts: { diagnostic: { operation: 'composer.saveDraft' } } }
+	);
+	await client.flush(1000);
+	expect(bodies).toHaveLength(1);
+	expect(bodies[0]).toContain('QuotaExceededError');
+	expect(bodies[0]).toContain('composer.saveDraft');
+	expect(bodies[0]).not.toContain(canary);
+});

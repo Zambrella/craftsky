@@ -22,7 +22,7 @@
 	import EmptyState from './EmptyState.svelte';
 	import Icon from '../shell/Icon.svelte';
 	let { api, did = '' }: { api: CraftskyAPI; did?: string } = $props();
-	const work = new Work();
+	const work = new Work('social.Activity.action');
 	const beginSeen = getContext<BeginNotificationSeen | undefined>(
 		notificationBadgeContext
 	);
@@ -47,7 +47,9 @@
 				(value) => {
 					items = more ? [...items, ...value.items] : value.items;
 					cursor = value.cursor || null;
-				}
+				},
+				undefined,
+				'social.Activity.load'
 			);
 			if (disposed || work.error) return;
 			if (!more) {
@@ -104,7 +106,9 @@
 						? { ...old, actor: { ...old.actor, ...profile } }
 						: old
 				);
-			}
+			},
+			undefined,
+			'social.Activity.follow'
 		);
 	}
 	onMount(() => load());

@@ -1,3 +1,4 @@
+import { UserFacingError } from '#lib/user-facing-error.ts';
 import { graphemeCount as textLength } from '#lib/text.ts';
 import {
 	newOperationKey,
@@ -307,7 +308,7 @@ export function postPayload(draft: Draft, facets: Facet[]): PostPayload {
 	if (draft.images.length)
 		payload.images = draft.images.map((image) => {
 			if (!image.uploaded)
-				throw new Error('An image has not finished uploading.');
+				throw new UserFacingError('An image has not finished uploading.');
 			return {
 				image: image.uploaded,
 				alt: image.alt,
@@ -327,7 +328,7 @@ export function postPayload(draft: Draft, facets: Facet[]): PostPayload {
 /** Edits contain changed known fields, leaving unedited authored extensions intact. */
 export function editChanges(draft: Draft, facets: Facet[]): PostEditChanges {
 	const before = draft.edit?.editable;
-	if (!before) throw new Error('The post edit context is missing.');
+	if (!before) throw new UserFacingError('The post edit context is missing.');
 	const changes: JsonObject = {};
 	if (draft.text !== before.text) {
 		changes.text = draft.text;

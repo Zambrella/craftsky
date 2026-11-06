@@ -13,6 +13,10 @@
 		image?: string;
 		imageAlt?: string;
 	} = $props();
+	// Anonymous responses can omit images pending safety clearance. Always give
+	// crawlers a public image without bypassing that filtering.
+	const shareImage = $derived(safeURL(image) || origin + '/social-share.png');
+	const shareImageAlt = $derived(safeURL(image) ? imageAlt : 'CraftSky');
 </script>
 
 <svelte:head>
@@ -24,20 +28,15 @@
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
 	<meta property="og:url" content={origin + path} />
-	<meta
-		name="twitter:card"
-		content={safeURL(image) ? 'summary_large_image' : 'summary'}
-	/>
+	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:title" content={title} />
 	<meta name="twitter:description" content={description} />
-	{#if safeURL(image)}
-		<meta property="og:image" content={safeURL(image)} /><meta
-			property="og:image:alt"
-			content={imageAlt}
-		/>
-		<meta name="twitter:image" content={safeURL(image)} /><meta
-			name="twitter:image:alt"
-			content={imageAlt}
-		/>
-	{/if}
+	<meta property="og:image" content={shareImage} /><meta
+		property="og:image:alt"
+		content={shareImageAlt}
+	/>
+	<meta name="twitter:image" content={shareImage} /><meta
+		name="twitter:image:alt"
+		content={shareImageAlt}
+	/>
 </svelte:head>

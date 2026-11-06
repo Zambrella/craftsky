@@ -18,7 +18,7 @@
 	import EmptyState from './EmptyState.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
-	const work = new Work();
+	const work = new Work('social.Saved.action');
 	let items = $state<SavedItem[]>([]),
 		folders = $state<SavedFolder[]>([]),
 		cursor = $state<string | null>(null),
@@ -68,7 +68,9 @@
 			(value) => {
 				items = more ? [...items, ...value.items] : value.items;
 				cursor = value.cursor || null;
-			}
+			},
+			undefined,
+			'social.Saved.load'
 		);
 	}
 	function create() {
@@ -81,7 +83,8 @@
 					folderName = '';
 					folderDialog.close();
 				},
-				'Folder created.'
+				'Folder created.',
+				'social.Saved.create'
 			);
 	}
 	function rename() {
@@ -93,14 +96,16 @@
 					folders = folders.map((f) => (f.id === next.id ? next : f));
 					folderDialog.close();
 				},
-				'Folder renamed.'
+				'Folder renamed.',
+				'social.Saved.rename'
 			);
 	}
 	function remove() {
 		void work.run(
 			() => api.saved.deleteFolder(folderId, deleteSaves),
 			() => void goto('/saved'),
-			'Folder deleted.'
+			'Folder deleted.',
+			'social.Saved.remove'
 		);
 	}
 

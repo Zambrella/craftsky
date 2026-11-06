@@ -363,7 +363,9 @@ test('search categories retain loaded results and independent positions without 
 	await page
 		.getByRole('searchbox', { name: 'Search CraftSky', exact: true })
 		.fill('different');
-	await page.getByRole('button', { name: 'Search', exact: true }).click();
+	await page
+		.getByRole('searchbox', { name: 'Search CraftSky', exact: true })
+		.press('Enter');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	await expect(page.locator('.member-post').first()).toContainText(
 		'different-posts'

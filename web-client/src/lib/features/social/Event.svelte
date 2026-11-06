@@ -21,7 +21,7 @@
 		rkey: string;
 		viewerDid?: string;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.Event.action');
 	let event = $state<BusinessEvent>(),
 		reporting = $state(false);
 	const display = $derived(event ? eventDisplay(event) : undefined);
@@ -30,7 +30,9 @@
 			() => api.business.event(did, rkey),
 			(value) => {
 				event = value;
-			}
+			},
+			undefined,
+			'social.Event.load'
 		);
 	}
 	onMount(() => {

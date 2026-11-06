@@ -1,15 +1,14 @@
 <script lang="ts">
+	import { userErrorMessage } from '#lib/user-facing-error.ts';
+	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
-	import { getContext, onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { CraftskyAPI, ScheduledPostSummary } from '#lib/api/client.ts';
 	import { drafts, type Draft } from './store.ts';
 	import { draftPreview, draftURL } from './presentation';
 	import DraftThumbnail from './DraftThumbnail.svelte';
 	import Icon from '../shell/Icon.svelte';
-	const createPost = getContext<(event: MouseEvent) => void>(
-		'craftsky-create-post'
-	);
 	const uid = $props.id();
 	let deleteDialog: HTMLDialogElement;
 	let deletion = $state<{ id: string; remote: boolean; owner: string }>();
@@ -65,8 +64,8 @@
 				if (seq === generation && !destroyed) local = result;
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed)
-				error = e instanceof Error ? e.message : 'Could not load your drafts.';
+			void reportFailure(e, 'drafts.manage');
+			if (seq === generation && !destroyed) error = userErrorMessage(e);
 		} finally {
 			if (seq === generation && !destroyed) loading = false;
 		}
@@ -85,7 +84,12 @@
 		error = '';
 		try {
 			if (remote) await api.schedules.delete(id);
-			else await drafts.remove(owner, id);
+			else {
+				const row = local.find((item) => item.id === id);
+				if (!row || row.pending)
+					throw new Error('Draft is unavailable for deletion');
+				await drafts.remove(owner, id, row.revision ?? row.updatedAt);
+			}
 			if (seq === generation && !destroyed) {
 				deleteDialog.close();
 				deletion = undefined;
@@ -94,8 +98,8 @@
 				await load();
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed)
-				error = e instanceof Error ? e.message : 'Could not delete this item.';
+			void reportFailure(e, 'drafts.manage');
+			if (seq === generation && !destroyed) error = userErrorMessage(e);
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}
@@ -122,7 +126,7 @@
 			role="status"
 			aria-label="Loading drafts"
 		>
-			{#each [1, 2, 3, 4] as row}<div><span></span><i></i></div>{/each}
+			{#each [1, 2, 3, 4] as _row}<div><span></span><i></i></div>{/each}
 		</div>
 	{:else if isScheduled}
 		{#if !scheduled.length}<EmptyState
