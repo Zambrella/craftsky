@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -37,7 +38,13 @@ type BunnyBlobEffects interface {
 }
 type BunnyEffectFactory func(context.Context, syntax.DID, string) (BunnyBlobEffects, error)
 
+type activeBunnyJob struct {
+	owner  syntax.DID
+	cancel context.CancelFunc
+}
+
 type Bunny struct {
+	active               sync.Map
 	sessions             auth.OAuthSessionRunner
 	pool                 *pgxpool.Pool
 	library, apiKey, cdn string
@@ -201,6 +208,16 @@ func completedBunnyJob(id string, j bunnyJob) BunnyJobStatus {
 // One local spool and a database lease bound resource use and serialize retries.
 func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string) (BunnyJobStatus, error) {
 	pending := BunnyJobStatus{JobID: id, State: "JOB_STATE_PROCESSING"}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	running := &activeBunnyJob{owner: owner, cancel: cancel}
+	if value, loaded := b.active.LoadOrStore(id, running); loaded {
+		if value.(*activeBunnyJob).owner != owner {
+			return pending, ErrVideoJobNotFound
+		}
+		return pending, nil
+	}
+	defer b.active.CompareAndDelete(id, running)
 	j, err := b.job(ctx, owner, id)
 	if err != nil {
 		return pending, err
@@ -245,7 +262,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		return pending, nil
 	}
 	if j.imported {
-		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='ready',updated_at=now() WHERE id=$1", id)
+		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='ready',updated_at=now() WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL", id)
 		return completedBunnyJob(id, j), err
 	}
 	select {
@@ -254,7 +271,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	default:
 		return pending, nil
 	}
-	claim, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs SET lease_until=now()+interval '8 minutes' WHERE id=$1 AND state='created' AND lease_until<now()`, id)
+	claim, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs SET lease_until=now()+interval '8 minutes' WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL AND lease_until<now()`, id)
 	if err != nil {
 		return pending, err
 	}
@@ -311,7 +328,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 			}
 			saveCtx, saveCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer saveCancel()
-			if _, saveErr := b.pool.Exec(saveCtx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1", id, code); saveErr != nil {
+			if _, saveErr := b.pool.Exec(saveCtx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1 AND state='created'", id, code); saveErr != nil {
 				return pending, saveErr
 			}
 			pending.State = "JOB_STATE_FAILED"
@@ -325,7 +342,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		return pending, err
 	}
 	result, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs j SET state='ready',blob_cid=$2,blob_size=$3,updated_at=now()
- WHERE id=$1 AND EXISTS(SELECT 1 FROM owner_lifecycles o WHERE o.owner_did=j.owner_did AND o.state='active' AND o.generation=j.owner_generation)`, id, blob.CID, blob.Size)
+ WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL AND EXISTS(SELECT 1 FROM owner_lifecycles o WHERE o.owner_did=j.owner_did AND o.state='active' AND o.generation=j.owner_generation)`, id, blob.CID, blob.Size)
 	if err != nil {
 		return pending, err
 	}

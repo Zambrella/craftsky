@@ -256,3 +256,58 @@ it('reports an upload timeout without blaming the format or account allowance', 
 		'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
 	);
 });
+
+it('aborts Bunny transfer without retrying and cancels the owner job separately', async () => {
+	const controller = new AbortController();
+	const jobId = 'cccccccc-cccc-4ccc-accc-cccccccccccc';
+	const cancelVideo = vi.fn(async (_job: string, signal?: AbortSignal) => {
+		expect(signal?.aborted).toBe(false);
+	});
+	const videoStatus = vi.fn();
+	const api = {
+		media: {
+			videoLimits: async () => ({ canUpload: true }),
+			videoAuthorization: async () => ({
+				provider: 'bunny',
+				jobId,
+				videoId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+				libraryId: '123',
+				token: 'c'.repeat(64),
+				expiresAt: new Date(Date.now() + 60000).toISOString(),
+				title: 'Test video',
+				collectionId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'
+			}),
+			cancelVideo,
+			videoStatus
+		}
+	} as unknown as CraftskyAPI;
+	const fetcher = vi.fn<typeof fetch>(async (_url, options) => {
+		if (options?.method === 'POST')
+			return new Response(null, {
+				status: 201,
+				headers: { Location: 'https://video.bunnycdn.com/tusupload/resource' }
+			});
+		controller.abort();
+		throw new DOMException('Cancelled', 'AbortError');
+	});
+	await expect(
+		uploadVideo(
+			api,
+			'did:plc:maker',
+			{
+				id: 'v',
+				name: 'v.mp4',
+				mime: 'video/mp4',
+				blob: new Blob(['video']),
+				alt: ''
+			},
+			controller.signal,
+			() => {},
+			fetcher
+		)
+	).rejects.toMatchObject({ name: 'AbortError' });
+	expect(fetcher).toHaveBeenCalledTimes(2);
+	expect(videoStatus).not.toHaveBeenCalled();
+	expect(cancelVideo).toHaveBeenCalledOnce();
+	expect(cancelVideo.mock.calls[0][0]).toBe(jobId);
+});

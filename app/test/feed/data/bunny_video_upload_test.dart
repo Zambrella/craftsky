@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -26,6 +27,64 @@ void main() {
     collectionId: 'dddddddd-dddd-4ddd-dddd-dddddddddddd',
     signature: signature,
     expiresAt: DateTime.utc(2030),
+  );
+
+  test(
+    'cancel reaches active TUS request and owner job without publishing',
+    () async {
+      final adapter = _CancelTusAdapter();
+      final service = VideoServiceClient.forTesting(
+        uploadEndpoint: Uri.parse(
+          'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
+        ),
+        dio: Dio()..httpClientAdapter = adapter,
+      );
+      final api = _BunnyApi(
+        VideoUploadAuthorization.fromMap({
+          'provider': 'bunny',
+          'jobId': job,
+          'videoId': video,
+          'libraryId': '123',
+          'token': signature,
+          'expiresAt': '2030-01-01T00:00:00Z',
+          'title': capability().title,
+          'collectionId': capability().collectionId,
+        }),
+      );
+      var published = false;
+      final coordinator = composerVideoPublication(
+        owner: ActiveAccountLease(
+          session: AccountSessionLease(
+            account: AccountKey('did:plc:abcdefghijklmnopqrstuvwx'),
+            sessionGeneration: 1,
+          ),
+          activationGeneration: 1,
+        ),
+        selection: LocalVideoSelection(
+          displayName: 'clip.mp4',
+          mimeType: 'video/mp4',
+          byteLength: 8,
+          duration: null,
+          headerBytes: Uint8List(0),
+          openRead: () => Stream.value(List.filled(8, 0)),
+        ),
+        api: api,
+        service: service,
+        publish: (_, {required allowBlobRecovery}) async {
+          published = true;
+        },
+        onProgress: (_) {},
+      );
+      final operation = coordinator.publish(altText: '', aspectRatio: null);
+      final expectation = expectLater(operation, throwsA(isA<DioException>()));
+      await adapter.started.future;
+      coordinator.cancel();
+      await expectation;
+      await adapter.canceled.future;
+      expect(adapter.methods, ['POST', 'PATCH']);
+      expect(api.canceledJobs, [job]);
+      expect(published, isFalse);
+    },
   );
   test('Bunny authorization retains and validates server upload metadata', () {
     final payload = <String, dynamic>{
@@ -333,6 +392,12 @@ class _TusAdapter implements HttpClientAdapter {
 class _BunnyApi extends PostApiClient {
   new(this.authorization) : super(Dio());
   final VideoUploadAuthorization authorization;
+  final canceledJobs = <String>[];
+  @override
+  Future<void> cancelBunnyVideo(String jobId) async {
+    canceledJobs.add(jobId);
+  }
+
   @override
   Future<VideoUploadLimits> getVideoUploadLimits() async =>
       const VideoUploadLimits(canUpload: true);
@@ -362,6 +427,35 @@ class _FailureAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async => ResponseBody.fromString('private-provider-body', 502);
+  @override
+  void close({bool force = false}) {}
+}
+
+class _CancelTusAdapter implements HttpClientAdapter {
+  final started = Completer<void>();
+  final canceled = Completer<void>();
+  final methods = <String>[];
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    methods.add(options.method);
+    if (options.method == 'POST')
+      return ResponseBody.fromString(
+        '',
+        201,
+        headers: {
+          'location': ['https://video.bunnycdn.com/tusupload/test-resource'],
+        },
+      );
+    started.complete();
+    await cancelFuture;
+    canceled.complete();
+    throw DioException(requestOptions: options, type: DioExceptionType.cancel);
+  }
+
   @override
   void close({bool force = false}) {}
 }

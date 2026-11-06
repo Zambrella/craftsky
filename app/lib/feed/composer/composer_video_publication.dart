@@ -17,12 +17,14 @@ VideoPublicationCoordinator composerVideoPublication({
 }) {
   VideoUploadAuthorization? uploadAuthorization;
   var usesBunny = false;
+  String? bunnyJobId;
   return VideoPublicationCoordinator(
     operationAccountDid: owner.session.account.did.value,
     checkEligibility: api.getVideoUploadLimits,
     authorize: () async {
       uploadAuthorization = await api.authorizeVideoUpload();
       usesBunny = uploadAuthorization!.bunny != null;
+      bunnyJobId = uploadAuthorization!.bunny?.jobId;
       return uploadAuthorization!;
     },
     upload:
@@ -56,6 +58,12 @@ VideoPublicationCoordinator composerVideoPublication({
     wait: Future<void>.delayed,
     publish: publish,
     onProgress: onProgress,
-    onTerminal: () => uploadAuthorization = null,
+    cancelRemote: () async {
+      if (bunnyJobId case final jobId?) await api.cancelBunnyVideo(jobId);
+    },
+    onTerminal: () {
+      uploadAuthorization = null;
+      bunnyJobId = null;
+    },
   );
 }

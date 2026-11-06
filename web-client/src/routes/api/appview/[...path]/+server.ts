@@ -85,12 +85,15 @@ const handler: RequestHandler = async ({ request, url, cookies, params }) => {
 			headers,
 			body: body as BodyInit | undefined,
 			redirect: 'manual',
-			signal: AbortSignal.timeout(
-				request.method === 'POST' &&
-					/^\/v1\/blobs\/videos\/[0-9a-f-]{36}\/status$/.test(target)
-					? 7 * 60 * 1000
-					: 120000
-			)
+			signal: AbortSignal.any([
+				request.signal,
+				AbortSignal.timeout(
+					request.method === 'POST' &&
+						/^\/v1\/blobs\/videos\/[0-9a-f-]{36}\/status$/.test(target)
+						? 7 * 60 * 1000
+						: 120000
+				)
+			])
 		});
 		if (response.status >= 300 && response.status < 400)
 			return Response.json(

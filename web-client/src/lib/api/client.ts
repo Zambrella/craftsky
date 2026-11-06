@@ -806,6 +806,12 @@ export class CraftskyAPI {
 				'POST',
 				'/v1/blobs/videos/authorization'
 			),
+		cancelVideo: (jobId: string, signal?: AbortSignal) =>
+			this.transport.request<void>(
+				'POST',
+				`/v1/blobs/videos/${segment(jobId)}/cancel`,
+				{ signal }
+			),
 		videoStatus: (jobId: string, signal?: AbortSignal) => {
 			if (
 				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(

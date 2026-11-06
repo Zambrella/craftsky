@@ -78,6 +78,7 @@ final class VideoPublicationCoordinator {
     DateTime Function()? clock,
     String? operationAccountDid,
     void Function()? onTerminal,
+    Future<void> Function()? cancelRemote,
   }) => VideoPublicationCoordinator._(
     checkEligibility,
     authorize,
@@ -89,6 +90,7 @@ final class VideoPublicationCoordinator {
     clock ?? DateTime.now,
     operationAccountDid,
     onTerminal,
+    cancelRemote,
   );
 
   new _(
@@ -102,12 +104,14 @@ final class VideoPublicationCoordinator {
     this._clock,
     this._operationAccountDid,
     this._onTerminal,
+    this._cancelRemote,
   );
 
   final Future<VideoUploadLimits> Function() _checkEligibility;
   final Future<VideoUploadAuthorization> Function() _authorize;
   final VideoUploadOperation _upload;
   final Future<VideoServiceResult> Function(String, CancelToken) _poll;
+  final Future<void> Function()? _cancelRemote;
   final Future<void> Function(Duration) _wait;
   final VideoPublishOperation _publish;
   final void Function(VideoPublicationProgress) _onProgress;
@@ -160,6 +164,7 @@ final class VideoPublicationCoordinator {
           cancelToken,
           bypassDeduplication: bypassDeduplication,
         );
+        _throwIfCanceled(cancelToken);
         _diagnose(VideoOperationOutcome.succeeded);
         _jobId = result.jobId;
         final startedAt = _clock().toUtc();
@@ -196,6 +201,7 @@ final class VideoPublicationCoordinator {
           }
           completedPolls++;
         }
+        _throwIfCanceled(cancelToken);
         final blob = result.blob;
         if (result.outcome != VideoServiceOutcome.completed || blob == null) {
           throw VideoPublicationException(result.outcome);
@@ -236,7 +242,7 @@ final class VideoPublicationCoordinator {
       }
       _emit(VideoPublicationStage.complete);
     } on DioException catch (error, stackTrace) {
-      final canceled = CancelToken.isCancel(error);
+      final canceled = CancelToken.isCancel(error) || cancelToken.isCancelled;
       _diagnose(
         canceled
             ? VideoOperationOutcome.canceled
@@ -249,6 +255,7 @@ final class VideoPublicationCoordinator {
             ? VideoPublicationStage.canceled
             : VideoPublicationStage.failed,
       );
+      if (cancelToken.cancelError case final cancellation?) throw cancellation;
       rethrow;
     } on Object catch (error, stackTrace) {
       _diagnose(
@@ -263,8 +270,20 @@ final class VideoPublicationCoordinator {
             ? VideoPublicationStage.canceled
             : VideoPublicationStage.failed,
       );
+      if (cancelToken.cancelError case final cancellation?) throw cancellation;
       rethrow;
     } finally {
+      if (cancelToken.isCancelled && _cancelRemote != null) {
+        try {
+          await _cancelRemote().timeout(const Duration(seconds: 15));
+        } on Object catch (error, stackTrace) {
+          _diagnose(
+            VideoOperationOutcome.canceled,
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
       _authorization = null;
       _jobId = null;
       _cancelToken = null;

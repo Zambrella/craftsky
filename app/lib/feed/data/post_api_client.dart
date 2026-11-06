@@ -51,6 +51,16 @@ class PostApiClient {
         return VideoUploadAuthorization.fromMap(response.data!);
       });
 
+  Future<void> cancelBunnyVideo(String jobId) => unwrapApi(() async {
+    if (!RegExp(r'^[0-9a-f-]{36}$').hasMatch(jobId)) {
+      throw ArgumentError('Invalid video job');
+    }
+    await _dio.post<void>(
+      '/v1/blobs/videos/$jobId/cancel',
+      options: Options(receiveTimeout: const Duration(seconds: 15)),
+    );
+  });
+
   Future<VideoServiceResult> getBunnyVideoStatus(
     String jobId, {
     CancelToken? cancelToken,
@@ -67,18 +77,22 @@ class PostApiClient {
       return VideoServiceResult.fromJson(
         response.data!['jobStatus'] as Map<String, dynamic>,
       );
-    } on DioException catch (error,stackTrace) {
+    } on DioException catch (error, stackTrace) {
       if (CancelToken.isCancel(error) ||
           error.response?.statusCode == 401 ||
-          error.response?.statusCode == 403) { rethrow; }
+          error.response?.statusCode == 403) {
+        rethrow;
+      }
       if (error.response?.statusCode == 404) {
         return VideoServiceResult(
-          outcome: VideoServiceOutcome.processingFailed, jobId: jobId,
+          outcome: VideoServiceOutcome.processingFailed,
+          jobId: jobId,
         );
       }
       throw VideoTransportException(
         VideoTransportFailure.unavailable,
- diagnosticCause:error,diagnosticStack:stackTrace,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
         httpStatus: error.response?.statusCode,
       );
     }

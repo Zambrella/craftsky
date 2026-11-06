@@ -581,6 +581,8 @@ describe('account-specific proxy and session actions', () => {
 		expect(fetcher).not.toHaveBeenCalled();
 		expect(allowedRoute('POST', '/v1/blobs/videos/authorization')).toBe(true);
 		expect(allowedRoute('POST', `/v1/blobs/videos/${jobID}/status`)).toBe(true);
+		expect(allowedRoute('POST', `/v1/blobs/videos/${jobID}/cancel`)).toBe(true);
+		expect(allowedRoute('GET', `/v1/blobs/videos/${jobID}/cancel`)).toBe(false);
 		expect(allowedRoute('GET', `/v1/blobs/videos/${jobID}/status`)).toBe(false);
 		expect(allowedRoute('POST', '/v1/blobs/videos/not-a-job/status')).toBe(
 			false

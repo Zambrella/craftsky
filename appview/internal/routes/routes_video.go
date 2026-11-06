@@ -19,6 +19,11 @@ type videoRouteBundle struct {
 }
 
 func registerVideoRoutes(routes videoRouteBundle) {
+	cancelHandler := api.BunnyVideoCancelHandler(routes.bunny)
+	if !routes.enabled {
+		cancelHandler = api.VideoLaunchDisabledHandler()
+	}
+	routes.mux.Handle("POST /v1/blobs/videos/{jobId}/cancel", routes.middleware.wrap(mustPolicy("POST", "/v1/blobs/videos/{jobId}/cancel"), cancelHandler))
 	statusHandler := api.BunnyVideoStatusHandler(routes.bunny)
 	if !routes.enabled {
 		statusHandler = api.VideoLaunchDisabledHandler()

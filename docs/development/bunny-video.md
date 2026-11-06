@@ -318,3 +318,14 @@ timeout permit seven minutes, with an eight-minute job lease to prevent overlap.
 Timeouts are persisted as `video_upload_timeout` and both clients explain that
 encoding succeeded but saving to the account timed out. An uncertain dispatched
 upload is not repeated under the same job; posting again starts a new upload job.
+
+### Cancellation
+
+Both clients abort the active transfer/poll and send an independent authenticated
+`POST /v1/blobs/videos/{jobId}/cancel` request for their Bunny job. AppView cancels
+active finalisation and durably queues vendor cleanup. A cancelled job cannot be
+used to publish; indexed posts, in-flight publication reservations, and unresolved
+PDS record writes are protected from cancellation. The cleanup worker runs every
+five seconds and performs origin deletion and CDN purge in separate durable steps.
+No PDS blobs or records are deleted. Offline cancellation still stops client work;
+if the cancellation request cannot reach AppView, orphan retention is the fallback.
