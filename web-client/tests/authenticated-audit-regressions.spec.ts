@@ -79,6 +79,9 @@ test('typing and discarding never save; explicit saves survive reload and stale 
 	await expect(page).toHaveURL(/\/feed$/);
 	await page.goto('/drafts');
 	await page.getByRole('link', { name: 'Continue editing' }).click();
+	// Client-side navigation must finish before its URL is copied into another tab.
+	await expect(page).toHaveURL(/\/compose\?draft=/);
+	await expect(editor(page)).toHaveValue('Explicit saved draft');
 	const other = await context.newPage();
 	await other.goto(page.url());
 	await expect(editor(other)).toHaveValue('Explicit saved draft');
