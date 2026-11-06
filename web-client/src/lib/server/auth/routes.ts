@@ -99,6 +99,7 @@ const routes: [string, RegExp][] = [
 	['DELETE', /^\/v1\/events\/[^/]+\/[^/]+$/],
 	['POST', /^\/v1\/events\/[^/]+\/[^/]+\/reports$/],
 	['GET', /^\/v1\/feed\/timeline$/],
+	['GET', /^\/v1\/feed\/extended-network$/],
 	['GET', /^\/v1\/notifications$/],
 	['GET', /^\/v1\/notifications\/new\-count$/],
 	['POST', /^\/v1\/notifications\/seen$/],

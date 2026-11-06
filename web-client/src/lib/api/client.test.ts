@@ -30,6 +30,54 @@ function setup(value: unknown = {}, status = 200, headers?: HeadersInit) {
 }
 
 describe('AppView wire contracts', () => {
+	it('publishes account-scoped policy changes for every successful relationship mutation', async () => {
+		const changed = vi.fn();
+		const otherChanged = vi.fn();
+		const fetcher = vi.fn<typeof fetch>(async (_url, init) =>
+			init?.method === 'DELETE' && String(_url).endsWith('/blocks')
+				? new Response(null, { status: 204 })
+				: Response.json({ did: 'did:plc:bob', muted: true })
+		);
+		const api = new CraftskyAPI(fetcher, '/api/appview', {
+			onRelationshipChanged: changed
+		});
+		new CraftskyAPI(fetcher, '/api/appview', {
+			onRelationshipChanged: otherChanged
+		});
+		await api.profiles.follow('did:plc:bob', key);
+		await api.profiles.unfollow('did:plc:bob', key);
+		await api.profiles.mute('did:plc:bob');
+		await api.profiles.unmute('did:plc:bob');
+		await api.profiles.block('did:plc:bob', key);
+		await api.profiles.unblock('did:plc:bob', key);
+		expect(changed).toHaveBeenCalledTimes(6);
+		expect(otherChanged).not.toHaveBeenCalled();
+		fetcher.mockResolvedValueOnce(
+			Response.json({ error: 'unavailable' }, { status: 503 })
+		);
+		await expect(api.profiles.mute('did:plc:bob')).rejects.toBeInstanceOf(
+			APIError
+		);
+		expect(changed).toHaveBeenCalledTimes(6);
+	});
+
+	it('pages the extended network feed and preserves its connection attribution', async () => {
+		const item = {
+			itemKey: 'post:network-post',
+			post: { uri: 'network-post' },
+			followedBy: { did: 'did:plc:alice', handle: 'alice.test' }
+		};
+		const { api, request } = setup({ items: [item], cursor: 'next-network' });
+		await expect(
+			api.posts.extendedNetwork({
+				limit: 30,
+				cursor: 'network-page'
+			})
+		).resolves.toEqual({ items: [item], cursor: 'next-network' });
+		expect(request().url).toBe(
+			'/api/appview/v1/feed/extended-network?cursor=network-page&limit=30'
+		);
+	});
 	it('uses the response request ID when an error envelope is missing it and retains parse causes', async () => {
 		const requestId = '12345678-1234-4123-8123-123456789012';
 		const { api } = setup(

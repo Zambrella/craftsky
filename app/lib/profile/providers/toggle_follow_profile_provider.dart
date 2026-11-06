@@ -95,7 +95,8 @@ void invalidateFollowProfileReads(Ref ref, Did targetDid) {
   final selfDid = ref.read(sessionRegistryProvider).value?.activeDid;
   ref
     ..invalidate(userProfileProvider(targetDid))
-    ..invalidate(timelineProvider);
+    ..invalidate(timelineProvider)
+    ..invalidate(extendedNetworkProvider);
   if (selfDid != null && selfDid != targetDid) {
     ref.invalidate(userProfileProvider(selfDid));
   }

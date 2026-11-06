@@ -563,6 +563,19 @@ describe('account-specific proxy and session actions', () => {
 		expect(credentials(jar.cookies, new URL(origin))).toEqual([B]);
 		expect(jar.values.get('__Host-craftsky_active')).toBe(B.id);
 	});
+	it('allows only reads of the extended network feed and forwards its pagination', async () => {
+		const jar = new CookieJar().add(A).active(accountA);
+		const request = event(
+			jar,
+			'/api/appview/v1/feed/extended-network?limit=30&cursor=network-page'
+		);
+		request.params.path = 'v1/feed/extended-network';
+		expect((await call(proxyGet, request)).status).toBe(200);
+		expect(String(fetcher.mock.calls[0][0])).toBe(
+			'https://appview.example.test/v1/feed/extended-network?limit=30&cursor=network-page'
+		);
+		expect(allowedRoute('POST', '/v1/feed/extended-network')).toBe(false);
+	});
 	it('blocks unsupported, auth-capability, double-encoded, traversal and URL-control routes', async () => {
 		const jar = new CookieJar().add(A);
 		for (const path of [

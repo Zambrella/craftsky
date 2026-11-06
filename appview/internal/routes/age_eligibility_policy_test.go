@@ -13,9 +13,10 @@ func TestAgeRestrictedRoutePolicyRetainsOnlySafetyAndAccountMaintenance(t *testi
 		"DELETE /v1/posts/{did}/{rkey}":           true,
 	}
 	denied := map[string]bool{
-		"GET /v1/feed/timeline": true,
-		"POST /v1/posts":        true,
-		"POST /v1/events":       true,
+		"GET /v1/feed/timeline":         true,
+		"GET /v1/feed/extended-network": true,
+		"POST /v1/posts":                true,
+		"POST /v1/events":               true,
 	}
 	for _, policy := range V1RoutePolicies(EnvProd, Config{}) {
 		key := policyKey(policy.Method, policy.PathPattern)

@@ -44,6 +44,7 @@ abstract final class CraftskyIcons {
   static const IconData events = PhosphorIconsRegular.calendar;
   static const IconData eventUnavailable = PhosphorIconsRegular.calendarX;
   static const IconData expand = PhosphorIconsRegular.caretDown;
+  static const IconData extendedNetwork = PhosphorIconsRegular.graph;
   static const IconData externalLink = PhosphorIconsRegular.arrowSquareOut;
   static const IconData fileVideo = PhosphorIconsRegular.fileVideo;
   static const IconData filter = PhosphorIconsRegular.funnelSimple;

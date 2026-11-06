@@ -36,7 +36,7 @@ aliases = {
     "customisation": "palette", "languages": "globe", "translate": "translate",
     "notifications": "bell", "messaging": "chatCircle", "privacy": "lockKey",
     "errorReporting": "bug", "growth": "trendUp", "followers": "users",
-    "following": "userPlus", "muted": "bellSlash", "blocked": "prohibit",
+    "following": "userPlus", "extendedNetwork": "graph", "muted": "bellSlash", "blocked": "prohibit",
     "instagram": "instagramLogo", "products": "storefront", "events": "calendar",
     "moderation": "shieldCheck", "account": "userCircle", "about": "info",
     "feedback": "chatTeardropText", "switch": "userSwitch", "subscription": "sparkle",

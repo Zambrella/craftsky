@@ -20,11 +20,13 @@ class TimelineItem with TimelineItemMappable {
     required this.itemKey,
     required this.post,
     this.reason,
+    this.followedBy,
   });
 
   final String itemKey;
   final Post post;
   final RepostReason? reason;
+  final PostAuthor? followedBy;
 }
 
 @MappableEnum()

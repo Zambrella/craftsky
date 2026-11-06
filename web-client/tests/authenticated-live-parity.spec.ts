@@ -37,6 +37,7 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 	const feeds = page.getByRole('navigation', { name: 'Home feeds' });
 	await expect(feeds.getByRole('link')).toHaveText([
 		'Following',
+		'Extended network',
 		'Knitting',
 		'Sewing',
 		'Crochet',

@@ -509,6 +509,19 @@ class PostApiClient {
         return TimelinePageMapper.fromMap(res.data!);
       });
 
+  /// GET /v1/feed/extended-network — chronological discovery feed.
+  Future<TimelinePage> listExtendedNetwork({String? cursor, int? limit}) =>
+      unwrapApi(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/v1/feed/extended-network',
+          queryParameters: {
+            'cursor': ?cursor,
+            'limit': ?limit?.toString(),
+          },
+        );
+        return TimelinePageMapper.fromMap(res.data!);
+      });
+
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first.
   Future<PostPage> listCommentsByAuthor(
     String handleOrDid, {

@@ -56,6 +56,7 @@ class FakePostRepository implements PostRepository {
     this.onListByAuthor,
     this.onListProjectsByAuthor,
     this.onListTimeline,
+    this.onListExtendedNetwork,
     this.onListCommentsByAuthor,
     this.onListRepostsByAuthor,
   });
@@ -173,6 +174,8 @@ class FakePostRepository implements PostRepository {
   onListProjectsByAuthor;
   final Future<TimelinePage> Function({String? cursor, int? limit})?
   onListTimeline;
+  final Future<TimelinePage> Function({String? cursor, int? limit})?
+  onListExtendedNetwork;
   final Future<PostPage> Function(
     String handleOrDid, {
     String? cursor,
@@ -440,6 +443,13 @@ class FakePostRepository implements PostRepository {
       onListTimeline?.call(cursor: cursor, limit: limit) ??
       Future<TimelinePage>.error(
         UnimplementedError('listTimeline not stubbed'),
+      );
+
+  @override
+  Future<TimelinePage> listExtendedNetwork({String? cursor, int? limit}) =>
+      onListExtendedNetwork?.call(cursor: cursor, limit: limit) ??
+      Future<TimelinePage>.error(
+        UnimplementedError('listExtendedNetwork not stubbed'),
       );
 
   @override

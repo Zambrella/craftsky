@@ -246,7 +246,12 @@
 			return response;
 		},
 		'/api/appview',
-		{ headers: { 'X-Craftsky-Account-Id': accountId } }
+		{
+			headers: { 'X-Craftsky-Account-Id': accountId },
+			onRelationshipChanged: () => {
+				if (!dead) pageHistory.invalidate('feed');
+			}
+		}
 	);
 
 	setContext('craftsky-api', api);

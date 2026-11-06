@@ -64,6 +64,7 @@ type notificationRouteBundle struct {
 
 func registerNotificationRoutes(routes notificationRouteBundle) {
 	routes.mux.Handle("GET /v1/feed/timeline", routes.middleware.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/feed/extended-network", routes.middleware.wrap(mustPolicy("GET", "/v1/feed/extended-network"), api.ListExtendedNetworkHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/notifications", routes.middleware.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(routes.postStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/notifications/new-count", routes.middleware.wrap(mustPolicy("GET", "/v1/notifications/new-count"), api.NotificationNewCountHandler(routes.postStore, routes.logger)))
 	routes.mux.Handle("POST /v1/notifications/seen", routes.middleware.wrap(mustPolicy("POST", "/v1/notifications/seen"), api.MarkNotificationsSeenHandler(routes.postStore, routes.logger)))

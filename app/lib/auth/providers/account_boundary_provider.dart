@@ -115,6 +115,7 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
     ref
       ..invalidate(postRepositoryProvider)
       ..invalidate(timelineProvider)
+      ..invalidate(extendedNetworkProvider)
       ..invalidate(postProvider)
       ..invalidate(postCommentSectionProvider)
       ..invalidate(postCommentPageLoaderProvider)

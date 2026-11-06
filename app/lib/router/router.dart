@@ -583,8 +583,9 @@ class SettingsBranch extends StatefulShellBranchData {
 }
 
 class FeedRoute extends GoRouteData with $FeedRoute {
-  const new({this.craft});
+  const new({this.craft, this.source});
   final String? craft;
+  final String? source;
   @override
   Widget build(BuildContext context, GoRouterState state) => Consumer(
     builder: (context, ref, _) => HomePage(
@@ -593,6 +594,7 @@ class FeedRoute extends GoRouteData with $FeedRoute {
         _ => null,
       }),
       craft: craft,
+      source: source,
     ),
   );
 }

@@ -78,6 +78,506 @@ async function switchTab(link: Locator) {
 	await link.page().mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
+function networkPosts(prefix: string, did = 'did:plc:visual-martha') {
+	return posts(prefix).map((post) => ({
+		itemKey: post.uri.replace(author.did, did),
+		post: {
+			...post,
+			uri: post.uri.replace(author.did, did),
+			author: { did, handle: 'maker.test', displayName: 'Network Maker' }
+		},
+		followedBy: {
+			did: 'did:plc:bob',
+			handle: 'bob.test',
+			displayName: 'Bob Maker'
+		}
+	}));
+}
+
+for (const action of ['follow', 'unfollow'] as const) {
+	test(`extended network invalidates history after ${action} from Notifications`, async ({
+		page
+	}) => {
+		let changed = false,
+			requests = 0;
+		const actor = {
+			did: 'did:plc:visual-martha',
+			handle: 'martha.makes.test',
+			displayName: 'Martha Jones',
+			viewerIsFollowing: action === 'unfollow'
+		};
+		await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+			requests++;
+			return route.fulfill({
+				json: {
+					items: changed
+						? []
+						: networkPosts(
+								'candidate',
+								action === 'follow' ? actor.did : 'did:plc:cedar'
+							).map((item) => ({
+								...item,
+								followedBy: action === 'unfollow' ? actor : item.followedBy
+							}))
+				}
+			});
+		});
+		await page.route(
+			(url) => url.pathname === '/api/appview/v1/notifications',
+			(route) =>
+				route.fulfill({
+					json: {
+						items: [
+							{
+								id: 'network-follow',
+								type: 'follow',
+								actor,
+								isNew: true,
+								createdAt: '2026-11-01T12:00:00Z'
+							}
+						]
+					}
+				})
+		);
+		await page.route('**/api/appview/v1/profiles/*/follows', (route) => {
+			expect(route.request().method()).toBe(
+				action === 'follow' ? 'POST' : 'DELETE'
+			);
+			changed = true;
+			return route.fulfill({
+				json: { ...actor, viewerIsFollowing: action === 'follow' }
+			});
+		});
+		await page.goto('/feed?source=extended-network');
+		await expect(page.locator('.member-post')).toHaveCount(12);
+		await page
+			.getByRole('navigation', { name: 'App navigation', exact: true })
+			.locator('a[href="/notifications"]')
+			.click();
+		await page
+			.getByRole('button', {
+				name: action === 'follow' ? 'Follow' : 'Unfollow',
+				exact: true
+			})
+			.click();
+		await expect(
+			page.getByRole('button', {
+				name: action === 'follow' ? 'Unfollow' : 'Follow',
+				exact: true
+			})
+		).toBeVisible();
+		await page.goBack();
+		await expect(page).toHaveURL('/feed?source=extended-network');
+		await expect(page.locator('.member-post')).toHaveCount(0);
+		expect(requests).toBe(2);
+	});
+}
+
+test('extended network invalidates history after blocking from Messages', async ({
+	page
+}) => {
+	let blocked = false,
+		requests = 0;
+	await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+		requests++;
+		return route.fulfill({
+			json: {
+				items: blocked
+					? []
+					: networkPosts('candidate', 'did:plc:bob').map((item) => ({
+							...item,
+							followedBy: {
+								did: 'did:plc:visual-martha',
+								handle: 'martha.makes.test',
+								displayName: 'Martha Jones'
+							}
+						}))
+			}
+		});
+	});
+	await page.route('**/api/appview/v1/profiles/*/blocks', (route) => {
+		blocked = true;
+		return route.fulfill({
+			json: {
+				did: 'did:plc:bob',
+				muted: false,
+				blocking: true,
+				blockedBy: false
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await page
+		.getByRole('navigation', { name: 'App navigation', exact: true })
+		.locator('a[href="/messages"]')
+		.click();
+	await page
+		.locator('a[href="/messages/conversations/visual-accepted"]')
+		.click();
+	await page.getByLabel('Conversation actions', { exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Block account', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Block this account?' })
+		.getByRole('button', { name: 'Block account', exact: true })
+		.click();
+	await expect(
+		page.getByText(
+			'Account blocked. You can manage blocked accounts in Settings.',
+			{ exact: true }
+		)
+	).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL('/messages');
+	await page.goBack();
+	await expect(page).toHaveURL('/feed?source=extended-network');
+	await expect(page.locator('.member-post')).toHaveCount(0);
+	expect(requests).toBe(2);
+});
+
+test('extended network retains refreshed pages after muting from a card', async ({
+	page
+}) => {
+	let muted = false,
+		requests = 0;
+	await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+		requests++;
+		const more = new URL(route.request().url()).searchParams.has('cursor');
+		return route.fulfill({
+			json: {
+				items: networkPosts(
+					(muted ? 'fresh' : 'old') + (more ? '-more' : ''),
+					muted ? 'did:plc:cedar' : undefined
+				),
+				cursor: more ? undefined : 'next'
+			}
+		});
+	});
+	await page.route('**/api/appview/v1/profiles/*/mutes', (route) => {
+		muted = true;
+		return route.fulfill({
+			json: {
+				did: 'did:plc:visual-martha',
+				muted: true,
+				blocking: false,
+				blockedBy: false
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await page
+		.locator('.member-post')
+		.first()
+		.getByLabel('More post actions', { exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Mute account', exact: true }).click();
+	await expect(page.getByText(/^fresh 0\./)).toBeVisible();
+	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	await page
+		.getByRole('link', { name: 'Followed by Bob Maker' })
+		.first()
+		.click();
+	await expect(
+		page.getByRole('heading', { name: 'Bob Maker', exact: true })
+	).toBeVisible();
+	await page.goBack();
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	expect(requests).toBe(3);
+});
+
+test('a relationship refresh supersedes an older in-flight network page', async ({
+	page
+}) => {
+	let muted = false;
+	let releaseOldPage!: () => void;
+	let markStarted!: () => void;
+	let markFinished!: () => void;
+	const started = new Promise<void>((resolve) => {
+		markStarted = resolve;
+	});
+	const finished = new Promise<void>((resolve) => {
+		markFinished = resolve;
+	});
+	const oldPage = new Promise<void>((resolve) => {
+		releaseOldPage = resolve;
+	});
+	await page.route(
+		'**/api/appview/v1/feed/extended-network*',
+		async (route) => {
+			const more = new URL(route.request().url()).searchParams.has('cursor');
+			if (more && !muted) {
+				markStarted();
+				await oldPage;
+				await route.fulfill({ json: { items: networkPosts('obsolete-more') } });
+				markFinished();
+				return;
+			}
+			return route.fulfill({
+				json: {
+					items: networkPosts(
+						muted ? 'fresh' : 'old',
+						muted ? 'did:plc:cedar' : undefined
+					),
+					cursor: 'next'
+				}
+			});
+		}
+	);
+	await page.route('**/api/appview/v1/profiles/*/mutes', (route) => {
+		muted = true;
+		return route.fulfill({
+			json: {
+				did: 'did:plc:visual-martha',
+				muted: true,
+				blocking: false,
+				blockedBy: false
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await started;
+	await page
+		.locator('.member-post')
+		.first()
+		.getByLabel('More post actions', { exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Mute account', exact: true }).click();
+	await expect(page.getByText(/^fresh 0\./)).toBeVisible();
+	const response = page.waitForResponse(
+		(reply) =>
+			new URL(reply.url()).pathname.endsWith('/feed/extended-network') &&
+			new URL(reply.url()).searchParams.has('cursor')
+	);
+	releaseOldPage();
+	await response;
+	await finished;
+	await page.evaluate(() => new Promise(requestAnimationFrame));
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await expect(page.getByText(/^obsolete-more /)).toHaveCount(0);
+	await expect(page.getByText(/^fresh 0\./)).toBeVisible();
+});
+
+test('extended network refreshes retained history after muting its connection', async ({
+	page
+}) => {
+	let muted = false;
+	let networkRequests = 0;
+	await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+		networkRequests++;
+		return route.fulfill({
+			json: {
+				items: muted
+					? []
+					: posts('network', 1).map((post) => ({
+							itemKey: post.uri,
+							post: {
+								...post,
+								uri: post.uri.replace(author.did, 'did:plc:cedar'),
+								author: { ...author, did: 'did:plc:cedar' }
+							},
+							followedBy: {
+								...author,
+								did: 'did:plc:bob',
+								displayName: 'Bob Maker'
+							}
+						}))
+			}
+		});
+	});
+	await page.route('**/api/appview/v1/profiles/*/mutes', (route) => {
+		muted = true;
+		return route.fulfill({
+			json: {
+				did: 'did:plc:bob',
+				muted: true,
+				blocking: false,
+				blockedBy: false
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	await page.getByRole('link', { name: 'Followed by Bob Maker' }).click();
+	await expect(
+		page.getByLabel('More profile actions', { exact: true })
+	).toBeVisible();
+	await page.goBack();
+	await expect(
+		page.getByRole('link', { name: 'Followed by Bob Maker' })
+	).toBeVisible();
+	expect(networkRequests).toBe(1);
+	await page.getByRole('link', { name: 'Followed by Bob Maker' }).click();
+	await page.getByLabel('More profile actions', { exact: true }).click();
+	await page.getByRole('button', { name: 'Mute account', exact: true }).click();
+	await expect(page.getByText('Account muted.', { exact: true })).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL('/feed?source=extended-network');
+	await expect(page.locator('.member-post')).toHaveCount(0);
+	expect(networkRequests).toBe(2);
+});
+
+test('extended network deep links retain their own pages, connection attribution and scroll', async ({
+	page
+}, testInfo) => {
+	let networkRequests = 0,
+		followingRequests = 0;
+	await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+		networkRequests++;
+		const more = new URL(route.request().url()).searchParams.has('cursor');
+		return route.fulfill({
+			json: {
+				items: posts(more ? 'network-more' : 'network').map((post, index) => ({
+					itemKey: post.uri,
+					post: {
+						...post,
+						uri: post.uri.replace(author.did, 'did:plc:cedar'),
+						author: {
+							...author,
+							did: 'did:plc:cedar',
+							handle: 'cedar.test',
+							displayName: 'Cedar Maker'
+						}
+					},
+					followedBy:
+						index === 0
+							? { ...author, did: 'did:plc:bob', displayName: 'Bob Maker' }
+							: {
+									...author,
+									did: 'did:plc:dana',
+									displayName: ' ',
+									handle: 'dana.test'
+								}
+				})),
+				cursor: more ? undefined : 'network-next'
+			}
+		});
+	});
+	await page.route('**/api/appview/v1/feed/timeline*', (route) => {
+		followingRequests++;
+		return route.fulfill({
+			json: {
+				items: posts('following').map((post) => ({ itemKey: post.uri, post }))
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	const tabs = page.getByRole('navigation', { name: 'Home feeds' });
+	const networkTab = tabs.getByRole('link', {
+		name: 'Extended network',
+		exact: true
+	});
+	await expect(networkTab).toHaveAttribute('aria-current', 'page');
+	await expect(
+		tabs.getByRole('link', { name: 'Following', exact: true })
+	).not.toHaveAttribute('aria-current');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await expect(page.locator('.network-attribution').first()).toHaveText(
+		'Followed by Bob Maker'
+	);
+	await expect(page.locator('.network-attribution').first()).toHaveAttribute(
+		'href',
+		'/profiles/did%3Aplc%3Abob'
+	);
+	await expect(page.locator('.network-attribution').nth(1)).toHaveText(
+		'Followed by dana.test'
+	);
+	await page.screenshot({ path: testInfo.outputPath('extended-network.png') });
+	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	await page.evaluate(() => scrollTo({ top: 1150, behavior: 'instant' }));
+	await page.evaluate(() => new Promise(requestAnimationFrame));
+	const networkY = await page.evaluate(() => scrollY);
+	await switchTab(tabs.getByRole('link', { name: 'Following', exact: true }));
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await expect(page.locator('.network-attribution')).toHaveCount(0);
+	await expect(page.getByText(/^following 0\./)).toBeVisible();
+	await switchTab(networkTab);
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	await expect.poll(() => page.evaluate(() => scrollY)).toBe(networkY);
+	expect(networkRequests).toBe(2);
+	expect(followingRequests).toBe(1);
+	await page.evaluate(() =>
+		window.dispatchEvent(new Event('craftsky-refresh'))
+	);
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	expect(networkRequests).toBe(3);
+});
+
+test('extended network retries initial and subsequent pages without losing loaded posts', async ({
+	page
+}) => {
+	let requests = 0;
+	const cursors: (string | null)[] = [];
+	await page.route('**/api/appview/v1/feed/extended-network*', (route) => {
+		const cursor = new URL(route.request().url()).searchParams.get('cursor');
+		cursors.push(cursor);
+		if (++requests === 1 || requests === 3)
+			return route.fulfill({
+				status: 503,
+				json: { error: 'unavailable', message: 'Temporary fixture failure' }
+			});
+		return route.fulfill({
+			json: {
+				items: posts(cursor ? 'network-next' : 'network').map((post) => ({
+					itemKey: post.uri,
+					post
+				})),
+				cursor: cursor ? undefined : 'network-next'
+			}
+		});
+	});
+	await page.goto('/feed?source=extended-network');
+	await page.getByRole('button', { name: 'Retry', exact: true }).click();
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Retry', exact: true })
+	).toBeVisible();
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	await page.getByRole('button', { name: 'Retry', exact: true }).click();
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	expect(cursors).toEqual([null, null, 'network-next', 'network-next']);
+});
+
+test('extended network has its own empty state and never inserts a newly published own post', async ({
+	page
+}) => {
+	await page.goto('/feed?source=extended-network');
+	await expect(
+		page.getByText(
+			'Posts from people followed by accounts you follow will appear here.'
+		)
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Connect Instagram' })
+	).toHaveCount(0);
+	await page.goto('/compose/standard');
+	await page
+		.getByRole('textbox', { name: 'What would you like to share?' })
+		.fill('My own post stays in Following');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(page).toHaveURL('/feed');
+	await expect(
+		page.getByText('My own post stays in Following', { exact: true })
+	).toBeVisible();
+	await page
+		.getByRole('navigation', { name: 'Home feeds' })
+		.getByRole('link', {
+			name: 'Extended network',
+			exact: true
+		})
+		.click();
+	await expect(page.locator('.member-post')).toHaveCount(0);
+	await expect(
+		page.getByText('My own post stays in Following', { exact: true })
+	).toHaveCount(0);
+});
+
 test('feed tabs retain independent scroll positions and all loaded pages', async ({
 	page
 }) => {

@@ -153,6 +153,12 @@ Grouped by resource. Each line is an endpoint; response/request body details bel
 ### 4.1 Feed
 
 - `GET /v1/feed/timeline` — chronological feed of followed accounts, newest first.
+- `GET /v1/feed/extended-network` — chronological original root posts from indexed
+  second-degree connections, excluding the viewer and accounts already followed.
+  Supports the timeline's `limit` and opaque `cursor` pagination, item identity
+  and post response shape, with optional item-level `followedBy` author
+  attribution. See [Home feeds](../../development/home-feeds.md) for graph coverage
+  and eligibility rules.
 
 ### 4.2 Profiles
 
