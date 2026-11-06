@@ -1,0 +1,21 @@
+{
+  "name": "craftsky-stats",
+  "private": true,
+  "scripts": {
+    "dev": "bash ../scripts/stats-dev",
+    "dev:static": "python3 -m http.server 4187 --bind 127.0.0.1 --directory public",
+    "test": "playwright test",
+    "check": "python3 -m unittest test_dev_server && node --check public/main.js && playwright test",
+    "deploy:dry-run": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "wrangler": "4.148.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
+  }
+}
