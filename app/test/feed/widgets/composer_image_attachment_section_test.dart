@@ -18,6 +18,18 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 
 void main() {
   testWidgets(
+    'empty attachments show Media without description or limit counts',
+    (tester) async {
+      final state = ValueNotifier(const ComposerImagesState(images: []));
+      addTearDown(state.dispose);
+      await _pump(tester, state);
+      expect(find.text('Media'), findsOneWidget);
+      expect(find.text('0 described'), findsNothing);
+      expect(find.text('Up to 4 photos'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'image editing AT-009: pending edit retains preview and '
     'hides conflicting edit actions',
     (tester) async {

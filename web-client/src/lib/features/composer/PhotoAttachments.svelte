@@ -3,6 +3,7 @@
 	import { pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { mountComposerPage } from './page-layout';
+	import { contextMenu } from '../social/context-menu';
 	import { reorderRow } from '../social/reorder-row';
 	import Icon from '../shell/Icon.svelte';
 	import MediaEditor from './MediaEditor.svelte';
@@ -32,6 +33,8 @@
 	const uid = $props.id();
 	let open = $state(false);
 	let disposed = false;
+	let photoInput = $state<HTMLInputElement>();
+	let videoInput = $state<HTMLInputElement>();
 	let previous: HTMLElement | undefined;
 	let editing = $state<string[]>([]);
 	const described = $derived(images.filter((image) => image.alt.trim()).length);
@@ -76,43 +79,61 @@
 {#snippet header()}
 	<div class="photos-heading">
 		<h2>
-			Photos{#if required}<span>required</span>{/if}
+			{images.length ? 'Photos' : 'Media'}{#if required}<span>required</span
+				>{/if}
 		</h2>
-		<p class="described">
-			<span aria-hidden="true">T</span>{images.length
-				? `${described} / ${images.length} described`
-				: '0 described'}
-		</p>
-		<p>
-			{images.length
-				? `${images.length}/8 · drag to reorder · first is the cover`
-				: 'Up to 8 photos'}
-		</p>
+		{#if images.length}
+			<p class="described">
+				<span aria-hidden="true">T</span>{described} / {images.length} described
+			</p>
+			<p>
+				{images.length}/8 · drag to reorder · first is the cover
+			</p>
+		{/if}
 	</div>
 {/snippet}
 {#snippet picker(video: boolean)}
-	{#if images.length < 8}<label class="photo-picker"
-			><span class="add-icon"><Icon name="plus" size={34} /></span><span
-				><strong
-					>{video
-						? 'Add photos or a video'
-						: images.length
-							? 'Add another photo'
-							: 'Add a photo'}</strong
-				><small
-					>{video
-						? 'Up to 8 photos or one video'
-						: images.length
-							? `Up to ${8 - images.length} more`
-							: 'Up to 8 photos'}</small
-				></span
-			>
+	{#if images.length < 8}
+		{#if video}
+			<details class="media-picker" use:contextMenu>
+				<summary
+					class="photo-picker"
+					aria-disabled={disabled}
+					onclick={(event) => {
+						if (disabled) {
+							event.preventDefault();
+							event.stopPropagation();
+						}
+					}}
+					><span class="add-icon"><Icon name="plus" size={34} /></span><span
+						><strong>Add photos or a video</strong><small
+							>Choose up to 8 photos or a video.</small
+						></span
+					></summary
+				>
+				<div class="menu-items">
+					<button type="button" {disabled} onclick={() => photoInput?.click()}
+						><Icon name="image" /><span
+							>Choose photos<small
+								>Up to {8 - images.length} photos · 40 MB each</small
+							></span
+						></button
+					>
+					<button type="button" {disabled} onclick={() => videoInput?.click()}
+						><Icon name="video" /><span
+							>Choose a video<small
+								>MP4 or MOV · up to 10 minutes · 300 MB</small
+							></span
+						></button
+					>
+				</div>
+			</details>
 			<input
+				hidden
+				bind:this={photoInput}
 				type="file"
-				aria-label={video ? 'Add photos or a video' : 'Add images'}
-				accept={video
-					? 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mp4,.mov'
-					: 'image/jpeg,image/png,image/webp'}
+				aria-label="Add images"
+				accept="image/jpeg,image/png,image/webp"
 				multiple
 				{disabled}
 				onchange={(event) => {
@@ -120,7 +141,37 @@
 					event.currentTarget.value = '';
 				}}
 			/>
-		</label>{/if}
+			<input
+				hidden
+				bind:this={videoInput}
+				type="file"
+				aria-label="Choose a video"
+				accept="video/mp4,video/quicktime,.mp4,.mov"
+				{disabled}
+				onchange={(event) => {
+					void add(event.currentTarget.files);
+					event.currentTarget.value = '';
+				}}
+			/>
+		{:else}<label class="photo-picker">
+				<span class="add-icon"><Icon name="plus" size={34} /></span>
+				<span
+					><strong>{images.length ? 'Add another photo' : 'Add a photo'}</strong
+					>{#if images.length}<small>Up to {8 - images.length} more</small
+						>{/if}</span
+				>
+				<input
+					type="file"
+					aria-label="Add images"
+					accept="image/jpeg,image/png,image/webp"
+					multiple
+					{disabled}
+					onchange={(event) => {
+						void add(event.currentTarget.files);
+						event.currentTarget.value = '';
+					}}
+				/>
+			</label>{/if}{/if}
 {/snippet}
 {#if images.length}
 	<button type="button" class="photo-summary" {disabled} onclick={show}>
@@ -241,6 +292,28 @@
 		line-height: 24px;
 		font-weight: 400;
 	}
+	:global(.composer) .media-picker,
+	:global(.composer) .media-picker[open] {
+		border: 0;
+		padding: 0;
+	}
+	:global(.composer) .media-picker > summary {
+		margin: 0;
+		list-style: none;
+	}
+	:global(.composer) .media-picker > summary::after {
+		content: none;
+	}
+	.media-picker summary::-webkit-details-marker {
+		display: none;
+	}
+	.media-picker .menu-items small {
+		display: block;
+		color: var(--ink-2);
+		font-size: 13px;
+		font-weight: 400;
+		margin-top: 4px;
+	}
 	.photo-picker {
 		position: relative;
 		display: flex;
@@ -254,6 +327,7 @@
 		border-radius: 24px;
 		cursor: pointer;
 	}
+	.photo-picker:focus-visible,
 	.photo-picker:has(input:focus-visible) {
 		outline: 3px solid var(--primary);
 		outline-offset: 3px;

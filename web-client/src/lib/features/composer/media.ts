@@ -117,11 +117,21 @@ export function videoSourceMime(
 }
 
 export async function inspectVideo(file: File): Promise<DraftMedia> {
+	if (file.size > 300_000_000)
+		throw new Error(
+			'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.'
+		);
+	if (!file.size)
+		throw new Error(
+			'This video file is empty. Choose another MP4 or MOV file.'
+		);
 	const mime = videoSourceMime(
 		new Uint8Array(await file.slice(0, 12).arrayBuffer())
 	);
-	if (!mime || !file.size || file.size > 300_000_000)
-		throw new Error('Choose an MP4 or MOV video up to 300 MB and ten minutes.');
+	if (!mime)
+		throw new Error(
+			"This video format isn't supported. Choose an MP4 or MOV file."
+		);
 	const result: DraftMedia = {
 		id: crypto.randomUUID(),
 		name: file.name,
@@ -161,7 +171,9 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 			throw new Error('Could not read this video.');
 		}
 		if (element.duration > 600)
-			throw new Error('Videos must be no longer than ten minutes.');
+			throw new Error(
+				'This video is too long. Videos must be ten minutes or shorter. Trim it and try again.'
+			);
 		return {
 			...result,
 			width: element.videoWidth || undefined,

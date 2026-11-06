@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
@@ -18,6 +20,52 @@ import '../../fakes/image_cache_fakes.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  testWidgets(
+    'local inspection opens the selected file with sound and disposes playback',
+    (tester) async {
+      final visibilityController = VisibilityDetectorController.instance;
+      final previousInterval = visibilityController.updateInterval;
+      visibilityController.updateInterval = Duration.zero;
+      addTearDown(() => visibilityController.updateInterval = previousInterval);
+      final adapter = _FakeViewAdapter();
+      final source = Uri.file('/tmp/local-preview.mov');
+      final selection = LocalVideoSelection(
+        displayName: 'local.mov',
+        mimeType: 'video/quicktime',
+        byteLength: 12,
+        duration: null,
+        headerBytes: Uint8List(0),
+        openRead: () => const Stream.empty(),
+        localUri: source,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: NativeVideoPlayer.local(
+                localSelection: selection,
+                localSource: source,
+                createAdapter: () => adapter,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('native-video-thumbnail-play')));
+      await tester.pump();
+      expect(adapter.openedUri, source);
+      expect(adapter.playOnOpen, isTrue);
+      expect(adapter.mutedBeforeOpen, isFalse);
+      adapter.ready.add(true);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(adapter.disposed, isTrue);
+    },
+  );
+
   testWidgets(
     'IT-015 player uses adapter lifecycle, captions, and soft errors',
     (tester) async {
@@ -349,6 +397,7 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
   final errors = StreamController<Object>.broadcast(sync: true);
   final ready = StreamController<bool>.broadcast(sync: true);
   Object? openFailure;
+  Uri? openedUri;
   bool? playOnOpen;
   NativeVideoCaptionTrack? selectedCaption;
   int pauseCount = 0;
@@ -376,6 +425,7 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
   Future<void> open(Uri playlist, {required bool play}) async {
     if (openFailure case final Exception cause) throw cause;
     if (openFailure case final Error cause) throw cause;
+    openedUri = playlist;
     playOnOpen = play;
     mutedBeforeOpen = _muted;
   }

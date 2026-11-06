@@ -6,6 +6,7 @@ declare global {
 			navigationIndex?: number;
 			projectDetail?: string;
 			photoDetails?: string;
+			videoDetails?: string;
 		}
 	}
 }

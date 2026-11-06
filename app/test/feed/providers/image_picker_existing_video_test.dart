@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,31 @@ import 'package:image_picker/image_picker.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test(
+    'rejects oversized files before metadata probing or reading bytes',
+    () async {
+      var probes = 0;
+      final picker = ImagePickerExistingVideo(
+        pick: () async => _OversizedFile(),
+        probe: (_) async {
+          probes++;
+          throw StateError('must not probe');
+        },
+      );
+      await expectLater(
+        picker.pickExisting(),
+        throwsA(
+          isA<VideoSourceException>().having(
+            (e) => e.reason,
+            'reason',
+            VideoSourceRejection.tooLarge,
+          ),
+        ),
+      );
+      expect(probes, 0);
+    },
+  );
+
   group('iOS native video preparation', () {
     const channel = MethodChannel('social.craftsky/local_video');
     final messenger =
@@ -16,7 +42,9 @@ void main() {
 
     setUp(() {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      file = XFile.fromData(Uint8List(12));
+      file = XFile.fromData(
+        Uint8List.fromList([0, 0, 0, 20, ...'ftypisom'.codeUnits]),
+      );
     });
 
     tearDown(() {
@@ -198,4 +226,9 @@ void main() {
       );
     },
   );
+}
+
+final class _OversizedFile extends Fake implements XFile {
+  @override
+  Future<int> length() async => 300000001;
 }

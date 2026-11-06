@@ -1,7 +1,6 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 const cwd = fileURLToPath(new URL('..', import.meta.url));
-const videoUploads = process.env.WEB_CLIENT_VIDEO_UPLOADS_ENABLED || 'true';
 const subscriptions = process.env.WEB_CLIENT_SUBSCRIPTIONS_ENABLED || 'true';
 export default defineConfig({
 	testDir: '.',
@@ -24,14 +23,13 @@ export default defineConfig({
 		{
 			command:
 				process.env.WEB_CLIENT_WORKER === '1'
-					? `npx wrangler dev --ip 127.0.0.1 --port 19846 --var APPVIEW_ORIGIN:http://127.0.0.1:19847 --var SUBSCRIPTIONS_ENABLED:${subscriptions} --var CRAFTSKY_ENABLE_VIDEO_UPLOADS:${videoUploads}`
+					? `npx wrangler dev --ip 127.0.0.1 --port 19846 --var APPVIEW_ORIGIN:http://127.0.0.1:19847 --var SUBSCRIPTIONS_ENABLED:${subscriptions}`
 					: 'npm run preview -- --port 19846',
 			cwd,
 			port: 19846,
 			env: {
 				APPVIEW_ORIGIN: 'http://127.0.0.1:19847',
-				SUBSCRIPTIONS_ENABLED: subscriptions,
-				CRAFTSKY_ENABLE_VIDEO_UPLOADS: videoUploads
+				SUBSCRIPTIONS_ENABLED: subscriptions
 			},
 			reuseExistingServer: false
 		}

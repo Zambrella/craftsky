@@ -15,7 +15,6 @@ import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
@@ -649,7 +648,6 @@ void main() {
       tester,
       FakePostRepository(onFetchEdit: (did, key) async => seed),
       seed: seed,
-      videoEnabled: true,
     );
     expect(find.text('Add photos or a video'), findsOneWidget);
   });
@@ -1161,7 +1159,7 @@ Future<ProviderContainer> _pumpEditor(
   PostEditSeed? seed,
   FacetGenerator? facets,
   bool direct = false,
-  bool videoEnabled = false,
+
   LinkPreviewRepository? previews,
   LocalPostDraftRepository? drafts,
 }) async {
@@ -1174,7 +1172,6 @@ Future<ProviderContainer> _pumpEditor(
     ProviderScope(
       retry: (_, _) => null,
       overrides: [
-        videoUploadsEnabledProvider.overrideWithValue(videoEnabled),
         if (drafts != null)
           accountLocalPostDraftRepositoryProvider.overrideWith(
             (ref, account) async => drafts,

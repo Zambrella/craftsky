@@ -21,6 +21,9 @@ Future<void> showImageSourceMenu(
   required Future<void> Function()? onTakePhoto,
   Future<void> Function()? onChooseVideo,
   String keyPrefix = 'image-source',
+  String? cameraDescription,
+  String? photosDescription,
+  String? videoDescription,
   bool? cameraSupported,
 }) {
   final l10n = AppLocalizations.of(context);
@@ -39,12 +42,14 @@ Future<void> showImageSourceMenu(
             CraftskyContextMenuItem(
               key: Key('$keyPrefix-take-photo'),
               text: l10n.postComposeTakePhoto,
+              description: cameraDescription,
               icon: Icons.photo_camera_outlined,
               onPressed: onTakePhoto,
             ),
           CraftskyContextMenuItem(
             key: keys.imageSource.photos(keyPrefix),
             text: l10n.postComposeChoosePhotos,
+            description: photosDescription,
             icon: Icons.photo_library_outlined,
             onPressed: onChoosePhotos,
           ),
@@ -52,6 +57,7 @@ Future<void> showImageSourceMenu(
             CraftskyContextMenuItem(
               key: Key('$keyPrefix-choose-video'),
               text: l10n.postComposeChooseVideo,
+              description: videoDescription,
               icon: Icons.video_library_outlined,
               onPressed: onChooseVideo,
             ),

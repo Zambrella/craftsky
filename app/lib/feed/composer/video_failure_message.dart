@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
+import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -51,3 +52,14 @@ String _failureMessage(
   (VideoServiceOutcome.processingFailed, _) => l10n.postVideoProcessingFailed,
   _ => l10n.postVideoRetryableFailure,
 };
+
+String videoSelectionFailureMessage(AppLocalizations l10n, Object failure) =>
+    switch (failure) {
+      VideoSourceException(reason: VideoSourceRejection.tooLarge) =>
+        l10n.postVideoSourceTooLarge,
+      VideoSourceException(reason: VideoSourceRejection.tooLong) =>
+        l10n.postVideoSourceTooLong,
+      VideoSourceException(reason: VideoSourceRejection.unsupportedType) =>
+        l10n.postVideoSourceUnsupported,
+      _ => l10n.postVideoSelectionFailed,
+    };

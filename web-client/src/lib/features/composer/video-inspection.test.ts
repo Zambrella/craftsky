@@ -68,3 +68,12 @@ it('keeps MP4 metadata validation and rejects forged MOV extensions', async () =
 		'Choose an MP4 or MOV'
 	);
 });
+
+it('rejects oversized videos before reading or probing them', async () => {
+	const read = vi.fn();
+	const file = { size: 300_000_001, slice: read } as unknown as File;
+	await expect(inspectVideo(file)).rejects.toThrow(
+		'This video is too large. Videos must be 300 MB or smaller.'
+	);
+	expect(read).not.toHaveBeenCalled();
+});

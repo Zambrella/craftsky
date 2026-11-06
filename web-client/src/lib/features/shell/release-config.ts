@@ -4,8 +4,6 @@ import { page } from '$app/state';
 export const subscriptionsEnabled = () =>
 	page.data.subscriptionsEnabled === true;
 
-export const videoUploadsEnabled = () => page.data.videoUploadsEnabled === true;
-
 export function comingSoon(feature: string) {
 	window.dispatchEvent(
 		new CustomEvent('craftsky-coming-soon', { detail: feature })

@@ -40,12 +40,18 @@ final class ImagePickerExistingVideo implements ExistingVideoPicker {
     final file = await _pick();
     if (file == null) return null;
     final byteLength = await file.length();
-    final metadata = await _probe(file);
+    if (byteLength > maxVideoSourceBytes) {
+      throw const VideoSourceException(VideoSourceRejection.tooLarge);
+    }
+    if (byteLength <= 0) throw const FormatException('Empty video file');
     final header = BytesBuilder(copy: false);
     await file.openRead(0, 12).forEach(header.add);
     final headerBytes = header.takeBytes();
-    final mimeType =
-        detectVideoSourceMimeType(headerBytes) ?? file.mimeType ?? 'video/mp4';
+    final mimeType = detectVideoSourceMimeType(headerBytes);
+    if (mimeType == null) {
+      throw const VideoSourceException(VideoSourceRejection.unsupportedType);
+    }
+    final metadata = await _probe(file);
     final pathName = Uri.file(file.path).pathSegments.lastOrNull;
     final displayName = file.name.trim().isNotEmpty
         ? file.name
@@ -56,6 +62,9 @@ final class ImagePickerExistingVideo implements ExistingVideoPicker {
         : 'video.mp4';
     return LocalVideoSelection(
       displayName: displayName,
+      localUri: Uri.tryParse(file.path)?.hasScheme == true
+          ? Uri.parse(file.path)
+          : Uri.file(file.path),
       mimeType: mimeType,
       byteLength: byteLength,
       duration: metadata.duration,

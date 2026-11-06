@@ -26,7 +26,7 @@ void main() {
             ),
             enabled: true,
             onAltTextChanged: (_) {},
-            onReplace: () {},
+
             onRemove: () {},
           ),
         ),

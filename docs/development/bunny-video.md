@@ -18,8 +18,9 @@ codec) shows a preview-unavailable message and still allows upload. AppView
 validates the processed duration before publication. Source headers, the 300 MB
 limit and any duration available in the browser are checked locally.
 
-For the Svelte client, start `CRAFTSKY_ENABLE_VIDEO_UPLOADS=true just web-run`
-after starting the backend. The release switch remains opt-in.
+For the Svelte client, start `just web-run` after starting the backend. Video
+selection is always enabled in both clients, subject to supported post contexts
+and provider eligibility.
 
 After merging the browser client, Bunny's unreleased migrations are numbered
 `000114_bunny_video_jobs` and `000115_bunny_video_cleanup`; main's browser
@@ -36,7 +37,7 @@ library credentials. Do not print that file or copy keys into Dart defines.
 CDN purges. It is server-only; the Stream library key cannot authorize purges.
 Production Bunny configuration requires it. Without it in development, origin
 deletion succeeds but cache purge remains queued and retries until configured.
-`app/config/local.env` and `local-android.env` enable video composition locally.
+Client configuration files do not need a video availability flag.
 
 From the repository root:
 
@@ -290,3 +291,19 @@ confirmed offscreen pause through the control bridge. The temporary video was
 deleted afterward. This verifies hosted playback; it does not repeat live PDS
 publication or physical-device acceptance. The local backend was rebuilt and
 `/healthz` returned healthy after the metadata change.
+
+## Selected-video inspection
+
+Selecting a video now opens Video details in the standard and project composers.
+The native page plays the selected local file through the shared native player;
+restored draft streams receive a bounded temporary preview file which is removed
+on close. Original picked files remain owned by the picker and are never deleted
+by preview cleanup. The web page plays an object URL and releases playback when
+closed. Both paths keep description edits when returning and reopening, and do
+not upload video until publication. Remove remains on the attachment card; choose another video by removing and adding.
+If a browser cannot decode a MOV, it retains the existing preview-unavailable
+message and still permits a description and upload.
+
+Manual device acceptance should include iPhone H.264/HEVC MOV, Android MP4,
+fullscreen, leaving the app, Back, replacement, and reopening a persisted draft.
+Widget tests and desktop browser playback do not prove device codec support.

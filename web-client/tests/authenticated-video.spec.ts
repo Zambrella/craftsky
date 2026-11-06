@@ -93,15 +93,13 @@ for (const failed of [false, true]) {
 			0,
 			0
 		]);
-		await page
-			.getByLabel('Add photos or a video', { exact: true })
-			.setInputFiles({
-				name: 'private-source.mov',
-				mimeType: 'video/quicktime',
-				buffer: source
-			});
+		await page.getByLabel('Choose a video', { exact: true }).setInputFiles({
+			name: 'private-source.mov',
+			mimeType: 'video/quicktime',
+			buffer: source
+		});
 		await expect(
-			page.getByText('Video selected', { exact: true })
+			page.getByRole('heading', { name: 'Video details', exact: true })
 		).toBeVisible();
 		await expect(
 			page.getByText(
@@ -111,6 +109,12 @@ for (const failed of [false, true]) {
 		await page
 			.getByLabel('Video description', { exact: true })
 			.fill('A knitting demonstration');
+		await page
+			.getByRole('button', { name: 'Back to post', exact: true })
+			.click();
+		await expect(
+			page.getByRole('button', { name: 'Inspect selected video', exact: true })
+		).toBeVisible();
 		await page.getByRole('button', { name: 'Post', exact: true }).click();
 		if (failed) {
 			await expect(page.getByText(/Video processing failed/)).toBeVisible();
@@ -486,5 +490,145 @@ for (const surface of ['quote', 'saved', 'composer']) {
 		await expect(page.locator('video,iframe')).toHaveCount(0);
 		if (surface !== 'composer')
 			await expect(preview.locator('..')).toHaveAttribute('href', expected);
+	});
+}
+
+test('oversized video selection explains the 300 MB limit and retains composer text', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		const descriptor = Object.getOwnPropertyDescriptor(Blob.prototype, 'size')!;
+		Object.defineProperty(File.prototype, 'size', {
+			get() {
+				return this.name === 'oversized.mov'
+					? 300000001
+					: descriptor.get!.call(this);
+			}
+		});
+	});
+	await page.goto('/compose');
+	await expect(
+		page.getByRole('heading', { name: 'Media', exact: true })
+	).toBeVisible();
+	await expect(page.getByText('0 described', { exact: true })).toHaveCount(0);
+	await expect(page.locator('.photo-picker small')).toHaveText(
+		'Choose up to 8 photos or a video.'
+	);
+	const text = page.getByRole('textbox', {
+		name: 'What would you like to share?',
+		exact: true
+	});
+	await text.fill('Keep this draft');
+	await page.getByLabel('Choose a video', { exact: true }).setInputFiles({
+		name: 'oversized.mov',
+		mimeType: 'video/quicktime',
+		buffer: Buffer.from([0, 0, 0, 20, ...Buffer.from('ftypqt  ')])
+	});
+	await expect(
+		page.getByText(
+			'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.',
+			{ exact: true }
+		)
+	).toBeVisible();
+	await expect(text).toHaveValue('Keep this draft');
+	await expect(page.getByText('Selected video', { exact: true })).toHaveCount(
+		0
+	);
+});
+
+for (const width of [1280, 820]) {
+	test(`selected video opens local playback details and retains its description on return at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.route('https://video.bunnycdn.com/**', () => {
+			throw new Error('Inspection must not upload video');
+		});
+		await page.goto('/compose');
+		await page.locator('.media-picker summary').click();
+		await expect(
+			page.getByText('Up to 8 photos · 40 MB each', { exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByText('MP4 or MOV · up to 10 minutes · 300 MB', { exact: true })
+		).toBeVisible();
+		const photoChooserPromise = page.waitForEvent('filechooser');
+		await page.getByRole('button', { name: /^Choose photos/ }).click();
+		const photoChooser = await photoChooserPromise;
+		expect(photoChooser.isMultiple()).toBe(true);
+		expect(await photoChooser.element().getAttribute('accept')).toBe(
+			'image/jpeg,image/png,image/webp'
+		);
+		await page.locator('.media-picker summary').click();
+		const videoChooserPromise = page.waitForEvent('filechooser');
+		await page.getByRole('button', { name: /^Choose a video/ }).click();
+		const videoChooser = await videoChooserPromise;
+		expect(videoChooser.isMultiple()).toBe(false);
+		expect(await videoChooser.element().getAttribute('accept')).toBe(
+			'video/mp4,video/quicktime,.mp4,.mov'
+		);
+		await videoChooser.setFiles(
+			resolve('tests/fixtures/video/local-preview.mp4')
+		);
+		await expect(
+			page.getByRole('heading', { name: 'Video details', exact: true })
+		).toBeVisible();
+		const video = page.getByLabel('Local video preview', { exact: true });
+		await expect(video).toHaveAttribute('src', /^blob:/);
+		await video.evaluate((node) => (node as HTMLVideoElement).play());
+		await expect
+			.poll(() =>
+				video.evaluate((node) => (node as HTMLVideoElement).currentTime)
+			)
+			.toBeGreaterThan(0);
+		const element = await video.elementHandle();
+		await page
+			.getByLabel('Video description', { exact: true })
+			.fill('Hands knitting a blue scarf');
+		await page
+			.getByRole('button', { name: 'Back to post', exact: true })
+			.click();
+		await expect(
+			page.getByRole('button', { name: 'Inspect selected video', exact: true })
+		).toBeVisible();
+		await expect(page.locator('.video-attachment')).toContainText(
+			'Selected video'
+		);
+		await expect(page.locator('.video-attachment')).toContainText(
+			'Video details'
+		);
+		await expect(
+			page
+				.locator('.video-attachment')
+				.getByRole('button', { name: 'Remove video', exact: true })
+		).toBeVisible();
+		expect(
+			await element!.evaluate((node) => (node as HTMLVideoElement).paused)
+		).toBe(true);
+		await page
+			.getByRole('button', { name: 'Inspect selected video', exact: true })
+			.click();
+		await expect(
+			page.getByLabel('Video description', { exact: true })
+		).toHaveValue('Hands knitting a blue scarf');
+		await page.keyboard.press('Escape');
+		await expect(
+			page.getByRole('heading', { name: 'Video details', exact: true })
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Inspect selected video', exact: true })
+		).toBeFocused();
+		await expect(page.getByLabel('Replace video', { exact: true })).toHaveCount(
+			0
+		);
+		await page
+			.getByRole('button', { name: 'Remove video', exact: true })
+			.click();
+		await page
+			.getByLabel('Choose a video', { exact: true })
+			.setInputFiles(resolve('tests/fixtures/video/local-preview.mp4'));
+		await expect(
+			page.getByRole('heading', { name: 'Video details', exact: true })
+		).toBeVisible();
 	});
 }

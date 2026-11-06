@@ -22,6 +22,13 @@ String? detectVideoSourceMimeType(List<int> headerBytes) {
 
 enum VideoSourceRejection { unsupportedType, tooLarge, tooLong }
 
+final class VideoSourceException implements Exception {
+  const new(this.reason);
+  final VideoSourceRejection reason;
+  @override
+  String toString() => 'VideoSourceException(${reason.name})';
+}
+
 final class VideoSourceValidationResult {
   const new({
     required this.canUpload,

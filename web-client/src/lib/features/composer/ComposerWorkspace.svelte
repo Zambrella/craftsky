@@ -12,7 +12,6 @@
 		focusField,
 		presentFieldErrors
 	} from '#lib/field-validation.ts';
-	import { videoUploadsEnabled } from '../shell/release-config';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
@@ -58,6 +57,7 @@
 	import ProjectEditor from './ProjectEditor.svelte';
 	import MediaEditor from './MediaEditor.svelte';
 	import PhotoAttachments from './PhotoAttachments.svelte';
+	import VideoAttachment from './VideoAttachment.svelte';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
 	import ComposerTarget from './ComposerTarget.svelte';
@@ -124,7 +124,7 @@
 		dismissed: false,
 		suppressed: false
 	});
-	let videoURL = $state('');
+	let videoDetailsRequest = $state('');
 	let generation = 0;
 	let destroyed = false;
 	let controller = new AbortController();
@@ -198,8 +198,7 @@
 			(!!draft.edit && draft.text === str(draft.edit.editable.text))
 	);
 	const canAddVideo = $derived(
-		videoUploadsEnabled() &&
-			!fixedEmbed &&
+		!fixedEmbed &&
 			!draft.images.length &&
 			!draft.quote &&
 			!draft.reply &&
@@ -235,16 +234,7 @@
 		)
 			untrack(() => previews?.update(text, suppressed, dismissed));
 	});
-	$effect(() => {
-		const video = draft.video;
-		const next = video?.blob
-			? URL.createObjectURL(video.blob)
-			: video?.remoteUrl || '';
-		videoURL = next;
-		return () => {
-			if (video?.blob) URL.revokeObjectURL(next);
-		};
-	});
+
 	$effect(() => {
 		const lifecycle = recovery;
 		if (!mounted || loading || busy || closing || !lifecycle?.active) return;
@@ -774,6 +764,7 @@
 			const value = await inspectVideo(files[0]);
 			if (seq === generation && !destroyed) {
 				draft.video = value;
+				videoDetailsRequest = value.id;
 				draft.external = undefined;
 				draft.externalImage = undefined;
 				draft.externalSource = undefined;
@@ -1389,51 +1380,18 @@
 								onBusyChange={mediaBusy}
 								onEditingChange={mediaEditing}
 							/>{/if}
-						{#if draft.video}<div class="video-editor">
-								<div class="video-selected">
-									<Icon name="video" /><span
-										><strong>Video selected</strong><small
-											>{draft.video.name}</small
-										></span
-									>
-								</div>
-								{#if draft.video.previewUnavailable}
-									<p class="muted">
-										Preview unavailable in this browser. You can still upload
-										this video.
-									</p>
-								{:else}<video controls src={videoURL} aria-label="Video preview"
-										><track kind="captions" /></video
-									>{/if}<label
-									>Video description<textarea
-										name="draft.video.alt"
-										maxlength="1000"
-										rows="2"
-										bind:value={draft.video.alt}
-										placeholder="Describe what happens in this video"
-									></textarea></label
-								><label class="file-button replace-video"
-									>Replace video<input
-										type="file"
-										accept="video/mp4,video/quicktime,.mp4,.mov"
-										aria-label="Replace video"
-										onchange={(event) => {
-											void addVideo(event.currentTarget.files);
-											event.currentTarget.value = '';
-										}}
-									/></label
-								><button
-									type="button"
-									class="danger"
-									onclick={() => {
-										draft.video = undefined;
-										draft.videoRecovery = 0;
-									}}>Remove video</button
-								>
-								<p class="muted">
-									MP4 or MOV · up to ten minutes · up to 300 MB
-								</p>
-							</div>{/if}
+						{#if draft.video}<VideoAttachment
+								media={draft.video}
+								autoOpen={videoDetailsRequest === draft.video.id}
+								disabled={locked}
+								onalt={(value) => {
+									if (draft.video) draft.video.alt = value;
+								}}
+								onremove={() => {
+									draft.video = undefined;
+									draft.videoRecovery = 0;
+								}}
+							/>{/if}
 						{#if retainedVideo && draft.edit?.post.video}
 							<div class="video-editor">
 								<VideoPlayer
@@ -1453,17 +1411,6 @@
 										oninput={(e) =>
 											(draft.embedChanges = { alt: e.currentTarget.value })}
 									></textarea></label
-								>
-								<label class="file-button replace-video"
-									>Replace video<input
-										type="file"
-										accept="video/mp4,video/quicktime,.mp4,.mov"
-										aria-label="Replace video"
-										onchange={(event) => {
-											void addVideo(event.currentTarget.files);
-											event.currentTarget.value = '';
-										}}
-									/></label
 								>
 								<button
 									type="button"

@@ -185,16 +185,15 @@ test('late profile previews stay inside bubbles and keep the latest message visi
 	});
 });
 
-test('native release hides video upload choices when the feature is off', async ({
-	page
-}) => {
-	test.skip(
-		process.env.WEB_CLIENT_VIDEO_UPLOADS_ENABLED !== 'false',
-		'Runs against the native video-disabled release.'
-	);
+test('video uploads are available without a release flag', async ({ page }) => {
 	await page.goto('/compose');
-	await expect(page.getByText('Add a photo', { exact: true })).toBeVisible();
-	await expect(page.locator('input[type=file][accept*="video"]')).toHaveCount(
-		0
-	);
+	await expect(
+		page.getByText('Add photos or a video', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('Choose up to 8 photos or a video.', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByLabel('Choose a video', { exact: true })
+	).toHaveAttribute('accept', /video\/mp4/);
 });
