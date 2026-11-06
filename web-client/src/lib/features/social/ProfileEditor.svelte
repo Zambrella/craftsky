@@ -38,7 +38,7 @@
 		onSaved?: () => void;
 		onBusyChange?: (busy: boolean) => void;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.ProfileEditor.action');
 	let original = $state<Profile>();
 	let displayName = $state(''),
 		description = $state(''),
@@ -154,7 +154,9 @@
 				}));
 				avatarURL = profile.avatar || '';
 				savedLinks = JSON.stringify(links);
-			}
+			},
+			undefined,
+			'social.ProfileEditor.profiles.me'
 		);
 	});
 	onDestroy(() => {
@@ -419,7 +421,9 @@
 				notify('Profile saved.');
 				if (onSaved) onSaved();
 				else void goto('/profiles/' + encodeURIComponent(owner.did));
-			}
+			},
+			undefined,
+			'social.ProfileEditor.save'
 		);
 	}
 </script>

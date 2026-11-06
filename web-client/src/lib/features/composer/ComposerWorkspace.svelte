@@ -1,4 +1,12 @@
 <script lang="ts">
+	import type { DiagnosticOperation } from '../diagnostics/privacy';
+	import {
+		UserFacingError,
+		InputError,
+		userErrorMessage
+	} from '#lib/user-facing-error.ts';
+	import { apiErrorMessage } from '#lib/api/error-message.ts';
+
 	import Snackbar from '../social/Snackbar.svelte';
 	import PublishingOverlay from './PublishingOverlay.svelte';
 	import {
@@ -324,14 +332,14 @@
 		if (closing) return;
 		if (draft.pending) {
 			void leaveEditor(destination).catch((e) => {
-				error = message(e);
+				error = message(e, 'composer.requestClose');
 			});
 			return;
 		}
 		closeTarget = destination;
 		if (!changed && !mediaEdits.length && !busy && !mediaTasks.length) {
 			void leaveEditor(destination).catch((e) => {
-				error = message(e);
+				error = message(e, 'composer.requestClose');
 			});
 			return;
 		}
@@ -355,7 +363,7 @@
 			await leaveEditor(closeTarget);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.discardDraft');
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -417,7 +425,9 @@
 			if (saved) {
 				const value = await drafts.get(owner, saved);
 				if (!value)
-					throw new Error('This draft was not found for your account.');
+					throw new UserFacingError(
+						'This draft was not found for your account.'
+					);
 				next = value;
 			} else if (scheduled) {
 				const item = await ownedApi.schedules.get(scheduled);
@@ -478,7 +488,7 @@
 				}
 			} else if (mode === 'edit') {
 				if (!did || !rkey || did !== owner)
-					throw new Error('Choose one of your posts to edit.');
+					throw new InputError('Choose one of your posts to edit.');
 				const seed = await ownedApi.posts.editSeed(did, rkey);
 				const value = seed.editable;
 				next = {
@@ -531,15 +541,16 @@
 					};
 			} else if (mode === 'reply' || mode === 'quote') {
 				if (!did || !rkey)
-					throw new Error('Choose a post to reply to or quote.');
+					throw new InputError('Choose a post to reply to or quote.');
 				const [target, preferences] = await Promise.all([
 					ownedApi.posts.get(did, rkey),
 					ownedApi.languages.get().catch(() => undefined)
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
-				if (!('author' in target)) throw new Error('This post is unavailable.');
+				if (!('author' in target))
+					throw new UserFacingError('This post is unavailable.');
 				if (mode === 'quote' && target.reply)
-					throw new Error(
+					throw new UserFacingError(
 						'Replies cannot be quoted. Open the original post to quote it.'
 					);
 				nextContext = target;
@@ -624,7 +635,7 @@
 						typeof value.description !== 'string' ||
 						!value.title.trim()
 					)
-						throw new Error('Invalid link preview response');
+						throw new UserFacingError('Invalid link preview response');
 					const external = {
 						uri: previewNavigation(
 							{ ...candidate, fragment: '' },
@@ -660,7 +671,7 @@
 			scheduleAt = next.scheduledAt ? localDate(next.scheduledAt) : '';
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.initialize');
 		} finally {
 			if (seq === generation && !destroyed) loading = false;
 		}
@@ -674,15 +685,14 @@
 		draft.scheduleLater = later;
 		draft.scheduledAt = later ? scheduledUTCDate(date) : undefined;
 	}
-	function message(e: unknown) {
-		void reportFailure(e, 'composer');
+	function message(e: unknown, operation: DiagnosticOperation) {
+		void reportFailure(e, operation);
 		if (e instanceof APIError && e.fields)
-			return `${e.message} ${Object.entries(e.fields)
+			return `${apiErrorMessage(e)} ${Object.entries(e.fields)
 				.map(([field, value]) => `${field}: ${value}`)
 				.join(' · ')}`;
-		return e instanceof Error
-			? e.message
-			: 'The action could not be completed.';
+		if (e instanceof APIError) return apiErrorMessage(e);
+		return userErrorMessage(e);
 	}
 	async function saveDraft(destination = closeDestination) {
 		const lifecycle = recovery,
@@ -712,7 +722,7 @@
 			await leaveEditor(destination);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.saveDraft');
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -724,11 +734,11 @@
 			const kind = attachmentSelection(Array.from(files));
 			if (kind === 'video') {
 				if (!canAddVideo)
-					throw new Error('Video cannot be added to this post.');
+					throw new InputError('Video cannot be added to this post.');
 				await addVideo(files);
 			} else if (kind === 'images') await addImages(files);
 		} catch (e) {
-			error = message(e);
+			error = message(e, 'composer.addAttachments');
 		}
 	}
 	async function addImages(files: FileList | null) {
@@ -738,7 +748,7 @@
 		error = '';
 		try {
 			if (draft.images.length + files.length > 8)
-				throw new Error('Choose up to eight images.');
+				throw new InputError('Choose up to eight images.');
 			const prepared: DraftMedia[] = [];
 			for (const file of Array.from(files)) {
 				progress = `Preparing image ${prepared.length + 1} of ${files.length}…`;
@@ -756,7 +766,7 @@
 			}
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.addImages');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -782,7 +792,7 @@
 			}
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.addVideo');
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}
@@ -840,7 +850,7 @@
 		signal: AbortSignal
 	): Promise<void> {
 		if (image.uploaded || image.existingIndex !== undefined) return;
-		if (!image.blob) throw new Error('An image file is missing.');
+		if (!image.blob) throw new UserFacingError('An image file is missing.');
 		const result = await api.media.image(image.blob, image.mime, signal);
 		image.uploaded = result.blob;
 	}
@@ -849,7 +859,7 @@
 		signal: AbortSignal
 	): Promise<string> {
 		if (image.scheduledId) return image.scheduledId;
-		if (!image.blob) throw new Error('A media file is missing.');
+		if (!image.blob) throw new UserFacingError('A media file is missing.');
 		const id = image.id;
 		await api.schedules.stageMedia(id, image.blob, image.mime, signal);
 		image.scheduledId = id;
@@ -986,7 +996,7 @@
 					);
 					return;
 				}
-				throw new Error(remaining.join(' '));
+				throw new InputError(remaining.join(' '));
 			}
 			publishing = true;
 			scheduling = action === 'schedule';
@@ -995,7 +1005,7 @@
 				const payload = await makeSchedulePayload(working, signal);
 				if (action === 'publish-now') {
 					if (!working.scheduleId)
-						throw new Error('This post is not scheduled.');
+						throw new UserFacingError('This post is not scheduled.');
 					pending = {
 						key: working.id,
 						kind: 'schedule-publish',
@@ -1009,7 +1019,7 @@
 						!Number.isFinite(date.getTime()) ||
 						date.getTime() < Date.now() + 5 * 60 * 1000
 					)
-						throw new Error(
+						throw new InputError(
 							'Choose a time at least five minutes in the future.'
 						);
 					pending = {
@@ -1105,7 +1115,7 @@
 			await perform(pending, owner, seq, working.id);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.submit');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -1133,7 +1143,7 @@
 			);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.retry');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -1249,7 +1259,7 @@
 						(draft.videoRecovery || 0) < 2
 							? 'The video could not be retrieved. Try publishing again to upload a fresh copy.'
 							: 'The video could not be restored. Remove it and choose the file again.';
-				else error = message(e);
+				else error = message(e, 'composer.perform');
 			}
 		}
 	}

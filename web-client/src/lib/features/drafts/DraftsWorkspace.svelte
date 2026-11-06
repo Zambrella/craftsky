@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { userErrorMessage } from '#lib/user-facing-error.ts';
+	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
@@ -65,8 +67,8 @@
 				if (seq === generation && !destroyed) local = result;
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed)
-				error = e instanceof Error ? e.message : 'Could not load your drafts.';
+			void reportFailure(e, 'drafts.manage');
+			if (seq === generation && !destroyed) error = userErrorMessage(e);
 		} finally {
 			if (seq === generation && !destroyed) loading = false;
 		}
@@ -94,8 +96,8 @@
 				await load();
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed)
-				error = e instanceof Error ? e.message : 'Could not delete this item.';
+			void reportFailure(e, 'drafts.manage');
+			if (seq === generation && !destroyed) error = userErrorMessage(e);
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}

@@ -1,3 +1,4 @@
+import { InputError } from '#lib/user-facing-error.ts';
 import { graphemeCount } from '#lib/text.ts';
 import type { ChatMessage, ChatReceipt } from '#lib/api/client.ts';
 
@@ -83,8 +84,8 @@ export class MessageDraftStore {
 						}
 					: {})
 			};
-		} catch {
-			throw new Error('The saved message draft could not be read.');
+		} catch (cause) {
+			throw new Error('The saved message draft could not be read.', { cause });
 		}
 	}
 	save(id: string, draft: MessageDraft): void {
@@ -129,9 +130,10 @@ export function freezeSend(
 	draft: MessageDraft,
 	newID: () => string = () => crypto.randomUUID()
 ): MessageDraft {
-	if (draft.pending) throw new Error('Resolve the existing attempt first.');
+	if (draft.pending)
+		throw new InputError('Resolve the existing attempt first.');
 	const invalid = validateText(draft.text);
-	if (invalid) throw new Error(invalid);
+	if (invalid) throw new InputError(invalid);
 	const id = newID();
 	if (!operationID.test(id)) throw new Error('Invalid message operation.');
 	return {
@@ -311,7 +313,9 @@ export function prefillSharedLink(
 ): MessageDraft {
 	const safe = sharedCraftskyLink(link);
 	if (!safe)
-		throw new Error('Open the original CraftSky content to share this link.');
+		throw new InputError(
+			'Open the original CraftSky content to share this link.'
+		);
 	if (messageLinks(draft.text).some((part) => part.href === safe)) return draft;
 	// An existing delivery keeps its frozen text/ID; the shared link becomes a separate editable draft.
 	const text =

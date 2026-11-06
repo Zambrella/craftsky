@@ -41,11 +41,11 @@
 		session: { id: string; did: string; handle: string };
 		id: string;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.Profile.action');
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
-	let contentWork = $state(new Work());
+	let contentWork = $state(new Work('social.Profile.action'));
 	const tabPages = new Map<
 		string,
 		{
@@ -110,7 +110,9 @@
 			() => api.profiles.get(id),
 			(value) => {
 				profile = value;
-			}
+			},
+			undefined,
+			'social.Profile.profiles.get'
 		);
 	});
 	onDestroy(() => {
@@ -129,7 +131,7 @@
 			loadedTab = current;
 			const revision = ++generation;
 			contentWork.dispose();
-			const pending = new Work();
+			const pending = new Work('social.Profile.action');
 			contentWork = pending;
 			const cached = tabPages.get(current);
 			cursor = cached?.cursor;
@@ -147,7 +149,9 @@
 							events = value.items;
 							cursor = value.cursor;
 						}
-					}
+					},
+					undefined,
+					'social.Profile.business.profileEvents'
 				);
 			else
 				void pending.run(
@@ -158,7 +162,9 @@
 							posts = value.items;
 							cursor = value.cursor;
 						}
-					}
+					},
+					undefined,
+					'social.Profile.profiles.posts'
 				);
 		});
 	});
@@ -172,7 +178,9 @@
 					if (revision !== generation) return;
 					events = [...events, ...value.items];
 					cursor = value.cursor;
-				}
+				},
+				undefined,
+				'social.Profile.more'
 			);
 		else
 			void contentWork.run(
@@ -181,7 +189,9 @@
 					if (revision !== generation) return;
 					posts = [...posts, ...value.items];
 					cursor = value.cursor;
-				}
+				},
+				undefined,
+				'social.Profile.more'
 			);
 	}
 
@@ -197,7 +207,9 @@
 					: api.profiles.follow(id, key),
 			(value) => {
 				profile = value;
-			}
+			},
+			undefined,
+			'social.Profile.follow'
 		);
 	}
 	function relationship(action: 'mute' | 'block', confirmed = false) {
@@ -229,7 +241,8 @@
 					: 'Account muted.'
 				: current.blocking
 					? 'Account unblocked.'
-					: 'Account blocked.'
+					: 'Account blocked.',
+			'social.Profile.relationship'
 		);
 	}
 	function report(submission: ReportSubmission) {
@@ -243,7 +256,9 @@
 				reportOpen = false;
 				reportLink = undefined;
 				notify('Report submitted.');
-			}
+			},
+			undefined,
+			'social.Profile.report'
 		);
 	}
 </script>

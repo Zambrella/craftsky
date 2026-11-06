@@ -1,3 +1,4 @@
+import { UserFacingError } from '#lib/user-facing-error.ts';
 import type {
 	BlobReference,
 	JsonObject,
@@ -81,14 +82,16 @@ export function newDraft(
 }
 export function assertOwner(owner: string, draft: Draft): void {
 	if (!owner.startsWith('did:') || owner !== draft.owner)
-		throw new Error('This draft belongs to another account.');
+		throw new UserFacingError('This draft belongs to another account.');
 }
 let database: Promise<IDBDatabase> | undefined;
 function open(): Promise<IDBDatabase> {
 	if (database) return database;
 	database = new Promise<IDBDatabase>((resolve, reject) => {
 		if (typeof indexedDB === 'undefined') {
-			reject(new Error('This browser does not support local drafts.'));
+			reject(
+				new UserFacingError('This browser does not support local drafts.')
+			);
 			return;
 		}
 		const request = indexedDB.open('craftsky-private-drafts', 1);
@@ -99,9 +102,11 @@ function open(): Promise<IDBDatabase> {
 			store.createIndex('owner', 'owner');
 		};
 		request.onblocked = () =>
-			reject(new Error('Close older CraftSky tabs to open local drafts.'));
+			reject(
+				new UserFacingError('Close older CraftSky tabs to open local drafts.')
+			);
 		request.onerror = () =>
-			reject(new Error('Local draft storage could not be opened.'));
+			reject(new UserFacingError('Local draft storage could not be opened.'));
 		request.onsuccess = () => {
 			const db = request.result;
 			db.onversionchange = () => {
@@ -132,11 +137,15 @@ async function transaction<T>(
 		tx.oncomplete = () => resolve(result);
 		tx.onabort = () =>
 			reject(
-				new Error('Could not save local drafts. Check your browser storage.')
+				new UserFacingError(
+					'Could not save local drafts. Check your browser storage.'
+				)
 			);
 		tx.onerror = () =>
 			reject(
-				new Error('Could not save local drafts. Check your browser storage.')
+				new UserFacingError(
+					'Could not save local drafts. Check your browser storage.'
+				)
 			);
 	});
 }
@@ -144,7 +153,7 @@ export const drafts = {
 	/** Account-deletion cleanup only. All owner rows and media disappear in one transaction. */
 	async clear(owner: string): Promise<void> {
 		if (!owner.startsWith('did:'))
-			throw new Error('A draft owner is required.');
+			throw new UserFacingError('A draft owner is required.');
 		await transaction('readwrite', (store) => {
 			const request = store.index('owner').getAllKeys(owner);
 			request.addEventListener('success', () => {

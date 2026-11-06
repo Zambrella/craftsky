@@ -1,3 +1,4 @@
+import { UserFacingError } from '#lib/user-facing-error.ts';
 import {
 	assertOwner,
 	drafts,
@@ -67,7 +68,7 @@ export class ComposerRecovery {
 	private assert(value: Draft) {
 		assertOwner(this.owner, value);
 		if (value.id !== this.id)
-			throw new Error('This editor belongs to another draft.');
+			throw new UserFacingError('This editor belongs to another draft.');
 	}
 	private enqueue(action: () => Promise<void>): Promise<void> {
 		const result = this.tail.then(action, action);
@@ -77,7 +78,9 @@ export class ComposerRecovery {
 	checkpoint(value: Draft): Promise<void> {
 		this.assert(value);
 		if (!this.active)
-			return Promise.reject(new Error('This editor has already closed.'));
+			return Promise.reject(
+				new UserFacingError('This editor has already closed.')
+			);
 		const frozen = structuredClone(value);
 		return this.enqueue(() => this.store.save(this.owner, frozen));
 	}
@@ -86,10 +89,14 @@ export class ComposerRecovery {
 		this.assert(value);
 		if (value.pending)
 			return Promise.reject(
-				new Error('Check the original action before discarding this draft.')
+				new UserFacingError(
+					'Check the original action before discarding this draft.'
+				)
 			);
 		if (!this.active)
-			return Promise.reject(new Error('This editor has already closed.'));
+			return Promise.reject(
+				new UserFacingError('This editor has already closed.')
+			);
 		this.phase = 'discarding';
 		return this.enqueue(async () => {
 			if (this.original)

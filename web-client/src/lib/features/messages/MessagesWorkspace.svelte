@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { goto } from '$app/navigation';
@@ -292,7 +293,8 @@
 			)
 				throw new Error('Invalid authorization target');
 			if (account === session.id) window.location.assign(target.href);
-		} catch {
+		} catch (error) {
+			void reportFailure(error, 'messages.authorize');
 			if (account === session.id) {
 				authorizationError =
 					'Messaging permissions could not be opened. Try again.';

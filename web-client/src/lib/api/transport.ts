@@ -18,6 +18,8 @@ export interface RequestOptions {
 /** Carries only the public API error envelope; request bodies are never retained. */
 export class APIError extends Error {
 	readonly name: string = 'APIError';
+	httpMethod?: string;
+	responseKind?: 'appViewError' | 'json' | 'nonJson' | 'empty';
 	constructor(
 		readonly status: number,
 		readonly code: string,
@@ -40,7 +42,8 @@ export class MutationOutcomeUnknownError extends APIError {
 	constructor(
 		readonly operationKey: string,
 		retryAfter = 1,
-		readonly responsePending = false
+		readonly responsePending = false,
+		options?: ErrorOptions
 	) {
 		super(
 			202,
@@ -48,7 +51,8 @@ export class MutationOutcomeUnknownError extends APIError {
 			'The action is still being confirmed. Retry the same action.',
 			undefined,
 			undefined,
-			retryAfter
+			retryAfter,
+			options
 		);
 	}
 	override get retryable(): boolean {
@@ -110,6 +114,18 @@ export class APITransport {
 		path: string,
 		options: RequestOptions = {}
 	): Promise<T> {
+		try {
+			return await this.performRequest<T>(method, path, options);
+		} catch (error) {
+			if (error instanceof APIError) error.httpMethod = method;
+			throw error;
+		}
+	}
+	private async performRequest<T>(
+		method: string,
+		path: string,
+		options: RequestOptions
+	): Promise<T> {
 		const key =
 			options.operationKey === undefined
 				? undefined
@@ -154,123 +170,159 @@ export class APITransport {
 				}
 			);
 		} catch (error) {
-			if (key) throw new MutationOutcomeUnknownError(key);
+			if (key)
+				throw new MutationOutcomeUnknownError(key, 1, false, { cause: error });
 			if (error instanceof DOMException && error.name === 'AbortError')
 				throw error;
 			throw new APIError(
 				0,
 				'network_unavailable',
-				'Could not connect to CraftSky. Please try again.'
+				'Could not connect to CraftSky. Please try again.',
+				undefined,
+				undefined,
+				undefined,
+				{ cause: error }
 			);
 		}
 		const retryAfter = retrySeconds(response.headers.get('Retry-After'));
-		const headerRequestId = response.headers.get('X-Request-ID') || undefined;
+		const rawRequestId = response.headers.get('X-Request-ID');
+		const headerRequestId =
+			rawRequestId &&
+			/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+				rawRequestId
+			)
+				? rawRequestId
+				: undefined;
 		let value: unknown;
-		if (options.response === 'bytes' && response.ok)
-			return (await response.arrayBuffer()) as T;
-		if (options.response === 'text' && response.ok)
-			return (await response.text()) as T;
-		let text: string;
+		let responseKind: APIError['responseKind'];
 		try {
-			text = await response.text();
-		} catch (error) {
-			if (key) throw new MutationOutcomeUnknownError(key);
-			if (error instanceof DOMException && error.name === 'AbortError')
-				throw error;
-			throw new APIError(
-				0,
-				'network_unavailable',
-				'Could not read the CraftSky response. Please try again.'
-			);
-		}
-		if (text) {
+			if (options.response === 'bytes' && response.ok)
+				return (await response.arrayBuffer()) as T;
+			if (options.response === 'text' && response.ok)
+				return (await response.text()) as T;
+			let text: string;
 			try {
-				value = JSON.parse(text);
-			} catch (cause) {
-				if (key) throw new MutationOutcomeUnknownError(key);
+				text = await response.text();
+				responseKind = text ? 'nonJson' : 'empty';
+			} catch (error) {
+				if (key)
+					throw new MutationOutcomeUnknownError(key, 1, false, {
+						cause: error
+					});
+				if (error instanceof DOMException && error.name === 'AbortError')
+					throw error;
 				throw new APIError(
-					response.status,
-					'invalid_response',
-					'CraftSky returned an unreadable response.',
+					0,
+					'network_unavailable',
+					'Could not read the CraftSky response. Please try again.',
 					headerRequestId,
 					undefined,
 					undefined,
-					{ cause }
+					{ cause: error }
 				);
 			}
-		}
-		if (response.status === 202 && key) {
-			const pending =
-				object(value) &&
-				Object.keys(value).length === 1 &&
-				value.status === 'ambiguous' &&
-				retryAfter !== undefined;
-			throw new MutationOutcomeUnknownError(
-				key,
-				Math.max(1, Math.min(retryAfter ?? 1, 5)),
-				pending
-			);
-		}
-		if (!response.ok) {
-			if (
-				key &&
-				(response.status >= 500 ||
-					(response.status === 429 &&
-						object(value) &&
-						value.error === 'pds_rate_limited'))
-			) {
-				if (!object(value) || value.error !== 'video_blob_missing')
-					throw new MutationOutcomeUnknownError(key, retryAfter ?? 1);
+			if (text) {
+				responseKind = 'nonJson';
+				try {
+					value = JSON.parse(text);
+					responseKind =
+						object(value) && typeof value.error === 'string'
+							? 'appViewError'
+							: 'json';
+				} catch (cause) {
+					if (key)
+						throw new MutationOutcomeUnknownError(key, 1, false, { cause });
+					throw new APIError(
+						response.status,
+						'invalid_response',
+						'CraftSky returned an unreadable response.',
+						headerRequestId,
+						undefined,
+						undefined,
+						{ cause }
+					);
+				}
 			}
-			const envelope = object(value) ? value : {};
-			const fields =
-				object(envelope.fields) &&
-				Object.values(envelope.fields).every((v) => typeof v === 'string')
-					? (envelope.fields as Record<string, string>)
-					: undefined;
-			throw new APIError(
-				response.status,
-				typeof envelope.error === 'string' ? envelope.error : 'request_failed',
-				typeof envelope.message === 'string'
-					? envelope.message
-					: 'The request could not be completed.',
-				typeof envelope.requestId === 'string' &&
-					/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
-						envelope.requestId
-					)
-					? envelope.requestId
-					: headerRequestId,
-				fields,
-				retryAfter
-			);
-		}
-		if (options.response === 'empty') {
+			if (response.status === 202 && key) {
+				const pending =
+					object(value) &&
+					Object.keys(value).length === 1 &&
+					value.status === 'ambiguous' &&
+					retryAfter !== undefined;
+				throw new MutationOutcomeUnknownError(
+					key,
+					Math.max(1, Math.min(retryAfter ?? 1, 5)),
+					pending
+				);
+			}
+			if (!response.ok) {
+				if (
+					key &&
+					(response.status >= 500 ||
+						(response.status === 429 &&
+							object(value) &&
+							value.error === 'pds_rate_limited'))
+				) {
+					if (!object(value) || value.error !== 'video_blob_missing')
+						throw new MutationOutcomeUnknownError(key, retryAfter ?? 1);
+				}
+				const envelope = object(value) ? value : {};
+				const fields =
+					object(envelope.fields) &&
+					Object.values(envelope.fields).every((v) => typeof v === 'string')
+						? (envelope.fields as Record<string, string>)
+						: undefined;
+				throw new APIError(
+					response.status,
+					typeof envelope.error === 'string'
+						? envelope.error
+						: 'request_failed',
+					typeof envelope.message === 'string'
+						? envelope.message
+						: 'The request could not be completed.',
+					typeof envelope.requestId === 'string' &&
+						/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+							envelope.requestId
+						)
+						? envelope.requestId
+						: headerRequestId,
+					fields,
+					retryAfter
+				);
+			}
+			if (options.response === 'empty') {
+				if (
+					(key && response.status !== 204) ||
+					(text && response.status !== 202)
+				) {
+					if (key) throw new MutationOutcomeUnknownError(key);
+					throw new APIError(
+						response.status,
+						'invalid_response',
+						'Unexpected response to the action.',
+						headerRequestId
+					);
+				}
+				return undefined as T;
+			}
 			if (
-				(key && response.status !== 204) ||
-				(text && response.status !== 202)
+				value === undefined ||
+				!object(value) ||
+				(options.validate && !options.validate(value))
 			) {
 				if (key) throw new MutationOutcomeUnknownError(key);
 				throw new APIError(
 					response.status,
 					'invalid_response',
-					'Unexpected response to the action.'
+					'CraftSky returned an incomplete response.',
+					headerRequestId
 				);
 			}
-			return undefined as T;
+			return value as T;
+		} catch (error) {
+			if (error instanceof APIError) error.responseKind = responseKind;
+			throw error;
 		}
-		if (
-			value === undefined ||
-			!object(value) ||
-			(options.validate && !options.validate(value))
-		) {
-			if (key) throw new MutationOutcomeUnknownError(key);
-			throw new APIError(
-				response.status,
-				'invalid_response',
-				'CraftSky returned an incomplete response.'
-			);
-		}
-		return value as T;
 	}
 	get<T>(
 		path: string,

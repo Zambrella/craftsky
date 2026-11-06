@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { confirmNavigation } from '../social/navigation-prompt';
@@ -35,7 +36,7 @@
 		section,
 		session
 	}: { api: CraftskyAPI; section: string; session: Session } = $props();
-	const work = new Work();
+	const work = new Work('settings.Preferences.action');
 	let loaded = $state(false);
 	let theme = $state('system'),
 		diagnostics = $state(false);
@@ -82,7 +83,8 @@
 				(value) => {
 					preferences = value;
 					loaded = true;
-				}
+				},
+				'settings.Preferences.load'
 			);
 		if (section === 'languages')
 			return work.load(
@@ -91,7 +93,8 @@
 					loaded = true;
 					primary = value.primaryLanguage;
 					content = value.contentLanguages.join(', ');
-				}
+				},
+				'settings.Preferences.load'
 			);
 		if (section === 'customisation')
 			return work.load(
@@ -106,7 +109,8 @@
 					profileAvatar = profile.avatar || '';
 					profileName = profile.displayName || '';
 					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
-				}
+				},
+				'settings.Preferences.load'
 			);
 		if (section === 'messaging')
 			return work.load(
@@ -129,7 +133,8 @@
 					canSetPolicy = status.capabilities.canSetPolicy;
 					incoming = policy?.allowIncoming || 'everyone';
 					push = prefs.pushEnabled;
-				}
+				},
+				'settings.Preferences.load'
 			);
 		work.loading = false;
 	}
@@ -167,17 +172,16 @@
 				(result) => {
 					primary = result.primaryLanguage;
 					content = result.contentLanguages.join(', ');
-				}
+				},
+				undefined,
+				'settings.Preferences.replaceLanguages'
 			);
 			if (!disposed && work.error) {
 				primary = previous.primary;
 				content = previous.content;
 			}
 		} catch (error) {
-			fieldError(
-				'Primary language',
-				error instanceof Error ? error.message : 'Check your languages.'
-			);
+			fieldError('Primary language', userErrorMessage(error));
 		}
 	}
 	function saveCustomisation(event: SubmitEvent) {
@@ -192,7 +196,8 @@
 				savedColour = value.colour;
 				savedBackground = value.profileBackground;
 			},
-			'Profile customisation saved.'
+			'Profile customisation saved.',
+			'settings.Preferences.saveCustomisation'
 		);
 	}
 	async function setMessaging(enabled: boolean) {
@@ -204,7 +209,7 @@
 			async () => {
 				const status = await api.chat.setConnection(enabled);
 				if (status.enabled !== enabled)
-					throw new Error(
+					throw new UserFacingError(
 						'Messaging connection change was not confirmed. Try again.'
 					);
 				const [policy, preference] = await Promise.allSettled([
@@ -233,7 +238,8 @@
 				if (policy.status === 'rejected' || preference.status === 'rejected')
 					work.error = 'Some messaging settings could not load. Try again.';
 			},
-			''
+			'',
+			'settings.Preferences.setMessaging'
 		);
 		if (!disposed && !confirmed) connected = previous;
 	}
@@ -246,7 +252,8 @@
 			(saved) => {
 				push = saved.pushEnabled;
 			},
-			''
+			'',
+			'settings.Preferences.changePush'
 		);
 		if (!disposed && work.error) push = previous;
 	}
@@ -259,7 +266,8 @@
 			(saved) => {
 				incoming = saved.allowIncoming;
 			},
-			''
+			'',
+			'settings.Preferences.changeIncoming'
 		);
 		if (!disposed && work.error) incoming = previous;
 	}
@@ -287,7 +295,9 @@
 				}),
 			(result) => {
 				preferences = result;
-			}
+			},
+			undefined,
+			'settings.Preferences.notification'
 		);
 		if (!disposed && work.error) preferences = previous;
 	}

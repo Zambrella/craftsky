@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import { reportFailure } from '../diagnostics/client';
 	import { onMount, onDestroy } from 'svelte';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { goto } from '$app/navigation';
@@ -31,7 +33,7 @@
 		try {
 			const accountId = accountForTarget(bindings(localStorage), target);
 			if (!accountId)
-				throw new Error(
+				throw new InputError(
 					'Sign in to the account for this notification to open it.'
 				);
 			if (accountId !== session.id) {
@@ -42,7 +44,7 @@
 					body: JSON.stringify({ accountId })
 				});
 				if (!response.ok)
-					throw new Error(
+					throw new InputError(
 						'Sign in to the account for this notification to open it.'
 					);
 				if (!dead) window.location.assign(pushURL(target));
@@ -58,9 +60,8 @@
 			} else if (!dead) await goto('/notifications', { replaceState: true });
 			if (!dead) notification = null;
 		} catch (e) {
-			if (!dead)
-				error =
-					e instanceof Error ? e.message : 'Could not open this notification.';
+			void reportFailure(e, 'push.open');
+			if (!dead) error = userErrorMessage(e);
 		} finally {
 			busy = false;
 		}

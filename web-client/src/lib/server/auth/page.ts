@@ -1,3 +1,4 @@
+import { logServerFailure } from '../diagnostics';
 import { redirect } from '@sveltejs/kit';
 import { env } from 'node:process';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -52,6 +53,14 @@ export async function authenticatedPage({
 			error.status === 303
 		)
 			throw error;
+		logServerFailure(
+			error,
+			'auth.session',
+			'fetch',
+			error instanceof UpstreamError
+				? { status: error.status, code: error.code, requestId: error.requestId }
+				: {}
+		);
 	}
 	return {
 		subscriptionsEnabled: env.SUBSCRIPTIONS_ENABLED === 'true',

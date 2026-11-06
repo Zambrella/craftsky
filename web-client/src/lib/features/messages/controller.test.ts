@@ -1,3 +1,5 @@
+import { reportFailure } from '../diagnostics/client';
+vi.mock('../diagnostics/client', () => ({ reportFailure: vi.fn() }));
 import { describe, expect, it, vi } from 'vitest';
 import {
 	CraftskyAPI,
@@ -362,4 +364,31 @@ describe('account-owned shared-link recipient selection', () => {
 		).toBeUndefined();
 		expect(read).not.toHaveBeenCalled();
 	});
+});
+
+it('reports a consumed message failure once with its original cause and action', async () => {
+	vi.mocked(reportFailure).mockClear();
+	const { api, controller } = setup();
+	const cause = new APIError(503, 'internal_error', 'PRIVATE_CANARY');
+	vi.spyOn(api.chat, 'status').mockRejectedValueOnce(cause);
+	await controller.navigate(['conversation']);
+	expect(reportFailure).toHaveBeenCalledExactlyOnceWith(
+		cause,
+		'messages.navigate'
+	);
+	expect(controller.state.error).toBe(
+		'CraftSky is having trouble right now. Please try again.'
+	);
+});
+
+it('does not repeatedly report the same failed polling cycle', async () => {
+	const { api, controller } = setup();
+	await controller.navigate(['conversation']);
+	vi.mocked(reportFailure).mockClear();
+	const cause = new Error('PRIVATE_CANARY');
+	vi.spyOn(api.chat, 'sync').mockRejectedValue(cause);
+	await controller.sync(true);
+	await controller.sync(true);
+	expect(reportFailure).toHaveBeenCalledExactlyOnceWith(cause, 'messages.sync');
+	expect(controller.state.error).not.toContain('PRIVATE_CANARY');
 });

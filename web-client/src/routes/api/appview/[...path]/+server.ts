@@ -109,7 +109,7 @@ const handler: RequestHandler = async ({ request, url, cookies, params }) => {
 			headers: output
 		});
 	} catch (error) {
-		return safeFailure(error);
+		return safeFailure(error, 'appview.proxy');
 	}
 };
 export {

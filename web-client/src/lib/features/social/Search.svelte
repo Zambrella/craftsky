@@ -39,13 +39,13 @@
 	};
 	const history = getContext<PageHistory | undefined>(pageHistoryContext);
 	let historyView: PageView<SearchSnapshot> | undefined;
-	let work = $state(new Work());
+	let work = $state(new Work('social.Search.action'));
 	let loaded = false;
 	let loadedPages = 0;
 	let query = $state(page.url.searchParams.get('q') || ''),
 		suggestions = $state<SearchSuggestions>();
 	let suggesting = $state(false);
-	let suggestionWork = $state(new Work());
+	let suggestionWork = $state(new Work('social.Search.action'));
 	let waitingForSuggestions = $state(false);
 	let suggestionController: AbortController | undefined;
 	const showSuggestions = $derived(suggesting && !!query.trim());
@@ -64,7 +64,7 @@
 		suggestionGeneration++;
 		suggestionController?.abort();
 		suggestionWork.dispose();
-		suggestionWork = new Work();
+		suggestionWork = new Work('social.Search.action');
 		suggestions = undefined;
 		waitingForSuggestions = false;
 	}
@@ -89,7 +89,9 @@
 					}),
 				(value) => {
 					if (generation === suggestionGeneration) suggestions = value;
-				}
+				},
+				undefined,
+				'social.Search.suggest'
 			);
 		}, 300);
 	}
@@ -158,7 +160,9 @@
 				loadedPages = more ? loadedPages + 1 : 1;
 				loaded = true;
 				saveView();
-			}
+			},
+			undefined,
+			'social.Search.load'
 		);
 	}
 	$effect(() => {
@@ -181,7 +185,7 @@
 			const view = history?.view<SearchSnapshot>('search-results', key);
 			historyView = view;
 			const snapshot = view?.cachedTab ? view.value : undefined;
-			const pending = new Work();
+			const pending = new Work('social.Search.action');
 			let active = true;
 			work = pending;
 			loaded = !!snapshot;
