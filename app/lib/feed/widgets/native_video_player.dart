@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -33,9 +35,23 @@ final class NativeVideoPlayer extends StatefulWidget {
     this.createCaptionResource = createCaptionUriResource,
     this.createAdapter = MediaKitNativeVideoAdapter.new,
     this.playbackCoordinator,
-  });
+  }) : localSelection = null,
+       localSource = null;
 
-  final PostVideo video;
+  const new local({
+    required this.localSelection,
+    required this.localSource,
+    super.key,
+    this.reporter = const NoopErrorReporter(),
+    this.createAdapter = MediaKitNativeVideoAdapter.new,
+    this.playbackCoordinator,
+  }) : video = null,
+       loadCaption = null,
+       createCaptionResource = createCaptionUriResource;
+
+  final PostVideo? video;
+  final LocalVideoSelection? localSelection;
+  final Uri? localSource;
   final ErrorReporter reporter;
   final Future<String> Function(String route)? loadCaption;
   final Future<CaptionUriResource> Function(String data) createCaptionResource;
@@ -65,8 +81,12 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final playlist = Uri.tryParse(widget.video.playlist ?? '');
-    if (playlist == null || playlist.scheme != 'https') {
+    final playlist =
+        widget.localSource ?? Uri.tryParse(widget.video?.playlist ?? '');
+    final allowed = widget.localSelection != null
+        ? const {'file', 'content', 'blob'}.contains(playlist?.scheme)
+        : playlist?.scheme == 'https';
+    if (playlist == null || !allowed) {
       _failed = true;
       return;
     }
@@ -126,7 +146,15 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     });
     setState(() {});
     unawaited(_loadCaptions());
-    unawaited(_open(playlist));
+    if (widget.localSelection != null) {
+      // Attach the texture before opening a local file that can decode
+      // immediately.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) unawaited(_open(playlist));
+      });
+    } else {
+      unawaited(_open(playlist));
+    }
   }
 
   void _fail() {
@@ -173,7 +201,8 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     if (load == null) return;
     final captions = <NativeVideoCaptionTrack>[];
     final resources = <CaptionUriResource>[];
-    for (final caption in widget.video.captions) {
+    for (final caption
+        in (widget.video?.captions ?? const <PostVideoCaption>[])) {
       var stage = 'caption_fetch';
       try {
         final data = await load(caption.uri);
@@ -252,13 +281,12 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     final theme = Theme.of(context);
     final radius = theme.extension<RadiusTheme>()?.r2 ?? const RadiusTheme().r2;
     final ratio = nativeVideoAspectRatio(
-      width: widget.video.aspectRatio?.width,
-      height: widget.video.aspectRatio?.height,
+      width: widget.localSelection?.width ?? widget.video?.aspectRatio?.width,
+      height:
+          widget.localSelection?.height ?? widget.video?.aspectRatio?.height,
     );
     return Semantics(
-      label: widget.video.alt?.trim().isNotEmpty ?? false
-          ? widget.video.alt
-          : 'Video',
+      label: widget.localSelection?.altText ?? widget.video?.alt ?? 'Video',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -293,9 +321,11 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
                             children: [
                               if (_adapter case final adapter?)
                                 VisibilityDetector(
-                                  key: ValueKey(
-                                    'native-video-${widget.video.cid}',
-                                  ),
+                                  key: widget.localSelection == null
+                                      ? ValueKey(
+                                          'native-video-${widget.video!.cid}',
+                                        )
+                                      : ObjectKey(this),
                                   onVisibilityChanged: (info) => unawaited(
                                     _lifecycle?.setVisible(
                                       visible: info.visibleFraction > 0.5,
@@ -305,7 +335,9 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
                                 ),
                               if (!_ready)
                                 _NativeVideoThumbnail(
-                                  thumbnail: widget.video.thumbnail,
+                                  thumbnail: widget.video?.thumbnail,
+                                  posterBytes:
+                                      widget.localSelection?.posterBytes,
                                   loading: _adapter != null,
                                   onPlay: _startPlayback,
                                 ),
@@ -354,8 +386,10 @@ class _NativeVideoThumbnail extends ConsumerWidget {
     required this.thumbnail,
     required this.loading,
     required this.onPlay,
+    this.posterBytes,
   });
 
+  final Uint8List? posterBytes;
   final String? thumbnail;
   final bool loading;
   final VoidCallback onPlay;
@@ -369,7 +403,9 @@ class _NativeVideoThumbnail extends ConsumerWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (uri != null && uri.scheme == 'https')
+          if (posterBytes != null && posterBytes!.isNotEmpty)
+            Image.memory(posterBytes!, fit: BoxFit.contain)
+          else if (uri != null && uri.scheme == 'https')
             CachedNetworkImage(
               imageUrl: uri.toString(),
               cacheManager: ref.watch(feedImageCacheManagerProvider),

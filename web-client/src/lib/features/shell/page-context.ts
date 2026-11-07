@@ -7,7 +7,6 @@ export function authenticatedContext<
 				session: { id: string; did: string; handle: string };
 				accounts: { id: string; did: string; handle: string }[];
 				subscriptionsEnabled?: boolean;
-				videoUploadsEnabled?: boolean;
 		  }
 		| undefined;
 }

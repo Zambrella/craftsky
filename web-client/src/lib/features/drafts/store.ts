@@ -16,6 +16,7 @@ export interface DraftMedia {
 	height?: number;
 	existingIndex?: number;
 	remoteUrl?: string;
+	previewUnavailable?: boolean;
 	uploaded?: BlobReference;
 	scheduledId?: string;
 }

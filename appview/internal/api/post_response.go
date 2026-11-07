@@ -128,6 +128,7 @@ type PostVideoView struct {
 	Alt         string                `json:"alt"`
 	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 	Playlist    string                `json:"playlist"`
+	EmbedURL    string                `json:"embedUrl,omitempty"`
 	Thumbnail   string                `json:"thumbnail,omitempty"`
 	Captions    []PostVideoCaption    `json:"captions,omitempty"`
 }
@@ -234,6 +235,7 @@ type QuotePreviewPost struct {
 	Crafts         json.RawMessage         `json:"crafts,omitempty"`
 	Author         PostAuthor              `json:"author"`
 	Images         []PostImageView         `json:"images,omitempty"`
+	Video          *PostVideoView          `json:"video,omitempty"`
 	Project        *Project                `json:"project,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	EditedAt       *time.Time              `json:"editedAt,omitempty"`
@@ -441,12 +443,19 @@ func buildPostVideoView(row *PostRow, playback PlaybackURLBuilder) *PostVideoVie
 	if err != nil || parsedCID.String() != embed.Video.Ref.Link {
 		return nil
 	}
-	playlist, thumbnail := playback.URLs(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	var playlist, thumbnail, embedURL string
+	if hosted, ok := playback.(interface {
+		URLsWithEmbed(syntax.DID, syntax.CID) (string, string, string)
+	}); ok {
+		playlist, thumbnail, embedURL = hosted.URLsWithEmbed(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	} else {
+		playlist, thumbnail = playback.URLs(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	}
 	if playlist == "" {
 		return nil
 	}
 	view := &PostVideoView{CID: embed.Video.Ref.Link, MIME: embed.Video.MIMEType, Size: embed.Video.Size, Alt: embed.Alt,
-		AspectRatio: embed.AspectRatio, Playlist: playlist, Thumbnail: thumbnail}
+		AspectRatio: embed.AspectRatio, Playlist: playlist, Thumbnail: thumbnail, EmbedURL: embedURL}
 	for _, caption := range embed.Captions {
 		captionCID, err := cid.Parse(caption.File.Ref.Link)
 		if err != nil || captionCID.String() != caption.File.Ref.Link || caption.File.MIMEType != "text/vtt" ||
@@ -464,7 +473,7 @@ func buildPostVideoView(row *PostRow, playback PlaybackURLBuilder) *PostVideoVie
 	return view
 }
 
-func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
+func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle, playbackBuilders ...PlaybackURLBuilder) *QuoteView {
 	if row == nil {
 		return nil
 	}
@@ -496,6 +505,14 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		RecordRevision: row.Post.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}
+	var playback PlaybackURLBuilder
+	if len(playbackBuilders) > 0 {
+		playback = playbackBuilders[0]
+	}
+	if playback == nil {
+		playback, _ = video.NewPlaybackURLBuilder(video.PlaybackConfig{})
+	}
+	view.Post.Video = buildPostVideoView(row.Post, playback)
 	if len(view.Post.Images) == 0 {
 		view.Post.External = buildExternalResponse(row.Post)
 	}

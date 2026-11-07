@@ -1,0 +1,331 @@
+# Bunny video development and manual acceptance
+
+Bunny is configured only for this checkout. No production resources or deployment
+configuration were changed. See [ADR 024](../../adr/024-bunny-video-development-integration.md).
+
+## Run locally
+
+Flutter and the Svelte web client both use the provider selected by AppView.
+For Bunny, the web client uploads MP4/MOV sources directly using an in-memory,
+video-scoped TUS signature and 8 MiB chunks. Interrupted chunks recover from
+Bunny's confirmed offset. Processing status passes through the account-bound
+web proxy to AppView; publication uses its processed MP4 proof. Cancellation
+stops upload/polling and retains the draft. The existing Bluesky path remains
+available when selected by the server.
+
+A browser that cannot preview a QuickTime MOV (for example, an unsupported HEVC
+codec) shows a preview-unavailable message and still allows upload. AppView
+validates the processed duration before publication. Source headers, the 300 MB
+limit and any duration available in the browser are checked locally.
+
+For the Svelte client, start `just web-run` after starting the backend. Video
+selection is always enabled in both clients, subject to supported post contexts
+and provider eligibility.
+
+After merging the browser client, Bunny's unreleased migrations are numbered
+`000114_bunny_video_jobs` and `000115_bunny_video_cleanup`; main's browser
+migrations retain 112 and 113. A development database already using the old
+Bunny 112/113 numbers needs a verified backup and reconciliation of the two
+browser constraints before advancing to 115. Do not blindly force the migration
+version or roll back/drop the existing Bunny tables. Fresh databases apply all
+four migrations in order. Production databases must use the normal reviewed
+migration process.
+
+The ignored `.env.local` selects `VIDEO_PROVIDER=bunny` and contains the development
+library credentials. Do not print that file or copy keys into Dart defines.
+`BUNNY_CDN_PURGE_API_KEY` supplies the separate Bunny account API credential for
+CDN purges. It is server-only; the Stream library key cannot authorize purges.
+Production Bunny configuration requires it. Without it in development, origin
+deletion succeeds but cache purge remains queued and retries until configured.
+Client configuration files do not need a video availability flag.
+
+From the repository root:
+
+```bash
+just dev-d
+just app-run-chrome
+# Alternatively:
+just app-run-ios
+just app-run-android
+```
+
+These recipes select this worktree's AppView port automatically. This checkout's
+AppView currently listens at http://127.0.0.1:18621. Use a real PDS OAuth login;
+the development DID bypass cannot publish blobs into a PDS.
+
+## Manual checks
+
+1. Sign in and publish a short video in an ordinary post. Confirm uploading,
+   processing and publishing complete. The development library now uses paid
+   Premium H.264 encoding. The first server completion request also transfers an
+   MP4 to the PDS.
+2. Repeat with a project post. Check aspect ratio, alt text, poster, audio and
+   seeking. Check feed, profile, thread and quote previews.
+3. Reload/restart the app. The same post should play from Bunny. Restart AppView
+   and repeat to exercise the persistent DID/CID mapping.
+4. Cancel during upload and processing; try an interrupted connection and an
+   account switch. No stale attempt should publish for another account.
+5. Try a larger video and the supported duration/size limits. The external upload
+   is streamed and TUS resumes within the active attempt; reloading starts a new
+   attempt. PDS handoff remains subject to existing server/PDS deadlines. Test
+   this on the real target network before increasing limits or releasing.
+6. Check iOS, Android and web independently. A successful host test is not device
+   playback proof.
+7. Revisit the same published post after 24 and 48 hours. Confirm the MP4 remains
+   referenced on the PDS and actual HLS segments still decode.
+8. Delete the post and wait for Tap to remove its index reference. Confirm the
+   cleanup row advances through `deleting`, `purging`, then `deleted`, and the
+   old playlist, poster and MP4 URLs stop serving. A recent publication reserve
+   or unresolved PDS write can defer the deletion claim.
+
+The library uses Premium H.264 encoding (enabled with maintainer approval on
+2026-11-05), 360p/720p/1080p, MP4 fallback and retained
+originals, stored in Frankfurt without extra replicas. Native direct playback is
+allowed. New uploads have a rolling 20-authorizations-per-owner daily allowance.
+The canonical PDS MP4 prefers Bunny's 720p fallback, falling back to available
+resolutions for smaller inputs. It is limited to 300 MB and ten minutes.
+
+The Bunny client upload path accepts MP4 and QuickTime-branded MOV sources,
+including MOV files containing H.264 or HEVC video. Selection checks the file
+header instead of trusting the extension or a missing picker MIME value. TUS
+metadata carries the detected source MIME (`video/mp4` or `video/quicktime`).
+Source files retain the 300,000,000-byte and ten-minute limits; the canonical
+processed PDS blob and playback outputs remain MP4/HLS. The legacy Bluesky
+upload path remains MP4-only. Test MOV selection, poster, rotation and upload
+on iOS, Android and web separately before production rollout.
+
+## Bunny dashboard organisation
+
+New uploads and PDS imports are placed in a collection named with the owner's
+full DID. Collections are created on demand and reused by exact name; a
+PostgreSQL advisory lock serializes first allocations across service instances.
+Collections are dashboard organisation only: the existing owner/job/CID mapping
+in PostgreSQL remains authoritative for ownership, playback and cleanup.
+
+Video titles use `YYYY-MM-DD HH:MM UTC · <first eight job-ID characters>`.
+The upload authorization includes camelCase `title` and `collectionId` fields;
+Flutter forwards these server-selected values in TUS upload metadata so the
+transfer cannot reset the title to the old generic name or lose its collection.
+Custom metadata contains `craftsky:uploadJobId`, `craftsky:source` (`upload` or
+`pds-import`), and `craftsky:pdsBlobCid` once the canonical PDS blob is known.
+For imports that CID is already known; for new uploads it is attached after the
+durable PDS handoff. Metadata updates use the tracked video ID and can retry
+without changing the PDS effect's operation identity. No post/draft text,
+original filename, credentials or single-post association is copied to Bunny.
+
+Existing videos are not automatically renamed or moved. Empty collections are
+retained for reuse. Do not delete a collection as a way to tidy the dashboard:
+Bunny collection deletion also deletes its videos; normal cleanup deletes only
+the individually tracked video assets.
+
+During manual acceptance, check the DID collection, unique title and the three
+technical metadata properties after publication. Repeat with a second upload
+for the same DID to confirm that its collection is reused.
+
+## Import an existing broken video
+
+The source post must already be indexed locally. Obtain its DID and video blob
+CID from that public record, then run:
+
+```bash
+./scripts/compose-dev exec appview /app/cli video-dev import \
+  --did 'did:plc:OWNER' --cid 'CANONICAL_VIDEO_CID'
+```
+
+This verifies the PDS source's CID and uploads a copy to Bunny, without changing
+any PDS record. It prints a job ID. After encoding, finish the local mapping:
+
+```bash
+./scripts/compose-dev exec appview /app/cli video-dev status \
+  --did 'did:plc:OWNER' --job 'JOB_UUID'
+```
+
+Repeat status while it reports `JOB_STATE_PROCESSING`. Reload the post when
+completed. Unimported old videos retain their previous playback URLs.
+
+## Automatic deletion and cleanup
+
+Removing a post's video reference (post deletion or replacement/removal by edit)
+atomically queues cleanup with the indexed record change. This also covers
+deletion performed through another AT Protocol client once Tap indexes it.
+After the last indexed reference disappears, the background worker claims the
+asset, deletes it from Bunny Stream, and purges the CDN prefix containing its
+playlists, segments, MP4 renditions, posters and previews. Other indexed posts
+by the same owner referencing that video keep their Bunny copy.
+
+The worker polls every five seconds and runs independently of the client.
+References and deletion claims share database row locks. A reference that
+commits before the deletion claim prevents deletion; fresh references cancel
+pending work. Once deletion is claimed, the old upload proof is invalid and the
+asset cannot be reused. A later external PDS post may need a new import to get
+a Bunny mapping. Public PDS blobs are never deleted by this worker.
+Recently verified upload proofs reserve a two-minute publication window;
+unresolved durable PDS create/update commands also defer cleanup until settled.
+
+Origin deletion and CDN purge are separate durable stages. A crash, missing
+credential, provider error or rate limit leaves the unfinished stage queued.
+Retries back off up to one hour, with warning logs initially and an issue after
+five failures; retries continue. An already absent Stream asset counts as a
+successful origin deletion. Completion means Bunny acknowledged deletion and
+the synchronous prefix purge, not that already downloaded client copies vanish.
+Normal provider/Tap propagation delays still apply.
+
+Unreferenced abandoned jobs older than seven days are queued automatically.
+Terminal-owner cleanup follows the same reference checks and purge stages.
+Completed tombstones preserve upload quota accounting for 24 hours before being
+discarded; terminal-owner tombstones can be discarded immediately.
+
+Inspect unfinished work without printing credentials:
+
+```sql
+SELECT id, state, cleanup_requested_at, cleanup_next_attempt_at, cleanup_attempts
+FROM bunny_video_jobs WHERE cleanup_requested_at IS NOT NULL AND state <> 'deleted';
+```
+
+### Development operator commands
+
+Preview tracked, unreferenced copies older than seven days:
+
+```bash
+./scripts/compose-dev exec appview /app/cli video-dev cleanup
+```
+
+Add `--apply` to queue those copies for the same automatic delete-and-purge
+worker. These operator commands refuse production. Referenced copies remain.
+Owner purge retains cleanup authority until remote deletion and purge succeed.
+
+A synthetic three-second development fixture was uploaded directly with the
+Bunny CLI. It is intentionally retained for the 24–48-hour delivery check. It is
+not an AppView job or PDS post, so the AppView cleanup tool does not select it.
+List it with `bunny stream videos list --lib craftsky-dev`; remove it explicitly
+through Bunny when the retention check is finished.
+
+## Before production
+
+Manual acceptance must include real PDS publication, native/browser playback,
+large-file timing and the delayed retention check. Production needs a separately
+reviewed library and purge credentials, moderation policy, deployment
+configuration and release. Hiding a post without removing its indexed record
+does not revoke its CDN URL; moderation-triggered revocation needs a separate
+policy. The automatic worker handles reference removal, abandoned uploads and
+terminal-owner copies. Image delivery is unchanged.
+
+## Automated validation performed
+
+- Svelte upload transport and account-bound proxy tests cover MP4/MOV dispatch,
+  chunk recovery, cancellation, invalid destinations/offsets, capability isolation
+  and processed MP4 publication proofs. Browser fixtures cover MOV selection when
+  preview is unavailable, successful publication and retained drafts after failed
+  processing on both Node preview and Cloudflare Worker runtimes. These fixtures
+  do not prove live Bunny CORS, real PDS publication or device playback.
+
+- Full backend gate: `./scripts/appview-test full` (PostgreSQL/MinIO, race detector).
+- Focused video/authentication/route checks after the final authentication fix.
+- Flutter analysis of changed sources and transport tests.
+- Bunny TUS resume, destination rejection and credential canary tests; existing
+  video API, publication, credential lifecycle and both composer widget suites.
+- Docker build, local migration refresh, healthy `/health` and `/healthz`, CLI
+  cleanup preview, early refusal of production operator commands.
+- Real Bunny fixture: poster, MP4 and HLS resources returned successfully;
+  FFmpeg decoded all three seconds of HLS video/audio.
+- Cleanup regression tests: last/shared reference, edit removal, rollback,
+  concurrent reference insertion, in-flight publication, stage persistence,
+  origin 404, retry backoff, missing purge credential, protected diagnostics and
+  production purge configuration.
+- Live development deletion on 2026-11-05: the already-deleted post's tracked
+  copy completed origin deletion and CDN purge; its playlist, thumbnail and
+  720p MP4 returned HTTP 404. The separate delivery-test fixture was retained.
+- Organisation checks: concurrent allocations across service instances, exact
+  DID matching, paginated collection lookup, UTC titles, upload/import metadata,
+  PDS CID attachment and retained cleanup tracking after metadata failure;
+  authorization response fields and Flutter TUS metadata forwarding.
+- Live development metadata check on 2026-11-05: collection assignment, unique
+  title and custom metadata round-tripped through the Bunny API. The temporary
+  empty video and collection were removed; no media upload or encoding was
+  triggered. The rebuilt local AppView passed `/healthz`.
+- MOV regression checks cover header detection without picker MIME, exact size
+  and duration boundaries, spoofed/truncated headers, resumed QuickTime TUS
+  transfer through the shared composer binding and an MP4 publication proof.
+  Both composer publication suites and transport security/resource bounds pass.
+- Live development MOV check on 2026-11-05: one-second H.264/AAC and HEVC/AAC MOV
+  inputs encoded successfully in `craftsky-dev`; their HLS decoded and their
+  processed MP4s contained H.264/AAC. Both temporary Bunny videos were deleted.
+  This verifies Bunny processing, not real-device picker/PDS publication.
+
+Real PDS publication, physical devices and delayed 24–48-hour retention have not
+been exercised automatically and remain the manual acceptance steps above.
+
+## Hosted web player
+
+AppView's Bunny playback mapping now includes an optional `video.embedUrl` next
+to the direct `playlist` and `thumbnail` URLs. This field is read metadata only;
+PDS records, native clients and upload proofs are unchanged. A single owner/CID
+lookup supplies all three destinations. Unimported videos retain the existing
+HLS fallback without an embed URL.
+
+The Svelte player uses the current Bunny Player at `player.mediadelivery.net`
+for mapped videos. It permits only that exact iframe origin and canonical
+library/video paths, disables autoplay, media preload and remembered settings,
+and lazy-loads the iframe. It pauses via the player.js protocol when offscreen,
+when the page is hidden, and on teardown. Each iframe has a unique URL context;
+messages must match both its window and origin. No external control script or
+new npm dependency is needed.
+
+The existing HLS player is selected automatically after a reported player
+failure. It also handles videos carrying
+PDS caption tracks, since these have not been copied into Bunny. Captions stored
+on Bunny itself remain available in its hosted player. Full caption migration
+is outside this trial; existing post captions must not be silently dropped.
+
+Only `craftsky-dev` player settings were updated: current player version 2,
+primary colour `#1535D6`, compact controls enabled. Production settings and
+encoding configuration are unchanged. Browser fixture tests cover selection,
+fullscreen without restarting playback, offscreen pause and caption fallback.
+An opt-in real-player test accepts `BUNNY_PLAYER_TEST_EMBED_URL` for a synthetic
+development asset; do not point it at private or user-owned videos.
+
+On 2026-11-05, a synthetic six-second H.264 blue video in `craftsky-dev`
+initialized and played through the real hosted player in the local web client.
+The Worker runtime test also entered/exited fullscreen without pausing and
+confirmed offscreen pause through the control bridge. The temporary video was
+deleted afterward. This verifies hosted playback; it does not repeat live PDS
+publication or physical-device acceptance. The local backend was rebuilt and
+`/healthz` returned healthy after the metadata change.
+
+## Selected-video inspection
+
+Selecting a video now opens Video details in the standard and project composers.
+The native page plays the selected local file through the shared native player;
+restored draft streams receive a bounded temporary preview file which is removed
+on close. Original picked files remain owned by the picker and are never deleted
+by preview cleanup. The web page plays an object URL and releases playback when
+closed. Both paths keep description edits when returning and reopening, and do
+not upload video until publication. Remove remains on the attachment card; choose another video by removing and adding.
+If a browser cannot decode a MOV, it retains the existing preview-unavailable
+message and still permits a description and upload.
+
+Manual device acceptance should include iPhone H.264/HEVC MOV, Android MP4,
+fullscreen, leaving the app, Back, replacement, and reopening a persisted draft.
+Widget tests and desktop browser playback do not prove device codec support.
+
+### PDS finalisation deadlines
+
+The canonical MP4 upload to the PDS has a five-minute remote-effect deadline;
+ordinary record writes and image uploads keep their existing effect deadline.
+The hardened PDS upload HTTP client permits five minutes. Bunny status
+finalisation, its response write deadline, the web proxy, and Flutter's receive
+timeout permit seven minutes, with an eight-minute job lease to prevent overlap.
+Timeouts are persisted as `video_upload_timeout` and both clients explain that
+encoding succeeded but saving to the account timed out. An uncertain dispatched
+upload is not repeated under the same job; posting again starts a new upload job.
+
+### Cancellation
+
+Both clients abort the active transfer/poll and send an independent authenticated
+`POST /v1/blobs/videos/{jobId}/cancel` request for their Bunny job. AppView cancels
+active finalisation and durably queues vendor cleanup. A cancelled job cannot be
+used to publish; indexed posts, in-flight publication reservations, and unresolved
+PDS record writes are protected from cancellation. The cleanup worker runs every
+five seconds and performs origin deletion and CDN purge in separate durable steps.
+No PDS blobs or records are deleted. Offline cancellation still stops client work;
+if the cancellation request cannot reach AppView, orphan retention is the fallback.

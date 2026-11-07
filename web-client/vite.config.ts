@@ -44,6 +44,7 @@ export default defineConfig({
 					'base-uri': ['none'],
 					'form-action': ['self'],
 					'frame-ancestors': ['none'],
+					'frame-src': ['https://player.mediadelivery.net'],
 					'object-src': ['none']
 				}
 			}

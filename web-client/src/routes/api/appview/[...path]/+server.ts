@@ -55,7 +55,12 @@ const handler: RequestHandler = async ({ request, url, cookies, params }) => {
 	try {
 		const signal = AbortSignal.any([
 			request.signal,
-			AbortSignal.timeout(120000)
+			AbortSignal.timeout(
+				request.method === 'POST' &&
+					/^\/v1\/blobs\/videos\/[0-9a-f-]{36}\/status$/.test(target)
+					? 7 * 60 * 1000
+					: 120000
+			)
 		]);
 		const input = boundedBody(
 			request,

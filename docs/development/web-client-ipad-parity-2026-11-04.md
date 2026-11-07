@@ -27,11 +27,8 @@ passing route tests did not establish visual identity.
 - Search trending craft headings include craft glyphs and native typography.
   Discovery rows use native spacing. Post cards retain 16px body typography,
   native inline Show more colour and neutral photo-frame backgrounds.
-- The web composer now follows Flutter's opt-in
-  `CRAFTSKY_ENABLE_VIDEO_UPLOADS` release switch. Its default is false; the normal
-  picker offers photos. Existing video rendering and draft recovery remain
-  available. Main browser fixtures explicitly enable video to retain coverage;
-  a separate disabled-release test checks the native default.
+- Updated 2026-11-06: both clients offer video without a release flag.
+  Post-context restrictions, provider eligibility and media limits still apply.
 - Secondary text retains the web's accessible colour: copying native outline
   ink exactly produced 4.16:1 contrast and failed the accessibility audit.
 

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/composer/composer_ownership.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:dio/dio.dart';
 
 typedef SubmissionStep = Future<void> Function();
 typedef SubmissionRunningChanged = void Function({required bool running});
@@ -46,7 +47,8 @@ final class ComposerSubmissionCoordinator {
         requireComposerOwnership(ownershipIsCurrent);
         if (didSucceed()) await deleteOriginAfterSuccess();
       });
-    } on Object {
+    } on Object catch (error) {
+      if (error is DioException && CancelToken.isCancel(error)) return;
       onFailure(const ComposerSubmissionFailure());
     } finally {
       _running = false;

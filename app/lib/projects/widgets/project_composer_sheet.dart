@@ -36,10 +36,10 @@ import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
-import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
+import 'package:craftsky_app/feed/widgets/composer_video_details_page.dart';
 import 'package:craftsky_app/feed/widgets/published_post_edit_context.dart';
 import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
@@ -500,7 +500,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       ApiBadRequest(code: 'post_not_found') => true,
       _ => false,
     };
-    final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
+
     final preferences = ref.watch(activeLanguagePreferencesProvider);
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
@@ -744,7 +744,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   spacing: spacing,
                                   imagesState: imagesState,
                                   selectedVideo: selectedVideo,
-                                  videoUploadsEnabled: videoUploadsEnabled,
+
                                   controlsEnabled: controlsEnabled,
                                   photoErrorText: photoErrorText,
                                   onAddImages: () => ref
@@ -1011,11 +1011,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     );
   }
 
-  Future<void> _selectVideo({bool replace = false}) async {
+  Future<void> _selectVideo() async {
+    final previous = _videoController.selection;
     try {
-      final limits = replace
-          ? await _videoController.replace()
-          : await _videoController.selectExisting();
+      final limits = await _videoController.selectExisting();
       if (!mounted) return;
       if (limits != null && !limits.canUpload) {
         context.showError(
@@ -1030,9 +1029,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         context.showInfo(quota);
       }
       setState(() => _usesStoredDraftVideo = false);
-    } on Object {
+      final selected = _videoController.selection;
+      if (selected != null && !identical(previous, selected)) {
+        await showComposerVideoDetails(
+          context,
+          selection: selected,
+          onAltTextChanged: (value) {
+            if (mounted) setState(() => _videoController.setAltText(value));
+          },
+        );
+      }
+    } on Object catch (error) {
       if (mounted) {
-        context.showError(AppLocalizations.of(context).postCreateError);
+        context.showError(
+          videoSelectionFailureMessage(AppLocalizations.of(context), error),
+        );
       }
     }
   }
@@ -1518,7 +1529,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
     required LocalVideoSelection? selectedVideo,
-    required bool videoUploadsEnabled,
+
     required bool controlsEnabled,
     required String? photoErrorText,
     required Future<void> Function()? onAddImages,
@@ -1553,7 +1564,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             enabled: controlsEnabled,
             onAltTextChanged: (value) =>
                 setState(() => _publishedEmbed.videoAlt = value),
-            onReplace: () => unawaited(_selectVideo(replace: true)),
             onRemove: () => setState(() => _publishedEmbed.remove()),
           )
         else if (selectedVideo != null)
@@ -1563,7 +1573,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             onAltTextChanged: (value) {
               setState(() => _videoController.setAltText(value));
             },
-            onReplace: () => unawaited(_selectVideo(replace: true)),
             onRemove: () {
               setState(() {
                 _usesStoredDraftVideo = false;
@@ -1588,7 +1597,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
             supportsVideo:
-                videoUploadsEnabled &&
                 widget.scheduledPost == null &&
                 _scheduleChoice == ScheduleChoice.now,
             onAddVideo: onAddVideo,

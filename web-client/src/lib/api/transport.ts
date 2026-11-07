@@ -116,7 +116,12 @@ export class APITransport {
 		options: RequestOptions = {}
 	): Promise<T> {
 		try {
-			return await withDeadline(120000, options.signal, (signal) =>
+			const timeout =
+				method === 'POST' &&
+				/^\/v1\/blobs\/videos\/[0-9a-f-]{36}\/status$/.test(path)
+					? 7 * 60 * 1000
+					: 120000;
+			return await withDeadline(timeout, options.signal, (signal) =>
 				this.performRequest<T>(method, path, { ...options, signal })
 			);
 		} catch (error) {

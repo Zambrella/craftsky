@@ -133,7 +133,11 @@ func attachQuoteViews(ctx context.Context, store quoteViewReader, resolver Handl
 			}
 			handle = cached
 		}
-		resp.QuoteView = BuildQuoteView(viewRow, handle)
+		var playback PlaybackURLBuilder
+		if provider, ok := store.(postPlaybackProvider); ok {
+			playback = provider.PostPlaybackURLBuilder()
+		}
+		resp.QuoteView = BuildQuoteView(viewRow, handle, playback)
 		preferQuoteImage(resp.QuoteView, resp.quoteImageCID)
 	}
 	return nil

@@ -473,7 +473,13 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		"pds_commands",
 		"compact",
 	)
+	var bunnyCleanup scheduledBatchProcessor
+	if deps.BunnyVideoCleanup != nil {
+		bunnyCleanup = deps.BunnyVideoCleanup
+	}
+	bunnyCleanupDone := startBatchWorker(consumerCtx, bunnyCleanup, deps.Logger, 5*time.Second, "bunny_video_cleanup", "delete_and_purge")
 	workerDone := []<-chan struct{}{
+		bunnyCleanupDone,
 		consumerDone,
 		tapProjectionDone,
 		tapRepositoryDone,

@@ -30,6 +30,25 @@ function setup(value: unknown = {}, status = 200, headers?: HeadersInit) {
 }
 
 describe('AppView wire contracts', () => {
+	it('polls Bunny video completion through the authenticated AppView POST', async () => {
+		const jobId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+		const controller = new AbortController();
+		const { api, request, fetcher } = setup({
+			jobStatus: { jobId, state: 'JOB_STATE_PROCESSING' }
+		});
+		expect(await api.media.videoStatus(jobId, controller.signal)).toMatchObject(
+			{ jobStatus: { jobId } }
+		);
+		expect(request().method).toBe('POST');
+		expect(request().url).toBe(`/api/appview/v1/blobs/videos/${jobId}/status`);
+		expect(request().signal).toBeInstanceOf(AbortSignal);
+		expect(request().signal?.aborted).toBe(false);
+		expect(request().body).toBeUndefined();
+		expect(() => api.media.videoStatus('../authorization')).toThrow(
+			'Invalid video job'
+		);
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
 	it('uses the response request ID when an error envelope is missing it and retains parse causes', async () => {
 		const requestId = '12345678-1234-4123-8123-123456789012';
 		const { api } = setup(
@@ -418,4 +437,31 @@ describe('transport failure and mutation semantics', () => {
 			api.posts.like('did:plc:a', 'post', key)
 		).rejects.toBeInstanceOf(MutationOutcomeUnknownError);
 	});
+});
+
+it('keeps video finalisation alive beyond ordinary request deadlines but bounded to seven minutes', async () => {
+	vi.useFakeTimers();
+	try {
+		const { api, fetcher, request } = setup();
+		fetcher.mockImplementationOnce(async () => new Promise(() => {}));
+		let settled = false;
+		const task = api.media.videoStatus('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa');
+		const result = expect(task).rejects.toMatchObject({ name: 'TimeoutError' });
+		void task.then(
+			() => {
+				settled = true;
+			},
+			() => {
+				settled = true;
+			}
+		);
+		await vi.advanceTimersByTimeAsync(120001);
+		expect(settled).toBe(false);
+		expect(request().signal?.aborted).toBe(false);
+		await vi.advanceTimersByTimeAsync(300000);
+		await result;
+		expect(request().signal?.aborted).toBe(true);
+	} finally {
+		vi.useRealTimers();
+	}
 });

@@ -581,10 +581,42 @@ describe('account-specific proxy and session actions', () => {
 		}
 		expect(fetcher).not.toHaveBeenCalled();
 		expect(allowedRoute('POST', '/v1/blobs/videos/authorization')).toBe(true);
+		expect(allowedRoute('POST', `/v1/blobs/videos/${jobID}/status`)).toBe(true);
+		expect(allowedRoute('POST', `/v1/blobs/videos/${jobID}/cancel`)).toBe(true);
+		expect(allowedRoute('GET', `/v1/blobs/videos/${jobID}/cancel`)).toBe(false);
+		expect(allowedRoute('GET', `/v1/blobs/videos/${jobID}/status`)).toBe(false);
+		expect(allowedRoute('POST', '/v1/blobs/videos/not-a-job/status')).toBe(
+			false
+		);
 		expect(allowedRoute('POST', '/v1/blobs/images/authorization')).toBe(true);
 		expect(safeProxyPath('v1/profiles/@did:plc:alice')).toBe(
 			'/v1/profiles/%40did%3Aplc%3Aalice'
 		);
+	});
+	it('polls video status as the selected account without forwarding vendor capabilities', async () => {
+		const jar = new CookieJar().add(A).add(B).active(A.id);
+		fetcher.mockResolvedValueOnce(
+			response({ jobStatus: { jobId: jobID, state: 'JOB_STATE_PROCESSING' } })
+		);
+		const request = event(
+			jar,
+			`/api/appview/v1/blobs/videos/${jobID}/status`,
+			'POST',
+			undefined,
+			{
+				'X-Craftsky-Account-Id': B.id,
+				AuthorizationSignature: 'must-not-forward',
+				AccessKey: 'must-not-forward'
+			}
+		);
+		expect((await call(proxyPost, request)).status).toBe(200);
+		const [url, options] = fetcher.mock.calls[0];
+		expect(String(url)).toContain(`/v1/blobs/videos/${jobID}/status`);
+		expect(options?.method).toBe('POST');
+		const headers = new Headers(options?.headers);
+		expect(headers.get('authorization')).toBe(`Bearer ${B.token}`);
+		expect(headers.get('AuthorizationSignature')).toBeNull();
+		expect(headers.get('AccessKey')).toBeNull();
 	});
 	it('forwards encoded did:web ports as identifier data with exactly one re-encoding', async () => {
 		const jar = new CookieJar().add(A);

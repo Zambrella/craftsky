@@ -394,6 +394,21 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
   Source-map upload is now verified. Actual hosted error delivery and production
   symbolication still require a real opted-in error; no synthetic error was sent.
 
+### 5 November 2026: Bunny video cleanup worker
+
+- Cleanup retries select operation, stage, attempt, initiating account and the
+  durable job UUID. Initial failures log warnings; five or more failures in one
+  stage log errors and capture an issue while recovery continues.
+- `internal/video/diagnostic_boundary_test.go` verifies serialized local and
+  mock Sentry output, including protected exception/URL/key canaries and positive
+  retry/exhaustion fields. Its exact test file is permitted by the SDK import
+  boundary; production feature code imports only the observability facade.
+- The local worker removed the already-deleted test post's Bunny copy and
+  purged its CDN prefix. Playlist, thumbnail and MP4 requests returned 404.
+  Production worker rollout, production failure delivery and release-device
+  retrieval were not exercised. No production faults or issue-state changes
+  were introduced. This backend change does not require a new client build.
+
 ### 5 November 2026: web search crash and autocomplete recovery
 
 - Read-only inspection of `WEB-CLIENT-1` confirmed that the owner's opted-in

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/video"
 	"sync"
 	"time"
 
@@ -60,6 +61,9 @@ type Deps struct {
 	Observability               *observability.Observer
 	LinkPreviews                api.LinkPreviewService
 	ImageUploadAuthorization    api.ImageUploadAuthorizationIssuer
+	BunnyVideo                  *video.Bunny
+	BunnyVideoCleanup           *video.BunnyCleanup
+	ImportBunnyVideo            func(context.Context, syntax.DID, syntax.CID) (string, error)
 	VideoUploadAuthorization    api.VideoUploadAuthorizationIssuer
 	VideoUploadLimits           api.VideoUploadLimitsService
 	VideoCompletionVerifier     api.VideoCompletionVerifier
@@ -379,7 +383,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
-	videoCapability, err := newVideoDependencies(authCapability, federated, cfg, observer)
+	videoCapability, err := newVideoDependencies(authCapability, federated, cfg, observer, bunnyDependencies{pool: pool, effects: pdsEffects.blobs})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -398,6 +402,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		Observability:               observer,
 		LinkPreviews:                linkPreviews,
 		ImageUploadAuthorization:    imageUploadAuthorization,
+		BunnyVideo:                  videoCapability.bunny,
+		BunnyVideoCleanup:           videoCapability.cleanup,
+		ImportBunnyVideo:            videoCapability.importExisting,
 		VideoUploadAuthorization:    videoCapability.uploadAuthorization,
 		VideoUploadLimits:           videoCapability.uploadLimits,
 		VideoCompletionVerifier:     videoCapability.completionVerifier,

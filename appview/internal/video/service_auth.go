@@ -24,8 +24,14 @@ const (
 var ErrServiceAuthorizationUnavailable = errors.New("video service authorization unavailable")
 
 type UploadAuthorization struct {
-	Token     string
-	ExpiresAt time.Time
+	Token        string
+	ExpiresAt    time.Time
+	Provider     string
+	JobID        string
+	VideoID      string
+	LibraryID    string
+	Title        string
+	CollectionID string
 }
 
 type serviceAuthRequest func(context.Context, *oauth.ClientSession, string, int64, string) (string, error)

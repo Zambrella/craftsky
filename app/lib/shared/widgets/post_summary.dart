@@ -31,6 +31,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.editedAt,
     this.projectTitle,
     this.image,
+    this.isVideo = false,
     this.externalImport,
     this.external,
     this.sponsored = false,
@@ -68,6 +69,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      video: post.video,
       externalImport: post.externalImport,
       external: post.external,
       sponsored: post.sponsored,
@@ -135,17 +137,18 @@ final class PostSummaryData with PostSummaryDataMappable {
     image:
         images?.firstOrNull ??
         switch (video) {
-          PostVideo(:final thumbnail?) => PostImage(
+          PostVideo() => PostImage(
             cid: video.cid.toString(),
             mime: 'image/jpeg',
             size: 0,
             alt: video.alt ?? '',
             aspectRatio: video.aspectRatio,
-            thumb: thumbnail,
-            fullsize: thumbnail,
+            thumb: video.thumbnail,
+            fullsize: video.thumbnail,
           ),
           _ => null,
         },
+    isVideo: images?.isNotEmpty != true && video != null,
     externalImport: externalImport,
     external: images?.isNotEmpty == true || video != null ? null : external,
     sponsored: sponsored,
@@ -158,6 +161,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final DateTime? editedAt;
   final String? projectTitle;
   final PostImage? image;
+  final bool isVideo;
   final ExternalImport? externalImport;
   final PostExternal? external;
   final bool sponsored;
@@ -246,7 +250,33 @@ class PostSummary extends StatelessWidget {
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
-                _PostSummaryImage(image: image),
+                Stack(
+                  children: [
+                    _PostSummaryImage(image: image, isVideo: data.isVideo),
+                    if (data.isVideo)
+                      Positioned.fill(
+                        child: Center(
+                          child: Semantics(
+                            label: l10n.postVideoPreviewLabel,
+                            child: const DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xBF000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  CraftskyIcons.video,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
               if (data.external case final external?) ...[
                 const SizedBox(height: 8),
@@ -419,9 +449,10 @@ class _PostSummaryAuthor extends StatelessWidget {
 }
 
 class _PostSummaryImage extends ConsumerWidget {
-  const new({required this.image});
+  const new({required this.image, this.isVideo = false});
 
   final PostImage image;
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -432,16 +463,20 @@ class _PostSummaryImage extends ConsumerWidget {
         final maxHeight = computeResponsiveCarouselMaxHeight(
           MediaQuery.sizeOf(context).height,
         );
-        final height = computeBoundedImageHeight(
-          availableWidth: constraints.maxWidth,
-          aspectRatio: image.aspectRatio,
-          maxHeight: maxHeight,
-        );
-        final fit = computePostImageFit(
-          availableWidth: constraints.maxWidth,
-          aspectRatio: image.aspectRatio,
-          maxHeight: maxHeight,
-        );
+        final height = isVideo
+            ? constraints.maxWidth * 9 / 16
+            : computeBoundedImageHeight(
+                availableWidth: constraints.maxWidth,
+                aspectRatio: image.aspectRatio,
+                maxHeight: maxHeight,
+              );
+        final fit = isVideo
+            ? BoxFit.cover
+            : computePostImageFit(
+                availableWidth: constraints.maxWidth,
+                aspectRatio: image.aspectRatio,
+                maxHeight: maxHeight,
+              );
         return ClipRRect(
           key: const Key('post-summary-image'),
           borderRadius: BorderRadius.circular(radii.r2),
