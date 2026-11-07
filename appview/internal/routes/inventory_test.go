@@ -234,6 +234,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/public/profiles/{handleOrDid}/projects",
 		"GET /v1/public/posts/{did}/{rkey}",
 		"GET /v1/feed/timeline",
+		"GET /v1/feed/extended-network",
 		"GET /v1/notifications",
 		"GET /v1/notifications/new-count",
 		"POST /v1/notifications/seen",

@@ -598,6 +598,8 @@ void main() {
           ),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
+              onListExtendedNetwork: ({cursor, limit}) async =>
+                  const TimelinePage(items: []),
               onListTimeline: ({cursor, limit}) async =>
                   const TimelinePage(items: []),
             ),
@@ -605,11 +607,29 @@ void main() {
         ],
       );
       await _pumpRouter(tester, container);
-      expect(find.byType(FeedPage), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is FeedPage && !widget.extendedNetwork,
+        ),
+        findsOneWidget,
+      );
       expect(find.byType(HomePage), findsOneWidget);
       expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+      expect(
+        const FeedRoute(source: 'extended-network').location,
+        '/feed?source=extended-network',
+      );
       final router = container.read(goRouterProvider)
-        ..go('/projects?craft=knitting');
+        ..go('/feed?source=extended-network');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
+      expect(
+        find.text(
+          'Posts from people followed by accounts you follow will appear here.',
+        ),
+        findsOneWidget,
+      );
+      router.go('/projects?craft=knitting');
       await tester.pumpAndSettle();
       expect(
         router.routeInformationProvider.value.uri.toString(),
@@ -760,7 +780,12 @@ void main() {
         final registry = container.read(sessionRegistryProvider).requireValue;
         expect(registry.sessions.keys, {'did:plc:alice', 'did:plc:bob'});
         expect(registry.activeDid?.value, 'did:plc:bob');
-        expect(find.byType(FeedPage), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is FeedPage && !widget.extendedNetwork,
+          ),
+          findsOneWidget,
+        );
         await tester.pumpWidget(const SizedBox.shrink());
         container.dispose();
       },

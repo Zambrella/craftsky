@@ -28,6 +28,11 @@ type languageFilteredTimelineReader interface {
 	ListTimelineWithLanguages(ctx context.Context, viewerDID string, contentLanguages []string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error)
 }
 
+type extendedNetworkReader interface {
+	TimelineReader
+	ListExtendedNetworkWithLanguages(ctx context.Context, viewerDID string, contentLanguages []string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error)
+}
+
 // LanguagePreferenceReader loads the authenticated account's private,
 // authoritative content-language preferences.
 type LanguagePreferenceReader interface {
@@ -43,9 +48,10 @@ type TimelinePage struct {
 // TimelineFeedItemResponse is the home-timeline item shape. Repost
 // attribution lives here instead of on post-shaped responses.
 type TimelineFeedItemResponse struct {
-	ItemKey string                `json:"itemKey"`
-	Post    *PostResponse         `json:"post"`
-	Reason  *TimelineReasonRepost `json:"reason,omitempty"`
+	ItemKey    string                `json:"itemKey"`
+	Post       *PostResponse         `json:"post"`
+	Reason     *TimelineReasonRepost `json:"reason,omitempty"`
+	FollowedBy *PostAuthor           `json:"followedBy,omitempty"`
 }
 
 // TimelineReasonRepost is the public, lightweight straight-repost reason.
@@ -65,6 +71,20 @@ func ListTimelineHandler(
 	logger *slog.Logger,
 	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
+	return listTimelineHandler(store, resolver, logger, false, preferenceReaders...)
+}
+
+// ListExtendedNetworkHandler serves original posts from indexed second-degree
+// connections, excluding the viewer and accounts they already follow.
+func ListExtendedNetworkHandler(store extendedNetworkReader, resolver HandleResolver, logger *slog.Logger, preferenceReaders ...LanguagePreferenceReader) http.Handler {
+	return listTimelineHandler(store, resolver, logger, true, preferenceReaders...)
+}
+
+func listTimelineHandler(store TimelineReader, resolver HandleResolver, logger *slog.Logger, extendedNetwork bool, preferenceReaders ...LanguagePreferenceReader) http.Handler {
+	operation := "timeline.list"
+	if extendedNetwork {
+		operation = "extended_network.list"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		viewerDID, ok := middleware.GetDID(r.Context())
@@ -82,22 +102,31 @@ func ListTimelineHandler(
 			contentLanguages = []string{}
 			err              error
 		)
-		if len(preferenceReaders) == 0 {
-			rows, nextCursor, err = store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
-		} else {
+		if len(preferenceReaders) > 0 {
 			var preferenceErr error
 			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
 				logger.Error("timeline: language preferences failed",
-					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "language_preferences", preferenceErr)...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "language_preferences", preferenceErr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "language preferences lookup failed", runID, nil)
 				return
 			}
+		}
+		if extendedNetwork {
+			filteredStore, ok := store.(extendedNetworkReader)
+			if !ok {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "extended network unavailable", runID, nil)
+				return
+			}
+			rows, nextCursor, err = filteredStore.ListExtendedNetworkWithLanguages(r.Context(), viewerDID.String(), contentLanguages, limit, cursor)
+		} else if len(preferenceReaders) == 0 {
+			rows, nextCursor, err = store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
+		} else {
 			filteredStore, ok := store.(languageFilteredTimelineReader)
 			if !ok {
 				logger.Error("timeline: language filtering unavailable",
-					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "language_filter", errors.New("language filter unavailable"))...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "language_filter", errors.New("language filter unavailable"))...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "timeline language filtering unavailable", runID, nil)
 				return
@@ -120,7 +149,7 @@ func ListTimelineHandler(
 				return
 			}
 			logger.Error("timeline: list failed",
-				apiLogErrorAttrs(r.Context(), runID, "timeline.list", "store", err)...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "timeline list failed", runID, nil)
 			return
@@ -135,7 +164,7 @@ func ListTimelineHandler(
 			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if err != nil {
 				logger.Error("timeline: EngagementSummaries failed",
-					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "engagement", err)...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "engagement", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -144,7 +173,7 @@ func ListTimelineHandler(
 			handles, err := resolveHandlesForTimelineItems(r.Context(), rows, postRows, resolver)
 			if err != nil {
 				logger.Warn("timeline: ResolveHandle failed",
-					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "identity", err)...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "identity", err)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -157,7 +186,7 @@ func ListTimelineHandler(
 			}
 			if err := attachQuoteViews(r.Context(), store, resolver, postResponses); err != nil {
 				logger.Error("timeline: QuoteViewRows failed",
-					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "quote_view", err)...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "quote_view", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post quote lookup failed", runID, nil)
 				return
@@ -177,6 +206,13 @@ func BuildTimelineFeedItemResponse(row *TimelineFeedItemRow, post *PostResponse,
 	resp := &TimelineFeedItemResponse{
 		ItemKey: row.ItemKey,
 		Post:    post,
+	}
+	if followedBy := row.FollowedBy; followedBy != nil {
+		by := PostAuthor{DID: followedBy.DID.String(), Handle: handles[followedBy.DID.String()].String(), DisplayName: followedBy.DisplayName, AvatarCID: followedBy.AvatarCID}
+		if avatar := synthBlobURL("avatar", followedBy.DID.String(), followedBy.AvatarCID, followedBy.AvatarMime); avatar != "" {
+			by.Avatar = &avatar
+		}
+		resp.FollowedBy = &by
 	}
 	if row.Repost == nil {
 		return resp
@@ -215,21 +251,27 @@ func resolveHandlesForTimelineItems(ctx context.Context, items []*TimelineFeedIt
 		return nil, err
 	}
 	for _, item := range items {
-		if item.Repost == nil {
-			continue
+		var dids []syntax.DID
+		if item.Repost != nil {
+			did, err := syntax.ParseDID(item.Repost.DID)
+			if err != nil {
+				return nil, err
+			}
+			dids = append(dids, did)
 		}
-		if _, ok := handles[item.Repost.DID]; ok {
-			continue
+		if item.FollowedBy != nil {
+			dids = append(dids, item.FollowedBy.DID)
 		}
-		did, err := syntax.ParseDID(item.Repost.DID)
-		if err != nil {
-			return nil, err
+		for _, did := range dids {
+			if _, ok := handles[did.String()]; ok {
+				continue
+			}
+			handle, err := resolver.ResolveHandle(ctx, did)
+			if err != nil {
+				return nil, err
+			}
+			handles[did.String()] = handle
 		}
-		handle, err := resolver.ResolveHandle(ctx, did)
-		if err != nil {
-			return nil, err
-		}
-		handles[item.Repost.DID] = handle
 	}
 	return handles, nil
 }

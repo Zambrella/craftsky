@@ -47,9 +47,10 @@ import 'package:material_ui/material_ui.dart';
 part 'project_filter_sheet.dart';
 
 class HomePage extends ConsumerStatefulWidget {
-  const new({this.craft, super.key});
+  const new({this.craft, this.source, super.key});
 
   final String? craft;
+  final String? source;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -109,11 +110,14 @@ class _HomePageState extends ConsumerState<HomePage>
 
   List<HomeFeedDefinition> _definitions(List<ProjectOption> crafts) => [
     const HomeFeedDefinition.following(),
+    const HomeFeedDefinition.extendedNetwork(),
     for (final craft in crafts) HomeFeedDefinition.project(craft),
   ];
 
   int? _requestedIndex(String? craft) {
-    if (craft == null) return null;
+    if (craft == null) {
+      return widget.source == 'extended-network' ? 1 : null;
+    }
     final index = _feeds.indexWhere(
       (option) => option.craftType?.split('#').last == craft,
     );
@@ -123,7 +127,9 @@ class _HomePageState extends ConsumerState<HomePage>
   @override
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.craft == widget.craft) return;
+    if (oldWidget.craft == widget.craft && oldWidget.source == widget.source) {
+      return;
+    }
     final requested = _requestedIndex(widget.craft);
     _hasSelectedCraft = requested != null;
     _selectedFeedIndex = requested ?? 0;
@@ -251,11 +257,13 @@ class _HomePageState extends ConsumerState<HomePage>
                   controller: _tabController,
                   children: [
                     for (final option in _feeds)
-                      if (option.source == HomeFeedSource.following)
+                      if (option.source != HomeFeedSource.projects)
                         FeedPage(
                           key: ValueKey(option.id),
                           embedded: true,
                           active: activeFeed.id == option.id,
+                          extendedNetwork:
+                              option.source == HomeFeedSource.extendedNetwork,
                         )
                       else
                         _ProjectTabScrollView(
@@ -305,6 +313,10 @@ class _HomePageState extends ConsumerState<HomePage>
     if (GoRouter.maybeOf(context) != null) {
       FeedRoute(
         craft: _feeds[_selectedFeedIndex].craftType?.split('#').last,
+        source:
+            _feeds[_selectedFeedIndex].source == HomeFeedSource.extendedNetwork
+            ? 'extended-network'
+            : null,
       ).replace(context);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -445,9 +457,20 @@ class _HomeFeedTabBar extends StatelessWidget {
                         null => Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(CraftskyIcons.people, size: 18),
+                            Icon(
+                              option.source == HomeFeedSource.extendedNetwork
+                                  ? CraftskyIcons.extendedNetwork
+                                  : CraftskyIcons.people,
+                              size: 18,
+                            ),
                             const SizedBox(width: 6),
-                            Text(AppLocalizations.of(context).homeFollowingTab),
+                            Text(
+                              option.source == HomeFeedSource.extendedNetwork
+                                  ? AppLocalizations.of(context)
+                                        .homeExtendedNetworkTab
+                                  : AppLocalizations.of(context)
+                                        .homeFollowingTab,
+                            ),
                           ],
                         ),
                       },

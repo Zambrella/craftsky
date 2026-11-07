@@ -218,6 +218,7 @@ export type PostPresentation = Post | ProtectedPost;
 export interface TimelineItem {
 	itemKey: string;
 	post: PostPresentation;
+	followedBy?: Author;
 	reason?: {
 		type: 'repost';
 		by: Author;

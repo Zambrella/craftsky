@@ -34,6 +34,7 @@ final Map<Object, void Function(Ref)> _profileIdentityInvalidations = {
       ref.invalidate(postCommentRepliesLoaderProvider),
   profilePinsProvider: (ref) => ref.invalidate(profilePinsProvider),
   timelineProvider: (ref) => ref.invalidate(timelineProvider),
+  extendedNetworkProvider: (ref) => ref.invalidate(extendedNetworkProvider),
   userPostsProvider: (ref) => ref.invalidate(userPostsProvider),
   userCommentsProvider: (ref) => ref.invalidate(userCommentsProvider),
   notificationsProvider: (ref) => ref.invalidate(notificationsProvider),

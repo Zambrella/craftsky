@@ -47,6 +47,7 @@
 	let {
 		value,
 		reason,
+		followedBy,
 		api,
 		did,
 		detail = false,
@@ -58,6 +59,7 @@
 	}: {
 		value: PostPresentation;
 		reason?: Author;
+		followedBy?: Author;
 		api: CraftskyAPI;
 		did: string;
 		detail?: boolean;
@@ -312,7 +314,6 @@
 					relationshipNotice = kind === 'mute' ? 'muted' : 'blocked';
 					post = undefined;
 				}
-				window.dispatchEvent(new Event('craftsky-refresh'));
 			}
 		);
 	}
@@ -461,6 +462,12 @@
 				href={'/profiles/' + encodeURIComponent(reason.did)}
 				><Icon name="repost" size={16} />Reposted by {reason.displayName ||
 					reason.handle}</a
+			>{:else if followedBy && !savedAt}<a
+				class="network-attribution"
+				href={'/profiles/' + encodeURIComponent(followedBy.did)}
+				><Icon name="users" size={16} />Followed by {followedBy.displayName?.trim() ||
+					followedBy.handle ||
+					followedBy.did}</a
 			>{/if}
 		{#if post.moderation && !revealed}<div class="notice">
 				<p>Content warning. This post has been marked by moderation.</p>
@@ -841,7 +848,8 @@
 {/if}
 
 <style>
-	.repost-attribution {
+	.repost-attribution,
+	.network-attribution {
 		display: flex;
 		align-items: center;
 		gap: 8px;

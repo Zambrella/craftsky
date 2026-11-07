@@ -439,6 +439,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/feed/extended-network",
+    "category": "appview.feed.extended-network",
+    "public": true
+  },
+  {
+    "method": "GET",
     "path": "/v1/feed/timeline",
     "category": "appview.feed.timeline",
     "public": true

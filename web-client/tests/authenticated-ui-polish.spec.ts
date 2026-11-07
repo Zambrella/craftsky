@@ -46,7 +46,7 @@ test('craft tab navigation never flashes the default preference order', async ({
 	});
 	await page.goto('/feed');
 	const tabs = page.getByRole('navigation', { name: 'Home feeds' });
-	await expect(tabs.getByRole('link').nth(1)).toHaveText('Quilting');
+	await expect(tabs.getByRole('link').nth(2)).toHaveText('Quilting');
 	await page.evaluate(() => {
 		const orders: string[][] = [];
 		(window as typeof window & { craftOrders: string[][] }).craftOrders =
@@ -63,13 +63,13 @@ test('craft tab navigation never flashes the default preference order', async ({
 	});
 	await tabs.getByRole('link', { name: 'Sewing', exact: true }).click();
 	await expect(page).toHaveURL(/craft=/);
-	await expect(tabs.getByRole('link').nth(1)).toHaveText('Quilting');
+	await expect(tabs.getByRole('link').nth(2)).toHaveText('Quilting');
 	const orders = await page.evaluate(
 		() => (window as typeof window & { craftOrders: string[][] }).craftOrders
 	);
 	expect(orders.length).toBeGreaterThan(0);
 	expect(
-		orders.every((order) => order[1] === 'Quilting' && order[2] === 'Sewing')
+		orders.every((order) => order[2] === 'Quilting' && order[3] === 'Sewing')
 	).toBe(true);
 });
 

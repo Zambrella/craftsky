@@ -1166,6 +1166,43 @@ void main() {
     });
   });
 
+  test(
+    'extended network uses its endpoint, cursor and connection attribution',
+    () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/feed/extended-network',
+        (server) => server.reply(200, {
+          'items': [
+            {
+              'itemKey': 'post:network',
+              'post': samplePost(),
+              'followedBy': {
+                'did': 'did:plc:bob',
+                'handle': 'bob.craftsky.social',
+                'displayName': 'Bob',
+              },
+            },
+          ],
+          'cursor': 'network-next',
+        }),
+        queryParameters: {'cursor': 'network-current', 'limit': '20'},
+      );
+      final page = await ApiPostRepository(PostApiClient(dio))
+          .listExtendedNetwork(
+            cursor: 'network-current',
+            limit: 20,
+          );
+      expect(page.cursor, 'network-next');
+      expect(page.items.single.followedBy?.displayName, 'Bob');
+      expect(page.items.single.reason, isNull);
+      expect(
+        TimelinePageMapper.fromMap(page.toMap()).items.single.followedBy?.did,
+        bobDid,
+      );
+    },
+  );
+
   group('PostApiClient.listTimeline', () {
     test(
       'GETs /v1/feed/timeline with no cursor and parses TimelinePage',

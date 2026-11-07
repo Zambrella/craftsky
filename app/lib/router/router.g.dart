@@ -432,15 +432,20 @@ extension $AppShellRouteExtension on AppShellRoute {
 }
 
 mixin $FeedRoute on GoRouteData {
-  static FeedRoute _fromState(GoRouterState state) =>
-      FeedRoute(craft: state.uri.queryParameters['craft']);
+  static FeedRoute _fromState(GoRouterState state) => FeedRoute(
+    craft: state.uri.queryParameters['craft'],
+    source: state.uri.queryParameters['source'],
+  );
 
   FeedRoute get _self => this as FeedRoute;
 
   @override
   String get location => GoRouteData.$location(
     '/feed',
-    queryParams: {if (_self.craft != null) 'craft': _self.craft},
+    queryParams: {
+      if (_self.craft != null) 'craft': _self.craft,
+      if (_self.source != null) 'source': _self.source,
+    },
   );
 
   @override

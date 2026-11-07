@@ -47,6 +47,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTitle => 'Home';
 
   @override
+  String get homeExtendedNetworkTab => 'Extended network';
+
+  @override
+  String get feedExtendedNetworkEmpty =>
+      'Posts from people followed by accounts you follow will appear here.';
+
+  @override
+  String postFollowedBy(String name) {
+    return 'Followed by $name';
+  }
+
+  @override
   String get homeFollowingTab => 'Following';
 
   @override

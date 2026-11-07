@@ -103,6 +103,50 @@ PaginationContractSubject<TimelineItem> _paginationSubject(
   );
 }
 
+PaginationContractSubject<TimelineItem> _extendedPaginationSubject(
+  PaginationContractFetch<TimelineItem> fetch,
+) {
+  final repository = FakePostRepository(
+    onListExtendedNetwork: ({cursor, limit}) async {
+      expect(limit, timelinePageLimit);
+      final page = await fetch(cursor);
+      return TimelinePage(items: page.items, cursor: page.cursor);
+    },
+  );
+  final container = ProviderContainer.test(
+    overrides: [
+      activeLanguagePreferencesProvider.overrideWith(
+        (ref) => const LanguagePreferences(
+          primaryLanguage: 'en',
+          contentLanguages: ['en'],
+        ),
+      ),
+      postRepositoryProvider.overrideWithValue(repository),
+    ],
+  );
+  final subscription = container.listen(extendedNetworkProvider, (_, _) {});
+
+  return PaginationContractSubject(
+    initialize: () async =>
+        await container.read(extendedNetworkProvider.future),
+    loadMore: () => container.read(extendedNetworkProvider.notifier).loadMore(),
+    snapshot: () {
+      final asyncState = container.read(extendedNetworkProvider);
+      final state = asyncState.value!;
+      return PaginationContractSnapshot(
+        items: state.items,
+        cursor: state.cursor,
+        hasMore: state.hasMore,
+        hasError: asyncState.hasError,
+      );
+    },
+    dispose: () {
+      subscription.close();
+      container.dispose();
+    },
+  );
+}
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -113,6 +157,90 @@ void main() {
     itemIdentity: (item) => item.itemKey,
     createSubject: _paginationSubject,
     deduplicatesAcrossPages: true,
+  );
+
+  paginationContract(
+    name: 'extended network',
+    firstItem: _timelinePost(_samplePost(rkey: 'network-a')),
+    secondItem: _timelinePost(_samplePost(rkey: 'network-b')),
+    itemIdentity: (item) => item.itemKey,
+    createSubject: _extendedPaginationSubject,
+    deduplicatesAcrossPages: true,
+  );
+
+  test(
+    'extended network retains attribution and suppresses its intermediary',
+    () async {
+      final connection = PostAuthor(
+        did: 'did:plc:bridge',
+        handle: 'bridge.example',
+      );
+      final post = _samplePost(rkey: 'network');
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListExtendedNetwork: ({cursor, limit}) async => TimelinePage(
+                items: [
+                  TimelineItem(
+                    itemKey: 'post:${post.uri}',
+                    post: post,
+                    followedBy: connection,
+                  ),
+                ],
+              ),
+              onListTimeline: ({cursor, limit}) async =>
+                  const TimelinePage(items: []),
+            ),
+          ),
+        ],
+      )..listen(extendedNetworkProvider, (_, _) {});
+      final state = await container.read(extendedNetworkProvider.future);
+      expect(state.items.single.followedBy?.did, connection.did);
+      expect((await container.read(timelineProvider.future)).items, isEmpty);
+      expect(
+        container
+            .read(extendedNetworkProvider.notifier)
+            .suppressActor(connection.did.value),
+        1,
+      );
+      expect(container.read(extendedNetworkProvider).value!.items, isEmpty);
+    },
+  );
+
+  test(
+    'disposed extended-network request exits before reading overlays',
+    () async {
+      final pending = Completer<TimelinePage>();
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListExtendedNetwork: ({cursor, limit}) => pending.future,
+            ),
+          ),
+        ],
+      );
+      final result = container.read(extendedNetworkProvider.future);
+      final assertion = expectLater(result, throwsA(isA<ApiCanceled>()));
+      container.dispose();
+      pending.complete(
+        TimelinePage(items: [_timelinePost(_samplePost(rkey: 'late'))]),
+      );
+      await assertion;
+    },
   );
 
   group('timelineProvider build', () {

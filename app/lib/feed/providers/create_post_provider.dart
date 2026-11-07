@@ -265,6 +265,7 @@ void _invalidatePostMutationReads(Ref ref, Post post) {
     ..invalidate(postCommentSectionProvider)
     ..invalidate(postQuotesProvider)
     ..invalidate(timelineProvider)
+    ..invalidate(extendedNetworkProvider)
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userProjectsProvider);

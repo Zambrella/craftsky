@@ -160,6 +160,24 @@ abstract class AppLocalizations {
   /// **'Home'**
   String get homeTitle;
 
+  /// Home tab showing posts by accounts followed by people you follow.
+  ///
+  /// In en, this message translates to:
+  /// **'Extended network'**
+  String get homeExtendedNetworkTab;
+
+  /// Empty state for the extended network feed.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts from people followed by accounts you follow will appear here.'**
+  String get feedExtendedNetworkEmpty;
+
+  /// The followed account connecting the viewer to an extended network post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Followed by {name}'**
+  String postFollowedBy(String name);
+
   /// Home tab showing the chronological timeline from followed accounts.
   ///
   /// In en, this message translates to:

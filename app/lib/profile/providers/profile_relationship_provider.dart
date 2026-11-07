@@ -173,6 +173,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       ..invalidate(chatRecipientAvailabilityProvider)
       ..invalidate(userProfileProvider(did))
       ..invalidate(timelineProvider)
+      ..invalidate(extendedNetworkProvider)
       ..invalidate(blankSearchProvider)
       ..invalidate(accountNotificationsProvider(account))
       ..invalidate(notificationsProvider)
@@ -187,6 +188,9 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     }
     if (ref.exists(timelineProvider)) {
       ref.read(timelineProvider.notifier).suppressActor(did);
+    }
+    if (ref.exists(extendedNetworkProvider)) {
+      ref.read(extendedNetworkProvider.notifier).suppressActor(did);
     }
     var removed = 0;
     final accountNotifications = accountNotificationsProvider(account);

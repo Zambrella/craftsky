@@ -645,20 +645,34 @@ func TestAddRoutes_RateLimitRejectsBeforeHandlerWork(t *testing.T) {
 	}
 }
 
-func TestAddRoutes_TimelineRequiresDeviceID(t *testing.T) {
+func TestAddRoutes_FeedRequiresDeviceID(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
-	req := httptest.NewRequest("GET", "/v1/feed/timeline", nil)
-	req.Header.Set("Authorization", "Bearer anything")
+	for _, path := range []string{"/v1/feed/timeline", "/v1/feed/extended-network"} {
+		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Authorization", "Bearer anything")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "missing_device_id") {
+			t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+		}
+	}
+}
+
+func TestAddRoutes_ExtendedNetworkRequiresAuthentication(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	req := httptest.NewRequest(http.MethodGet, "/v1/feed/extended-network", nil)
+	req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "missing_device_id") {
-		t.Errorf("body = %q, want containing 'missing_device_id'", rec.Body.String())
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

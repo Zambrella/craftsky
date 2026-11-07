@@ -1077,7 +1077,9 @@ createServer(async (req, res) => {
 		return send(200, state.languages);
 	}
 	if (
-		['/v1/feed/timeline', '/v1/projects'].includes(pathname) &&
+		['/v1/feed/timeline', '/v1/feed/extended-network', '/v1/projects'].includes(
+			pathname
+		) &&
 		!settings.get(owner).languages
 	)
 		return send(500, {
@@ -1287,6 +1289,7 @@ createServer(async (req, res) => {
 		state.suggestions = [];
 		return send(200, { suggestionId: 'suggestion-1', state: 'followed' });
 	}
+	if (pathname === '/v1/feed/extended-network') return send(200, { items: [] });
 	if (pathname === '/v1/feed/timeline')
 		return send(200, {
 			items: [...posts.values()]

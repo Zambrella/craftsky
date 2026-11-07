@@ -101,6 +101,7 @@ void _invalidateBlockReads(Ref ref, Did targetDid, AccountKey? account) {
   ref
     ..invalidate(userProfileProvider(targetDid))
     ..invalidate(timelineProvider)
+    ..invalidate(extendedNetworkProvider)
     ..invalidate(blankSearchProvider)
     ..invalidate(notificationsProvider);
   if (account != null) {

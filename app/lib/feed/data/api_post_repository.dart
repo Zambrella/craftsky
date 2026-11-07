@@ -214,6 +214,10 @@ class ApiPostRepository implements PostRepository {
       _api.listTimeline(cursor: cursor, limit: limit);
 
   @override
+  Future<TimelinePage> listExtendedNetwork({String? cursor, int? limit}) =>
+      _api.listExtendedNetwork(cursor: cursor, limit: limit);
+
+  @override
   Future<PostPage> listCommentsByAuthor(
     String handleOrDid, {
     String? cursor,
