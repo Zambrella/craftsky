@@ -166,8 +166,18 @@ for (const action of ['follow', 'unfollow'] as const) {
 				exact: true
 			})
 		).toBeVisible();
+		const refreshedFeed = page.waitForResponse(
+			'**/api/appview/v1/feed/extended-network*'
+		);
 		await page.goBack();
 		await expect(page).toHaveURL('/feed?source=extended-network');
+		await refreshedFeed;
+		await expect(
+			page.getByText(
+				'Posts from people followed by accounts you follow will appear here.',
+				{ exact: true }
+			)
+		).toBeVisible();
 		await expect(page.locator('.member-post')).toHaveCount(0);
 		expect(requests).toBe(2);
 	});
@@ -231,8 +241,18 @@ test('extended network invalidates history after blocking from Messages', async 
 	).toBeVisible();
 	await page.goBack();
 	await expect(page).toHaveURL('/messages');
+	const refreshedFeed = page.waitForResponse(
+		'**/api/appview/v1/feed/extended-network*'
+	);
 	await page.goBack();
 	await expect(page).toHaveURL('/feed?source=extended-network');
+	await refreshedFeed;
+	await expect(
+		page.getByText(
+			'Posts from people followed by accounts you follow will appear here.',
+			{ exact: true }
+		)
+	).toBeVisible();
 	await expect(page.locator('.member-post')).toHaveCount(0);
 	expect(requests).toBe(2);
 });
@@ -415,8 +435,18 @@ test('extended network refreshes retained history after muting its connection', 
 	await page.getByLabel('More profile actions', { exact: true }).click();
 	await page.getByRole('button', { name: 'Mute account', exact: true }).click();
 	await expect(page.getByText('Account muted.', { exact: true })).toBeVisible();
+	const refreshedFeed = page.waitForResponse(
+		'**/api/appview/v1/feed/extended-network*'
+	);
 	await page.goBack();
 	await expect(page).toHaveURL('/feed?source=extended-network');
+	await refreshedFeed;
+	await expect(
+		page.getByText(
+			'Posts from people followed by accounts you follow will appear here.',
+			{ exact: true }
+		)
+	).toBeVisible();
 	await expect(page.locator('.member-post')).toHaveCount(0);
 	expect(networkRequests).toBe(2);
 });
