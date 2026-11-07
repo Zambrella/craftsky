@@ -5,8 +5,7 @@ const fixture = {
 	PUBLIC_SENTRY_DSN: 'http://public@127.0.0.1:19846/1',
 	PUBLIC_SENTRY_ENVIRONMENT: 'test',
 	WEB_CLIENT_DIAGNOSTICS: '1',
-	WEB_CLIENT_SUBSCRIPTIONS_ENABLED: 'true',
-	WEB_CLIENT_VIDEO_UPLOADS_ENABLED: 'true'
+	WEB_CLIENT_SUBSCRIPTIONS_ENABLED: 'true'
 };
 const run = (script, env = process.env, args = []) => {
 	const result = spawnSync('npm', ['run', script, ...args], {
@@ -26,8 +25,7 @@ for (const worker of ['0', '1']) {
 		'test:e2e:app',
 		{
 			...env,
-			WEB_CLIENT_SUBSCRIPTIONS_ENABLED: 'false',
-			WEB_CLIENT_VIDEO_UPLOADS_ENABLED: 'false'
+			WEB_CLIENT_SUBSCRIPTIONS_ENABLED: 'false'
 		},
 		[
 			'--',

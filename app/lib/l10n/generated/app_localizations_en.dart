@@ -1417,6 +1417,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeMissingAltCancel => 'Go back';
 
   @override
+  String get postComposeMediaTitle => 'Media';
+
+  @override
   String get postComposePhotosTitle => 'Photos';
 
   @override
@@ -1477,6 +1480,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposeTakePhoto => 'Take a photo';
+
+  @override
+  String postComposeCameraLimits(int megabytes) {
+    return '1 photo · up to $megabytes MB';
+  }
+
+  @override
+  String postComposePhotoPickerLimits(int count, int megabytes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Up to $count photos',
+      one: '1 photo',
+    );
+    return '$_temp0 · $megabytes MB each';
+  }
+
+  @override
+  String postComposeVideoPickerLimits(int minutes, int megabytes) {
+    return 'MP4 or MOV · up to $minutes min · $megabytes MB';
+  }
 
   @override
   String get postComposeChooseVideo => 'Choose a video';
@@ -1551,12 +1575,32 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your account provider doesn\'t support video uploads yet.';
 
   @override
+  String get postVideoSourceTooLarge =>
+      'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.';
+
+  @override
+  String get postVideoSourceTooLong =>
+      'This video is too long. Videos must be ten minutes or shorter. Trim it and try again.';
+
+  @override
+  String get postVideoSourceUnsupported =>
+      'This video format isn\'t supported. Choose an MP4 or MOV file.';
+
+  @override
+  String get postVideoSelectionFailed =>
+      'Couldn\'t add this video. Try again, or choose another MP4 or MOV file.';
+
+  @override
   String get postVideoValidationFailed =>
-      'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.';
+      'The video service couldn\'t accept this video. Check its size and duration, then try another file.';
+
+  @override
+  String get postVideoUploadTimedOut =>
+      'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.';
 
   @override
   String get postVideoProcessingFailed =>
-      'The video couldn\'t be processed. Retry or choose another MP4.';
+      'The video couldn\'t be processed. Retry or choose another video.';
 
   @override
   String get postVideoRetryableFailure =>
@@ -1567,6 +1611,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postVideoCaptionsOff => 'Captions off';
+
+  @override
+  String get postVideoPreviewLabel => 'Video';
 
   @override
   String get nativeVideoPlay => 'Play video';
@@ -4733,6 +4780,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
+
+  @override
+  String get postComposeVideoDetailsTitle => 'Video details';
+
+  @override
+  String get postVideoLocalPreviewUnavailable =>
+      'This video can’t be previewed here. You can still add a description and publish it.';
 
   @override
   String get postComposePhotoDetailsTitle => 'Photo details';

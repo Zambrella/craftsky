@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:craftsky_app/feed/widgets/composer_video_details_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -10,8 +11,8 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
     required this.selection,
     required this.enabled,
     required this.onAltTextChanged,
-    required this.onReplace,
     required this.onRemove,
+    this.previewBuilder,
     super.key,
   }) : _publishedAltText = null;
 
@@ -19,17 +20,17 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
     required String altText,
     required this.enabled,
     required this.onAltTextChanged,
-    required this.onReplace,
     required this.onRemove,
     super.key,
-  }) : selection = null,
+  }) : previewBuilder = null,
+       selection = null,
        _publishedAltText = altText;
 
+  final Widget Function(BuildContext, LocalVideoSelection)? previewBuilder;
   final String? _publishedAltText;
   final LocalVideoSelection? selection;
   final bool enabled;
   final ValueChanged<String> onAltTextChanged;
-  final VoidCallback onReplace;
   final VoidCallback onRemove;
 
   @override
@@ -103,38 +104,47 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
               ],
             ),
             SizedBox(height: spacing.sp4),
-            BrandTextField(
-              textFieldKey: const Key('composer-video-alt-text'),
-              label: l10n.postComposeAltTextLabel,
-              initialValue: selection?.altText ?? _publishedAltText,
-              enabled: enabled,
-              maxLength: RecordTextLimits.videoAlt.graphemes,
-              maxBytes: RecordTextLimits.videoAlt.bytes,
-              maxLines: 3,
-              minLines: 3,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              textCapitalization: TextCapitalization.sentences,
-              hintText: l10n.postComposeVideoAltHint,
-              labelLeading: Icon(
-                Icons.short_text_rounded,
-                color: theme.colorScheme.onSurfaceVariant,
-                size: 24,
+            if (selection != null)
+              OutlinedButton.icon(
+                key: const Key('composer-inspect-video'),
+                onPressed: enabled
+                    ? () => showComposerVideoDetails(
+                        context,
+                        selection: selection!,
+                        onAltTextChanged: onAltTextChanged,
+                        previewBuilder: previewBuilder,
+                      )
+                    : null,
+                icon: const Icon(Icons.videocam_outlined),
+                label: Text(l10n.postComposeVideoDetailsTitle),
+              )
+            else
+              BrandTextField(
+                textFieldKey: const Key('composer-video-alt-text'),
+                label: l10n.postComposeAltTextLabel,
+                initialValue: selection?.altText ?? _publishedAltText,
+                enabled: enabled,
+                maxLength: RecordTextLimits.videoAlt.graphemes,
+                maxBytes: RecordTextLimits.videoAlt.bytes,
+                maxLines: 3,
+                minLines: 3,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                textCapitalization: TextCapitalization.sentences,
+                hintText: l10n.postComposeVideoAltHint,
+                labelLeading: Icon(
+                  Icons.short_text_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  size: 24,
+                ),
+                onChanged: onAltTextChanged,
               ),
-              onChanged: onAltTextChanged,
-            ),
             SizedBox(height: spacing.sp3),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: spacing.sp2,
               runSpacing: spacing.sp2,
               children: [
-                OutlinedButton.icon(
-                  key: const Key('composer-replace-video'),
-                  onPressed: enabled ? onReplace : null,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: Text(l10n.postComposeReplaceVideo),
-                ),
                 OutlinedButton.icon(
                   key: const Key('composer-remove-video'),
                   onPressed: enabled ? onRemove : null,

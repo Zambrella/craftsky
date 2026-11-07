@@ -51,6 +51,10 @@ const routes: [string, RegExp][] = [
 	['DELETE', /^\/v1\/billing\/licenses\/[^/]+\/assignment$/],
 	['POST', /^\/v1\/blobs\/videos\/authorization$/],
 	['GET', /^\/v1\/blobs\/videos\/limits$/],
+	[
+		'POST',
+		/^\/v1\/blobs\/videos\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:status|cancel)$/
+	],
 	['POST', /^\/v1\/migrations\/instagram\/verifications$/],
 	['GET', /^\/v1\/migrations\/instagram\/verifications\/current$/],
 	['GET', /^\/v1\/migrations\/instagram\/verifications\/[^/]+$/],

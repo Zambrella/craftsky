@@ -291,6 +291,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"INSTAGRAM_META_API_VERSION", "INSTAGRAM_META_API_BASE_URL",
 		"INSTAGRAM_META_DM_URL", "INSTAGRAM_META_REPLIES_ENABLED",
 		"APPVIEW_REPLICA_COUNT", "INSTAGRAM_SHARED_RATE_LIMITS",
+		"VIDEO_PROVIDER", "BUNNY_STREAM_LIBRARY_ID", "BUNNY_STREAM_API_KEY", "BUNNY_STREAM_CDN_HOSTNAME", "BUNNY_CDN_PURGE_API_KEY",
 		"VIDEO_ENABLED", "VIDEO_SERVICE_URL", "VIDEO_PLAYLIST_URL_TEMPLATE", "VIDEO_THUMBNAIL_URL_TEMPLATE",
 		"INSTAGRAM_TRUSTED_PROXY_CIDRS", "INSTAGRAM_CHALLENGE_TTL",
 		"INSTAGRAM_WEBHOOK_BODY_LIMIT_BYTES", "INSTAGRAM_WEBHOOK_MAX_EVENTS",
@@ -394,7 +395,7 @@ func TestLoadConfigFederatedHTTPBudgetsArePositiveAndLowerOnly(t *testing.T) {
 		cfg.FederatedHTTP.OAuthMetadata.TotalTimeout != 10*time.Second ||
 		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheTTL != 5*time.Minute ||
 		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheCapacity != 10_000 ||
-		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 20*time.Second ||
+		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 5*time.Minute ||
 		cfg.FederatedHTTP.PDSRepository.TotalTimeout != 2*time.Minute ||
 		cfg.FederatedHTTP.PDSRepository.ResponseLimit != 64<<20 {
 		t.Fatalf("federated defaults = %+v", cfg.FederatedHTTP)
@@ -1670,6 +1671,41 @@ func TestLoadConfigIntimateImageTargetRequiresExplicitValidDuration(t *testing.T
 	}
 }
 
+func TestBunnyVideoProviderConfiguration(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nTAP_WS_URL=ws://tap\nCRAFTSKY_DEV_DID=did:plc:dev\n"
+	for _, test := range []struct {
+		name, extra string
+		valid       bool
+	}{
+		{"default", "", true},
+		{"unknown", "VIDEO_PROVIDER=unknown\n", false},
+		{"incomplete", "VIDEO_PROVIDER=bunny\n", false},
+		{"configured", "VIDEO_PROVIDER=bunny\nBUNNY_STREAM_LIBRARY_ID=123\nBUNNY_STREAM_API_KEY=private-bunny-key\nBUNNY_STREAM_CDN_HOSTNAME=test.b-cdn.net\n", true},
+		{"purgeConfigured", "VIDEO_PROVIDER=bunny\nBUNNY_STREAM_LIBRARY_ID=123\nBUNNY_STREAM_API_KEY=private-bunny-key\nBUNNY_STREAM_CDN_HOSTNAME=test.b-cdn.net\nBUNNY_CDN_PURGE_API_KEY=private-purge-key\n", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := LoadConfig(EnvDev, testConfigFile(t, base+test.extra))
+			if (err == nil) != test.valid {
+				t.Fatalf("configuration error=%v, valid=%v", err, test.valid)
+			}
+			if err == nil && test.name == "configured" && (cfg.VideoProvider != "bunny" || cfg.BunnyStreamAPIKey.Reveal() != "private-bunny-key") {
+				t.Fatal("Bunny configuration not wired")
+			}
+			if err == nil && test.name == "purgeConfigured" && cfg.BunnyCDNPurgeAPIKey.Reveal() != "private-purge-key" {
+				t.Fatal("Bunny purge credential not wired")
+			}
+		})
+	}
+}
+
+func TestBunnyProductionRequiresCDNPurgeCredential(t *testing.T) {
+	const configuration = "VIDEO_PROVIDER=bunny\nBUNNY_STREAM_LIBRARY_ID=123\nBUNNY_STREAM_API_KEY=private-bunny-key\nBUNNY_STREAM_CDN_HOSTNAME=test.b-cdn.net\n"
+	_, err := LoadConfig(EnvProd, testConfigFile(t, configuration))
+	if err == nil || !strings.Contains(err.Error(), "bunny CDN purge configuration is required") {
+		t.Fatalf("missing production purge credential was not rejected: %v", err)
+	}
+}
+
 func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
 	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
 	for _, value := range []string{"", "http://127.0.0.1:25319", "https://evil.example"} {
@@ -1689,5 +1725,27 @@ func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
 				t.Fatalf("origin=%q err=%v", cfg.WebAppOrigin, err)
 			}
 		})
+	}
+}
+
+func TestCheckedInDevVideoUploadBudget(t *testing.T) {
+	contents, err := os.ReadFile("../../environments/dev.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(EnvDev, testConfigFile(t, string(contents)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, err := newFederatedClients(cfg.FederatedHTTP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clients.boundary.CloseIdleConnections()
+	if clients.pdsBlob.Timeout != 5*time.Minute {
+		t.Fatalf("configured PDS upload timeout = %v; checked-in config must permit large video uploads", clients.pdsBlob.Timeout)
+	}
+	if cfg.PDSEffectTimeout != 10*time.Second {
+		t.Fatal("ordinary PDS effect budget changed")
 	}
 }

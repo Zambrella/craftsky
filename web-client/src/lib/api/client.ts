@@ -855,6 +855,25 @@ export class CraftskyAPI {
 				'POST',
 				'/v1/blobs/videos/authorization'
 			),
+		cancelVideo: (jobId: string, signal?: AbortSignal) =>
+			this.transport.request<void>(
+				'POST',
+				`/v1/blobs/videos/${segment(jobId)}/cancel`,
+				{ signal }
+			),
+		videoStatus: (jobId: string, signal?: AbortSignal) => {
+			if (
+				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+					jobId
+				)
+			)
+				throw new TypeError('Invalid video job');
+			return this.transport.request<{ jobStatus: T.JsonObject }>(
+				'POST',
+				`/v1/blobs/videos/${segment(jobId)}/status`,
+				{ signal }
+			);
+		},
 		caption: (did: string, rkey: string, cid: string, signal?: AbortSignal) =>
 			this.transport.request<string>(
 				'GET',

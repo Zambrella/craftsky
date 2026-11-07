@@ -1482,9 +1482,21 @@
     "public": true
   },
   {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/status",
+    "category": "appview.blobs.videos.status",
+    "public": false
+  },
+  {
     "method": "GET",
     "path": "/v1/public/stats",
     "category": "appview.public.stats",
     "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/cancel",
+    "category": "appview.blobs.videos.cancel",
+    "public": false
   }
 ]

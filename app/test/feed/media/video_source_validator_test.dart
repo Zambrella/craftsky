@@ -4,6 +4,42 @@ import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final movHeader = Uint8List.fromList([0, 0, 0, 20, ...'ftypqt  '.codeUnits]);
+
+  test(
+    'MOV accepts exact limits and rejects oversized, long or spoofed files',
+    () {
+      VideoSourceValidationResult validate({
+        int size = 300000000,
+        Duration? duration = const Duration(minutes: 10),
+        Uint8List? header,
+        String mime = 'video/quicktime',
+      }) => validateVideoSource(
+        sizeBytes: size,
+        fileName: 'camera.MOV',
+        mimeType: mime,
+        headerBytes: header ?? movHeader,
+        duration: duration,
+      );
+      expect(validate().canUpload, isTrue);
+      expect(validate(duration: null).canUpload, isTrue);
+      expect(
+        validate(size: 300000001).rejectedReason,
+        VideoSourceRejection.tooLarge,
+      );
+      expect(
+        validate(duration: const Duration(milliseconds: 600001)).rejectedReason,
+        VideoSourceRejection.tooLong,
+      );
+      expect(
+        validate(header: Uint8List(12)).rejectedReason,
+        VideoSourceRejection.unsupportedType,
+      );
+      expect(validate(header: movHeader.sublist(0, 11)).canUpload, isFalse);
+      expect(validate(mime: 'video/mp4').canUpload, isFalse);
+      expect(validate(size: 0).canUpload, isFalse);
+    },
+  );
   final mp4Header = Uint8List.fromList(const [
     0,
     0,

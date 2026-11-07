@@ -21,6 +21,83 @@ void main() {
   setUpAll(initializeMappers);
 
   testWidgets(
+    'video summaries preserve the thumbnail and identify quotes and saves',
+    (tester) async {
+      final video = PostVideo(
+        cid: 'bafyvideo',
+        mime: 'video/mp4',
+        size: 100,
+        alt: 'Knitting a sleeve',
+        thumbnail: 'https://cdn.example.com/video-poster.jpg',
+        aspectRatio: const PostImageAspectRatio(width: 9, height: 16),
+      );
+      final post = _post().copyWith(images: null, video: video);
+      final quote = QuoteView(
+        state: 'visible',
+        post: QuotePreviewPost(
+          uri: post.uri,
+          cid: post.cid,
+          text: post.text,
+          author: post.author,
+          createdAt: post.createdAt,
+          sponsored: false,
+          video: video,
+        ),
+      );
+      for (final data in [
+        PostSummaryData.fromQuoteView(quote),
+        PostSummaryData.savedPost(post),
+      ]) {
+        expect(data.isVideo, isTrue);
+        expect(data.image?.thumb, video.thumbnail);
+        var opened = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              feedImageCacheManagerProvider.overrideWithValue(
+                FakeBaseCacheManager(),
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: PostSummary(data: data, onTap: () => opened++),
+              ),
+            ),
+          ),
+        );
+        expect(find.byIcon(CraftskyIcons.video), findsOneWidget);
+        expect(
+          tester
+              .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
+              .imageUrl,
+          video.thumbnail,
+        );
+        final size = tester.getSize(
+          find.byKey(const Key('post-summary-image')),
+        );
+        expect(size.width / size.height, closeTo(16 / 9, 0.001));
+        expect(
+          tester
+              .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
+              .fit,
+          BoxFit.cover,
+        );
+        await tester.tap(find.byIcon(CraftskyIcons.video));
+        expect(opened, 1);
+      }
+      expect(PostSummaryData.savedPost(_post()).isVideo, isFalse);
+      final withoutThumbnail = PostSummaryData.savedPost(
+        post.copyWith(video: video.copyWith(thumbnail: null)),
+      );
+      expect(withoutThumbnail.isVideo, isTrue);
+      expect(withoutThumbnail.image, isNotNull);
+    },
+  );
+
+  testWidgets(
     'AT-003 compact post and quote summaries retain edit disclosure',
     (tester) async {
       final when = DateTime.utc(2026, 10, 26, 12);

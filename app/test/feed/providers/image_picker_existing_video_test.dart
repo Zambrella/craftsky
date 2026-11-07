@@ -1,10 +1,109 @@
-import 'dart:typed_data';
-
+import 'package:craftsky_app/feed/media/video_source_validator.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'rejects oversized files before metadata probing or reading bytes',
+    () async {
+      var probes = 0;
+      final picker = ImagePickerExistingVideo(
+        pick: () async => _OversizedFile(),
+        probe: (_) async {
+          probes++;
+          throw StateError('must not probe');
+        },
+      );
+      await expectLater(
+        picker.pickExisting(),
+        throwsA(
+          isA<VideoSourceException>().having(
+            (e) => e.reason,
+            'reason',
+            VideoSourceRejection.tooLarge,
+          ),
+        ),
+      );
+      expect(probes, 0);
+    },
+  );
+
+  group('iOS native video preparation', () {
+    const channel = MethodChannel('social.craftsky/local_video');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late XFile file;
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      file = XFile.fromData(
+        Uint8List.fromList([0, 0, 0, 20, ...'ftypisom'.codeUnits]),
+      );
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+
+    test('uses native portrait metadata and poster without a player', () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'probe');
+        expect(call.arguments, {'path': file.path});
+        return {
+          'width': 1080,
+          'height': 1920,
+          'durationMs': 5025,
+          'posterBytes': Uint8List.fromList([1, 2, 3]),
+        };
+      });
+
+      final selection = await ImagePickerExistingVideo(pick: () async => file)
+          .pickExisting();
+      expect(selection?.width, 1080);
+      expect(selection?.height, 1920);
+      expect(selection?.duration, const Duration(milliseconds: 5025));
+      expect(selection?.posterBytes, [1, 2, 3]);
+    });
+
+    test('rejects an empty poster instead of falling back to MPV', () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {
+          'width': 1080,
+          'height': 1920,
+          'posterBytes': Uint8List(0),
+        },
+      );
+      await expectLater(
+        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+        throwsStateError,
+      );
+    });
+
+    test('preserves platform failures without invoking a player', () async {
+      messenger.setMockMethodCallHandler(channel, (_) async {
+        throw PlatformException(code: 'video_probe_failed');
+      });
+      await expectLater(
+        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'video_probe_failed',
+          ),
+        ),
+      );
+    });
+  });
+
   test('UT-001 unknown production duration remains eligible', () async {
     final duration = await resolveVideoDuration(
       current: Duration.zero,
@@ -14,6 +113,34 @@ void main() {
 
     expect(duration, isNull);
   });
+
+  test(
+    'MOV without platform MIME is detected and accepted by the composer',
+    () async {
+      final bytes = Uint8List.fromList([0, 0, 0, 20, ...'ftypqt  '.codeUnits]);
+      final picker = ImagePickerExistingVideo(
+        pick: () async => XFile.fromData(bytes),
+        probe: (_) async => VideoProbeResult(
+          duration: const Duration(seconds: 5),
+          width: 1080,
+          height: 1920,
+          posterBytes: Uint8List.fromList([1, 2, 3]),
+        ),
+      );
+      final composer = ComposerVideoController(picker: picker);
+      await composer.selectExisting();
+      final selected = composer.selection!;
+      expect(selected.mimeType, 'video/quicktime');
+      expect(selected.displayName, 'video.mov');
+      expect(selected.headerBytes, bytes);
+      expect(selected.width, 1080);
+      expect(selected.height, 1920);
+      expect(
+        await selected.openRead().expand((chunk) => chunk).toList(),
+        bytes,
+      );
+    },
+  );
 
   test(
     'AT-002 picker prepares duration, dimensions, and a poster locally',
@@ -99,4 +226,9 @@ void main() {
       );
     },
   );
+}
+
+final class _OversizedFile extends Fake implements XFile {
+  @override
+  Future<int> length() async => 300000001;
 }

@@ -315,6 +315,7 @@ void main() {
           final videos = ComposerVideoController(picker: _NoopEditVideoPicker())
             ..restoredSelection = LocalVideoSelection(
               displayName: 'replacement.mp4',
+              localUri: Uri.file('/tmp/replacement.mp4'),
               mimeType: 'video/mp4',
               byteLength: 12,
               duration: const Duration(seconds: 2),
@@ -457,6 +458,12 @@ void main() {
           );
           expect(find.text('Save draft'), findsNothing);
           if (retainedVideo) {
+            final inspector = find.byKey(const Key('composer-inspect-video'));
+            if (inspector.evaluate().isNotEmpty) {
+              await tester.ensureVisible(inspector);
+              await tester.tap(inspector);
+              await tester.pumpAndSettle();
+            }
             final alt = find.byKey(const Key('composer-video-alt-text'));
             expect(
               tester.widget<TextField>(alt).controller?.text,
@@ -464,6 +471,13 @@ void main() {
             );
             await tester.ensureVisible(alt);
             await tester.enterText(alt, 'Updated video alt');
+            if (find
+                .byKey(const Key('composer-video-details'))
+                .evaluate()
+                .isNotEmpty) {
+              await tester.pageBack();
+              await tester.pumpAndSettle();
+            }
           }
           if (projectEdit) {
             final title = find.byKey(const Key('project-title-input'));

@@ -17,9 +17,8 @@ are managed by the owner; there is no new DID allowlist in this release.
   the existing reporting and moderation tools. This is not automated content
   detection. `/healthz` reports automated scanner readiness separately, without
   degrading operational health solely because the scanner is unavailable.
-- Enable video with `VIDEO_ENABLED=true` on AppView and
-  `CRAFTSKY_ENABLE_VIDEO_UPLOADS=true` in the Flutter build config. The flags keep
-  their ordinary default of `false`; there is no forced production shutdown.
+- AppView video endpoints use `VIDEO_ENABLED=true`. Video selection in both
+  clients is always available without a client build or environment flag.
 - Restricted evidence storage is optional until its S3 credentials are supplied.
   Without it, evidence preservation/access and its retention worker are
   unavailable. Reports, moderation, workflow metadata, holds, and account deletion

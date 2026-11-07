@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
+import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -244,6 +245,18 @@ class ComposerImageAttachmentSection extends StatefulWidget {
       context,
       keyPrefix: keyPrefix,
       cameraSupported: cameraSupported,
+      cameraDescription: AppLocalizations.of(context)
+          .postComposeCameraLimits(mediaConfig.maxSourceImageBytes ~/ 1000000),
+      photosDescription: AppLocalizations.of(context)
+          .postComposePhotoPickerLimits(
+            (maxImages - imagesState.images.length).clamp(1, maxImages),
+            mediaConfig.maxSourceImageBytes ~/ 1000000,
+          ),
+      videoDescription: AppLocalizations.of(context)
+          .postComposeVideoPickerLimits(
+            maxVideoDuration.inMinutes,
+            maxVideoSourceBytes ~/ 1000000,
+          ),
       onChoosePhotos: addImages ?? onAddImages,
       onTakePhoto: takePhoto ?? onTakePhoto,
       onChooseVideo: allowVideo && supportsVideo && imagesState.images.isEmpty
@@ -259,6 +272,13 @@ class ComposerImageAttachmentSection extends StatefulWidget {
   ) => showImageSourceMenu(
     context,
     keyPrefix: '$keyPrefix-replace',
+    cameraDescription: AppLocalizations.of(context)
+        .postComposeCameraLimits(mediaConfig.maxSourceImageBytes ~/ 1000000),
+    photosDescription: AppLocalizations.of(context)
+        .postComposePhotoPickerLimits(
+          1,
+          mediaConfig.maxSourceImageBytes ~/ 1000000,
+        ),
     cameraSupported: cameraSupported,
     onChoosePhotos: () => replace(imageId, ImageSource.gallery),
     onTakePhoto: () => replace(imageId, ImageSource.camera),
@@ -563,7 +583,11 @@ class _PhotosHeader extends StatelessWidget {
         Text.rich(
           TextSpan(
             children: [
-              TextSpan(text: l10n.postComposePhotosTitle),
+              TextSpan(
+                text: imageCount == 0
+                    ? l10n.postComposeMediaTitle
+                    : l10n.postComposePhotosTitle,
+              ),
               if (required)
                 TextSpan(text: '  $requiredLabel', style: requiredLabelStyle),
             ],
@@ -571,32 +595,34 @@ class _PhotosHeader extends StatelessWidget {
           style: titleStyle,
           textAlign: TextAlign.start,
         ),
-        SizedBox(height: spacing.sp1),
-        Row(
-          children: [
-            Icon(CraftskyIcons.altText, color: colors.outline, size: 22),
-            SizedBox(width: spacing.sp1),
-            Expanded(
-              child: Text(
-                describedLabel,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.outline,
-                  fontWeight: FontWeight.w700,
+        if (imageCount > 0) ...[
+          SizedBox(height: spacing.sp1),
+          Row(
+            children: [
+              Icon(CraftskyIcons.altText, color: colors.outline, size: 22),
+              SizedBox(width: spacing.sp1),
+              Expanded(
+                child: Text(
+                  describedLabel,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.outline,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        SizedBox(height: spacing.sp1),
-        Text(
-          imageCount == 0
-              ? l10n.postComposePhotosLimitHelper(maxImages)
-              : l10n.postComposePhotosReorderHelper(imageCount, maxImages),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.outline,
-            fontWeight: FontWeight.w600,
+            ],
           ),
-        ),
+          SizedBox(height: spacing.sp1),
+          Text(
+            imageCount == 0
+                ? l10n.postComposePhotosLimitHelper(maxImages)
+                : l10n.postComposePhotosReorderHelper(imageCount, maxImages),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.outline,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1000,13 +1026,14 @@ class _AddPhotoCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.outline,
-                            fontWeight: FontWeight.w600,
+                        if (hasImages || supportsVideo)
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colors.outline,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

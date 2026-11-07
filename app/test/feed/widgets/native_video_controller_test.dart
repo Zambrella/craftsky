@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -25,7 +27,7 @@ void main() {
       await controller.dispose();
 
       expect(adapter.playOnOpen, isFalse);
-      expect(adapter.mutedBeforeOpen, isTrue);
+      expect(adapter.mutedBeforeOpen, isFalse);
       expect(adapter.selectedCaption?.language, 'en');
       expect(adapter.pauseCount, 2);
       expect(adapter.disposed, isTrue);
@@ -42,7 +44,7 @@ void main() {
     );
 
     expect(adapter.playOnOpen, isTrue);
-    expect(adapter.mutedBeforeOpen, isTrue);
+    expect(adapter.mutedBeforeOpen, isFalse);
   });
 
   test(
@@ -75,11 +77,68 @@ void main() {
     },
   );
 
+  test('late lifecycle callbacks do not access a disposed player', () async {
+    final adapter = _FakeAdapter();
+    final controller = NativeVideoController(adapter);
+    await controller.dispose();
+
+    await controller.setVisible(visible: false);
+    await controller.didEnterBackground();
+    await controller.pauseForCompetingPlayback();
+    await controller.didStartPlayback();
+    await controller.selectCaption(null);
+    await controller.open(Uri.parse('https://video.example/playlist.m3u8'));
+    await controller.dispose();
+
+    expect(adapter.pauseCount, 0);
+    expect(adapter.disposeCount, 1);
+    expect(adapter.playOnOpen, isNull);
+  });
+
+  test('disposal during mute setup prevents a later open', () async {
+    final adapter = _FakeAdapter()..muteGate = Completer<void>();
+    final controller = NativeVideoController(adapter);
+    final opening = controller.open(
+      Uri.parse('https://video.example/playlist.m3u8'),
+    );
+    await controller.dispose();
+    adapter.muteGate!.complete();
+    await opening;
+
+    expect(adapter.playOnOpen, isNull);
+    expect(adapter.disposeCount, 1);
+  });
+
   test('portrait video stays portrait in fullscreen', () {
     expect(
       nativeVideoFullscreenOrientations(isPortraitVideo: true),
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
     );
+  });
+
+  test('fullscreen keeps playback through visibility changes; '
+      'background and competing playback still pause', () async {
+    final coordinator = NativeVideoPlaybackCoordinator();
+    final adapter = _FakeAdapter()..isFullscreen = true;
+    final controller = NativeVideoController(
+      adapter,
+      playbackCoordinator: coordinator,
+    );
+    await controller.didStartPlayback();
+    await controller.setVisible(visible: false);
+    expect(adapter.pauseCount, 0);
+
+    await NativeVideoController(
+      _FakeAdapter(),
+      playbackCoordinator: coordinator,
+    ).didStartPlayback();
+    expect(adapter.pauseCount, 1);
+    await controller.didEnterBackground();
+    expect(adapter.pauseCount, 2);
+
+    adapter.isFullscreen = false;
+    await controller.setVisible(visible: false);
+    expect(adapter.pauseCount, 3);
   });
 
   test('landscape video rotates to landscape in fullscreen', () {
@@ -101,30 +160,45 @@ void main() {
   });
 }
 
-final class _FakeAdapter implements NativeVideoAdapter {
+final class _FakeAdapter implements NativeVideoFullscreenAdapter {
+  @override
+  bool isFullscreen = false;
   bool? playOnOpen;
   NativeVideoCaptionTrack? selectedCaption;
   int pauseCount = 0;
   bool disposed = false;
+  int disposeCount = 0;
+  Completer<void>? muteGate;
   bool mutedBeforeOpen = false;
-  bool _muted = false;
+  bool _muted = true;
 
   @override
   Future<void> open(Uri playlist, {required bool play}) async {
+    if (disposed) throw AssertionError('[Player] has been disposed');
     playOnOpen = play;
     mutedBeforeOpen = _muted;
   }
 
   @override
-  Future<void> pause() async => pauseCount++;
+  Future<void> pause() async {
+    if (disposed) throw AssertionError('[Player] has been disposed');
+    pauseCount++;
+  }
 
   @override
-  Future<void> setMuted({required bool muted}) async => _muted = muted;
+  Future<void> setMuted({required bool muted}) async {
+    if (disposed) throw AssertionError('[Player] has been disposed');
+    _muted = muted;
+    await muteGate?.future;
+  }
 
   @override
   Future<void> selectCaption(NativeVideoCaptionTrack? track) async =>
       selectedCaption = track;
 
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<void> dispose() async {
+    disposeCount++;
+    disposed = true;
+  }
 }

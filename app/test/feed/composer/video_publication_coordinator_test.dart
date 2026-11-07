@@ -12,6 +12,113 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 void main() {
+  test('cancel aborts transfer, awaits remote cancellation, '
+      'and never publishes a late proof', () async {
+    final transfer = Completer<VideoServiceResult>();
+    final started = Completer<void>();
+    final remote = Completer<void>();
+    var transportCanceled = false;
+    var remoteCalls = 0;
+    var published = false;
+    final coordinator = VideoPublicationCoordinator(
+      checkEligibility: () async => const VideoUploadLimits(canUpload: true),
+      authorize: () async => _authorization(),
+      upload:
+          ({
+            required authorizationHeader,
+            required cancelToken,
+            required bypassDeduplication,
+            required onProgress,
+          }) async {
+            unawaited(
+              cancelToken.whenCancel.then((_) {
+                transportCanceled = true;
+              }),
+            );
+            started.complete();
+            return await transfer.future;
+          },
+      poll: (_, _) async => throw StateError('must not poll'),
+      publish: (_, {required allowBlobRecovery}) async {
+        published = true;
+      },
+      wait: (_) async {},
+      onProgress: (_) {},
+      cancelRemote: () async {
+        remoteCalls++;
+        remote.complete();
+      },
+    );
+    final operation = coordinator.publish(altText: '', aspectRatio: null);
+    final expectation = expectLater(operation, throwsA(isA<DioException>()));
+    await started.future;
+    coordinator.cancel();
+    transfer.complete(
+      const VideoServiceResult(
+        outcome: VideoServiceOutcome.completed,
+        jobId: 'job',
+        blob: VideoServiceBlob(
+          cid: 'bafyvideo',
+          mimeType: 'video/mp4',
+          size: 10,
+        ),
+      ),
+    );
+    await expectation;
+    await remote.future;
+    expect(transportCanceled, isTrue);
+    expect(remoteCalls, 1);
+    expect(published, isFalse);
+  });
+
+  for (final failure in <Object>[
+    StateError('late failure'),
+    DioException(
+      requestOptions: RequestOptions(path: '/'),
+      type: DioExceptionType.connectionError,
+    ),
+  ]) {
+    test(
+      'cancellation remains typed when a ${failure.runtimeType} arrives late',
+      () async {
+        final limits = Completer<VideoUploadLimits>();
+        final stages = <VideoPublicationStage>[];
+        var terminals = 0;
+        final coordinator = VideoPublicationCoordinator(
+          checkEligibility: () => limits.future,
+          authorize: () async => throw StateError('authorization must not run'),
+          upload: ({
+            required authorizationHeader,
+            required cancelToken,
+            required bypassDeduplication,
+            required onProgress,
+          }) async => throw StateError('upload must not run'),
+          poll: (_, _) async => throw StateError('poll must not run'),
+          publish: (_, {required allowBlobRecovery}) async =>
+              fail('publish must not run'),
+          wait: (_) async {},
+          onProgress: (progress) => stages.add(progress.stage),
+          onTerminal: () => terminals++,
+        );
+        final publication = coordinator.publish(altText: '', aspectRatio: null);
+        final expectation = expectLater(
+          publication,
+          throwsA(
+            predicate<Object>(
+              (error) => error is DioException && CancelToken.isCancel(error),
+            ),
+          ),
+        );
+        coordinator.cancel();
+        limits.completeError(failure);
+        await expectation;
+        expect(stages.last, VideoPublicationStage.canceled);
+        expect(terminals, 1);
+        expect(coordinator.hasEphemeralState, isFalse);
+      },
+    );
+  }
+
   test(
     'AT-001 authorizes, uploads, polls, then publishes verified proof',
     () async {

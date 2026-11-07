@@ -316,6 +316,11 @@ type Config struct {
 	MaxImageUploadBytes               int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
 	LinkPreviewsEnabled               bool
 	ImageDecodeLimits                 api.ImageDecodeLimits
+	VideoProvider                     string
+	BunnyStreamLibraryID              string
+	BunnyStreamAPIKey                 Secret
+	BunnyStreamCDNHostname            string
+	BunnyCDNPurgeAPIKey               Secret
 	VideoServiceURL                   string
 	VideoPlaylistURLTemplate          string
 	VideoThumbnailURLTemplate         string
@@ -368,6 +373,11 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	_ = godotenv.Load(envFilePath)
 
 	cfg := Config{
+		VideoProvider:             getEnvWithDefault("VIDEO_PROVIDER", "bluesky"),
+		BunnyStreamLibraryID:      os.Getenv("BUNNY_STREAM_LIBRARY_ID"),
+		BunnyStreamAPIKey:         Secret(os.Getenv("BUNNY_STREAM_API_KEY")),
+		BunnyStreamCDNHostname:    os.Getenv("BUNNY_STREAM_CDN_HOSTNAME"),
+		BunnyCDNPurgeAPIKey:       Secret(os.Getenv("BUNNY_CDN_PURGE_API_KEY")),
 		Env:                       env,
 		DatabaseURL:               os.Getenv("DATABASE_URL"),
 		DevDID:                    os.Getenv("CRAFTSKY_DEV_DID"),
@@ -375,6 +385,15 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
 		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
 		RequiredPolicyVersion:     getEnvWithDefault("REQUIRED_POLICY_VERSION", "1"),
+	}
+	if cfg.VideoProvider != "bluesky" && cfg.VideoProvider != "bunny" {
+		return Config{}, fmt.Errorf("VIDEO_PROVIDER must be bluesky or bunny")
+	}
+	if cfg.VideoProvider == "bunny" && (cfg.BunnyStreamLibraryID == "" || cfg.BunnyStreamAPIKey == "" || cfg.BunnyStreamCDNHostname == "") {
+		return Config{}, fmt.Errorf("bunny video configuration is incomplete")
+	}
+	if cfg.VideoProvider == "bunny" && env == EnvProd && cfg.BunnyCDNPurgeAPIKey == "" {
+		return Config{}, fmt.Errorf("bunny CDN purge configuration is required in production")
 	}
 	if strings.TrimSpace(cfg.RequiredPolicyVersion) != cfg.RequiredPolicyVersion || cfg.RequiredPolicyVersion == "" || len(cfg.RequiredPolicyVersion) > 128 {
 		return Config{}, fmt.Errorf("REQUIRED_POLICY_VERSION must be 1-128 trimmed characters")
