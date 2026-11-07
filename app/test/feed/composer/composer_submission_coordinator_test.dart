@@ -1,8 +1,37 @@
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('canceling video submission silently keeps the snapshot '
+      'and releases the overlay', () async {
+    final events = <String>[];
+    final coordinator = ComposerSubmissionCoordinator(
+      screenAwake: _RecordingScreenAwake(events),
+    );
+    final token = CancelToken()..cancel();
+    await coordinator.run(
+      presentOverlay: () async => events.add('present'),
+      ownershipIsCurrent: () => true,
+      saveOriginSnapshot: () async => events.add('snapshot'),
+      operation: () async => throw token.cancelError!,
+      didSucceed: () => false,
+      deleteOriginAfterSuccess: () async => events.add('delete'),
+      onRunningChanged: ({required running}) => events.add('running:$running'),
+      onFailure: (_) => events.add('failure'),
+    );
+    expect(events, [
+      'running:true',
+      'present',
+      'enable',
+      'snapshot',
+      'disable',
+      'running:false',
+    ]);
+    expect(coordinator.isRunning, isFalse);
+  });
+
   test(
     'orders presentation, snapshot, operation, cleanup, and release',
     () async {

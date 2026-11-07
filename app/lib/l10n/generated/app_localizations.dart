@@ -160,6 +160,24 @@ abstract class AppLocalizations {
   /// **'Home'**
   String get homeTitle;
 
+  /// Home tab showing posts by accounts followed by people you follow.
+  ///
+  /// In en, this message translates to:
+  /// **'Extended network'**
+  String get homeExtendedNetworkTab;
+
+  /// Empty state for the extended network feed.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts from people followed by accounts you follow will appear here.'**
+  String get feedExtendedNetworkEmpty;
+
+  /// The followed account connecting the viewer to an extended network post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Followed by {name}'**
+  String postFollowedBy(String name);
+
   /// Home tab showing the chronological timeline from followed accounts.
   ///
   /// In en, this message translates to:
@@ -2518,6 +2536,12 @@ abstract class AppLocalizations {
   /// **'Go back'**
   String get postComposeMissingAltCancel;
 
+  /// Heading above the empty composer media attachment picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Media'**
+  String get postComposeMediaTitle;
+
   /// Heading above the post composer photo attachment controls.
   ///
   /// In en, this message translates to:
@@ -2626,6 +2650,24 @@ abstract class AppLocalizations {
   /// **'Take a photo'**
   String get postComposeTakePhoto;
 
+  /// Small limit text under the camera option in the post media picker.
+  ///
+  /// In en, this message translates to:
+  /// **'1 photo · up to {megabytes} MB'**
+  String postComposeCameraLimits(int megabytes);
+
+  /// Small count and source-file size limits under the photo picker option.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 photo} other{Up to {count} photos}} · {megabytes} MB each'**
+  String postComposePhotoPickerLimits(int count, int megabytes);
+
+  /// Small format, duration and source-file size limits under the video picker option.
+  ///
+  /// In en, this message translates to:
+  /// **'MP4 or MOV · up to {minutes} min · {megabytes} MB'**
+  String postComposeVideoPickerLimits(int minutes, int megabytes);
+
   /// Existing-video choice in the composer media picker.
   ///
   /// In en, this message translates to:
@@ -2722,16 +2764,46 @@ abstract class AppLocalizations {
   /// **'Your account provider doesn\'t support video uploads yet.'**
   String get postVideoProviderUnsupported;
 
+  /// Shown when a selected video exceeds the source file size limit.
+  ///
+  /// In en, this message translates to:
+  /// **'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.'**
+  String get postVideoSourceTooLarge;
+
+  /// Shown when a selected video exceeds the duration limit.
+  ///
+  /// In en, this message translates to:
+  /// **'This video is too long. Videos must be ten minutes or shorter. Trim it and try again.'**
+  String get postVideoSourceTooLong;
+
+  /// Shown when the selected video's file header is not a supported container.
+  ///
+  /// In en, this message translates to:
+  /// **'This video format isn\'t supported. Choose an MP4 or MOV file.'**
+  String get postVideoSourceUnsupported;
+
+  /// Safe fallback when video selection or metadata preparation fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t add this video. Try again, or choose another MP4 or MOV file.'**
+  String get postVideoSelectionFailed;
+
   /// Actionable failure for service-side video validation.
   ///
   /// In en, this message translates to:
-  /// **'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.'**
+  /// **'The video service couldn\'t accept this video. Check its size and duration, then try another file.'**
   String get postVideoValidationFailed;
+
+  /// PDS upload timed out after successful video encoding.
+  ///
+  /// In en, this message translates to:
+  /// **'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'**
+  String get postVideoUploadTimedOut;
 
   /// Actionable failure for video processing.
   ///
   /// In en, this message translates to:
-  /// **'The video couldn\'t be processed. Retry or choose another MP4.'**
+  /// **'The video couldn\'t be processed. Retry or choose another video.'**
   String get postVideoProcessingFailed;
 
   /// Safe retryable fallback for video publication failures.
@@ -2751,6 +2823,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Captions off'**
   String get postVideoCaptionsOff;
+
+  /// Accessible label on a static video thumbnail in quoted and saved post summaries.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get postVideoPreviewLabel;
 
   /// Tooltip for playing a native video.
   ///
@@ -8342,6 +8420,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not copy link. Please try again.'**
   String get recordCopyLinkFailed;
+
+  /// Title of the local video inspection and description page.
+  ///
+  /// In en, this message translates to:
+  /// **'Video details'**
+  String get postComposeVideoDetailsTitle;
+
+  /// Shown when local preview preparation fails without removing the selected attachment.
+  ///
+  /// In en, this message translates to:
+  /// **'This video can’t be previewed here. You can still add a description and publish it.'**
+  String get postVideoLocalPreviewUnavailable;
 
   /// Title of the photo attachment editing page.
   ///

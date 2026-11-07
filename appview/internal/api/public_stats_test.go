@@ -69,7 +69,7 @@ func TestPublicStatsHandler(t *testing.T) {
 func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	ctx := context.Background()
 	pool := testdb.WithSchema(t, publicPageDDL)
-	if err := testdb.ApplyMigrations(ctx, pool, "000114_profile_guest_visibility.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(ctx, pool, "000118_profile_guest_visibility.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	store := api.NewPublicStatsStore(pool)

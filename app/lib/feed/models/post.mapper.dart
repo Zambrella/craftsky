@@ -1945,6 +1945,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       MapperContainer.globals.useAll([AtUriMapper(), CidMapper()]);
       PostAuthorMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
+      PostVideoMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
       ExternalImportMapper.ensureInitialized();
       PostExternalMapper.ensureInitialized();
@@ -2004,6 +2005,12 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     _$images,
     opt: true,
   );
+  static PostVideo? _$video(QuotePreviewPost v) => v.video;
+  static const Field<QuotePreviewPost, PostVideo> _f$video = Field(
+    'video',
+    _$video,
+    opt: true,
+  );
   static Project? _$project(QuotePreviewPost v) => v.project;
   static const Field<QuotePreviewPost, Project> _f$project = Field(
     'project',
@@ -2032,6 +2039,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #editedAt: _f$editedAt,
     #recordRevision: _f$recordRevision,
     #images: _f$images,
+    #video: _f$video,
     #project: _f$project,
     #externalImport: _f$externalImport,
     #external: _f$external,
@@ -2050,6 +2058,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       editedAt: data.dec(_f$editedAt),
       recordRevision: data.dec(_f$recordRevision),
       images: data.dec(_f$images),
+      video: data.dec(_f$video),
       project: data.dec(_f$project),
       externalImport: data.dec(_f$externalImport),
       external: data.dec(_f$external),
@@ -2121,6 +2130,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
   PostAuthorCopyWith<$R, PostAuthor, PostAuthor> get author;
   ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
   get images;
+  PostVideoCopyWith<$R, PostVideo, PostVideo>? get video;
   ProjectCopyWith<$R, Project, Project>? get project;
   ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
   get externalImport;
@@ -2135,6 +2145,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     DateTime? editedAt,
     String? recordRevision,
     List<PostImage>? images,
+    PostVideo? video,
     Project? project,
     ExternalImport? externalImport,
     PostExternal? external,
@@ -2165,6 +2176,9 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
         )
       : null;
   @override
+  PostVideoCopyWith<$R, PostVideo, PostVideo>? get video =>
+      $value.video?.copyWith.$chain((v) => call(video: v));
+  @override
   ProjectCopyWith<$R, Project, Project>? get project =>
       $value.project?.copyWith.$chain((v) => call(project: v));
   @override
@@ -2185,6 +2199,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     Object? editedAt = $none,
     Object? recordRevision = $none,
     Object? images = $none,
+    Object? video = $none,
     Object? project = $none,
     Object? externalImport = $none,
     Object? external = $none,
@@ -2199,6 +2214,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (editedAt != $none) #editedAt: editedAt,
       if (recordRevision != $none) #recordRevision: recordRevision,
       if (images != $none) #images: images,
+      if (video != $none) #video: video,
       if (project != $none) #project: project,
       if (externalImport != $none) #externalImport: externalImport,
       if (external != $none) #external: external,
@@ -2215,6 +2231,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     editedAt: data.get(#editedAt, or: $value.editedAt),
     recordRevision: data.get(#recordRevision, or: $value.recordRevision),
     images: data.get(#images, or: $value.images),
+    video: data.get(#video, or: $value.video),
     project: data.get(#project, or: $value.project),
     externalImport: data.get(#externalImport, or: $value.externalImport),
     external: data.get(#external, or: $value.external),

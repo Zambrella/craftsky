@@ -1582,5 +1582,23 @@
     "path": "/v1/public/posts/{did}/{rkey}/video-captions/{captionCid}",
     "category": "appview.public.posts.read",
     "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/feed/extended-network",
+    "category": "appview.feed.extended-network",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/status",
+    "category": "appview.blobs.videos.status",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/cancel",
+    "category": "appview.blobs.videos.cancel",
+    "public": false
   }
 ]

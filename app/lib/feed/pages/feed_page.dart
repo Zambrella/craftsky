@@ -37,10 +37,16 @@ import 'package:material_ui/material_ui.dart';
 const _autoLoadMoreThreshold = 3;
 
 class FeedPage extends ConsumerStatefulWidget {
-  const new({this.embedded = false, this.active = true, super.key});
+  const new({
+    this.embedded = false,
+    this.active = true,
+    this.extendedNetwork = false,
+    super.key,
+  });
 
   final bool embedded;
   final bool active;
+  final bool extendedNetwork;
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
@@ -54,6 +60,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
   final _scrollController = ScrollController();
   var _isPastScrollThreshold = false;
   var _isPinchingImage = false;
+  var _wasActive = false;
 
   @override
   void initState() {
@@ -72,8 +79,14 @@ class _FeedPageState extends ConsumerState<FeedPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (widget.extendedNetwork && !widget.active && !_wasActive) {
+      return const SizedBox.shrink();
+    }
+    _wasActive = _wasActive || widget.active;
     final l10n = AppLocalizations.of(context);
-    final timelineAsync = ref.watch(timelineProvider);
+    final timelineAsync = widget.extendedNetwork
+        ? ref.watch(extendedNetworkProvider)
+        : ref.watch(timelineProvider);
     final hasItems = timelineAsync.value?.items.isNotEmpty ?? false;
     final isCompact = FormFactor.fromWidth(
       MediaQuery.sizeOf(context).width,
@@ -82,7 +95,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
       ..listen(feedReselectProvider, (_, _) {
         if (!widget.active) return;
         _scrollToTop();
-        ref.invalidate(timelineProvider);
+        _invalidate();
       })
       ..listen(deletePostProvider, (previous, next) {
         if (!widget.active) return;
@@ -118,7 +131,11 @@ class _FeedPageState extends ConsumerState<FeedPage>
                 !_isPinchingImage &&
                 defaultScrollNotificationPredicate(notification),
             onRefresh: () async {
-              final _ = await ref.refresh(timelineProvider.future);
+              if (widget.extendedNetwork) {
+                final _ = await ref.refresh(extendedNetworkProvider.future);
+              } else {
+                final _ = await ref.refresh(timelineProvider.future);
+              }
             },
             headerSliverCount: widget.embedded ? 0 : 1,
             controller: _scrollController,
@@ -128,7 +145,11 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   leading: AppShellDrawerScope.maybeOf(context) == null
                       ? null
                       : const AppShellDrawerButton(),
-                  title: Text(l10n.feedTitle),
+                  title: Text(
+                    widget.extendedNetwork
+                        ? l10n.homeExtendedNetworkTab
+                        : l10n.feedTitle,
+                  ),
                   pinned: true,
                 ),
               switch (timelineAsync) {
@@ -137,9 +158,10 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   hasMore: value.hasMore,
                   isLoadingMore: timelineAsync.isLoading,
                   hasLoadMoreError: timelineAsync.hasError,
+                  extendedNetwork: widget.extendedNetwork,
                 ),
                 _ when timelineAsync.hasError => _FeedErrorSliver(
-                  onRetry: () => ref.invalidate(timelineProvider),
+                  onRetry: _invalidate,
                 ),
                 _ => CraftskySkeletonSliverList(
                   itemCount: 3,
@@ -189,6 +211,14 @@ class _FeedPageState extends ConsumerState<FeedPage>
     setState(() => _isPastScrollThreshold = isPastThreshold);
   }
 
+  void _invalidate() {
+    if (widget.extendedNetwork) {
+      ref.invalidate(extendedNetworkProvider);
+    } else {
+      ref.invalidate(timelineProvider);
+    }
+  }
+
   void _handleImagePinchChanged(bool active) {
     if (_isPinchingImage == active || !mounted) return;
     // The refresh surface cancels multi-pointer pulls itself. Keep its
@@ -226,12 +256,18 @@ class _FeedLoadedSlivers extends ConsumerWidget {
     required this.hasMore,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
+    this.extendedNetwork = false,
   });
 
   final List<TimelineItem> items;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
+  final bool extendedNetwork;
+
+  Future<void> _loadMore(WidgetRef ref) => extendedNetwork
+      ? ref.read(extendedNetworkProvider.notifier).loadMore()
+      : ref.read(timelineProvider.notifier).loadMore();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -244,11 +280,18 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             hasScrollBody: false,
             child: CraftskyEmptyState(
               icon: CraftskyIcons.home,
-              title: l10n.feedTitle,
-              subtitle: l10n.feedEmpty,
-              actionLabel: l10n.feedConnectInstagramAction,
-              onAction: () =>
-                  const InstagramMigrationRoute().push<void>(context),
+              title: extendedNetwork
+                  ? l10n.homeExtendedNetworkTab
+                  : l10n.feedTitle,
+              subtitle: extendedNetwork
+                  ? l10n.feedExtendedNetworkEmpty
+                  : l10n.feedEmpty,
+              actionLabel: extendedNetwork
+                  ? null
+                  : l10n.feedConnectInstagramAction,
+              onAction: extendedNetwork
+                  ? null
+                  : () => const InstagramMigrationRoute().push<void>(context),
               additionalActions: [
                 TextButton(
                   onPressed: () => const SearchRoute().go(context),
@@ -278,7 +321,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                   index >= items.length - _autoLoadMoreThreshold) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
-                    unawaited(ref.read(timelineProvider.notifier).loadMore());
+                    unawaited(_loadMore(ref));
                   }
                 });
               }
@@ -292,6 +335,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: true,
                 repostReason: item.reason,
+                followedBy: item.followedBy,
                 onTap: () => PostThreadRoute(
                   did: post.author.did,
                   rkey: post.rkey,
@@ -332,8 +376,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 child: switch ((isLoadingMore, hasLoadMoreError)) {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
-                    onPressed: () =>
-                        ref.read(timelineProvider.notifier).loadMore(),
+                    onPressed: () => _loadMore(ref),
                     icon: const Icon(CraftskyIconsBold.refresh),
                     label: Text(l10n.retryButton),
                   ),

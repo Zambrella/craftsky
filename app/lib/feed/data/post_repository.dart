@@ -159,6 +159,9 @@ abstract interface class PostRepository {
   /// GET /v1/feed/timeline — authenticated home timeline, paginated.
   Future<TimelinePage> listTimeline({String? cursor, int? limit});
 
+  /// GET /v1/feed/extended-network — posts by second-degree connections.
+  Future<TimelinePage> listExtendedNetwork({String? cursor, int? limit});
+
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first, paginated.
   Future<PostPage> listCommentsByAuthor(
     String handleOrDid, {

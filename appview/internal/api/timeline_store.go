@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 )
 
@@ -18,6 +20,16 @@ type TimelineFeedItemRow struct {
 	ActivityAt time.Time
 	Post       *PostRow
 	Repost     *TimelineRepostReasonRow
+	FollowedBy *TimelineFollowedByRow
+}
+
+// TimelineFollowedByRow identifies one visible first-degree connection who
+// follows the post author. It is attribution, not feed ordering.
+type TimelineFollowedByRow struct {
+	DID         syntax.DID
+	DisplayName *string
+	AvatarCID   *string
+	AvatarMime  *string
 }
 
 // TimelineRepostReasonRow is the store-level attribution for a straight
@@ -223,6 +235,10 @@ func decodeTimelineCursor(cursor string) (any, any, error) {
 	if cursor == "" {
 		return nil, nil, nil
 	}
+	return decodeTimelineCursorPayload(cur)
+}
+
+func decodeTimelineCursorPayload(cur map[string]any) (any, any, error) {
 	if len(cur) != 2 {
 		return nil, nil, envelope.ErrInvalidCursor
 	}

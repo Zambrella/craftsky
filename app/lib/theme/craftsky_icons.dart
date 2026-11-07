@@ -44,6 +44,7 @@ abstract final class CraftskyIcons {
   static const IconData events = PhosphorIconsRegular.calendar;
   static const IconData eventUnavailable = PhosphorIconsRegular.calendarX;
   static const IconData expand = PhosphorIconsRegular.caretDown;
+  static const IconData extendedNetwork = PhosphorIconsRegular.graph;
   static const IconData externalLink = PhosphorIconsRegular.arrowSquareOut;
   static const IconData fileVideo = PhosphorIconsRegular.fileVideo;
   static const IconData filter = PhosphorIconsRegular.funnelSimple;
@@ -86,6 +87,7 @@ abstract final class CraftskyIcons {
   static const IconData pin = PhosphorIconsRegular.pushPin;
   static const IconData pinned = PhosphorIconsFill.pushPin;
   static const IconData play = PhosphorIconsFill.playCircle;
+  static const IconData video = PhosphorIconsRegular.videoCamera;
   static const IconData previous = PhosphorIconsRegular.caretLeft;
   static const IconData privacy = PhosphorIconsRegular.shieldCheck;
   static const IconData privacySettings = PhosphorIconsRegular.lockKey;

@@ -156,8 +156,10 @@ Future<GoRouter> _pumpSidebar(
             ),
           GoRoute(
             path: '/feed',
-            builder: (context, state) =>
-                HomePage(craft: state.uri.queryParameters['craft']),
+            builder: (context, state) => HomePage(
+              craft: state.uri.queryParameters['craft'],
+              source: state.uri.queryParameters['source'],
+            ),
           ),
           GoRoute(
             path: '/projects',

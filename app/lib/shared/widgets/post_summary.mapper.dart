@@ -67,6 +67,13 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     _$image,
     opt: true,
   );
+  static bool _$isVideo(PostSummaryData v) => v.isVideo;
+  static const Field<PostSummaryData, bool> _f$isVideo = Field(
+    'isVideo',
+    _$isVideo,
+    opt: true,
+    def: false,
+  );
   static ExternalImport? _$externalImport(PostSummaryData v) =>
       v.externalImport;
   static const Field<PostSummaryData, ExternalImport> _f$externalImport = Field(
@@ -104,6 +111,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     #editedAt: _f$editedAt,
     #projectTitle: _f$projectTitle,
     #image: _f$image,
+    #isVideo: _f$isVideo,
     #externalImport: _f$externalImport,
     #external: _f$external,
     #sponsored: _f$sponsored,
@@ -119,6 +127,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
       editedAt: data.dec(_f$editedAt),
       projectTitle: data.dec(_f$projectTitle),
       image: data.dec(_f$image),
+      isVideo: data.dec(_f$isVideo),
       externalImport: data.dec(_f$externalImport),
       external: data.dec(_f$external),
       sponsored: data.dec(_f$sponsored),
@@ -175,6 +184,7 @@ abstract class PostSummaryDataCopyWith<$R, $In extends PostSummaryData, $Out>
     DateTime? editedAt,
     String? projectTitle,
     PostImage? image,
+    bool? isVideo,
     ExternalImport? externalImport,
     PostExternal? external,
     bool? sponsored,
@@ -215,6 +225,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     Object? editedAt = $none,
     Object? projectTitle = $none,
     Object? image = $none,
+    bool? isVideo,
     Object? externalImport = $none,
     Object? external = $none,
     bool? sponsored,
@@ -228,6 +239,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
       if (editedAt != $none) #editedAt: editedAt,
       if (projectTitle != $none) #projectTitle: projectTitle,
       if (image != $none) #image: image,
+      if (isVideo != null) #isVideo: isVideo,
       if (externalImport != $none) #externalImport: externalImport,
       if (external != $none) #external: external,
       if (sponsored != null) #sponsored: sponsored,
@@ -243,6 +255,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     editedAt: data.get(#editedAt, or: $value.editedAt),
     projectTitle: data.get(#projectTitle, or: $value.projectTitle),
     image: data.get(#image, or: $value.image),
+    isVideo: data.get(#isVideo, or: $value.isVideo),
     externalImport: data.get(#externalImport, or: $value.externalImport),
     external: data.get(#external, or: $value.external),
     sponsored: data.get(#sponsored, or: $value.sponsored),

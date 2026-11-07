@@ -28,7 +28,12 @@
 	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
 	const guest = $derived(api.audience === 'guest');
-	type FeedItem = { key: string; post: PostPresentation; reason?: Author };
+	type FeedItem = {
+		key: string;
+		post: PostPresentation;
+		reason?: Author;
+		followedBy?: Author;
+	};
 	type FeedSnapshot = {
 		profile?: Profile;
 		items: FeedItem[];
@@ -46,7 +51,7 @@
 	let loadedPages = snapshot?.pages || 0;
 	let disposed = false;
 	let loaded = !!snapshot;
-	const work = new Work('social.Feed.action');
+	let work = $state(new Work('social.Feed.action'));
 	let profile = $state<Profile | undefined>(
 		snapshot?.profile ?? untrack(() => currentProfile?.())
 	);
@@ -57,6 +62,11 @@
 			historyView?.save({ profile, items, cursor, pages: loadedPages });
 	}
 	const craft = page.url.searchParams.get('craft') || '';
+	const extendedNetwork = $derived(
+		!guest &&
+			!craft &&
+			page.url.searchParams.get('source') === 'extended-network'
+	);
 	const filters = browseFilters(page.url.searchParams);
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
@@ -64,7 +74,10 @@
 	const displayedItems = $derived.by(() => {
 		const merged = publications?.merge(
 			items.map((item) => item.post),
-			(post) => !post.reply && (!craft || matchesProject(post, craft, filters))
+			(post) =>
+				!extendedNetwork &&
+				!post.reply &&
+				(!craft || matchesProject(post, craft, filters))
 		);
 		if (!merged) return items;
 		// Several timeline activities can present the same post. Match each
@@ -81,6 +94,7 @@
 		});
 	});
 	async function load(more = false) {
+		const request = historyView?.beginLoad();
 		await work.run(
 			async () => {
 				if (!guest && !profile) profile = await api.profiles.me();
@@ -89,12 +103,15 @@
 					cursor: more ? cursor : undefined
 				};
 				if (!craft && !guest) {
-					const result = await api.posts.timeline(options);
+					const result = await (extendedNetwork
+						? api.posts.extendedNetwork(options)
+						: api.posts.timeline(options));
 					return {
 						items: result.items.map((item) => ({
 							key: item.itemKey,
 							post: item.post,
-							reason: item.reason?.by
+							reason: item.reason?.by,
+							followedBy: item.followedBy
 						})),
 						cursor: result.cursor
 					};
@@ -126,6 +143,7 @@
 				};
 			},
 			(result) => {
+				if (request && !request.isCurrent()) return;
 				publications?.observe(result.items.map((item) => item.post));
 				items = more
 					? appendPage(items, result.items, (item) => item.key)
@@ -133,14 +151,22 @@
 				cursor = result.cursor || null;
 				loadedPages = more ? loadedPages + 1 : 1;
 				loaded = true;
-				saveView();
+				if (request)
+					request.save({ profile, items, cursor, pages: loadedPages });
+				else saveView();
 			},
 			undefined,
 			'social.Feed.load'
 		);
 	}
 	onMount(() => {
-		const refresh = () => void load();
+		const refresh = () => {
+			work.dispose();
+			work = new Work('social.Feed.action');
+			work.hasLoaded = loaded;
+			void load();
+		};
+		const unsubscribe = historyView?.onInvalidate(refresh);
 		window.addEventListener('craftsky-refresh', refresh);
 		void (async () => {
 			if (!snapshot) {
@@ -151,7 +177,10 @@
 			} else work.hasLoaded = true;
 			historyView?.ready();
 		})();
-		return () => window.removeEventListener('craftsky-refresh', refresh);
+		return () => {
+			unsubscribe?.();
+			window.removeEventListener('craftsky-refresh', refresh);
+		};
 	});
 	onDestroy(() => {
 		disposed = true;
@@ -187,11 +216,19 @@
 			</div>{/if}
 	</div>
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">
-		<a href="/feed" aria-current={!craft ? 'page' : undefined}
+		<a
+			href="/feed"
+			aria-current={!craft && !extendedNetwork ? 'page' : undefined}
 			><Icon name={guest ? 'home' : 'users'} size={18} />{guest
 				? 'All crafts'
 				: 'Following'}</a
-		>{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
+		>
+		{#if !guest}<a
+				href="/feed?source=extended-network"
+				aria-current={extendedNetwork ? 'page' : undefined}
+				><Icon name="extendedNetwork" size={18} />Extended network</a
+			>{/if}
+		{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
 				craftKey(item.id)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
@@ -210,17 +247,26 @@
 	/>{#each displayedItems as item (item.key)}<MemberPost
 			value={item.post}
 			reason={item.reason}
+			followedBy={item.followedBy}
 			{api}
 			{did}
 			onRemove={() => (items = items.filter((old) => old.key !== item.key))}
 		/>{:else}{#if !work.busy && !work.error}<EmptyState
-				title={craft ? label(craft) : 'Feed'}
+				title={craft
+					? label(craft)
+					: extendedNetwork
+						? 'Extended network'
+						: 'Feed'}
 				detail={craft
 					? 'No projects match these filters yet.'
-					: 'Your feed is quiet.'}
+					: extendedNetwork
+						? 'Posts from people followed by accounts you follow will appear here.'
+						: 'Your feed is quiet.'}
 				icon="home"
 			>
-				{#snippet actions()}{#if !craft && !guest}<a href="/settings/instagram"
+				{#snippet actions()}{#if extendedNetwork}<a href="/feed">Following</a><a
+							href="/search">Search CraftSky</a
+						>{:else if !craft && !guest}<a href="/settings/instagram"
 							>Connect Instagram</a
 						><a href="/search">Search CraftSky</a><a
 							href={'/feed?craft=' +

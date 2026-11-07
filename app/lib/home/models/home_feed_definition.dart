@@ -1,6 +1,6 @@
 import 'package:craftsky_app/projects/options/project_option.dart';
 
-enum HomeFeedSource { following, projects }
+enum HomeFeedSource { following, extendedNetwork, projects }
 
 /// Stable identity and capabilities, independent of tab order and presentation.
 /// Additional built-in sources and saved queries can join this catalog later.
@@ -13,6 +13,12 @@ class HomeFeedDefinition {
   const new following()
     : id = 'following',
       source = HomeFeedSource.following,
+      craftType = null,
+      label = null;
+
+  const new extendedNetwork()
+    : id = 'extended-network',
+      source = HomeFeedSource.extendedNetwork,
       craftType = null,
       label = null;
 

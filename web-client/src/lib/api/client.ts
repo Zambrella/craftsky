@@ -32,6 +32,10 @@ const acceptedEdit = (value: Record<string, unknown>) =>
 	typeof value.changed === 'boolean' &&
 	(!value.changed || typeof value.editedAt === 'string');
 
+export interface CraftskyAPIOptions extends TransportOptions {
+	onRelationshipChanged?: () => void;
+}
+
 /** Feature-specific methods mirror the Flutter clients and AppView camelCase wire contracts. */
 export class CraftskyAPI {
 	readonly loggedOutVisibility = {
@@ -60,9 +64,14 @@ export class CraftskyAPI {
 	constructor(
 		fetcher: Fetcher = fetch,
 		basePath = '/api/appview',
-		options: TransportOptions = {}
+		private readonly options: CraftskyAPIOptions = {}
 	) {
 		this.transport = new APITransport(fetcher, basePath, options);
+	}
+	private async relationshipMutation<T>(request: Promise<T>): Promise<T> {
+		const result = await request;
+		this.options.onRelationshipChanged?.();
+		return result;
 	}
 	readonly account = {
 		whoami: () => this.transport.get<T.WhoAmI>('/v1/whoami'),
@@ -106,6 +115,12 @@ export class CraftskyAPI {
 		timeline: (options: T.PageQuery = {}) =>
 			this.transport.page<T.TimelineItem>(
 				'/v1/feed/timeline',
+				pageQuery(options),
+				options.signal
+			),
+		extendedNetwork: (options: T.PageQuery = {}) =>
+			this.transport.page<T.TimelineItem>(
+				'/v1/feed/extended-network',
 				pageQuery(options),
 				options.signal
 			),
@@ -254,36 +269,52 @@ export class CraftskyAPI {
 				options.signal
 			),
 		follow: (id: string, operationKey: string) =>
-			this.transport.request<T.Profile>('POST', `${profilePath(id)}/follows`, {
-				operationKey
-			}),
+			this.relationshipMutation(
+				this.transport.request<T.Profile>(
+					'POST',
+					`${profilePath(id)}/follows`,
+					{
+						operationKey
+					}
+				)
+			),
 		unfollow: (id: string, operationKey: string) =>
-			this.transport.request<T.Profile>(
-				'DELETE',
-				`${profilePath(id)}/follows`,
-				{ operationKey }
+			this.relationshipMutation(
+				this.transport.request<T.Profile>(
+					'DELETE',
+					`${profilePath(id)}/follows`,
+					{ operationKey }
+				)
 			),
 		mute: (id: string) =>
-			this.transport.request<T.Relationship>(
-				'POST',
-				`${profilePath(id)}/mutes`
+			this.relationshipMutation(
+				this.transport.request<T.Relationship>(
+					'POST',
+					`${profilePath(id)}/mutes`
+				)
 			),
 		unmute: (id: string) =>
-			this.transport.request<T.Relationship>(
-				'DELETE',
-				`${profilePath(id)}/mutes`
+			this.relationshipMutation(
+				this.transport.request<T.Relationship>(
+					'DELETE',
+					`${profilePath(id)}/mutes`
+				)
 			),
 		block: (id: string, operationKey: string) =>
-			this.transport.request<T.Relationship>(
-				'POST',
-				`${profilePath(id)}/blocks`,
-				{ operationKey }
+			this.relationshipMutation(
+				this.transport.request<T.Relationship>(
+					'POST',
+					`${profilePath(id)}/blocks`,
+					{ operationKey }
+				)
 			),
 		unblock: (id: string, operationKey: string) =>
-			this.transport.request<void>('DELETE', `${profilePath(id)}/blocks`, {
-				operationKey,
-				response: 'empty'
-			}),
+			this.relationshipMutation(
+				this.transport.request<void>('DELETE', `${profilePath(id)}/blocks`, {
+					operationKey,
+					response: 'empty'
+				})
+			),
 		relationships: (
 			kind: 'followers' | 'following' | 'mutes' | 'blocks',
 			options: T.PageQuery = {}
@@ -846,6 +877,25 @@ export class CraftskyAPI {
 				'POST',
 				'/v1/blobs/videos/authorization'
 			),
+		cancelVideo: (jobId: string, signal?: AbortSignal) =>
+			this.transport.request<void>(
+				'POST',
+				`/v1/blobs/videos/${segment(jobId)}/cancel`,
+				{ signal }
+			),
+		videoStatus: (jobId: string, signal?: AbortSignal) => {
+			if (
+				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+					jobId
+				)
+			)
+				throw new TypeError('Invalid video job');
+			return this.transport.request<{ jobStatus: T.JsonObject }>(
+				'POST',
+				`/v1/blobs/videos/${segment(jobId)}/status`,
+				{ signal }
+			);
+		},
 		caption: (did: string, rkey: string, cid: string, signal?: AbortSignal) =>
 			this.transport.request<string>(
 				'GET',

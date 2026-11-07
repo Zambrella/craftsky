@@ -130,6 +130,7 @@ void _invalidateLikeReads(Ref ref, Post post) {
     ..invalidate(postCommentSectionProvider)
     ..invalidate(postQuotesProvider)
     ..invalidate(timelineProvider)
+    ..invalidate(extendedNetworkProvider)
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userRepostsProvider)

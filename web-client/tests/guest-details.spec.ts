@@ -257,9 +257,16 @@ for (const navigation of ['author', 'posts'] as const) {
 				page.getByText('EXCLUDED_AFTER_REFRESH', { exact: true })
 			).toBeVisible();
 			await request.get('http://127.0.0.1:19851/_profile-refresh/advance');
-			const incoming = page
-				.waitForResponse((response) => response.url().includes('__data.json'))
-				.then((response) => response.text());
+			let resolveIncoming!: (payload: string) => void;
+			const incoming = new Promise<string>((resolve) => {
+				resolveIncoming = resolve;
+			});
+			await page.route('**/__data.json*', async (route) => {
+				const response = await route.fetch();
+				const body = await response.text();
+				resolveIncoming(body);
+				await route.fulfill({ response, body });
+			});
 			if (navigation === 'author')
 				await page
 					.locator('a[href="/profiles/did%3Aplc%3Arefresh"]')

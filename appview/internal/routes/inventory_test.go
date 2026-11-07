@@ -152,6 +152,8 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"POST /v1/admin/safety/holds/{holdId}/releases",
 
 		"POST /v1/blobs/images/authorization",
+		"POST /v1/blobs/videos/{jobId}/cancel",
+		"POST /v1/blobs/videos/{jobId}/status",
 		"POST /v1/blobs/videos/authorization",
 		"GET /v1/blobs/videos/limits",
 		"GET /v1/whoami",
@@ -249,6 +251,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/preferences/logged-out-visibility",
 		"PUT /v1/preferences/logged-out-visibility",
 		"GET /v1/feed/timeline",
+		"GET /v1/feed/extended-network",
 		"GET /v1/notifications",
 		"GET /v1/notifications/new-count",
 		"POST /v1/notifications/seen",

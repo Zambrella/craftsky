@@ -76,6 +76,7 @@ Future<void> _pumpProjects(
   List<ProjectOption>? craftTypes,
   Future<Profile>? profile,
   bool following = false,
+  String? source,
   FakePostRepository? timelineRepository,
 }) async {
   await tester.pumpWidget(
@@ -114,6 +115,7 @@ Future<void> _pumpProjects(
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: HomePage(
+          source: source,
           craft: following
               ? null
               : (craftTypes ?? ProjectOptionCatalogs.craftTypes).first.value
@@ -127,6 +129,122 @@ Future<void> _pumpProjects(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('Extended network retains its own rows, attribution and scroll', (
+    tester,
+  ) async {
+    var networkReads = 0;
+    var followingReads = 0;
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      following: true,
+      timelineRepository: FakePostRepository(
+        onListTimeline: ({cursor, limit}) async {
+          followingReads++;
+          return const TimelinePage(items: []);
+        },
+        onListExtendedNetwork: ({cursor, limit}) async {
+          networkReads++;
+          return TimelinePage(
+            items: [
+              for (var i = 0; i < 30; i++)
+                TimelineItem(
+                  itemKey: 'network:$i',
+                  post: _post(i),
+                  followedBy: PostAuthor(
+                    did: 'did:plc:bridge',
+                    handle: 'bridge.example',
+                    displayName: 'Bridge',
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      networkReads,
+      0,
+      reason: 'The network feed loads when first selected',
+    );
+    await tester.ensureVisible(find.text('Extended network'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Extended network'));
+    await tester.pumpAndSettle();
+    expect(find.text('Followed by Bridge'), findsWidgets);
+    expect(find.byTooltip('Filters'), findsNothing);
+    final scroll = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) => widget is FeedPage && widget.extendedNetwork,
+      ),
+      matching: find.byType(CustomScrollView),
+    );
+    double offset() =>
+        tester.widget<CustomScrollView>(scroll).controller!.position.pixels;
+    await tester.drag(scroll, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    final savedOffset = offset();
+    expect(savedOffset, greaterThan(200));
+    await tester.ensureVisible(find.text('Following'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Following'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Extended network'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Extended network'));
+    await tester.pumpAndSettle();
+    expect(networkReads, 1);
+    expect(followingReads, 1);
+    expect(offset(), closeTo(savedOffset, 0.01));
+  });
+
+  testWidgets('Extended network deep link opens its tab and empty state', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      following: true,
+      source: 'extended-network',
+      timelineRepository: FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            const TimelinePage(items: []),
+        onListExtendedNetwork: ({cursor, limit}) async =>
+            const TimelinePage(items: []),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 1);
+    expect(
+      find.text(
+        'Posts from people followed by accounts you follow will appear here.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Connect Instagram'), findsNothing);
+  });
+
+  testWidgets('Unknown feed source falls back to Following', (tester) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      following: true,
+      source: 'unknown',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+  });
 
   testWidgets('Home defaults to Feed and switches contextual controls', (
     tester,
@@ -169,6 +287,8 @@ void main() {
     expect(find.byType(SortMenuButton<SearchSort>), findsNothing);
     expect(timelineReads, 1);
     expect(queries, isEmpty);
+    await tester.ensureVisible(find.text('Knitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('New post'), findsNothing);
@@ -180,12 +300,16 @@ void main() {
         .onChanged(SearchSort.popular);
     await tester.pumpAndSettle();
     expect(queries.last.sort, SearchSort.popular);
+    await tester.ensureVisible(find.text('Crochet'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Crochet'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<SortMenuButton<SearchSort>>(sort).selectedValue,
       SearchSort.chronological,
     );
+    await tester.ensureVisible(find.text('Knitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
     await tester.pumpAndSettle();
     expect(
@@ -202,6 +326,8 @@ void main() {
       1,
       reason: 'Reselecting Home refreshes only the active craft',
     );
+    await tester.ensureVisible(find.text('Following'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Following'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('New post'), findsOneWidget);
@@ -249,7 +375,11 @@ void main() {
     await tester.pumpAndSettle();
     final offset = position().pixels;
     expect(offset, greaterThan(200));
+    await tester.ensureVisible(find.text('Knitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Following'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Following'));
     await tester.pumpAndSettle();
@@ -468,15 +598,17 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     expect(
       tabs.tabs
-          .skip(1)
+          .skip(2)
           .map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
       ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
     );
     expect(tabs.controller!.index, 0);
     expect(requestedCrafts, isEmpty);
+    await tester.ensureVisible(find.text('Sewing'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sewing'));
     await tester.pumpAndSettle();
-    expect(tabs.controller!.index, 2);
+    expect(tabs.controller!.index, 3);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(HomePage)),
     );
@@ -497,7 +629,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tabs.controller!.index,
-      1 +
+      2 +
           ProjectOptionCatalogs.craftTypesForPreferences(['quilting'])
               .indexWhere(
                 (craft) =>
@@ -505,6 +637,8 @@ void main() {
               ),
     );
     expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
+    await tester.ensureVisible(find.text('Quilting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Quilting'));
     await tester.pumpAndSettle();
     await tester.tap(
@@ -873,6 +1007,8 @@ void main() {
     expect(crochetOffset, greaterThan(200));
 
     // Tab taps and swipes must both restore the previous craft position.
+    await tester.ensureVisible(find.text('Knitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
     await tester.pumpAndSettle();
     expect(position(knitting).pixels, closeTo(knittingOffset, 0.01));
@@ -882,6 +1018,8 @@ void main() {
     expect(find.byTooltip('Back to top'), findsNothing);
     expect(tester.getTopLeft(find.byType(TabBar)), headerPosition);
 
+    await tester.ensureVisible(find.text('Crochet'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Crochet'));
     await tester.pumpAndSettle();
     expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
@@ -891,9 +1029,13 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     tabs.controller!.animateTo(tabs.tabs.length - 1);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Knitting'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
     await tester.pumpAndSettle();
     expect(position(knitting).pixels, 0);
+    await tester.ensureVisible(find.text('Crochet'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Crochet'));
     await tester.pumpAndSettle();
     expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
@@ -952,7 +1094,7 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     tabs.controller!.animateTo(tabs.tabs.length - 1);
     await tester.pumpAndSettle();
-    tabs.controller!.animateTo(1);
+    tabs.controller!.animateTo(2);
     await tester.pumpAndSettle();
     expect(requests[knitting], 1);
     expect(position().pixels, closeTo(offset, 0.01));

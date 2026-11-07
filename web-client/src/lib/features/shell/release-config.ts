@@ -5,9 +5,6 @@ import { authenticatedContext } from './page-context';
 export const subscriptionsEnabled = () =>
 	authenticatedContext(page.data)?.subscriptionsEnabled === true;
 
-export const videoUploadsEnabled = () =>
-	authenticatedContext(page.data)?.videoUploadsEnabled === true;
-
 export function comingSoon(feature: string) {
 	window.dispatchEvent(
 		new CustomEvent('craftsky-coming-soon', { detail: feature })

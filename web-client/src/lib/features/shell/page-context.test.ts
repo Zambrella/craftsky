@@ -7,8 +7,7 @@ describe('shared page context', () => {
 			const data = {
 				session: { id: 'account', did: 'did:plc:a', handle: 'a.test' },
 				accounts: [],
-				subscriptionsEnabled: enabled,
-				videoUploadsEnabled: enabled
+				subscriptionsEnabled: enabled
 			};
 			expect(authenticatedContext(data)).toEqual(data);
 			expect(authenticatedContext({ authenticated: data })).toEqual(data);

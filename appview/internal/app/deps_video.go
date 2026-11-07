@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -16,7 +17,10 @@ type videoDependencies struct {
 	uploadAuthorization api.VideoUploadAuthorizationIssuer
 	uploadLimits        api.VideoUploadLimitsService
 	completionVerifier  api.VideoCompletionVerifier
-	playback            *video.PlaybackURLBuilder
+	playback            api.PlaybackURLBuilder
+	bunny               *video.Bunny
+	cleanup             *video.BunnyCleanup
+	importExisting      func(context.Context, syntax.DID, syntax.CID) (string, error)
 	captionFetcher      api.VideoCaptionBlobFetcher
 }
 
@@ -42,7 +46,12 @@ func (verifier observedCompletionVerifier) Verify(ctx context.Context, owner syn
 	return verified, err
 }
 
-func newVideoDependencies(authCapability *authDependencies, federated *federatedClients, cfg Config, observer *observability.Observer) (*videoDependencies, error) {
+type bunnyDependencies struct {
+	pool    *pgxpool.Pool
+	effects api.BlobEffectFactory
+}
+
+func newVideoDependencies(authCapability *authDependencies, federated *federatedClients, cfg Config, observer *observability.Observer, options ...bunnyDependencies) (*videoDependencies, error) {
 	if authCapability == nil || authCapability.sessionCoordinator == nil || federated == nil || federated.pdsJSON == nil {
 		return nil, errors.New("video dependencies unavailable")
 	}
@@ -83,6 +92,21 @@ func newVideoDependencies(authCapability *authDependencies, federated *federated
 	captionFetcher, err := video.NewCaptionFetcher(federated.directory, federated.pdsBlob, federated.boundary)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.VideoProvider == "bunny" {
+		if len(options) != 1 || options[0].effects == nil {
+			return nil, errors.New("bunny dependencies unavailable")
+		}
+		factory := func(ctx context.Context, owner syntax.DID, session string) (video.BunnyBlobEffects, error) {
+			return options[0].effects(ctx, owner, session)
+		}
+		bunny, err := video.NewBunny(options[0].pool, cfg.BunnyStreamLibraryID, string(cfg.BunnyStreamAPIKey), cfg.BunnyStreamCDNHostname, factory, playback, authCapability.sessionCoordinator)
+		if err != nil {
+			return nil, err
+		}
+		return &videoDependencies{uploadAuthorization: bunny, uploadLimits: bunny, completionVerifier: bunny, playback: bunny, captionFetcher: captionFetcher, bunny: bunny, cleanup: video.NewBunnyCleanup(bunny, string(cfg.BunnyCDNPurgeAPIKey), observer), importExisting: func(ctx context.Context, owner syntax.DID, cid syntax.CID) (string, error) {
+			return bunny.ImportExisting(ctx, owner, cid, federated.directory, federated.boundary)
+		}}, nil
 	}
 	return &videoDependencies{
 		uploadAuthorization: uploadAuthorization, uploadLimits: uploadLimits,

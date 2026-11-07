@@ -43,7 +43,7 @@ void main() {
       );
       final subscription = container.listen(goRouterProvider, (_, _) {});
       addTearDown(subscription.close);
-      final router = subscription.read()..go('/feed');
+      final router = subscription.read()..go('/feed?source=extended-network');
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -58,6 +58,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(HomePage), findsOneWidget);
+      expect(find.text('Extended network'), findsNothing);
       await tester.ensureVisible(find.text('Explore CraftSky'));
       await tester.tap(find.text('Explore CraftSky'));
       await tester.pumpAndSettle();

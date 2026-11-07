@@ -208,6 +208,7 @@ class TimelineItemMapper extends ClassMapperBase<TimelineItem> {
       MapperContainer.globals.use(_instance = TimelineItemMapper._());
       PostMapper.ensureInitialized();
       RepostReasonMapper.ensureInitialized();
+      PostAuthorMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -228,12 +229,19 @@ class TimelineItemMapper extends ClassMapperBase<TimelineItem> {
     _$reason,
     opt: true,
   );
+  static PostAuthor? _$followedBy(TimelineItem v) => v.followedBy;
+  static const Field<TimelineItem, PostAuthor> _f$followedBy = Field(
+    'followedBy',
+    _$followedBy,
+    opt: true,
+  );
 
   @override
   final MappableFields<TimelineItem> fields = const {
     #itemKey: _f$itemKey,
     #post: _f$post,
     #reason: _f$reason,
+    #followedBy: _f$followedBy,
   };
   @override
   final bool ignoreNull = true;
@@ -243,6 +251,7 @@ class TimelineItemMapper extends ClassMapperBase<TimelineItem> {
       itemKey: data.dec(_f$itemKey),
       post: data.dec(_f$post),
       reason: data.dec(_f$reason),
+      followedBy: data.dec(_f$followedBy),
     );
   }
 
@@ -310,7 +319,13 @@ abstract class TimelineItemCopyWith<$R, $In extends TimelineItem, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   PostCopyWith<$R, Post, Post> get post;
   RepostReasonCopyWith<$R, RepostReason, RepostReason>? get reason;
-  $R call({String? itemKey, Post? post, RepostReason? reason});
+  PostAuthorCopyWith<$R, PostAuthor, PostAuthor>? get followedBy;
+  $R call({
+    String? itemKey,
+    Post? post,
+    RepostReason? reason,
+    PostAuthor? followedBy,
+  });
   TimelineItemCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -329,11 +344,20 @@ class _TimelineItemCopyWithImpl<$R, $Out>
   RepostReasonCopyWith<$R, RepostReason, RepostReason>? get reason =>
       $value.reason?.copyWith.$chain((v) => call(reason: v));
   @override
-  $R call({String? itemKey, Post? post, Object? reason = $none}) => $apply(
+  PostAuthorCopyWith<$R, PostAuthor, PostAuthor>? get followedBy =>
+      $value.followedBy?.copyWith.$chain((v) => call(followedBy: v));
+  @override
+  $R call({
+    String? itemKey,
+    Post? post,
+    Object? reason = $none,
+    Object? followedBy = $none,
+  }) => $apply(
     FieldCopyWithData({
       if (itemKey != null) #itemKey: itemKey,
       if (post != null) #post: post,
       if (reason != $none) #reason: reason,
+      if (followedBy != $none) #followedBy: followedBy,
     }),
   );
   @override
@@ -341,6 +365,7 @@ class _TimelineItemCopyWithImpl<$R, $Out>
     itemKey: data.get(#itemKey, or: $value.itemKey),
     post: data.get(#post, or: $value.post),
     reason: data.get(#reason, or: $value.reason),
+    followedBy: data.get(#followedBy, or: $value.followedBy),
   );
 
   @override

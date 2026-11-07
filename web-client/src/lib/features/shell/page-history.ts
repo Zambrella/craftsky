@@ -4,10 +4,16 @@ import { page } from '$app/state';
 type Entry = { y: number; state: Map<string, unknown>; loading: number };
 const entry = (): Entry => ({ y: 0, state: new Map(), loading: 0 });
 export const pageHistoryContext = Symbol('page-history');
+export type PageLoad<T> = {
+	isCurrent: () => boolean;
+	save: (value: T) => void;
+};
 export type PageView<T> = {
 	value: T | undefined;
 	cachedTab: boolean;
 	save: (value: T) => void;
+	beginLoad: () => PageLoad<T>;
+	onInvalidate: (refresh: () => void) => () => void;
 	ready: () => void;
 };
 
@@ -15,6 +21,8 @@ export type PageView<T> = {
 export class PageHistory {
 	private entries = new Map<number, Entry>();
 	private tabs = new Map<string, Entry>();
+	private revisions = new Map<string, number>();
+	private listeners = new Map<string, Set<() => void>>();
 	private restoringTab: Entry | undefined;
 	private tabNavigation = false;
 	private current = entry();
@@ -48,6 +56,7 @@ export class PageHistory {
 		this.restoringTab = undefined;
 	}
 	view<T>(key: string, tabKey?: string): PageView<T> {
+		let revision = this.revisions.get(key) || 0;
 		const owner =
 			(this.popping && page.state.navigationIndex !== undefined
 				? this.entries.get(page.state.navigationIndex)
@@ -78,7 +87,32 @@ export class PageHistory {
 		return {
 			value: owner.state.get(key) as T | undefined,
 			cachedTab: tabKey !== undefined && this.tabNavigation,
-			save: (value: T) => owner.state.set(key, value),
+			beginLoad: () => {
+				const requestRevision = this.revisions.get(key) || 0;
+				const isCurrent = () =>
+					(this.revisions.get(key) || 0) === requestRevision;
+				return {
+					isCurrent,
+					save: (value: T) => {
+						if (!isCurrent()) return;
+						revision = requestRevision;
+						owner.state.set(key, value);
+					}
+				};
+			},
+			onInvalidate: (refresh: () => void) => {
+				const listeners = this.listeners.get(key) || new Set();
+				this.listeners.set(key, listeners);
+				listeners.add(refresh);
+				return () => {
+					listeners.delete(refresh);
+					if (!listeners.size) this.listeners.delete(key);
+				};
+			},
+			save: (value: T) => {
+				if ((this.revisions.get(key) || 0) === revision)
+					owner.state.set(key, value);
+			},
 			ready: () => {
 				if (!finished) {
 					owner.loading--;
@@ -86,6 +120,21 @@ export class PageHistory {
 				}
 			}
 		};
+	}
+	/** Policy changes invalidate offscreen entries as well as adjacent tabs. */
+	invalidate(key: string) {
+		this.revisions.set(key, (this.revisions.get(key) || 0) + 1);
+		const owners = new Set([
+			this.current,
+			...this.entries.values(),
+			...this.tabs.values()
+		]);
+		if (this.pending) owners.add(this.pending);
+		if (this.restoringTab) owners.add(this.restoringTab);
+		for (const owner of owners) {
+			if (owner.state.delete(key)) owner.y = 0;
+		}
+		for (const refresh of this.listeners.get(key) || []) refresh();
 	}
 	private restore(owner: Entry) {
 		let frame = 0;
@@ -129,6 +178,7 @@ export class PageHistory {
 	}
 	dispose() {
 		this.cancelRestore();
+		this.listeners.clear();
 	}
 }
 

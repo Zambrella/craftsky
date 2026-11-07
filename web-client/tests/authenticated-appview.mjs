@@ -50,7 +50,8 @@ let calls = [],
 	posts = new Map(),
 	mutations = new Map(),
 	schedules = new Map(),
-	media = new Map();
+	media = new Map(),
+	videoJobs = new Map();
 const profile = (owner) => ({
 	did: owner,
 	handle: owner.endsWith('bob') ? 'bob.test' : 'alice.test',
@@ -446,6 +447,7 @@ function reset() {
 	mutations = new Map();
 	schedules = new Map();
 	media = new Map();
+	videoJobs = new Map();
 	for (const owner of Object.values(owners))
 		posts.set(`${owner}/first`, post(owner));
 }
@@ -1075,7 +1077,9 @@ createServer(async (req, res) => {
 		return send(200, state.languages);
 	}
 	if (
-		['/v1/feed/timeline', '/v1/projects'].includes(pathname) &&
+		['/v1/feed/timeline', '/v1/feed/extended-network', '/v1/projects'].includes(
+			pathname
+		) &&
 		!settings.get(owner).languages
 	)
 		return send(500, {
@@ -1305,6 +1309,7 @@ createServer(async (req, res) => {
 		state.suggestions = [];
 		return send(200, { suggestionId: 'suggestion-1', state: 'followed' });
 	}
+	if (pathname === '/v1/feed/extended-network') return send(200, { items: [] });
 	if (pathname === '/v1/feed/timeline')
 		return send(200, {
 			items: [...posts.values()]
@@ -1396,6 +1401,50 @@ createServer(async (req, res) => {
 			return send(204);
 		}
 		return send(200, value);
+	}
+	if (pathname === '/v1/blobs/videos/limits' && method === 'GET')
+		return send(200, { canUpload: true });
+	if (pathname === '/v1/blobs/videos/authorization' && method === 'POST') {
+		const jobId = randomUUID();
+		videoJobs.set(jobId, owner);
+		return send(200, {
+			provider: 'bunny',
+			jobId,
+			videoId: randomUUID(),
+			libraryId: '123',
+			token: 'c'.repeat(64),
+			expiresAt: new Date(Date.now() + 1800000).toISOString(),
+			title: 'CraftSky fixture video',
+			collectionId: '11111111-1111-4111-8111-111111111111'
+		});
+	}
+	const videoJob = pathname.match(
+		/^\/v1\/blobs\/videos\/([^/]+)\/status$/
+	)?.[1];
+	if (videoJob && method === 'POST') {
+		if (videoJobs.get(videoJob) !== owner)
+			return send(404, { error: 'not_found', message: 'Unknown job' });
+		return send(200, {
+			jobStatus: flags.videoFailure
+				? {
+						jobId: videoJob,
+						state: 'JOB_STATE_FAILED',
+						...(flags.videoFailure === 'timeout'
+							? { error: 'video_upload_timeout' }
+							: {})
+					}
+				: {
+						jobId: videoJob,
+						state: 'JOB_STATE_COMPLETED',
+						progress: 100,
+						blob: {
+							$type: 'blob',
+							ref: { $link: 'bafy-processed-video' },
+							mimeType: 'video/mp4',
+							size: 100
+						}
+					}
+		});
 	}
 	if (pathname === '/v1/blobs/images' && method === 'POST')
 		return send(200, {

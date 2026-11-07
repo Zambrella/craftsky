@@ -18,6 +18,15 @@ void main() {
           })
         >[
           (
+            name: 'upload timeout is distinct from invalid video',
+            json: {
+              'state': 'JOB_STATE_FAILED',
+              'jobId': 'job-1',
+              'error': 'video_upload_timeout',
+            },
+            outcome: VideoServiceOutcome.uploadTimedOut,
+          ),
+          (
             name: 'created is processing',
             json: {'state': 'JOB_STATE_CREATED', 'jobId': 'job-1'},
             outcome: VideoServiceOutcome.processing,

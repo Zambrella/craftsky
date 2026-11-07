@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Post } from '#lib/api/client.ts';
 	import Avatar from '#lib/Avatar.svelte';
+	import VideoThumbnail from '../social/VideoThumbnail.svelte';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	let { post, fullText = false }: { post: Post; fullText?: boolean } = $props();
 </script>
@@ -14,6 +15,7 @@
 		<Avatar author={post.author} /><CompactIdentity author={post.author} />
 	</div>
 	<p>{post.text}</p>
+	{#if post.video}<VideoThumbnail video={post.video} />{/if}
 </blockquote>
 
 <style>

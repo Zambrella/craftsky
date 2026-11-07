@@ -16,6 +16,7 @@ final class LocalVideoSelection {
     this.height = 1,
     this.posterBytes,
     this.altText = '',
+    this.localUri,
   });
 
   final String displayName;
@@ -28,6 +29,7 @@ final class LocalVideoSelection {
   final Stream<List<int>> Function() openRead;
   final Uint8List? posterBytes;
   final String altText;
+  final Uri? localUri;
 
   LocalVideoSelection withAltText(String value) => LocalVideoSelection(
     displayName: displayName,
@@ -40,6 +42,7 @@ final class LocalVideoSelection {
     openRead: openRead,
     posterBytes: posterBytes,
     altText: value,
+    localUri: localUri,
   );
 
   @override
@@ -80,7 +83,9 @@ final class ComposerVideoController {
       headerBytes: selected.headerBytes,
       duration: selected.duration,
     );
-    if (!validation.canUpload) throw ArgumentError('Invalid video source');
+    if (!validation.canUpload) {
+      throw VideoSourceException(validation.rejectedReason!);
+    }
     _selection = selected;
     return limits;
   }

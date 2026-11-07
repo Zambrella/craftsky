@@ -57,3 +57,53 @@ abstract class _$Timeline extends $AsyncNotifier<TimelineState> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// Retained chronological feed of indexed second-degree connections.
+
+@ProviderFor(ExtendedNetwork)
+final extendedNetworkProvider = ExtendedNetworkProvider._();
+
+/// Retained chronological feed of indexed second-degree connections.
+final class ExtendedNetworkProvider
+    extends $AsyncNotifierProvider<ExtendedNetwork, TimelineState> {
+  /// Retained chronological feed of indexed second-degree connections.
+  ExtendedNetworkProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'extendedNetworkProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$extendedNetworkHash();
+
+  @$internal
+  @override
+  ExtendedNetwork create() => ExtendedNetwork();
+}
+
+String _$extendedNetworkHash() => r'7a878812c2746a32649272bd2d96fbaf63f91ee1';
+
+/// Retained chronological feed of indexed second-degree connections.
+
+abstract class _$ExtendedNetwork extends $AsyncNotifier<TimelineState> {
+  FutureOr<TimelineState> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<TimelineState>, TimelineState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<TimelineState>, TimelineState>,
+              AsyncValue<TimelineState>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

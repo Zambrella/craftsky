@@ -101,7 +101,8 @@ void invalidateFollowProfileReads(Ref ref, Did targetDid) {
         audience: ref.read(browsingContextProvider),
       ),
     )
-    ..invalidate(timelineProvider);
+    ..invalidate(timelineProvider)
+    ..invalidate(extendedNetworkProvider);
   if (selfDid != null && selfDid != targetDid) {
     ref.invalidate(
       userProfileProvider(selfDid, audience: ref.read(browsingContextProvider)),

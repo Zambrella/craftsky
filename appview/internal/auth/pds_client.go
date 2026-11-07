@@ -4,6 +4,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -155,3 +156,8 @@ type UploadedBlob struct {
 // than build clients directly, so tests can supply a mock without standing
 // up indigo.
 type PDSClientFactory func(ctx context.Context, did syntax.DID, oauthSessionID string) (PDSClient, error)
+
+// StreamingBlobPDSClient is the optional bounded-memory video upload capability.
+type StreamingBlobPDSClient interface {
+	UploadBlobStream(context.Context, string, io.ReadSeeker) (*UploadedBlob, error)
+}

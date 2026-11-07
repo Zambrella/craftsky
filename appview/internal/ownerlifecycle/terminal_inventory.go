@@ -58,6 +58,7 @@ func anonymizeDID(table, column, role, rationale string, keyColumns ...string) T
 // can match more than one role: role-complete accounting is what makes the
 // pre-ACK ledger exhaustive and auditable.
 var terminalDIDInventory = []TerminalDIDEntry{
+	cleanupDID("bunny_video_jobs", "owner_did", "owner", "Bunny cleanup authority remains until the remote copy is deleted", "id"),
 	deleteDID("account_deletion_operations", "owner_did", "owner", "id"),
 	cleanupDID("account_deletion_safety_tombstones", "owner_did", "owner", "exact-key cleanup authority remains until uncertainty converges", "id"),
 	deleteDID("account_age_eligibility", "account_did", "owner", "account_did"),

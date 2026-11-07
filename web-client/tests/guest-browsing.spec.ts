@@ -18,6 +18,9 @@ test('welcomes guests over the home feed and keeps a sign-in banner after Explor
 	await expect(
 		page.getByText('Guest knitting project', { exact: true })
 	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Extended network', exact: true })
+	).toHaveCount(0);
 	const banner = page.getByRole('region', { name: 'Join CraftSky' });
 	await expect(banner).toBeVisible();
 	await banner.getByRole('button', { name: 'Sign in', exact: true }).click();

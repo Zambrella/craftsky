@@ -65,7 +65,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		const text = page.getByRole('textbox', {
 			name: 'What would you like to share?'
 		});
-		const photos = page.getByLabel('Add photos or a video');
+		const photos = page.locator('.media-picker summary');
 		await photos.focus();
 		await expect(page.locator('.photo-picker')).toHaveCSS(
 			'outline-style',

@@ -112,6 +112,7 @@ class PostCard extends ConsumerWidget {
     this.contentKind = PostCardContentKind.post,
     this.projectVariant = ProjectCardVariant.summary,
     this.repostReason,
+    this.followedBy,
     this.hideWhenAuthorProtected = false,
     this.allowProfilePinAction = false,
     this.showPinnedProfileAttribution = false,
@@ -147,6 +148,7 @@ class PostCard extends ConsumerWidget {
   final PostCardContentKind contentKind;
   final ProjectCardVariant projectVariant;
   final RepostReason? repostReason;
+  final PostAuthor? followedBy;
   final bool hideWhenAuthorProtected;
   final bool allowProfilePinAction;
   final bool showPinnedProfileAttribution;
@@ -244,7 +246,7 @@ class PostCard extends ConsumerWidget {
           : const ProfileRelationship(initialized: true),
       post.author.did,
     );
-    final reposter = repostReason?.by;
+    final reposter = repostReason?.by ?? followedBy;
     final isReposterViewerOwned =
         auth is SignedIn && reposter != null && auth.did == reposter.did;
     final reposterRelationshipProvider =
@@ -425,6 +427,9 @@ class PostCard extends ConsumerWidget {
                       SizedBox(height: spacing.sp2),
                     ] else if (repostReason case final reason?) ...[
                       _RepostAttribution(reason: reason, onTap: openReposter),
+                      SizedBox(height: spacing.sp2),
+                    ] else if (followedBy case final connection?) ...[
+                      _NetworkAttribution(author: connection),
                       SizedBox(height: spacing.sp2),
                     ],
                     if (effectiveRelationship.muted) ...[
@@ -973,6 +978,40 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
           ? null
           : widget.onDoubleTap,
       child: body,
+    );
+  }
+}
+
+class _NetworkAttribution extends StatelessWidget {
+  const new({required this.author});
+
+  final PostAuthor author;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final name = ProfileHandle(author.handle).displayLabel(
+      displayName: author.displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
+    return Row(
+      children: [
+        Icon(CraftskyIcons.people, size: 16, color: theme.colorScheme.outline),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _PostCardAuthorTapTarget(
+            onTap: () => UserProfileRoute(did: author.did).push<void>(context),
+            child: Text(
+              l10n.postFollowedBy(name),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

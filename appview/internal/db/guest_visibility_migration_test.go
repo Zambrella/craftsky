@@ -40,7 +40,7 @@ func TestGuestVisibilityMigrationLeavesLegacyProfilesUnknown(t *testing.T) {
 			t.Fatalf("migration populated profiles: count=%d err=%v", count, err)
 		}
 	}
-	apply("000114_profile_guest_visibility.up.sql")
+	apply("000118_profile_guest_visibility.up.sql")
 	assertUnknown()
 	if _, err := pool.Exec(ctx, `INSERT INTO bluesky_profiles(did,record_cid) VALUES ('did:plc:new','new-cid')`); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestGuestVisibilityMigrationLeavesLegacyProfilesUnknown(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DELETE FROM bluesky_profiles WHERE did='did:plc:new'`); err != nil {
 		t.Fatal(err)
 	}
-	apply("000114_profile_guest_visibility.down.sql")
-	apply("000114_profile_guest_visibility.up.sql")
+	apply("000118_profile_guest_visibility.down.sql")
+	apply("000118_profile_guest_visibility.up.sql")
 	assertUnknown()
 }

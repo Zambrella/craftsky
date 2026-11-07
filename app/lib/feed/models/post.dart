@@ -234,6 +234,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
     this.editedAt,
     this.recordRevision,
     this.images,
+    this.video,
     this.project,
     this.externalImport,
     this.external,
@@ -249,6 +250,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
   final String? recordRevision;
   final bool sponsored;
   final List<PostImage>? images;
+  final PostVideo? video;
   final Project? project;
   final ExternalImport? externalImport;
   final PostExternal? external;
