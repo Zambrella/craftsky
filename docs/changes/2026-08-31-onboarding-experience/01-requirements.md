@@ -87,7 +87,7 @@ Decision / implication: The presentation is compact, clear, and does not imply t
 ### Q14: Which existing profile and craft controls are reused?
 Answer: The current 22-item localized craft chip grid and avatar picker. Step 1 also shows the active `@handle` as read-only context.
 
-Decision / implication: Avatar selection supports the shared gallery-or-camera source choice on iOS, Android, and web. Avatar removal, banner editing, craft search/grouping, and account switching/sign-out controls are not added to onboarding.
+Decision / implication: Avatar selection supports the shared gallery-or-camera source choice on iOS and Android. Avatar removal, banner editing, craft search/grouping, and account switching/sign-out controls are not added to onboarding.
 
 ### Q15: How is delayed Bluesky prefill handled?
 Answer: Retry automatically for up to 5 seconds, once per onboarding session.
@@ -200,7 +200,7 @@ The app bar offers a text `Skip` action for the whole flow and communicates prog
 | FR-020 | Functional | Must | If cold-start completion status cannot be read, the app shall show a retryable initialization gate and shall not guess complete or incomplete status. | Avoids incorrectly gating new members or re-onboarding completed members. | User answer | AC-034 |
 | FR-021 | Functional | Must | Once per onboarding session, when the profile exists but all expected Bluesky identity fields are absent, Flutter shall retry the AppView profile read for up to 5 seconds before presenting optional empty fields. | Gives eager profile indexing a bounded convergence window without trapping accounts that have no Bluesky profile. | User answer, Codebase | AC-035, AC-036 |
 | FR-022 | Functional | Must | While a submitted profile save is in flight, the system shall disable Skip, Back, and duplicate submission; it shall restore applicable controls if the save fails. | Prevents navigation from ambiguously abandoning an uncancellable committed write. | User answer | AC-027 |
-| FR-023 | Functional | Must | Step 1 shall show the active `@handle` as read-only context and shall offer avatar replacement from the gallery or camera on iOS, Android, and web. Desktop apps remain gallery-only. | Confirms account identity while using the shared image-source behavior. | User answer, Codebase | AC-037 |
+| FR-023 | Functional | Must | Step 1 shall show the active `@handle` as read-only context and shall offer avatar replacement from the gallery or camera on iOS and Android. Desktop apps remain gallery-only. | Confirms account identity while using the shared image-source behavior. | User answer, Codebase | AC-037 |
 | FR-024 | Functional | Must | When the OAuth login/registration callback fetches an existing `app.bsky.actor.profile`, it shall attempt to project the fetched record and its CID directly into `bluesky_profiles` before creating the Flutter handoff. | Makes existing identity data available without waiting for Tap indexing. | User answer, Codebase | AC-041, AC-042 |
 | NFR-001 | Non-functional | Must | Onboarding shall remain usable without overflow or inaccessible primary actions on supported compact mobile layouts and larger layouts. | The flow is full-screen and must work across Flutter form factors. | Project frontend constraints | AC-019 |
 | NFR-002 | Non-functional | Must | All new user-visible onboarding text and semantics shall use the app localization system and expose meaningful accessibility labels, selected states, and disabled states. | Maintains localization and assistive-technology support. | Codebase conventions | AC-020 |

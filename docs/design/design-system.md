@@ -27,7 +27,7 @@ The product is being built in the open by Doug Todd (the developer behind Stash 
 **Surfaces**
 
 - Mobile app (Flutter — iOS & Android)
-- Web app (Flutter web)
+- Web app (SvelteKit)
 
 ---
 

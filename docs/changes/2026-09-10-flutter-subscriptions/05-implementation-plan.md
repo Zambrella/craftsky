@@ -287,10 +287,8 @@ below before advancing.
 
 ### Step 26: Native And Manual Evidence
 
-- Run commands: `just app-build-ios staging`, `just app-build-apk staging`, and
-  `just app-build-web staging` before manual sandbox checks.
-- Notes: Keyless smoke builds passed for iOS simulator, Android debug APK, and
-  web. The staging recipes remain blocked by absent `app/config/staging.env`;
+- Run commands: `just app-build-ios staging` and `just app-build-apk staging` before manual sandbox checks.
+- Notes: Keyless smoke builds passed for iOS simulator and Android debug APK. The staging recipes remain blocked by absent `app/config/staging.env`;
   production catalog, credentials, Customer Center, paywall close affordances,
   restore policy, and recovery procedures leave `MAN-001` through `MAN-005`
   explicitly blocked rather than failed.
@@ -371,7 +369,6 @@ correction suite and full automated gates are green.
 - `flutter build ios --debug --simulator`: passed.
 - `flutter build apk --debug`: passed with the existing Kotlin deprecation
   warning.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 
 - [x] All Must requirements covered by tests or documented gaps
@@ -535,7 +532,6 @@ test and nearby suite, then records the result here before advancing.
 - `flutter build ios --debug --simulator`: passed with the existing future Swift
   Package Manager plugin warning.
 - `flutter build apk --debug`: passed with existing Kotlin migration warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - Staging recipes and `MAN-001` through `MAN-005` remain blocked by absent
   `app/config/staging.env` and external RevenueCat/store configuration.
@@ -591,7 +587,6 @@ before advancing. The non-blocking Should-level `IR-022` remains deferred.
 - `flutter build ios --simulator --no-codesign`: passed with the existing future
   Swift Package Manager plugin warning.
 - `flutter build apk --debug`: passed with existing Kotlin migration warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - Staging recipes and `MAN-001` through `MAN-005` remain blocked by absent
   `app/config/staging.env` and external RevenueCat/store configuration.
@@ -664,7 +659,6 @@ before advancing.
 - `flutter build ios --simulator --no-codesign`: passed with the existing future
   Swift Package Manager plugin warning.
 - `flutter build apk --debug`: passed with existing Kotlin migration warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - Staging recipes and `MAN-001` through `MAN-005` remain blocked by absent
   `app/config/staging.env` and external RevenueCat/store configuration.
@@ -704,7 +698,6 @@ and reassignment must fail closed, and explicit unassignment remains available.
 - `flutter build ios --simulator --no-codesign`: passed with the existing future
   Swift Package Manager plugin warning.
 - `flutter build apk --debug`: passed with existing Kotlin migration warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - The first concurrent Android build collided with Flutter's iOS ephemeral-package
   cleanup; its isolated rerun passed.
@@ -780,7 +773,6 @@ behavior loops.
 - `flutter build ios --debug --simulator`: passed with the existing future Swift
   Package Manager plugin warning.
 - `flutter build apk --debug`: passed with existing Kotlin migration warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - Staging recipes and `MAN-001` through `MAN-005` remain blocked by absent
   `app/config/staging.env` and external RevenueCat/store configuration.
@@ -855,7 +847,6 @@ production change, reruns its nearby suite, and records evidence below.
   Package Manager plugin warning.
 - `flutter build apk`: passed with existing Kotlin migration and icon-font
   warnings.
-- `flutter build web`: passed with the existing icon-font warning.
 - `git diff --check`: passed.
 - Staging recipes and `MAN-001` through `MAN-005` remain blocked by absent
   `app/config/staging.env` and external RevenueCat/store configuration.

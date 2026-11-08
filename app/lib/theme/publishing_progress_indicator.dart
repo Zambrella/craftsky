@@ -10,7 +10,6 @@ publishingAnimationFileProvider = FutureProvider.autoDispose<rive.File>(
   (ref) async {
     rive.File? file;
     ref.onDispose(() => file?.dispose());
-    // On web, the Flutter factory needs the WASM runtime before it is read.
     await rive.RiveNative.init();
     final loaded = await rive.File.asset(
       'assets/animations/publishing.riv',

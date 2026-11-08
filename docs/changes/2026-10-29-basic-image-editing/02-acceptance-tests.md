@@ -319,7 +319,7 @@ Use existing fixture helpers and fakes; do not commit personal photos, private p
 
 ## 8. Manual Checks
 
-Brief checks in the finished app using available iOS/Android/web targets; no new harnesses or formal browser/codec/performance matrix. Record which targets were checked without claiming unperformed validation.
+Brief checks in the finished app using available iOS/Android targets; no new harnesses or formal browser/codec/performance matrix. Record which targets were checked without claiming unperformed validation.
 
 | ID | Requirement IDs | Acceptance Criteria | Check | Steps | Expected Result |
 |---|---|---|---|---|---|

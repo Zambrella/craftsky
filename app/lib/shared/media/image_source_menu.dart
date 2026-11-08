@@ -5,15 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 bool supportsCameraImageSource({
-  required bool isWeb,
   required TargetPlatform platform,
-}) =>
-    isWeb ||
-    platform == TargetPlatform.android ||
-    platform == TargetPlatform.iOS;
+}) => platform == TargetPlatform.android || platform == TargetPlatform.iOS;
 
 bool get cameraImageSourceSupported =>
-    supportsCameraImageSource(isWeb: kIsWeb, platform: defaultTargetPlatform);
+    supportsCameraImageSource(platform: defaultTargetPlatform);
 
 Future<void> showImageSourceMenu(
   BuildContext context, {

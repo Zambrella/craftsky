@@ -177,9 +177,7 @@ title as username evidence.
 Decision / implication: ZIP support remains local to Flutter. Both standalone
 JSON and ZIP imports use the existing `instagramJson` AppView source type and
 are labelled "Instagram export" in the UI. AppView API/storage do not change.
-ZIP support targets iOS and Android (and may work on file-backed desktop
-builds); Flutter web ZIP support is out of scope because it cannot provide the
-same native file-streaming/isolate contract.
+ZIP support targets iOS and Android using native file streaming and isolates.
 
 ### Q8: How should notification payload families be discriminated?
 
@@ -455,7 +453,7 @@ CraftSky follows without uploading raw archives.
 - NG-013: Automatically re-follow a member who was manually unfollowed while
   the same Instagram verification/import evidence remains.
 - NG-010: Enable the production integration before the Meta capability spike, secret provisioning, dashboard configuration, privacy-policy/data-deletion requirements, and required access review are complete.
-- NG-011: Support ZIP import on Flutter web, load an entire ZIP into memory, or
+- NG-011: Load an entire ZIP into memory, or
   extract unrelated archive entries to device storage.
 - NG-012: Build the repository-wide member data-export/account-deletion API that does not currently exist; this change supplies scoped purge/export primitives and schema cascades for future composition.
 
@@ -822,7 +820,6 @@ change the webhook acknowledgement.
 | EC-020 | Current export URL and title disagree. | Treat the record as invalid; neither field independently becomes a username. | FR-014 |
 | EC-021 | Current export contains title only, a lookalike host/path, query/fragment, or encoded separator. | Reject that evidence without fuzzy/title inference. | FR-014 |
 | EC-022 | Account switch or page disposal occurs while the isolate is parsing. | Allow bounded worker cleanup to finish but discard its result through the captured account lease; never upload under the new account. | FR-031, NFR-008 |
-| EC-023 | A member selects ZIP on Flutter web. | ZIP is unavailable/unsupported; direct JSON behavior remains a separate platform capability. | FR-031 |
 | EC-024 | A queued operation has no valid OAuth session for its owner. | Make no PDS call, keep the operation retryable with bounded backoff, and never select a session owned by another DID. | FR-017, FR-032 |
 | EC-025 | A member manually unfollows an automatically followed target and later imports the same handle again. | The terminal ledger suppresses re-follow for the current verification lifetime; revocation followed by new verification and a fresh import is new consent. | RULE-012 |
 | EC-026 | The PDS follow succeeds and the worker crashes before recording completion. | Deterministic retry reconciles the same PDS record and produces exactly one completed operation and one notification. | FR-017, FR-020, NFR-005 |

@@ -75,9 +75,6 @@ import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// flutter_web_plugins ships with Flutter but is not declared in pubspec;
-// it's the only place usePathUrlStrategy() lives.
-import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
@@ -227,9 +224,6 @@ Future<void> bootstrap(
 }) async {
   _log.fine('bootstrap starting');
 
-  // Web: path URL strategy (no `#` in URLs).
-  usePathUrlStrategy();
-
   final businessTimeZones = BusinessTimeZoneService.initialized();
   final revenueCatService = await bootstrapRevenueCat(
     platform: _revenueCatPlatform(),
@@ -248,28 +242,6 @@ Future<void> bootstrap(
     isDebug: kDebugMode,
     configurator: const NativeRevenueCatConfigurator(),
   );
-
-  if (kIsWeb) {
-    _log.fine('web detected, skipping native init');
-    runApp(
-      ProviderScope(
-        observers: [ProviderLogger(reporter: reporter)],
-        retry: appProviderRetry,
-        overrides: [
-          serviceStatusReporterProvider.overrideWithValue(reporter),
-          errorReporterProvider.overrideWithValue(reporter),
-          if (errorReporting != null)
-            errorReportingControllerProvider.overrideWith(
-              (ref) => errorReporting,
-            ),
-          businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
-          revenueCatServiceProvider.overrideWithValue(revenueCatService),
-        ],
-        child: const App(),
-      ),
-    );
-    return;
-  }
 
   // Default locale for intl date/number formatting.
   final localeName = PlatformDispatcher.instance.locale.toString();
@@ -336,7 +308,6 @@ Future<void> bootstrap(
 }
 
 RevenueCatPlatform _revenueCatPlatform() {
-  if (kIsWeb) return RevenueCatPlatform.web;
   return switch (defaultTargetPlatform) {
     TargetPlatform.iOS => RevenueCatPlatform.ios,
     TargetPlatform.android => RevenueCatPlatform.android,

@@ -23,7 +23,7 @@ With the normal dev backend running, use these commands from the repo root:
 just service-status-dev-setup
 just service-status-dev
 # In another terminal:
-just app-run-status -d chrome  # or your iOS or Android device ID
+just app-run-status -d <device-id>  # iOS or Android
 ```
 
 Setup installs the pinned web tooling if needed, creates an editable draft at `service-status/.wrangler/dev/app.json` without overwriting an existing draft, and loads it into local simulated R2. The initial example includes all three controls; maintenance has priority. The server uses the real Worker on `http://127.0.0.1:8789/app.json`; starting/restarting it preserves the current local object. App launch supplies the status define for this run and reverses the status port for connected Android devices. It does not edit app config files. Run Flutter in debug mode for the loopback override. Sign in and complete onboarding to test messages; maintenance and required updates are also shown while signed out.
@@ -78,16 +78,16 @@ The confirmation intentionally shows public prose. Diagnostic errors never echo 
 Schema 2 requires `schemaVersion: 2` and an ASCII `[A-Za-z0-9_-]{1,64}` document `revision`. Optional sections are absent when disabled; supplied null fields/sections are invalid. The full UTF-8 body is limited to 16,384 bytes. The formal schema and shared corpus are checked in under `service-status/`.
 
 - `maintenance`: nonblank `title` (160 Unicode scalars), `description` (2,400), optional real zoned RFC3339 `estimatedRecoveryAt` (seconds, at most six fractional digits).
-- `minimumVersions`: optional `ios`, `android`, `web` strict semantic versions; absent platform means no requirement. Build metadata has no effect. Core and all-numeric prerelease components are limited to 15 digits for consistent native/web comparison; this does not limit ignored build identifiers. Users below the platform minimum see a blocking Update/Reload page.
+- `minimumVersions`: optional `ios`, `android`, `web` strict semantic versions; absent platform means no requirement. Build metadata has no effect. Core and all-numeric prerelease components are limited to 15 digits for consistent native/web comparison; this does not limit ignored build identifiers. Users below the platform minimum see a blocking Update page.
 - `message`: required independent `revision`, `minVersion`, `title`, `description`; optional inclusive `maxVersion`, public HTTPS `imageUrl`, and `cta`. Reversed ranges fail validation. CTA requires nonblank `text` (160 scalars) and exactly one HTTPS `url` or named `destination`: `feed`, `projects`, `search`, `notifications`, `profile`, `settings`. No arbitrary routes or custom schemes. URL userinfo, controls and malformed syntax are rejected.
 
-All prose renders as plain text. Unknown fields cannot configure API/auth destinations or executable content. Image URLs must point to a trusted public HTTPS host compatible with Flutter web CORS. Images use standard `Image.network` loading and caching without adding AppView authorization or account/device headers. Flutter/platform defaults govern cookies, referrer, redirects, request lifetime and resource use; there is no custom byte limit, deadline or transport cancellation. The display is bounded to 200 logical pixels high with `BoxFit.contain`. Images are decorative: essential information belongs in the description. Loading or failure leaves text/actions available.
+All prose renders as plain text. Unknown fields cannot configure API/auth destinations or executable content. Image URLs must point to a trusted public HTTPS host compatible. Images use standard `Image.network` loading and caching without adding AppView authorization or account/device headers. Flutter/platform defaults govern cookies, referrer, redirects, request lifetime and resource use; there is no custom byte limit, deadline or transport cancellation. The display is bounded to 200 logical pixels high with `BoxFit.contain`. Images are decorative: essential information belongs in the description. Loading or failure leaves text/actions available.
 
 Status starts alongside account initialization, checks on launch/resume/manual maintenance retry and every 60 foreground seconds, coalesces requests and expires requests after three seconds. Valid snapshots replace all controls atomically. A successful maintenance read authorizes a cover for five minutes; unchanged success renews it and failed reads do not. Estimates never schedule removal. Failed/invalid/timed-out refreshes release update enforcement immediately but retain only still-fresh maintenance; maintenance expiry cannot revive an invalidated update policy. Later valid snapshots can enforce again. Startup failure, unknown runtime version and unsupported test-host platform never invent update gates; unknown versions also suppress targeted messages. No policy is persisted offline.
 
 Only the highest-priority applicable flow displays: fresh maintenance → trusted required update → signed-in, onboarded eligible undismissed message. Signed-out/loading/error auth and incomplete/loading/error current-account onboarding hide messages without dismissing them; completing sign-in and onboarding reveals eligible undismissed messages from the current snapshot. Maintenance/update and status polling remain active regardless of sign-in or onboarding. Suppression does not dismiss. Update/maintenance cover the retained application in ready/loading/error hosts and consume back; they retain routes, editors, media selections, sessions and ordinary account/policy gates, and never replay/cancel accepted writes or sign out users. Covered controls are removed from pointer/focus/semantics interaction. Valid retained focus is restored on uncovering.
 
-Mobile Update opens the fixed CraftSky App Store/Google Play listing. Merely opening or returning from a store does not clear the gate. Web Reload explicitly reloads the current URL once; it may discard in-memory work. There is no automatic reload loop. Launch failure leaves retryable inline feedback. Messages retain button/barrier/Escape/back dismissal per installation/browser storage scope. Successful CTA activation suppresses and saves its captured message revision. Activation failure leaves retryable feedback; save failure after activation hides that revision only for the session and does not replay the action. A replacement message or new blocker remains authoritative during late completion. Named actions use the normal router and account/policy gates; initialization hosts without a ready router report unavailable action feedback.
+Mobile Update opens the fixed CraftSky App Store/Google Play listing. Merely opening or returning from a store does not clear the gate. Launch failure leaves retryable inline feedback. Messages retain button/barrier/Escape/back dismissal per installation storage scope. Successful CTA activation suppresses and saves its captured message revision. Activation failure leaves retryable feedback; save failure after activation hides that revision only for the session and does not replay the action. A replacement message or new blocker remains authoritative during late completion. Named actions use the normal router and account/policy gates; initialization hosts without a ready router report unavailable action feedback.
 
 **Rollout:** schema 1 is rejected by the new parser/publisher, with status failures handled as above. Old installed clients do not understand schema 2 and cannot acquire mandatory-update support from publication alone. Release a compatible app and publish configuration separately under normal release controls. No live publication/deployment is authorized by this runbook update.
 
@@ -96,46 +96,14 @@ Mobile Update opens the fixed CraftSky App Store/Google Play listing. Merely ope
 ```sh
 just service-status-test
 just app-test --no-pub test/service_status test/observability/service_status_diagnostics_test.dart
-just app-test --no-pub --platform chrome test/service_status/service_status_repository_web.browser.dart
 just app-analyze
 ```
 
 Hosted verification is a manual release check after separately authorized setup. Read the preview endpoint with `curl --fail --max-time 3 -i https://preview-status.craftsky.social/app.json`; confirm the JSON, revision, no-store and CORS headers. From the supported web app origin, use browser developer tools to fetch the same endpoint with `credentials: 'omit'`, `redirect: 'error'`, `cache: 'no-store'` and `referrerPolicy: 'no-referrer'`. Inspect the request for absence of cookies/auth/device headers and confirm the body matches. These manual steps replace the standalone hosted browser harness.
 
-For freshness evidence, separately authorize preview-only publication of a combined snapshot, removal of maintenance, removal of minima, then full clear. Use the same native and browser clients across changes; after each verified publication, the next successful foreground refresh must observe the replacement within the app's three-second request deadline. Confirm a disposable landing-site deploy/rollback leaves the status revision unchanged. Capture safe results only. No hosted publication or cache/CORS verification has been performed locally.
+For freshness evidence, separately authorize preview-only publication of a combined snapshot, removal of maintenance, removal of minima, then full clear. Use the same mobile clients across changes; after each verified publication, the next successful foreground refresh must observe the replacement within the app's three-second request deadline. Confirm a disposable landing-site deploy/rollback leaves the status revision unchanged. Capture safe results only. No hosted publication or cache/CORS verification has been performed locally.
 
-Record real VoiceOver, TalkBack and supported web-reader results for long text, both themes, supported large text scale, retry/dismiss controls, hidden editor semantics, focus restoration and browser/Android predictive back. Local semantics and fake-R2 tests do not satisfy those checks. See the implementation execution notes in `docs/changes/2026-10-08-service-status-maintenance/05-implementation-plan.md` for actual checks and remaining release gaps.
+Record real VoiceOver and TalkBack results for long text, both themes, supported large text scale, retry/dismiss controls, hidden editor semantics, focus restoration and iOS/Android predictive back. Local semantics and fake-R2 tests do not satisfy those checks. See the implementation execution notes in `docs/changes/2026-10-08-service-status-maintenance/05-implementation-plan.md` for actual checks and remaining release gaps.
 
 
-For this change, MAN-001 verifies official listing availability/handoff on physical iOS/Android. MAN-002 verifies an already-open version A tab can obtain compiled version B at the same path/query under actual authorized-preview CDN/browser/bootstrap caches. Do not clear all browser data or unregister workers to manufacture recovery. The local compiled reload harness proves only the adapter/local build transition. `scripts/web-deploy` deploys the public website and is not evidence of Flutter-app hosting; identify the actual Flutter hosting/cache path before separately authorized release work. MAN-003 covers real readers, predictive/platform/browser back and focus. See `docs/changes/2026-10-20-app-status-flows/05-implementation-plan.md` for executed evidence and explicit unrun checks.
-
-## Local compiled web verification
-
-Use the existing pinned Playwright installation from `web/package-lock.json`; do not install/upgrade tools implicitly from a validation command. Build two disposable artifacts from `app/` with the production runtime provider and reload adapter:
-
-```sh
-flutter build web --debug --no-pub --no-web-resources-cdn \
-  --target test/service_status/support/status_reload_harness.dart \
-  --build-name 1.8.0 --build-number 1 \
-  --dart-define=STATUS_HARNESS_COMPILED_BUILD=1.8.0+1 \
-  --dart-define=CRAFTSKY_STATUS_URL=http://127.0.0.1:4176/app.json \
-  --output /tmp/craftsky-status-build-a
-flutter build web --debug --no-pub --no-web-resources-cdn \
-  --target test/service_status/support/status_reload_harness.dart \
-  --build-name 1.9.0 --build-number 2 \
-  --dart-define=STATUS_HARNESS_COMPILED_BUILD=1.9.0+2 \
-  --dart-define=CRAFTSKY_STATUS_URL=http://127.0.0.1:4176/app.json \
-  --output /tmp/craftsky-status-build-b
-```
-
-Then from the repository root:
-
-```sh
-CRAFTSKY_STATUS_BUILD_A=/tmp/craftsky-status-build-a \
-CRAFTSKY_STATUS_BUILD_B=/tmp/craftsky-status-build-b \
-  npm run --prefix web test:status
-```
-
-The normal website `npm test` excludes this compiled Flutter suite; run both commands when checking all browser tests. The dedicated runner starts only disposable loopback app/status servers on ports 4175/4176. It checks a compiled marker plus real package-info metadata, recovery to B, still-old gating, unavailable-status fail-open, and actual browser message dismissal across document reload. It counts document requests rather than router history updates. The current URL including an added fragment is preserved by the browser's committed reload; the existing app path strategy may normalize fragments again during startup. This harness does not change that routing policy or establish deployed cache behavior.
-
-The anonymous status RequestInit tests remain runnable without that server in `service_status_repository_web.browser.dart`. Trusted-host images use Flutter network loading; the former custom image transport probes were removed.
+Official store listing handoff, VoiceOver, TalkBack, platform back and focus behavior require checks on physical iOS and Android devices.

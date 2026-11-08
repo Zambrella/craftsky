@@ -48,7 +48,7 @@ Automation targets below are existing suites/directories unless explicitly marke
 
 ## 3. Acceptance Scenarios
 
-For all scenarios: use TD-001–TD-008 as applicable; assertions inspect visible behavior and network/persistence evidence. Run client scenarios on Flutter iOS/Android and Svelte responsive web; include Flutter web guest routing when distributed, per confirmed ASM-001. Native mobile and web fixtures must represent the same eligibility states.
+For all scenarios: use TD-001–TD-008 as applicable; assertions inspect visible behavior and network/persistence evidence. Run client scenarios on Flutter iOS/Android and Svelte responsive web;  Native mobile and web fixtures must represent the same eligibility states.
 
 ### AT-001: Explore chronological craft feeds
 
@@ -411,7 +411,7 @@ The following is a **planned test harness contract**, not files/scripts already 
 - Config: `web-client/tests/playwright-guest.config.ts`; `testDir: '.'`, `testMatch: 'guest-*.spec.ts'`, JavaScript enabled. The coding plan may share utilities with the existing runner, but must preserve this explicit suite selection or document an equivalent command.
 - Interactive files: `guest-browsing.spec.ts`, `guest-auth-transitions.spec.ts`, `guest-privacy.spec.ts` and `guest-accessibility.spec.ts` under `web-client/tests/` (**proposed**). Map AT-001–012 to these suites rather than duplicating each scenario in every file.
 - Reuse/extend `tests/mock-appview.mjs` and existing auth-fixture utilities where practical. Add verified-public/opted-out/unknown authors, ordinary/business tab data, mixed nested content, pagination, session transitions and injected settings failures. Private request spies fail on guest-history or owner-only reads/writes. Use separate contexts and deterministic fixture resets; isolate server ports from other runners.
-- Interactive automated projects: Chromium desktop, Chromium narrow mobile viewport with touch, and WebKit mobile viewport; include a tablet-width layout case. Native iOS/Android guest journeys remain separate and cannot be proven by browser emulation. Retain required Flutter web guest routing checks if distributed.
+- Interactive automated projects: Chromium desktop, Chromium narrow mobile viewport with touch, and WebKit mobile viewport; include a tablet-width layout case. Native iOS/Android guest journeys remain separate and cannot be proven by browser emulation.
 - Keep `playwright.config.ts` and its JS-disabled `public-pages.spec.ts` SSR assertions. Run the guest config separately for Node preview and Worker modes, with explicit project/test discovery output. A green public/member suite does not count as execution of guest tests.
 - The later coding plan must map these proposed files to concrete fixtures, runtime/browser dependencies, ports and CI/maintainer validation commands. No package or config changes are made at this document stage.
 

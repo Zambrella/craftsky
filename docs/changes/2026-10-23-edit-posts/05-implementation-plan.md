@@ -523,7 +523,6 @@ Order follows the first occurrence of IDs in the approved coding-plan section 9.
 #### IR-003 / MAN-001, MAN-002: manual evidence remains pending
 
 - Device discovery returned `Agent device access is turned off for this environment.` No actual native picker, VoiceOver or TalkBack check was performed.
-- Tried a disposable local Flutter web fixture using production cards/composers with synthetic in-memory records and loopback-only API configuration. Initial debug-server import-path errors were fixture setup failures, not product failures. After correcting the fixture imports, it compiled and served locally, but the preview browser twice returned `Preview automation snapshot timed out after 15000ms`. The fallback computer-use connection exposed no connected browser tabs; native browser connection yielded no editing interaction evidence. No browser save/cancel/conflict, pointer/keyboard or screen-reader outcome is claimed.
 - On 2026-10-27 the maintainer answered “I'll provide manual test results.” MAN-001/MAN-002 and IR-003 therefore remain pending receipt and recording of those results; this is not a waiver or a passing result. MAN-003 remains optional and unauthorized.
 - Closed the agent-created preview tab, stopped the temporary local web server and removed the temporary fixture from the checkout. Its original disposable source remains `/tmp/craftsky_edit_web_probe.dart`; the attempt logs are `/tmp/craftsky-edit-ir-web-server*.log`. No live account or service writes occurred.
 

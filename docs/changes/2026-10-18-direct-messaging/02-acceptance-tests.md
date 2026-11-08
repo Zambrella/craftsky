@@ -791,13 +791,13 @@ Requirement IDs: NFR-008
 Acceptance Criteria: AC-026  
 Priority: Must  
 Level: Acceptance  
-Automation Target: MAN-004: coding-plan package-fit record owns version/license/SDK/dependency review and actual iOS/Android/web execution; UT-010 Flutter `app/test/chat/conversation_page_test.dart` owns adapter builders, styling, pagination/send/draft states and preview-fetch suppression. MAN-003 owns assistive-technology evidence; IT-015/IT-018 own server transport/credential-boundary assertions.
+Automation Target: MAN-004: coding-plan package-fit record owns version/license/SDK/dependency review and actual iOS/Android execution; UT-010 Flutter `app/test/chat/conversation_page_test.dart` owns adapter builders, styling, pagination/send/draft states and preview-fetch suppression. MAN-003 owns assistive-technology evidence; IT-015/IT-018 own server transport/credential-boundary assertions.
 
 ```gherkin
 Feature: Direct messaging
   Scenario: Selected chat UI package fit
     Given coding planning for the selected flutter_chat_ui package
-    When its license, SDK/dependencies and iOS/Android/web fit are evaluated alongside rendering tests
+    When its license, SDK/dependencies and iOS/Android fit are evaluated alongside rendering tests
     Then planning records styling/accessibility, pagination, send-state, draft and custom-card fit with composer/request preview fetching disabled
     And AppView transport/credential ownership remains intact and concrete incompatibilities return for review before substitution
     And dependency-resolution evidence is not represented as compilation or device proof

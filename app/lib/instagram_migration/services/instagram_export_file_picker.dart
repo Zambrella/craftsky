@@ -1,6 +1,5 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_web.dart'
-    if (dart.library.io) 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_native.dart'
+import 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_native.dart'
     as platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

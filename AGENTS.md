@@ -14,8 +14,9 @@ For the product-level "why" and the community-facing feature intent, read the vi
 
 ## Supported App Platforms
 
-The Flutter app supports **iOS, Android, and web only**. Native macOS, Windows,
-and Linux apps are not build targets. Do not recreate their platform folders or
+The Flutter app supports **iOS and Android only**. The web client lives in
+`web-client/` and uses SvelteKit. Native macOS, Windows, and Linux apps are not
+build targets. Do not recreate their platform folders or
 add desktop build/run recipes. Desktop operating systems may still be used as
 development and CI hosts, including native libraries required by Flutter tests.
 

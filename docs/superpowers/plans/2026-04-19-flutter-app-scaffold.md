@@ -259,8 +259,6 @@ import 'package:craftsky_app/app.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// ignore: depend_on_referenced_packages
-import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
@@ -274,17 +272,6 @@ final _log = Logger('bootstrap');
 /// belongs in `appDependenciesProvider`, which has loading/error UI.
 Future<void> bootstrap(WidgetsBinding widgetsBinding) async {
   _log.fine('bootstrap starting');
-
-  // Web: path URL strategy (no `#` in URLs).
-  usePathUrlStrategy();
-
-  if (kIsWeb) {
-    _log.fine('web detected, skipping native init');
-    runApp(
-      const ProviderScope(child: App()),
-    );
-    return;
-  }
 
   // Default locale for intl date/number formatting.
   final localeName = PlatformDispatcher.instance.locale.toString();
@@ -321,7 +308,6 @@ void initializeMappers() {
 }
 ```
 
-Note the `depend_on_referenced_packages` ignore: `flutter_web_plugins` ships with Flutter but isn't in pubspec, and `usePathUrlStrategy()` lives there.
 
 ### Task 1.5: Write the stub `App` widget
 
@@ -366,7 +352,7 @@ Expected: `No issues found!` (or zero errors; warnings from the default lint set
 - [ ] **Step 3: Run the app on a single target to smoke-check**
 
 Run (from `app/`): one of
-- `flutter run -d chrome` (fastest)
+- `flutter run -d <device-id>`
 - `flutter run -d ios` (if simulator available)
 - `flutter run -d android` (if emulator available)
 
@@ -766,7 +752,7 @@ class CraftskyDeviceInfo with CraftskyDeviceInfoMappable {
     required this.osVersion,
   });
 
-  /// 'Android' | 'iOS' | 'Web'
+  /// 'Android' | 'iOS'
   final String platform;
   final String deviceId;
   final String model;
@@ -814,17 +800,6 @@ Future<AppDependencies> appDependencies(Ref ref) async {
 
 Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
   final plugin = DeviceInfoPlugin();
-
-  if (kIsWeb) {
-    final web = await plugin.webBrowserInfo;
-    return CraftskyDeviceInfo(
-      platform: 'Web',
-      deviceId: '',
-      brand: web.browserName.name,
-      model: web.userAgent ?? '',
-      osVersion: web.platform ?? '',
-    );
-  }
 
   switch (defaultTargetPlatform) {
     case TargetPlatform.android:
@@ -1208,7 +1183,7 @@ Expected: no errors.
 
 - [ ] **Step 3: Run the app on one target**
 
-Run: `flutter run -d chrome` (or iOS/Android).
+Run: `flutter run -d <device-id>` (iOS/Android).
 
 Expected: app launches. You briefly see the loading spinner, then the "Craftsky scaffold (chunk 2)" themed placeholder. No red screen, no exceptions in the console.
 
@@ -1566,7 +1541,7 @@ Expected: all tests pass (the theme-notifier suite from Chunk 2 and the smoke te
 - [ ] **Step 4: Smoke-run on at least one device**
 
 Run one of:
-- `flutter run -d chrome`
+- `flutter run -d <device-id>`
 - `flutter run -d ios`
 - `flutter run -d android`
 

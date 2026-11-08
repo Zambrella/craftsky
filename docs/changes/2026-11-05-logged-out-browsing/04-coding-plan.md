@@ -8,7 +8,7 @@ Revision on 6 November 2026: basic submitted-query guest search; no recent users
 - Tests: `02-acceptance-tests.md`, revised for the same review notes; 43 planned tests/checks, not executed.
 - Document review: `03-document-review.md`, **Approved with notes**. It records the pre-revision review; this plan resolves its remaining design handoffs.
 - Authorization: user requested coding planning. Implementation, test code, migrations, commits, pushes and live actions are not authorized by this document.
-- Constraints: checked-in `AGENTS.md`, previously read architecture reference/product vision, `/v1/` API architecture and mandatory logging/error-reporting guide. Flutter targets iOS/Android/web only. No custom Lexicon change is planned.
+- Constraints: checked-in `AGENTS.md`, previously read architecture reference/product vision, `/v1/` API architecture and mandatory logging/error-reporting guide. Flutter targets iOS/Android only. No custom Lexicon change is planned.
 - Read-only inspection: profile/index and transactional projection, ingestion source ordering/duplicate handling, PDS addressed/compound commands and metadata transport, public route/store contracts, member query/hydration boundaries, Flutter repositories/providers/account boundaries/home shell, and Svelte route loaders/shell/API/social views/test configs.
 
 ## 2. Implementation Strategy
@@ -285,7 +285,7 @@ just app-test test/router/router_redirect_test.dart test/auth/welcome_page_test.
 
 Extend filters/files to include the new tests actually created. Full required validation later includes `just test`, `just app-analyze`, appropriate full Flutter suites, web check/unit/build plus public/member/guest Node and Worker matrices. Run diagnostic sink/canary checks if diagnostics change. All commands are future validation, not executed results.
 
-Add `app/integration_test/guest_browsing_test.dart` reusing existing integration support and a local guest AppView fixture. Run with `cd app && flutter test integration_test/guest_browsing_test.dart -d <selected-device>` after repository-native library setup. Native UI interaction uses device tools; no native desktop targets. Include iOS and Android and supported Flutter-web routing checks. Extend `just app-test-integration` only if it gains explicit feature-file selection; the current recipe names the existing critical-journeys test and does not automatically run the new file.
+Add `app/integration_test/guest_browsing_test.dart` reusing existing integration support and a local guest AppView fixture. Run with `cd app && flutter test integration_test/guest_browsing_test.dart -d <selected-device>` after repository-native library setup. Native UI interaction uses device tools; no native desktop targets. Include iOS and Android checks. Extend `just app-test-integration` only if it gains explicit feature-file selection; the current recipe names the existing critical-journeys test and does not automatically run the new file.
 
 Corroborate the browser mocks with a local compose-AppView-backed HTTP journey exercising real API/Postgres projection and fetching Svelte initial HTML before/after applied opt-out. Reuse a local test fixture process, never production data. Keep mocked contract tests deterministic and distinct from this corroboration and optional live-provider smoke.
 

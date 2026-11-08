@@ -8,7 +8,6 @@ analyzer:
     - lib/l10n/generated/**
     - android/**
     - ios/**
-    - web/**
 
 formatter:
   trailing_commas: preserve

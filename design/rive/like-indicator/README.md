@@ -28,7 +28,7 @@ This fixture stores its like state in memory and uses an empty session registry.
 
 ```sh
 cd app
-flutter run -d web-server --web-port 7359 -t test/fixtures/like_animation_preview.dart
+flutter run -d <device-id> -t test/fixtures/like_animation_preview.dart
 ```
 
 Tap Like or double-tap the post body. Use the switches for dark mode and reduced motion. Replace `web-server` with a supported device ID for a native preview.

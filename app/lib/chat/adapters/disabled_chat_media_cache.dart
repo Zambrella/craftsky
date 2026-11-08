@@ -3,8 +3,7 @@ import 'dart:typed_data';
 import 'package:cross_cache/cross_cache.dart';
 import 'package:dio/dio.dart';
 
-/// No superclass construction: the package's web cache opens IndexedDB in its
-/// constructor. Chat media never uses that cache, filesystem or network client.
+/// Chat media never uses the package cache, filesystem or network client.
 final class DisabledChatMediaCache implements CrossCache {
   const new();
   @override

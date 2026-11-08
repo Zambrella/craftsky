@@ -40,7 +40,7 @@ Base SHA (before this plan): whatever `git rev-parse HEAD` returns. As of writin
 
 ## Note on TDD
 
-This is mechanical wiring + string extraction. Per the spec and the same reasoning as the original scaffold plan, I'm not going to structure this as red-green-refactor per file. The smoke test already asserts the full `App → HomePage` render; extending it with one `AppLocalizations.of(context).appTitle == 'Craftsky'` assertion is enough affirmative proof that the delegate is wired. `flutter analyze` + `flutter test` + `flutter build web` form the verification gate.
+The smoke test exercises the app localization delegate. Run `flutter analyze` and `flutter test` to verify the wiring.
 
 ---
 
@@ -431,14 +431,6 @@ cd app && flutter test
 
 Expected: `+5: All tests passed!` (4 theme tests + 1 widget test).
 
-- [ ] **Step 6: Web build**
-
-```bash
-cd app && flutter build web
-```
-
-Expected: builds successfully (may take ~30s). This is the strongest compile-time check — it catches any i18n wiring regression web-only.
-
 ### Task 9: Single commit
 
 - [ ] **Step 1: Stage everything and commit**
@@ -473,5 +465,4 @@ affirmatively exercises the delegate lookup."
 - `app/lib/l10n/generated/app_localizations.dart` + `app_localizations_en.dart` committed.
 - `app/analysis_options.yaml` excludes `lib/l10n/generated/**`.
 - Every literal string named in the spec's "Context" section (excluding the three decisively-unlocalized cases) served from `AppLocalizations`.
-- `flutter analyze` + `dart run custom_lint` + `flutter test` + `flutter build web` all clean.
 - One commit on `claude/elated-jackson-20b896`.

@@ -1,6 +1,6 @@
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 
-enum RevenueCatPlatform { ios, android, web, macos, windows, linux }
+enum RevenueCatPlatform { ios, android, macos, windows, linux }
 
 enum RevenueCatSdkLogLevel { debug, info }
 

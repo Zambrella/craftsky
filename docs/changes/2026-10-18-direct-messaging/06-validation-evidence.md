@@ -453,7 +453,6 @@ They do not establish actual Bluesky acceptance.
 | Isolated `scripts/appview-check` | Passed complete controlled retry (exit 0): 49 packages / 6,498 test-subtest passes in each ordinary and race suite; zero skips/failures; image/binary/security/migration/media/health/Tap-handshake gates passed |
 | Flutter analyzer | Passed whole-app `dart analyze --format=machine`: zero diagnostics after final authority fixes and generation |
 | Flutter full suite | Final complete repeat passed: `flutter test --no-pub --concurrency=4 --timeout=2m`; 3,166 passed, 38 configured skips (274 seconds), after final access-loss and remote-authority races |
-| Web build | Final source passed (63.1s): `flutter build web --no-pub --dart-define=CRAFTSKY_API_BASE_URL=https://appview.test` |
 | Built license artifact | Final web, Android APK and iOS simulator license bundles include flutter_chat_ui, flutter_chat_core, cross_cache and Apache license text |
 | iOS simulator build | Final-source simulator rebuild passed (43.5s); exported license bundle checked; no identity signing/install/run |
 | Android build | Final-source debug APK rebuild passed (17.2s); exported license bundle checked |
@@ -481,7 +480,7 @@ passes; deterministic live event injection is unavailable in that Tap version.
 | MAN-001 / AT-024 | Actual granular OAuth grants, eligibility, external conversation/request history, explicit creation/send/read/accept/mute/leave, shared incoming policy, sync/reconnect; report acceptance remains an assumption |
 | MAN-002 | Signed iOS/Android APNs/FCM delivery and real OS taps across foreground/background/cold start, owner switch/logout/disconnect and lost membership |
 | MAN-003 | VoiceOver, TalkBack, web keyboard/screen reader, real link/card navigation and resume/reconnect |
-| MAN-004 | Actual iOS/Android/web execution and selected-package interaction; compilation alone is recorded separately above |
+| MAN-004 | Actual iOS/Android execution and selected-package interaction; compilation alone is recorded separately above |
 
 Use consenting test accounts and the intended test AppView origin. Never paste
 credentials, message bodies, recipient IDs or full provider payloads into evidence.

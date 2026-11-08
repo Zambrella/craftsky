@@ -23,26 +23,12 @@
   // ---------- Flutter run: per-device ----------
   //
   // Flutter app config is passed with --dart-define-from-file through the
-  // matching `just app-run-*` recipes. Chrome / macOS / iOS simulator use
+  // matching `just app-run-*` recipes. iOS simulator runs use
   // app/config/local.env. Android uses app/config/local-android.env because
   // Android routes localhost to the emulator itself, not the host.
   //
   // Port 18080 is the host-side mapping in docker-compose.yml; the
   // appview container itself listens on 8080 internally.
-  {
-    "label": "flutter run — Chrome",
-    "command": "just",
-    "args": [
-      "app-run-chrome"
-    ],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "use_new_terminal": true,
-    "allow_concurrent_runs": false,
-    "reveal": "always",
-    "tags": [
-      "flutter-run"
-    ]
-  },
   {
     "label": "flutter run",
     "command": "just",
@@ -123,21 +109,6 @@
     "command": "just",
     "args": [
       "app-run-production"
-    ],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "use_new_terminal": true,
-    "allow_concurrent_runs": false,
-    "reveal": "always",
-    "tags": [
-      "flutter-run",
-      "production"
-    ]
-  },
-  {
-    "label": "flutter run — production — Chrome",
-    "command": "just",
-    "args": [
-      "app-run-production-chrome"
     ],
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
@@ -305,18 +276,6 @@
     ]
   },
   // ---------- Builds ----------
-  {
-    "label": "flutter build web",
-    "command": "just",
-    "args": [
-      "app-build-web"
-    ],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "tags": [
-      "build"
-    ]
-  },
   {
     "label": "flutter build ios — no codesign",
     "command": "just",

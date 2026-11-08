@@ -146,7 +146,7 @@ images, the OAuth client document, and Cloudflare Pages policy files.
 ## Cloudflare Pages runbook
 
 Create a **separate Pages project** for this package. Do not add it to the
-marketing-site or Flutter-web Pages projects.
+marketing-site projects.
 
 - Production branch: `main`
 - Root directory: `/`

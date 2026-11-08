@@ -1,4 +1,4 @@
-// Run with: flutter run -d web-server -t test/fixtures/publishing_animation_preview.dart
+// Run with: flutter run -d <device-id> -t test/fixtures/publishing_animation_preview.dart
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';

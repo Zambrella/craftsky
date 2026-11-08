@@ -2,9 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_web.dart'
-    as web;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -12,21 +9,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 base class _SelectedFile extends PlatformFile {
-  new(this.uri, {this.bytes, this.reportedLength});
+  new(this.uri);
   @override
   final Uri uri;
-  final Uint8List? bytes;
-  final int? reportedLength;
   bool bytesRead = false;
   @override
   String get name => 'export.json';
   @override
-  Future<int?> length() async => reportedLength;
+  Future<int?> length() async => null;
   @override
   Future<Uint8List> readAsBytes() async {
     bytesRead = true;
-    if (bytes == null) throw StateError('Native picks must be read by path');
-    return bytes!;
+    throw StateError('Native picks must be read by path');
   }
 
   @override
@@ -142,30 +136,5 @@ void main() {
     selection.complete(null);
     expect(await first, isNull);
     expect(picker.clears, 1);
-  });
-  for (final length in [null, InstagramImportParser.maxFileBytes + 1]) {
-    test('web rejects length $length before reading bytes', () async {
-      final file = _SelectedFile(
-        Uri.parse('blob:export'),
-        reportedLength: length,
-      );
-      await expectLater(
-        web.parseSelectedInstagramExport(file),
-        throwsException,
-      );
-      expect(file.bytesRead, isFalse);
-    });
-  }
-  test('web parses size-limited JSON without a local path', () async {
-    final bytes = Uint8List.fromList(
-      '{"relationships_following":[]}'.codeUnits,
-    );
-    final file = _SelectedFile(
-      Uri.parse('blob:export'),
-      bytes: bytes,
-      reportedLength: bytes.length,
-    );
-    expect((await web.parseSelectedInstagramExport(file)).entries, isEmpty);
-    expect(file.bytesRead, isTrue);
   });
 }

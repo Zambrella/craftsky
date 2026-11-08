@@ -20,7 +20,7 @@ v1 requires Bluesky/PDS OAuth before the user sees any content. The full app sur
 
 - Pro: Smallest v1 backend. No separate public API tier, no edge cache strategy for anonymous traffic, no IP rate-limiting layer, no anonymous-viewer moderation policy to defend.
 - Pro: One auth state to test and reason about. Every page assumes a viewer DID; visibility decisions are uniform.
-- Pro: Matches the current client reality. Flutter web is client-rendered SPA — crawlers see an empty shell, social unfurlers get no useful Open Graph tags, shared links don't preview. The biggest argument for anonymous access (organic discovery + SEO) doesn't apply to v1's rendering model.
+- Pro: Matched the original client-rendered SPA model: crawlers saw an empty shell, social unfurlers got no useful Open Graph tags, and shared links did not preview. The biggest argument for anonymous access (organic discovery + SEO) doesn't apply to v1's rendering model.
 - Pro: Defers a moderation-policy decision that is hard to make well in the abstract. Whose labelers apply to anonymous viewers? What's the default sensitivity threshold? Easier to answer once we have real users and real content.
 - Pro: Buys time to instrument the OAuth funnel and learn whether first-run friction is actually a problem before paying to fix it.
 - Con: Higher first-run friction. Curious users who hear about Craftsky on Bluesky must complete OAuth before seeing anything. Some will bounce.
@@ -61,7 +61,7 @@ Not chosen.
 
 **Why:**
 
-- The strongest argument for anonymous access in a typical ATProto AppView is organic discovery via SEO and social-link unfurls. Flutter client-rendered web removes that argument from v1's calculus. We would be paying the cost of public reads without the discovery dividend.
+- The strongest argument for anonymous access in a typical ATProto AppView is organic discovery via SEO and social-link unfurls. The original client-rendered model removed that argument from v1's calculus. We would be paying the cost of public reads without the discovery dividend.
 - The moderation policy for anonymous viewers (default sensitivity, label set, embed cascading, takedown path) is hard to design well before we have real content and real users. Deferring lets us design it against reality, not abstraction.
 - The OAuth-friction concern is empirical, not theoretical. Whether it actually hurts trial-to-activation is something we can only know with launched product and instrumentation. If it does, that becomes the trigger to build the anonymous tier; if it doesn't, we've avoided a real chunk of work.
 - v1 has finite scope. The most defensible cuts are the ones whose absence is easy to recover from. Adding anonymous reads later is purely additive — it doesn't require redesigning the authed path. So this is a low-regret deferral.

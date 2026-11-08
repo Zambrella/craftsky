@@ -2,7 +2,7 @@
 
 ## 1. Initial Request
 
-Users need basic photo cropping and rotation before upload on iOS, Android, and web. Profile pictures should show how the selected composition looks as a circle. After package discovery, the maintainer selected `pro_image_editor`, partly for its potential to support additional editing tools later. For post/project images, an Edit button on the image in the composer must open the editor. This stage documents requirements only.
+Users need basic photo cropping and rotation before upload on iOS and Android. Profile pictures should show how the selected composition looks as a circle. After package discovery, the maintainer selected `pro_image_editor`, partly for its potential to support additional editing tools later. For post/project images, an Edit button on the image in the composer must open the editor. This stage documents requirements only.
 
 Source labels used below: **P1** = initial crop/rotate, avatar, and platform request; **P2** = confirmed package choice and composer Edit-button request; **D1** = preceding package research; **C1–C5** = current code findings below; **A1–A4** = explicitly recorded assumptions in section 20.
 
@@ -63,7 +63,7 @@ Users currently need another app to adjust photo framing or rotation and cannot 
 
 - G-001: Let users adjust individual post/project images without leaving the composer workflow.
 - G-002: Let users compose avatars against an accurate circular preview.
-- G-003: Deliver both on iOS, Android, and web without losing existing attachment data or bypassing upload constraints.
+- G-003: Deliver both on iOS and Android without losing existing attachment data or bypassing upload constraints.
 
 ## 8. Non-Goals
 
@@ -103,7 +103,7 @@ Eligible composer thumbnails expose an Edit button directly over the image. It o
 | RULE-001 | Business rule | Must | Composer editing shall require available prepared local image bytes. Pending, unavailable, retained published, and server-stored scheduled images without such bytes shall not expose Edit. Newly selected/local-draft images in those composers remain eligible once ready. | Bound first-version scope | C2, A3 | AC-008 |
 | RULE-002 | Business rule | Must | Edited output shall pass existing preparation and upload rules, including size/format/pixel limits, orientation normalization, and metadata stripping, before replacing the accepted image or uploading. | Preserve media constraints | C4 | AC-009 |
 | RULE-003 | Business rule | Must | An editor result shall apply only to its initiating image, composer/profile flow, and account. Removal, replacement, disposal, or account changes shall prevent stale results from being applied. Saving/submitting shall not race an unconfirmed or processing edit. | Prevent stale or cross-account changes | C2, C3 | AC-010 |
-| NFR-001 | Non-functional | Must | Crop/rotate and circular preview shall work on iOS, Android, and web, with touch controls and web pointer controls. | Supported platforms | P1, D1 | AC-011 |
+| NFR-001 | Non-functional | Must | Crop/rotate and circular preview shall work on iOS and Android, with touch controls and web pointer controls. | Supported platforms | P1, D1 | AC-011 |
 | NFR-002 | Non-functional | Must | New controls shall use localized labels, screen-reader names, usable touch targets, keyboard activation/focus on web, and existing reduced-motion preferences. | Accessible editing | Repository UI conventions | AC-012 |
 | NFR-003 | Non-functional | Must | Editing shall occur locally without sending photos to a third-party editing service, saving over gallery originals, requesting additional media permissions, or logging image bytes/private media references. Unexpected failures shall follow the mandatory diagnostic guide. | Privacy and safe diagnostics | C4, repository rules | AC-013 |
 

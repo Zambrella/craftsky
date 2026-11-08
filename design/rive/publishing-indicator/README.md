@@ -31,7 +31,7 @@ This runs the actual submission overlay and current app themes without signing i
 
 ```sh
 cd app
-flutter run -d web-server --web-port 7357 -t test/fixtures/publishing_animation_preview.dart
+flutter run -d <device-id> -t test/fixtures/publishing_animation_preview.dart
 ```
 
 Use the switches to inspect light/dark themes and reduced motion. For a native preview, replace `web-server` with a supported device ID.

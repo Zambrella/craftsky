@@ -5,35 +5,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
-  test('camera source support includes mobile and web but not desktop', () {
+  test('camera source support includes mobile but not desktop', () {
     expect(
       supportsCameraImageSource(
-        isWeb: false,
         platform: TargetPlatform.android,
       ),
       isTrue,
     );
     expect(
-      supportsCameraImageSource(isWeb: false, platform: TargetPlatform.iOS),
+      supportsCameraImageSource(platform: TargetPlatform.iOS),
       isTrue,
     );
     expect(
-      supportsCameraImageSource(isWeb: true, platform: TargetPlatform.linux),
-      isTrue,
-    );
-    expect(
-      supportsCameraImageSource(isWeb: false, platform: TargetPlatform.macOS),
+      supportsCameraImageSource(platform: TargetPlatform.macOS),
       isFalse,
     );
     expect(
       supportsCameraImageSource(
-        isWeb: false,
         platform: TargetPlatform.windows,
       ),
       isFalse,
     );
     expect(
-      supportsCameraImageSource(isWeb: false, platform: TargetPlatform.linux),
+      supportsCameraImageSource(platform: TargetPlatform.linux),
       isFalse,
     );
   });

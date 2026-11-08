@@ -35,7 +35,7 @@ Success means:
 CraftSky will own the complete verification path:
 
 ```text
-Flutter/Web client
+Flutter mobile client
     -> authenticated AppView challenge endpoint
     -> Instagram DM to @craftsky
     -> Meta Instagram messaging webhook

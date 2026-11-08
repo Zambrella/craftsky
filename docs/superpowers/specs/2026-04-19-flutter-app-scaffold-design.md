@@ -46,8 +46,6 @@ Wraps `runApp` in `runZonedGuarded`. In order: ensures widgets binding, configur
 
 Platform and Flutter init that must **never** throw in production. In order:
 
-- `usePathUrlStrategy()` for web (removes `#` from URLs).
-- Web short-circuit: on `kIsWeb`, skip native-only init and call `runApp` immediately.
 - Set `Intl.defaultLocale` from `PlatformDispatcher.instance.locale`.
 - Initialize `dart_mappable` mappers (`initializeMappers()` — empty for now, grows with models).
 - `SharedPreferences.setPrefix('craftsky.')` — all stored keys namespaced.
@@ -80,7 +78,7 @@ Because logging is configured in `main` before `registerErrorHandlers()` runs, a
 @MappableClass()
 class CraftskyDeviceInfo with CraftskyDeviceInfoMappable {
   CraftskyDeviceInfo({
-    required this.platform,  // 'Android' | 'iOS' | 'Web'
+    required this.platform,  // 'Android' | 'iOS'
     required this.deviceId,
     required this.model,
     required this.brand,
@@ -103,7 +101,7 @@ class AppDependencies with AppDependenciesMappable {
 @Riverpod(keepAlive: true)
 Future<AppDependencies> appDependencies(Ref ref) async {
   final packageInfo = await PackageInfo.fromPlatform();
-  final deviceInfo  = await _resolveDeviceInfo();  // Android/iOS/Web branches
+  final deviceInfo  = await _resolveDeviceInfo();  // Android/iOS branches
   final prefs       = await SharedPreferences.getInstance();
   final appVersion  = Version.parse(packageInfo.version);
 
@@ -134,7 +132,7 @@ SharedPreferences sharedPreferences(Ref ref) =>
     ref.watch(appDependenciesProvider.select((a) => a.requireValue.sharedPreferences));
 ```
 
-`_resolveDeviceInfo()` is a private top-level function that branches on `kIsWeb` + `defaultTargetPlatform` and throws `UnsupportedError` for unsupported platforms. Only Android, iOS, and Web are supported in this scaffold.
+`_resolveDeviceInfo()` is a private top-level function that branches on `defaultTargetPlatform` and throws `UnsupportedError` for unsupported platforms. Only Android and iOS are supported in this scaffold.
 
 **`requireValue` is safe here** because `App` does not build the router subtree until `appDependenciesProvider` resolves to `AsyncData`.
 
@@ -354,7 +352,7 @@ Before claiming the scaffold is complete, the implementer must run and report ou
 - `dart run build_runner build --delete-conflicting-outputs` — no errors; `.g.dart` and `.mapper.dart` files generated.
 - `flutter analyze` — no errors, no new warnings beyond baseline.
 - `flutter test` — the smoke test passes.
-- `flutter run` on at least one target (iOS simulator, Android emulator, or Chrome) — app launches, `HomePage` renders, no runtime errors in the console.
+- `flutter run` on at least one target (iOS simulator or Android emulator) — app launches, `HomePage` renders, no runtime errors in the console.
 
 ## Out of Scope (future work, not this spec)
 

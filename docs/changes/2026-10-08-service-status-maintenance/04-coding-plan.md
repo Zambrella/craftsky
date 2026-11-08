@@ -40,7 +40,6 @@ Commands:
 ```sh
 just service-status-test
 just app-test --no-pub test/service_status test/observability/service_status_diagnostics_test.dart
-just app-test --no-pub --platform chrome test/service_status/service_status_repository_web.browser.dart
 just app-analyze
 ```
 

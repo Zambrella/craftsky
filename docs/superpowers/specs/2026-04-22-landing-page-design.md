@@ -76,7 +76,7 @@ All other sections (project posts §4.3, how it works §4.5, FAQ §4.7) sit insi
 Cloudflare Pages, configured to deploy the `web/` directory on push to `main`.
 
 - **Why Cloudflare Pages:** free at this traffic tier, automatic HTTPS, HTTP/3, Brotli, CDN. Pull-based deploy from GitHub means no CI changes. Independent of the AppView, so a broken AppView deploy doesn't take the marketing page down.
-- **DNS:** `craftsky.social` apex points at the Pages project; `www.craftsky.social` redirects to the apex. `app.craftsky.social` is reserved for the Flutter web app and is unaffected.
+- **DNS:** `craftsky.social` apex points at the Pages project; `www.craftsky.social` redirects to the apex. `app.craftsky.social` is used by the SvelteKit web client and is unaffected.
 - **Preview deploys:** every PR gets a preview URL under `pages.dev`, which makes visual review easy.
 
 Netlify, Vercel, or GitHub Pages would all work equivalently. The implementation plan should treat "pick a host" as a 10-minute decision, not a research task.

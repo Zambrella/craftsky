@@ -66,7 +66,6 @@ final class ChatDraftStore {
       resetOnError: false,
       storageNamespace: 'craftsky_chat_drafts',
     ),
-    webOptions: WebOptions(dbName: 'CraftSkyChatDrafts'),
   );
   static const _indexKey = 'craftsky.chat.drafts.v1.index';
   final ChatDraftStorageBackend _backend;
