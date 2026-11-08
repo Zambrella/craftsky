@@ -415,7 +415,7 @@
 				>{/if}{/if}
 	</section>
 	<a
-		class="import-help"
+		class="button import-help"
 		href="https://craftsky.social/instagram-import"
 		target="_blank"
 		rel="noopener noreferrer"
@@ -652,13 +652,11 @@
 		margin-top: 24px;
 	}
 	.import-help {
-		display: flex;
-		align-items: center;
+		width: fit-content;
+		max-width: 100%;
 		gap: 8px;
 		margin: 16px 0;
-		font-size: 14px;
-		font-weight: 600;
-		text-decoration: none;
+		text-align: center;
 	}
 	:global(.settings-workspace) .segmented {
 		margin: 0;

@@ -24,6 +24,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -130,7 +131,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
                 SizedBox(height: spacing.sp4),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: TextButton(
+                  child: ChunkyButton(
                     key: const Key('instagram-import-help'),
                     onPressed: () => unawaited(
                       confirmAndLaunchExternalLink(
