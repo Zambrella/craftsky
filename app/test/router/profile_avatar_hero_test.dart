@@ -429,6 +429,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('lexicon craft names use display labels throughout the flight', (
+    tester,
+  ) async {
+    const craft = 'social.craftsky.actor.defs#knitting';
+    final profile = _profile.copyWith(crafts: [craft]);
+    final pending = Completer<Profile>();
+    await _pumpScene(tester, pending, profile: profile);
+
+    await tester.tap(find.byType(ProfileAccountListTile).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final flight = find.byKey(
+      const ValueKey('profile-craft-flight-knitting'),
+    );
+    expect(
+      find.descendant(of: flight, matching: find.text('Knitting')),
+      findsOneWidget,
+    );
+    expect(find.text('Social.craftsky.actor.defs#knitting'), findsNothing);
+
+    pending.complete(profile);
+    await tester.pumpAndSettle();
+    expect(find.text('Knitting'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(
+      find.descendant(of: flight, matching: find.text('Knitting')),
+      findsOneWidget,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('overflowed crafts stay counted and only visible icons fly', (
     tester,
   ) async {
@@ -529,8 +564,8 @@ void main() {
       );
       pending.complete(profile);
       await tester.pumpAndSettle();
-      expect(find.text('Knitting'), findsOneWidget);
-      expect(find.text('KNITTING'), findsOneWidget);
+      expect(find.text('Knitting'), findsNWidgets(2));
+      expect(find.text('KNITTING'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
