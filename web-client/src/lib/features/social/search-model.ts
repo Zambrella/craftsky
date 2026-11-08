@@ -1,4 +1,4 @@
-import type { RecentSearch } from '#lib/api/types.ts';
+import type { Author, RecentSearch } from '#lib/api/types.ts';
 
 export function searchDestination(
 	value: string,
@@ -47,4 +47,23 @@ export function recentDestination(item: RecentSearch): string {
 					if (typeof entry === 'string') query.append(key, entry);
 		}
 	return '/search?' + query;
+}
+
+export function recentAuthor(item: RecentSearch): Author | undefined {
+	const p = item.payload;
+	if (
+		item.type !== 'profile' ||
+		typeof p.did !== 'string' ||
+		typeof p.handle !== 'string'
+	)
+		return;
+	return {
+		did: p.did,
+		handle: p.handle,
+		displayName: typeof p.displayName === 'string' ? p.displayName : undefined,
+		avatar: typeof p.avatar === 'string' ? p.avatar : undefined,
+		crafts: Array.isArray(p.crafts)
+			? p.crafts.filter((craft): craft is string => typeof craft === 'string')
+			: []
+	};
 }

@@ -15,6 +15,10 @@ func TestProfileRelevanceRank(t *testing.T) {
 		description string
 		want        int
 	}{
+		{name: "prefixed exact handle", query: "  @ALI  ", handle: "ali", want: 0},
+		{name: "prefixed partial handle", query: "@ali", handle: "alice.craftsky.social", want: 1},
+		{name: "prefixed display name", query: "@ali", handle: "maker.example", displayName: "Alice Maker", want: 3},
+		{name: "embedded at retained", query: "alice@example", handle: "maker.example", description: "alice@example", want: 4},
 		{name: "exact handle", query: "ali", handle: "ali", want: 0},
 		{name: "prefix handle", query: "ali", handle: "alice.craftsky.social", want: 1},
 		{name: "substring handle", query: "ali", handle: "mali.craftsky.social", want: 2},
@@ -29,6 +33,11 @@ func TestProfileRelevanceRank(t *testing.T) {
 		})
 	}
 
+	for _, query := range []string{"", "@", "  @  "} {
+		if _, ok := api.ProfileRelevanceRank(query, "alice.example", "Alice", ""); ok {
+			t.Fatalf("empty query %q matched", query)
+		}
+	}
 	if _, ok := api.ProfileRelevanceRank("ali", "bob.example", "Bob", "crochet"); ok {
 		t.Fatal("non-match ok = true, want false")
 	}

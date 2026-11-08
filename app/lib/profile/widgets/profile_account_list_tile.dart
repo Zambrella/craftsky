@@ -13,6 +13,7 @@ class ProfileAccountListTile extends StatelessWidget {
     this.onTap,
     this.beforeOpen,
     this.trailing,
+    this.contentPadding,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class ProfileAccountListTile extends StatelessWidget {
   final VoidCallback? onTap;
   final Future<void> Function()? beforeOpen;
   final Widget? trailing;
+  final EdgeInsetsGeometry? contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +60,8 @@ class ProfileAccountListTile extends StatelessWidget {
         child: ListTile(
           horizontalTitleGap: 12,
           minLeadingWidth: 0,
-          contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+          contentPadding:
+              contentPadding ?? EdgeInsets.symmetric(horizontal: spacing.sp4),
           leading: avatar,
           title: CompactProfileIdentity(
             handle: account.handle.toString(),
