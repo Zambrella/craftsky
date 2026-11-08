@@ -941,3 +941,73 @@ test('switching away from a loading search tab ignores its late result', async (
 	await expect(page.locator('.member-post')).toContainText('search-project');
 	expect(requests).toBe(2);
 });
+
+for (const kind of ['comment', 'reply']) {
+	test(`profile ${kind} menu opens its own likes list`, async ({ page }) => {
+		const root = {
+			uri: 'at://did:plc:bob/social.craftsky.feed.post/root',
+			cid: 'root-cid'
+		};
+		const responses = posts('profile-response', 2).map((post, index) => ({
+			...post,
+			likeCount: index === 0 ? 2 : 0,
+			reply: {
+				root,
+				parent:
+					kind === 'reply'
+						? {
+								...root,
+								uri: 'at://did:plc:bob/social.craftsky.feed.post/parent'
+							}
+						: root
+			}
+		}));
+		await page.route('**/api/appview/v1/profiles/*/comments*', (route) =>
+			route.fulfill({ json: { items: responses } })
+		);
+		await page.route('**/api/appview/v1/posts/**/likes*', (route) =>
+			route.fulfill({
+				json: {
+					items: [
+						{
+							...author,
+							did: 'did:plc:carol',
+							handle: 'carol.test',
+							displayName: 'Carol Maker'
+						}
+					]
+				}
+			})
+		);
+		await page.route('**/api/appview/v1/posts/*/profile-response-0', (route) =>
+			route.fulfill({ json: responses[0] })
+		);
+		await page.goto('/profiles/did%3Aplc%3Aalice?tab=comments');
+		const rows = page.locator('.profile-content .member-post');
+		await expect(rows).toHaveCount(2);
+		await rows
+			.nth(1)
+			.locator('summary[aria-label="More post actions"]')
+			.click();
+		await expect(
+			rows.nth(1).getByRole('link', { name: 'View likes', exact: true })
+		).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await rows
+			.first()
+			.locator('summary[aria-label="More post actions"]')
+			.click();
+		const likes = rows
+			.first()
+			.getByRole('link', { name: 'View likes', exact: true });
+		await expect(likes).toHaveAttribute(
+			'href',
+			'/posts/did%3Aplc%3Aalice/profile-response-0/likes'
+		);
+		await likes.click();
+		await expect(page).toHaveURL(
+			/\/posts\/did%3Aplc%3Aalice\/profile-response-0\/likes$/
+		);
+		await expect(page.locator('.thread-person')).toContainText('Carol Maker');
+	});
+}

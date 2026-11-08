@@ -686,7 +686,7 @@
 						<div class="menu-items">
 							{#if post.reply && post.likeCount > 0}<a
 									href={postRoute(post) + '/likes'}
-									><Icon name="users" />Likes</a
+									><Icon name="users" />View likes</a
 								>
 								<div class="menu-divider"></div>{/if}
 							<button data-public-action onclick={share}
