@@ -5,6 +5,7 @@
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
 	import Icon from './features/shell/Icon.svelte';
+	import { confirmExternalLink } from './features/social/prompt';
 	import catalogue from './features/composer/catalogue.json';
 	import {
 		authorName,
@@ -355,8 +356,10 @@
 				<dd>{sizeSummary.value}</dd>{/if}
 			{#if detail}{#each detailRows as row}<dt>{row.label}</dt>
 					<dd>
-						{#if row.href}<a href={row.href} rel="ugc nofollow noreferrer"
-								>{row.value}</a
+						{#if row.href}<a
+								href={row.href}
+								rel="ugc nofollow noreferrer"
+								onclick={confirmExternalLink}>{row.value}</a
 							>{:else}{row.value}{/if}
 					</dd>{/each}{/if}
 		</dl>
@@ -396,6 +399,9 @@
 <style>
 	.project-detail-metadata a {
 		text-decoration: none;
+	}
+	.project-detail-metadata a:hover {
+		text-decoration: underline;
 	}
 	.project-chip-sections {
 		margin-top: 12px;
