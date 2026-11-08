@@ -52,7 +52,7 @@
 		<button class="cancel" onclick={() => onResult(false)}>{cancelLabel}</button
 		>
 		{#if href}<a
-				class="primary-button"
+				class="button primary-button"
 				data-external-confirmed
 				{href}
 				{target}

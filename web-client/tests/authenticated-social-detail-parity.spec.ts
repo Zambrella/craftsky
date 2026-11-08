@@ -1205,6 +1205,43 @@ test('external links show their destination in a native confirmation and Cancel 
 	await expect(page).toHaveURL(href);
 });
 
+test('project details link confirms its destination before leaving CraftSky', async ({
+	page
+}) => {
+	const href = 'https://fixture.craftsky.test/pattern';
+	await timeline(
+		page,
+		post('project-link', {
+			project: {
+				common: {
+					title: 'Weekend cardigan',
+					craftType: 'social.craftsky.feed.defs#knitting',
+					status: 'social.craftsky.feed.defs#finished',
+					pattern: { url: href }
+				},
+				details: {}
+			}
+		})
+	);
+	await page.route(href, (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: '<title>Pattern destination</title>'
+		})
+	);
+	await page.goto('/posts/did:plc:bob/project-link');
+	const link = page.locator('.project-detail-metadata a');
+	await link.click();
+	const dialog = page.getByRole('dialog', { name: 'Open link?', exact: true });
+	await expect(dialog.locator('.destination')).toHaveText(href);
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(link).toBeFocused();
+	await expect(page).toHaveURL(/\/project-link$/);
+	await link.click();
+	await dialog.getByRole('link', { name: 'Open link', exact: true }).click();
+	await expect(page).toHaveURL(href);
+});
+
 test('notification post Back returns to the notification list', async ({
 	page
 }) => {
