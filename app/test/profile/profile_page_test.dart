@@ -67,6 +67,71 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    testWidgets(
+      'guest profile uses Projects, all summary stats and account prompts',
+      (tester) async {
+        var follows = 0;
+        final profile = Profile(
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+          displayName: 'Alice',
+          crafts: const [],
+          createdAt: DateTime.utc(2026),
+          postsLast7Days: 3,
+          projectCount: 2,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              testGuestBrowsingOverride,
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(
+                FakeProfileRepository(
+                  onFetch: (_) async => profile,
+                  onFollow: (_) async {
+                    follows++;
+                    return profile;
+                  },
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onListProjectsByAuthor: (_, {cursor, limit}) async =>
+                      const PostPage(items: []),
+                ),
+              ),
+              activeLanguagePreferencesProvider.overrideWithValue(
+                const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: profile.did),
+            ),
+          ),
+        );
+        await pumpUntilFound(
+          tester,
+          find.byType(ProfileTabBar),
+          description: 'guest profile tabs',
+        );
+        await tester.pumpAndSettle();
+        expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+        expect(find.text('Joined'), findsOneWidget);
+        expect(find.text('Last 7 days'), findsOneWidget);
+        await tester.ensureVisible(find.text('Follow').last);
+        await tester.tap(find.text('Follow').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Join CraftSky'), findsOneWidget);
+        expect(follows, 0);
+      },
+    );
+
     for (final ownProfile in [false, true]) {
       for (final disableAnimations in [false, true]) {
         testWidgets(

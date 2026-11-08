@@ -126,7 +126,7 @@ final class PublicReadRequest {
     if (section != null && value is Map && value['replies'] is Map) {
       final replies = value['replies'] as Map;
       final items = (replies['items'] as List? ?? [])
-          .map((item) => {'post': adaptPublicDisplay(item)})
+          .map((item) => {'post': adaptPublicDisplay(item), 'flattened': false})
           .toList();
       if (section == 'replies') {
         return {'items': items, 'loaded': true, 'cursor': replies['cursor']};

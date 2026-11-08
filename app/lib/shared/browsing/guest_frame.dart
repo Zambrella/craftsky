@@ -1,33 +1,46 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/browsing/guest_session.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 Future<void> showGuestSignIn(BuildContext context, WidgetRef ref) async {
   final session = ref.read(guestSessionProvider);
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) => Dialog(
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 640,
-          maxHeight: MediaQuery.sizeOf(context).height * .9,
-        ),
-        child: WelcomePage(
-          onExplore: () => Navigator.of(dialogContext).pop(),
-          onStartAuth: () => session.prepareSignIn(
-            GoRouter.of(context).routeInformationProvider.value.uri.toString(),
+  if (ref.read(guestPromptOpenProvider)) return;
+  final prompt = ref.read(guestPromptOpenProvider.notifier)..open();
+  try {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 640,
+            maxHeight: MediaQuery.sizeOf(context).height * .9,
+          ),
+          child: WelcomePage(
+            embedded: true,
+            onExplore: () => Navigator.of(dialogContext).pop(),
+            onStartAuth: () => session.prepareSignIn(
+              GoRouter.of(context).routeInformationProvider.value.uri
+                  .toString(),
+            ),
           ),
         ),
       ),
-    ),
-  );
-  session.explore();
+    );
+  } finally {
+    session.explore();
+    prompt.close();
+  }
 }
 
 /// Public chrome has no account runtime, drawers, notifications or composer.
@@ -39,6 +52,8 @@ class GuestFrame extends ConsumerStatefulWidget {
 }
 
 class _GuestFrameState extends ConsumerState<GuestFrame> {
+  Future<void> _showSignIn() => showGuestSignIn(context, ref);
+
   bool _scheduled = false;
   bool _authScheduled = false;
   @override
@@ -62,39 +77,55 @@ class _GuestFrameState extends ConsumerState<GuestFrame> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (explicit) const FeedRoute().go(context);
-        unawaited(showGuestSignIn(context, ref));
+        unawaited(_showSignIn());
       });
     }
-    return Scaffold(
-      body: Column(
-        children: [
-          Expanded(child: widget.child),
-          SafeArea(
-            top: false,
-            child: Semantics(
-              container: true,
-              label: 'Sign in to CraftSky',
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  children: [
-                    const Text('Join the crafting community'),
-                    FilledButton(
-                      onPressed: () => showGuestSignIn(context, ref),
-                      child: const Text('Sign in / Register'),
+    return GuestNavigationFrame(
+      selectedIndex: uri.path.startsWith('/search') ? 1 : 0,
+      onDestinationSelected: (index) =>
+          context.go(index == 0 ? '/feed' : '/search'),
+      child: Scaffold(
+        body: Column(
+          children: [
+            Expanded(child: widget.child),
+            if (!ref.watch(guestPromptOpenProvider) &&
+                !ref.read(guestSessionProvider).shouldPrompt(uri.path) &&
+                !explicit)
+              SafeArea(
+                top: false,
+                child: Semantics(
+                  container: true,
+                  label: 'Join CraftSky',
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
-                  ],
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Flexible(
+                          flex: 9,
+                          child: Text(
+                            'Your craft. Your community.',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Spacer(),
+                        const SizedBox(width: 12),
+                        ChunkyButton(
+                          onPressed: _showSignIn,
+                          child: const Text('Join'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -192,6 +192,45 @@ func TestPublicCursorBindsResourceAndFilters(t *testing.T) {
 }
 
 // IT-004 / FR-003, FR-010 / AC-004, AC-005, AC-010.
+func TestPublicThreadPaginatesAllVisibleRepliesInCommentBranch(t *testing.T) {
+	pool, store := publicReadFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Add(-time.Hour)
+	root := seedPost(t, pool, "did:plc:public", "root", "Project", now)
+	comment := seedReplyPost(t, pool, "did:plc:public", "comment", "Top comment", root, root, now.Add(time.Minute))
+	first := seedReplyPost(t, pool, "did:plc:public", "first", "First reply", root, comment, now.Add(2*time.Minute))
+	seedReplyPost(t, pool, "did:plc:hidden", "hidden", "Hidden reply", root, first, now.Add(3*time.Minute))
+	seedReplyPost(t, pool, "did:plc:unknown", "unknown", "Unknown visibility reply", root, first, now.Add(4*time.Minute))
+	second := seedReplyPost(t, pool, "did:plc:public", "second", "Reply to the first reply", root, first, now.Add(5*time.Minute))
+	seedReplyPost(t, pool, "did:plc:public", "sibling", "Separate top comment", root, root, now.Add(6*time.Minute))
+	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts`); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := store.PublicThread(ctx, "did:plc:public", "comment", 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Replies.Items) != 1 || page.Replies.Items[0].URI != syntax.ATURI(first) || page.Replies.Cursor == "" {
+		t.Fatalf("first branch page=%+v", page)
+	}
+	page, err = store.PublicThread(ctx, "did:plc:public", "comment", 1, page.Replies.Cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Replies.Items) != 1 || page.Replies.Items[0].URI != syntax.ATURI(second) {
+		t.Fatalf("second branch page=%+v, want nested reply %s", page.Replies, second)
+	}
+	page, err = store.PublicThread(ctx, "did:plc:public", "comment", 20, "")
+	if err != nil || len(page.Replies.Items) != 2 || page.Replies.Cursor != "" {
+		t.Fatalf("complete branch=%+v err=%v", page, err)
+	}
+	page, err = store.PublicThread(ctx, "did:plc:public", "root", 20, "")
+	if err != nil || len(page.Replies.Items) != 2 || page.Replies.Items[0].URI != syntax.ATURI(comment) || page.Replies.Items[1].Rkey != "sibling" {
+		t.Fatalf("root must still contain only top comments: %+v err=%v", page, err)
+	}
+}
+
 func TestPublicThreadAndEmbedsRespectIndependentVisibility(t *testing.T) {
 	pool, store := publicReadFixture(t)
 	ctx := context.Background()
@@ -262,11 +301,11 @@ func TestPublicProfileIncludesPublicFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.PostCount != 1 || profile.ProjectCount != 1 || profile.Customisation == nil {
+	if profile.PostCount != 1 || profile.ProjectCount != 1 || profile.PostsLast7Days != 2 || profile.CreatedAt.IsZero() || profile.Customisation == nil {
 		t.Fatalf("missing public profile facts: %+v", profile)
 	}
 	raw, _ := json.Marshal(profile)
-	for _, private := range []string{"mutualFollowerCount", "postsLast7Days", "viewer", "editableLinks", "muted", "blocking"} {
+	for _, private := range []string{"mutualFollowerCount", "viewer", "editableLinks", "muted", "blocking"} {
 		if containsJSON(raw, private) {
 			t.Fatalf("private profile field %s: %s", private, raw)
 		}

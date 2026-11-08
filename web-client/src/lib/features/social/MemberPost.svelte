@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		signInContext,
+		protectAccountAction,
+		type RequestSignIn
+	} from '../browsing/account-action';
 	import { reportFailure } from '../diagnostics/client';
 	import type { DiagnosticOperation } from '../diagnostics/privacy';
 	import { userErrorMessage } from '#lib/user-facing-error.ts';
@@ -70,6 +75,7 @@
 		onMoved?: () => void;
 	} = $props();
 	const guest = $derived(api.audience === 'guest');
+	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -534,43 +540,13 @@
 								>{/if}
 						</div>{/if}
 				</aside>{/if}
-			<nav class="post-actions" aria-label="Post actions">
-				{#if guest}
-					<a
-						class="reaction"
-						aria-label="Likes"
-						href={postRoute(post) + '/likes'}
-						><Icon name="heart" size={22} /><span>{post.likeCount || ''}</span
-						></a
-					>
-					<a
-						class="reaction"
-						aria-label="Comments"
-						href={postRoute(post) + '?show-comments=true'}
-						><Icon name="comment" size={22} /><span
-							>{post.replyCount || ''}</span
-						></a
-					>
-					<a
-						class="reaction"
-						aria-label="Reposts"
-						href={postRoute(post) + '/reposts'}
-						><Icon name="repost" size={22} /><span
-							>{post.repostCount || ''}</span
-						></a
-					>
-					{#if post.quoteCount}<a
-							class="reaction"
-							aria-label="Quotes"
-							href={postRoute(post) + '/quotes'}
-							><Icon name="quote" size={22} /><span>{post.quoteCount}</span></a
-						>{/if}
-					<span class="action-spacer"></span><button
-						class="icon-button"
-						onclick={share}
-						aria-label="Copy link"><Icon name="link" size={22} /></button
-					>
-				{:else if savedAt}<time class="saved-date" datetime={savedAt}
+			<nav
+				class="post-actions"
+				aria-label="Post actions"
+				onclickcapture={(event) =>
+					protectAccountAction(guest, requestSignIn, event)}
+			>
+				{#if savedAt}<time class="saved-date" datetime={savedAt}
 						>{compactDate(savedAt)}</time
 					><span class="action-spacer"></span>
 					<details class="post-overflow" use:contextMenu>
@@ -587,7 +563,9 @@
 							}}
 						></button>
 						<div class="menu-items">
-							<button onclick={share}><Icon name="link" />Copy link</button><a
+							<button data-public-action onclick={share}
+								><Icon name="link" />Copy link</button
+							><a
 								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}
 								><Icon name="send" />Send via chat</a
@@ -711,7 +689,9 @@
 									><Icon name="users" />Likes</a
 								>
 								<div class="menu-divider"></div>{/if}
-							<button onclick={share}><Icon name="link" />Copy link</button>
+							<button data-public-action onclick={share}
+								><Icon name="link" />Copy link</button
+							>
 							<a
 								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}

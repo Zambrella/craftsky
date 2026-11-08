@@ -13,6 +13,7 @@
 	import { guestRoute } from '#lib/routes.ts';
 	import BrowsingShell from './BrowsingShell.svelte';
 	import SignInContent from './SignInContent.svelte';
+	import { signInContext, type RequestSignIn } from './account-action';
 	let { children }: { children: Snippet } = $props();
 	const api = new PublicCraftskyAPI();
 	setContext('craftsky-api', api);
@@ -160,10 +161,19 @@
 		return retained ?? publicDestination(url.pathname + url.search) ?? '/feed';
 	});
 	let ready = $state(false);
+	const welcomePending = $derived(
+		!ready && /^\/(?:feed(?:\/filters)?)?\/?$/.test(page.url.pathname)
+	);
 	let bannerHeight = $state(150);
 	let guest = $state(new GuestSession());
+	const bannerVisible = $derived(!welcomePending && !guest.promptOpen);
 	let dialog = $state<HTMLDialogElement>();
 	let signInTrigger = $state<HTMLElement>();
+	setContext<RequestSignIn>(signInContext, (trigger) => {
+		explicitReturnTo = publicDestination(page.url.pathname + page.url.search);
+		signInTrigger = trigger;
+		guest.signIn();
+	});
 	function consumeSignInEntry() {
 		if (page.url.searchParams.get('auth') === '1') {
 			explicitReturnTo = publicDestination(
@@ -199,11 +209,14 @@
 			// Safari touch activation does not focus buttons before opening a
 			// dialog, so native dialog restoration alone loses the trigger.
 			queueMicrotask(() => {
-				const target = signInTrigger?.isConnected
-					? signInTrigger
-					: document.querySelector<HTMLElement>(
-							'.browsing-header nav a[href="/feed"]'
-						);
+				const target =
+					signInTrigger?.isConnected && signInTrigger.getClientRects().length
+						? signInTrigger
+						: [
+								...document.querySelectorAll<HTMLElement>(
+									'.app-sidebar a[href="/feed"], .bottom-nav a[href="/feed"]'
+								)
+							].find((element) => element.getClientRects().length);
 				target?.focus({ preventScroll: true });
 			});
 		}
@@ -214,13 +227,14 @@
 	inert={guest.promptOpen}
 	aria-hidden={guest.promptOpen}
 	class="guest-runtime"
-	style:--guest-banner-height={bannerHeight + 'px'}
+	style:--guest-banner-height={(bannerVisible ? bannerHeight : 0) + 'px'}
 >
 	<BrowsingShell>
 		{@render children()}
 		{#snippet banner()}<section
 				bind:clientHeight={bannerHeight}
 				class="guest-banner"
+				hidden={!bannerVisible}
 				aria-label="Join CraftSky"
 			>
 				<div>
@@ -240,7 +254,7 @@
 					}}
 				>
 					<input type="hidden" name="returnTo" value={authReturn} />
-					<button class="button">Sign in</button>
+					<button class="guest-sign-in">Sign in</button>
 					<button class="button">Register</button>
 				</form>
 			</section>{/snippet}
@@ -255,22 +269,41 @@
 	}}
 	onclose={() => guest.explore()}
 >
-	<SignInContent onExplore={() => guest.explore()} returnTo={authReturn} />
+	<SignInContent
+		embedded
+		onExplore={() => guest.explore()}
+		returnTo={authReturn}
+	/>
 </dialog>
 
 <style>
+	.guest-runtime {
+		--guest-rail-width: 256px;
+		--guest-navigation-height: 0px;
+	}
+	@media (max-width: 900px) {
+		.guest-runtime {
+			--guest-rail-width: 0px;
+			--guest-navigation-height: calc(64px + env(safe-area-inset-bottom));
+		}
+	}
+
 	.guest-runtime :global(.filter-trigger) {
-		bottom: calc(var(--guest-banner-height) + 16px);
+		bottom: calc(
+			var(--guest-banner-height) + var(--guest-navigation-height) + 16px
+		);
 	}
 	.guest-runtime :global(.project-filter-page) {
-		bottom: var(--guest-banner-height);
-		height: calc(100dvh - var(--guest-banner-height));
+		bottom: calc(var(--guest-banner-height) + var(--guest-navigation-height));
+		height: calc(
+			100dvh - var(--guest-banner-height) - var(--guest-navigation-height)
+		);
 	}
 
 	.guest-banner {
 		position: fixed;
-		bottom: 0;
-		left: 0;
+		bottom: var(--guest-navigation-height);
+		left: var(--guest-rail-width);
 		right: 0;
 		z-index: 30;
 		display: flex;
@@ -282,6 +315,9 @@
 		border-top: 1.5px solid var(--ink);
 		box-shadow: 0 -3px 12px var(--shadow);
 	}
+	.guest-banner[hidden] {
+		display: none;
+	}
 	.guest-banner p {
 		font-size: 14px;
 		margin: 4px 0 0;
@@ -291,11 +327,23 @@
 		gap: 12px;
 		flex-shrink: 0;
 	}
+	.guest-sign-in {
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--primary);
+	}
+	.guest-sign-in:hover {
+		background: transparent;
+		text-decoration: underline;
+	}
 	dialog {
 		padding: 0;
 		border: 0;
 		background: transparent;
-		max-width: min(620px, 100vw - 24px);
+		box-shadow: none;
+		width: 620px;
+		max-width: calc(100vw - 24px);
 		max-height: calc(100dvh - 32px);
 		overflow: auto;
 	}
@@ -313,7 +361,7 @@
 		.guest-actions {
 			margin-top: 10px;
 		}
-		.guest-actions .button {
+		.guest-actions button {
 			flex: 1;
 			text-align: center;
 		}

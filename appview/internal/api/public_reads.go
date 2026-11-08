@@ -294,7 +294,15 @@ func (s *PublicPageStore) PublicThread(ctx context.Context, did syntax.DID, key 
 		return nil, err
 	}
 	budget := min(limit, 20-1-len(out.Ancestors))
-	rows, next, err := s.posts.ListRootComments(ctx, post.URI.String(), "", "oldest", budget, inner)
+	var rows []*PostRow
+	var next string
+	if row.ReplyRootURI != nil {
+		// The shared clients render an expanded comment as a flat branch,
+		// including replies to replies, just like the member conversation API.
+		rows, next, err = s.posts.ListCommentBranchReplies(ctx, post.URI.String(), *row.ReplyRootURI, budget, inner)
+	} else {
+		rows, next, err = s.posts.ListRootComments(ctx, post.URI.String(), "", "oldest", budget, inner)
+	}
 	if err != nil {
 		return nil, err
 	}

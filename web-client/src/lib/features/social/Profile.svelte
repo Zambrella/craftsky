@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		signInContext,
+		protectAccountAction,
+		type RequestSignIn
+	} from '../browsing/account-action';
 	import { notify } from './toasts.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
@@ -48,6 +53,7 @@
 	} = $props();
 	const snapshot = untrack(() => initial);
 	const guest = $derived(api.audience === 'guest');
+	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const work = new Work('social.Profile.action');
 
 	const publications = getContext<Publications | undefined>(
@@ -63,6 +69,7 @@
 		}
 	>();
 	let loadedTab: string | undefined = snapshot?.tab;
+	let hydrated = $state(false);
 	let profile = $state<Profile | undefined>(snapshot?.profile);
 	let identityElement = $state<HTMLElement>();
 	let headerCollapsed = $state(false);
@@ -106,9 +113,7 @@
 			'products'
 		].includes(page.url.searchParams.get('tab') || '')
 			? page.url.searchParams.get('tab')!
-			: guest
-				? 'posts'
-				: tabs[0]
+			: tabs[0]
 	);
 	const displayedPosts = $derived(
 		publications?.merge(
@@ -126,6 +131,7 @@
 	);
 	let generation = 0;
 	onMount(() => {
+		hydrated = true;
 		if (snapshot) return;
 		void work.run(
 			() => api.profiles.get(id),
@@ -376,120 +382,112 @@
 								><span>Projects</span>
 							</div>{/if}
 					</div>{/if}{/if}
-			<div class="actions profile-actions">
-				{#if guest}<button
+			<div
+				class="actions profile-actions"
+				onclickcapture={(event) =>
+					protectAccountAction(guest, requestSignIn, event)}
+			>
+				{#if profile.did === session?.did}<a
 						class="secondary-button"
-						onclick={() =>
-							void work.run(
-								() =>
-									navigator.clipboard.writeText(
-										'https://app.craftsky.social/profiles/' +
-											encodeURIComponent(profile!.did)
-									),
-								undefined,
-								'Link copied.'
-							)}><Icon name="link" />Copy link</button
-					>{:else}
-					{#if profile.did === session?.did}<a
-							class="secondary-button"
-							href="/profile/edit"><Icon name="edit" />Edit profile</a
+						href="/profile/edit"><Icon name="edit" />Edit profile</a
+					><a
+						class="icon-button settings-action"
+						href="/settings"
+						aria-label="Settings"><Icon name="settings" /></a
+					>
+				{:else}{#if !profile.blocking && !profile.blockedBy}<button
+							class="button"
+							class:following={profile.viewerIsFollowing}
+							disabled={work.busy || !!work.retry}
+							onclick={follow}
+							>{profile.viewerIsFollowing ? 'Unfollow' : 'Follow'}</button
 						><a
-							class="icon-button settings-action"
-							href="/settings"
-							aria-label="Settings"><Icon name="settings" /></a
-						>
-					{:else}{#if !profile.blocking && !profile.blockedBy}<button
-								class="button"
-								class:following={profile.viewerIsFollowing}
-								disabled={work.busy || !!work.retry}
-								onclick={follow}
-								>{profile.viewerIsFollowing ? 'Unfollow' : 'Follow'}</button
-							><a
-								class="icon-button message-action"
-								href={'/messages/new?did=' + encodeURIComponent(profile.did)}
-								aria-label="Message"><Icon name="messages" /></a
-							>{:else if profile.blocking}<button
-								class="secondary-button"
-								disabled={work.busy}
-								onclick={() => relationship('block')}>Unblock</button
-							>{/if}{/if}
-					<details class="profile-menu" use:contextMenu>
-						<summary class="icon-button" aria-label="More profile actions"
-							><Icon name="more" /></summary
-						>
+							class="icon-button message-action"
+							href={'/messages/new?did=' + encodeURIComponent(profile.did)}
+							aria-label="Message"><Icon name="messages" /></a
+						>{:else if profile.blocking}<button
+							class="secondary-button"
+							disabled={work.busy}
+							onclick={() => relationship('block')}>Unblock</button
+						>{/if}{/if}
+				<details class="profile-menu" use:contextMenu>
+					<summary class="icon-button" aria-label="More profile actions"
+						><Icon name="more" /></summary
+					>
+					<button
+						class="menu-backdrop"
+						tabindex="-1"
+						aria-label="Close profile menu"
+						onclick={(event) => {
+							event.currentTarget.closest('details')!.open = false;
+						}}
+					></button>
+					<div class="menu-items">
 						<button
-							class="menu-backdrop"
-							tabindex="-1"
-							aria-label="Close profile menu"
-							onclick={(event) => {
-								event.currentTarget.closest('details')!.open = false;
-							}}
-						></button>
-						<div class="menu-items">
-							<button
-								disabled={work.busy}
-								onclick={() =>
-									void work.run(
-										() =>
-											navigator.clipboard.writeText(
-												'https://app.craftsky.social/profiles/' +
-													encodeURIComponent(profile!.did)
-											),
-										undefined,
-										'Link copied.'
-									)}><Icon name="link" />Copy link</button
-							>
-							<a
-								href={'/messages/new?link=' +
-									encodeURIComponent(
-										'https://app.craftsky.social/profiles/' +
-											encodeURIComponent(profile.did)
-									)}><Icon name="send" />Send via chat</a
-							>
-							{#if profile.did !== session?.did}<button
-									onclick={() => {
-										const url =
+							data-public-action
+							disabled={work.busy}
+							onclick={() =>
+								void work.run(
+									() =>
+										navigator.clipboard.writeText(
 											'https://app.craftsky.social/profiles/' +
-											encodeURIComponent(profile!.did);
-										void work.run(() =>
-											navigator.share
-												? navigator.share({ url })
-												: navigator.clipboard.writeText(url)
-										);
-									}}><Icon name="share" />Share</button
-								>
-								<div class="profile-menu-divider"></div>
-								{#if !profile.blocking && !profile.blockedBy}<button
+												encodeURIComponent(profile!.did)
+										),
+									undefined,
+									'Link copied.'
+								)}><Icon name="link" />Copy link</button
+						>
+						<a
+							href={'/messages/new?link=' +
+								encodeURIComponent(
+									'https://app.craftsky.social/profiles/' +
+										encodeURIComponent(profile.did)
+								)}><Icon name="send" />Send via chat</a
+						>
+						{#if profile.did !== session?.did}<button
+								data-public-action
+								onclick={() => {
+									const url =
+										'https://app.craftsky.social/profiles/' +
+										encodeURIComponent(profile!.did);
+									void work.run(() =>
+										navigator.share
+											? navigator.share({ url })
+											: navigator.clipboard.writeText(url)
+									);
+								}}><Icon name="share" />Share</button
+							>
+							<div class="profile-menu-divider"></div>
+							{#if !profile.blocking && !profile.blockedBy}<button
+									disabled={work.busy || !!work.retry}
+									onclick={() => relationship('mute')}
+									><Icon name="mute" />{profile.muted
+										? 'Unmute account'
+										: 'Mute account'}</button
+								>{/if}<button
+								class="destructive"
+								disabled={work.busy || !!work.retry}
+								onclick={() => relationship('block')}
+								><Icon name="block" />{profile.blocking
+									? 'Unblock account'
+									: 'Block account'}</button
+							><button
+								disabled={work.busy || !!work.retry}
+								onclick={() => {
+									reportLink = undefined;
+									reportOpen = true;
+								}}><Icon name="report" />Report profile</button
+							>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
 										disabled={work.busy || !!work.retry}
-										onclick={() => relationship('mute')}
-										><Icon name="mute" />{profile.muted
-											? 'Unmute account'
-											: 'Mute account'}</button
-									>{/if}<button
-									class="destructive"
-									disabled={work.busy || !!work.retry}
-									onclick={() => relationship('block')}
-									><Icon name="block" />{profile.blocking
-										? 'Unblock account'
-										: 'Block account'}</button
-								><button
-									disabled={work.busy || !!work.retry}
-									onclick={() => {
-										reportLink = undefined;
-										reportOpen = true;
-									}}><Icon name="report" />Report profile</button
-								>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
-											disabled={work.busy || !!work.retry}
-											onclick={() => {
-												reportLink = link.uri.split('/').pop();
-												reportOpen = true;
-											}}
-											><Icon name="report" />Report link {link.title ||
-												link.url}</button
-										>{/if}{/each}{/if}
-						</div>
-					</details>
-				{/if}
+										onclick={() => {
+											reportLink = link.uri.split('/').pop();
+											reportOpen = true;
+										}}
+										><Icon name="report" />Report link {link.title ||
+											link.url}</button
+									>{/if}{/each}{/if}
+					</div>
+				</details>
 			</div>
 			{#if !guest && profile.did !== session?.did && profile.mutualFollowerCount}<a
 					class="mutual-link"
@@ -603,11 +601,17 @@
 							detail="Nothing shared here yet."
 							icon="drafts"
 						/>{/if}{/each}{/if}
-			{#if cursor}<button
-					class="next"
-					disabled={contentWork.busy}
-					onclick={more}>Load more</button
-				>{/if}
+			{#if cursor}{#if guest && !hydrated}<a
+						class="next"
+						href={'/profiles/' +
+							encodeURIComponent(id) +
+							'?' +
+							new URLSearchParams({ tab, cursor })}>Older {tab}</a
+					>{:else}<button
+						class="next"
+						disabled={contentWork.busy}
+						onclick={more}>Load more</button
+					>{/if}{/if}
 		</div>
 	</div>{/if}
 

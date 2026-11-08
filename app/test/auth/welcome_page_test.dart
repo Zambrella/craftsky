@@ -80,6 +80,17 @@ void main() {
         ),
       ),
     );
+    expect(
+      tester.getTopLeft(find.text('What is an Atmosphere account?')).dy,
+      lessThan(tester.getTopLeft(find.text('Explore CraftSky')).dy),
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Explore CraftSky'),
+        matching: find.byType(TextButton),
+      ),
+      findsOneWidget,
+    );
     await tester.ensureVisible(find.text('Explore CraftSky'));
     await tester.tap(find.text('Explore CraftSky'));
     expect(explored, true);

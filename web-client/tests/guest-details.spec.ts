@@ -12,16 +12,19 @@ test('reads profiles, comment tabs and multi-author post threads as a guest', as
 		page.getByRole('heading', { name: 'Alice', exact: true })
 	).toBeVisible();
 	await expect(page.getByRole('dialog')).not.toBeVisible();
-	await page.getByRole('link', { name: 'Comments', exact: true }).click();
+	await page
+		.getByRole('navigation', { name: 'Profile content', exact: true })
+		.getByRole('link', { name: /^Comments/ })
+		.click();
 	await expect(
 		page.getByText('A public comment', { exact: true })
 	).toBeVisible();
 	await expect(
 		page.getByRole('button', { name: 'Follow', exact: true })
-	).toHaveCount(0);
+	).toBeVisible();
 	await expect(
-		page.locator('a[href^="/compose"],a[href^="/messages"]')
-	).toHaveCount(0);
+		page.getByRole('link', { name: 'Message', exact: true })
+	).toBeVisible();
 	await page.goto('/posts/did%3Aplc%3Aalice/first?show-comments=true');
 	await expect(
 		page.getByText('A public comment', { exact: true })
@@ -29,12 +32,13 @@ test('reads profiles, comment tabs and multi-author post threads as a guest', as
 	await expect(
 		page.getByRole('link', { name: 'Bob @bob.test', exact: true })
 	).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Add a comment' })).toHaveCount(
-		0
-	);
+	const composer = page.getByRole('link', { name: 'Add a comment' });
+	if (page.viewportSize()!.width <= 600)
+		await expect(composer).not.toBeVisible();
+	else await expect(composer).toBeVisible();
 	await expect(
-		page.getByRole('button', { name: 'Like', exact: true })
-	).toHaveCount(0);
+		page.getByRole('button', { name: 'Like', exact: true }).first()
+	).toBeVisible();
 	expect(browserFailures).toEqual([]);
 });
 
@@ -136,7 +140,7 @@ test('successful public SSR stays readable when browser API requests fail', asyn
 	expect(await profile!.text()).toContain('Making things in public.');
 	// These controls are provided by the hydrated shared components.
 	await expect(
-		page.getByRole('button', { name: 'Copy link', exact: true }).first()
+		page.getByRole('button', { name: 'Follow', exact: true })
 	).toBeVisible();
 	await expect(
 		page.getByRole('heading', { name: 'Alice', exact: true })
@@ -168,7 +172,7 @@ test('a public profile cursor retains its SSR page after hydration and history n
 	);
 	expect(await response!.text()).toContain('Second public profile page');
 	await expect(
-		page.getByRole('button', { name: 'Copy link', exact: true }).first()
+		page.getByRole('button', { name: 'Follow', exact: true })
 	).toBeVisible();
 	await expect(
 		page.getByText('Second public profile page', { exact: true })
@@ -251,7 +255,7 @@ for (const navigation of ['author', 'posts'] as const) {
 		try {
 			await page.goto('/profiles/refresh.test');
 			await expect(
-				page.getByRole('button', { name: 'Copy link', exact: true }).first()
+				page.getByRole('button', { name: 'Follow', exact: true })
 			).toBeVisible();
 			await expect(
 				page.getByText('EXCLUDED_AFTER_REFRESH', { exact: true })

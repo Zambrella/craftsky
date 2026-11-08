@@ -36,6 +36,8 @@ type PublicLink struct {
 	Title string `json:"title"`
 }
 type PublicProfile struct {
+	CreatedAt         time.Time                `json:"createdAt"`
+	PostsLast7Days    int                      `json:"postsLast7Days"`
 	PostCount         int                      `json:"postCount"`
 	ProjectCount      int                      `json:"projectCount"`
 	FollowerCount     int                      `json:"followerCount"`

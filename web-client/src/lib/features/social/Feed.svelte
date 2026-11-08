@@ -203,16 +203,17 @@
 						{ value: 'popular', label: 'Popular', icon: 'growth' }
 					]}
 				/>
-				<button
-					class="filter-trigger icon-button"
-					aria-label="Filter projects"
-					onclick={() => goto('/feed/filters' + page.url.search)}
-					><Icon name="filter" /><span class="filter-label">Filters</span
-					>{#if Object.keys(filters).length}<span
-							class="filter-dot"
-							aria-label="Filters applied"
-						></span>{/if}</button
-				>
+				{#if craft}
+					<button
+						class="filter-trigger icon-button"
+						aria-label="Filter projects"
+						onclick={() => goto('/feed/filters' + page.url.search)}
+						><Icon name="filter" /><span class="filter-label">Filters</span
+						>{#if Object.keys(filters).length}<span
+								class="filter-dot"
+								aria-label="Filters applied"
+							></span>{/if}</button
+					>{/if}
 			</div>{/if}
 	</div>
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">

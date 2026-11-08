@@ -465,12 +465,6 @@ class _CollapsedTrailingAction extends StatelessWidget {
       ),
     );
     return switch (actions) {
-      GuestProfileActionSet(:final onCopyLink) => IconButton(
-        tooltip: l10n.recordCopyLinkAction,
-        icon: const Icon(CraftskyIcons.link),
-        onPressed: onCopyLink,
-        style: style,
-      ),
       SelfProfileActionSet(:final onSettings) => IconButton(
         tooltip: l10n.profileSettingsAction,
         icon: const Icon(CraftskyIconsBold.settings),

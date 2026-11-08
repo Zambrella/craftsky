@@ -44,10 +44,10 @@ var publicOwnerPredicate = publicOwnerBasePredicate + `
 func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*PublicProfile, error) {
 	var row ProfileRow
 	err := s.pool.QueryRow(ctx, `
- SELECT cp.did,cp.crafts,bp.display_name,bp.description,bp.pronouns,
+ SELECT cp.did,cp.crafts,cp.created_at,bp.display_name,bp.description,bp.pronouns,
  bp.avatar_cid,bp.avatar_mime,bp.banner_cid,bp.banner_mime
  FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did
- WHERE cp.did=$1 `+publicOwnerPredicate, did).Scan(&row.DID, &row.Crafts, &row.DisplayName, &row.Description, &row.Pronouns, &row.AvatarCID, &row.AvatarMime, &row.BannerCID, &row.BannerMime)
+ WHERE cp.did=$1 `+publicOwnerPredicate, did).Scan(&row.DID, &row.Crafts, &row.CreatedAt, &row.DisplayName, &row.Description, &row.Pronouns, &row.AvatarCID, &row.AvatarMime, &row.BannerCID, &row.BannerMime)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// A known opt-out may offer sign-in, but other public-policy exclusions
 		// and unknown/pending state stay indistinguishable from unavailable.
@@ -75,7 +75,7 @@ func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*P
 	if err != nil {
 		return nil, err
 	}
-	out := &PublicProfile{PublicAuthor: PublicAuthor{DID: did, Handle: handle, DisplayName: row.DisplayName, Business: accountType == business.AccountTypeBusiness, AccountType: accountType}, Description: row.Description, Pronouns: row.Pronouns, Crafts: nonNilStrings(row.Crafts), Links: []PublicLink{}}
+	out := &PublicProfile{CreatedAt: row.CreatedAt, PublicAuthor: PublicAuthor{DID: did, Handle: handle, DisplayName: row.DisplayName, Business: accountType == business.AccountTypeBusiness, AccountType: accountType}, Description: row.Description, Pronouns: row.Pronouns, Crafts: nonNilStrings(row.Crafts), Links: []PublicLink{}}
 	// Profile indexing promotes each cleared image into its serving columns,
 	// preserving the last cleared image while replacements are scanned. Profile
 	// images do not use the record-level image_subject_states used for posts.
@@ -207,6 +207,7 @@ func (s *PublicPageStore) publicProfileCounts(ctx context.Context, did syntax.DI
 	return s.pool.QueryRow(ctx, `SELECT
  (SELECT count(*) FROM craftsky_posts p WHERE p.did=$1 AND p.is_project IS FALSE AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL `+publicPostPredicate+`),
  (SELECT count(*) FROM craftsky_posts p WHERE p.did=$1 AND p.is_project IS TRUE AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL `+publicPostPredicate+`),
+ (SELECT count(*) FROM craftsky_posts p WHERE p.did=$1 AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.created_at >= now() - interval '7 days' `+publicPostPredicate+`),
  (SELECT count(*) FROM pds_set_aggregates f JOIN craftsky_profiles member ON member.did=f.actor_did WHERE f.kind='follow' AND f.subject_did=$1 AND appview_owner_is_active(f.actor_did)),
- (SELECT count(*) FROM pds_set_aggregates f JOIN craftsky_profiles member ON member.did=f.subject_did WHERE f.kind='follow' AND f.actor_did=$1 AND appview_owner_is_active(f.subject_did))`, did).Scan(&out.PostCount, &out.ProjectCount, &out.FollowerCount, &out.FollowingCount)
+ (SELECT count(*) FROM pds_set_aggregates f JOIN craftsky_profiles member ON member.did=f.subject_did WHERE f.kind='follow' AND f.actor_did=$1 AND appview_owner_is_active(f.subject_did))`, did).Scan(&out.PostCount, &out.ProjectCount, &out.PostsLast7Days, &out.FollowerCount, &out.FollowingCount)
 }

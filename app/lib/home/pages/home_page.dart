@@ -235,7 +235,8 @@ class _HomePageState extends ConsumerState<HomePage>
               icon: const Icon(CraftskyIconsBold.adjustments),
               label: Text(l10n.projectsFilterAction),
             )
-          : FormFactor.fromWidth(MediaQuery.sizeOf(context).width).isSmall
+          : !ref.watch(isGuestBrowsingProvider) &&
+                FormFactor.fromWidth(MediaQuery.sizeOf(context).width).isSmall
           ? Builder(
               builder: (buttonContext) => CraftskyFloatingActionButton.extended(
                 key: keys.feed.compose,
@@ -474,6 +475,14 @@ class _HomeFeedTabBar extends StatelessWidget {
                   for (final option in feeds)
                     Tab(
                       child: switch (option.craftType) {
+                        '' => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CraftskyIcons.home, size: 18),
+                            const SizedBox(width: 6),
+                            Text(option.label!),
+                          ],
+                        ),
                         final craft? => CraftIconLabel(
                           craft: craft,
                           label: option.label!,

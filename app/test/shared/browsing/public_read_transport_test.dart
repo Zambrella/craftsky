@@ -90,6 +90,25 @@ void main() {
     expect(section['sort'], 'oldest');
     expect((section['post'] as Map)['viewerHasLiked'], false);
     expect((section['comments'] as Map)['items'] as List, hasLength(1));
+    final replies =
+        PublicReadRequest.resolve(
+          '/v1/posts/did:plc:alice/key/replies',
+          'GET',
+          {},
+        ).adapt({
+          'post': post,
+          'replies': {
+            'items': [post],
+            'cursor': 'next-branch-page',
+          },
+        });
+    final replyPage = ReplyPageMapper.fromMap(
+      Map<String, dynamic>.from(replies! as Map),
+    );
+    expect(replyPage.loaded, isTrue);
+    expect(replyPage.items.single.post.text, 'public');
+    expect(replyPage.items.single.flattened, isFalse);
+    expect(replyPage.cursor, 'next-branch-page');
     final profile =
         adaptPublicDisplay({
               'did': 'did:plc:alice',

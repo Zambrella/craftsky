@@ -391,3 +391,8 @@ The product change is one guest route key: each accepted loader result now owns 
 IR-005 is implemented with passing relevant checks; `06-implementation-review.md` remains the independent follow-up review snapshot pending another review. Manual/device/Android/live-PDS gaps recorded earlier remain unverified; no new native or external-provider proof is claimed. Prior backend/native results were not rerun or relabelled as current-pass execution.
 
 Per implement-tdd, stop after reading this handoff and offer implementation review, a manual comment, or no further action. Do not start review or publish automatically.
+
+
+### Guest action parity revision (7 November 2026)
+
+The owner revised the earlier hidden-control requirement: guests use the shared member post and visitor-profile controls. Like, save, repost, quote, follow, messaging and account-only menu actions open the existing Join CraftSky modal in place. Public reading and copying links remain available. No member request or mutation is sent before authentication, and no attempted action is replayed after sign-in. Regular profiles default to Projects using the shared tab policy. Public join-date and recent-post summary fields use the existing anonymous-visibility filters; no backfill is required.

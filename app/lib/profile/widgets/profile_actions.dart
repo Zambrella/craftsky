@@ -21,11 +21,6 @@ sealed class ProfileActionSet {
   const new();
 }
 
-final class GuestProfileActionSet extends ProfileActionSet {
-  const new({required this.onCopyLink});
-  final VoidCallback onCopyLink;
-}
-
 final class SelfProfileActionSet extends ProfileActionSet {
   const new({
     required this.onEdit,
@@ -87,11 +82,6 @@ class ProfileActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (actions) {
-      final GuestProfileActionSet a => TextButton.icon(
-        onPressed: a.onCopyLink,
-        icon: const Icon(CraftskyIcons.link),
-        label: Text(AppLocalizations.of(context).recordCopyLinkAction),
-      ),
       final SelfProfileActionSet a => _SelfActions(actions: a),
       final VisitorProfileActionSet a => _VisitorActions(actions: a),
     };

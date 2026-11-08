@@ -107,6 +107,9 @@ func TestPublicPageStoreVisibilityAndPagination(t *testing.T) {
 	if err != nil || profile.DisplayName == nil || *profile.DisplayName != "Alice" {
 		t.Fatalf("profile=%+v err=%v", profile, err)
 	}
+	if profile.CreatedAt.IsZero() || profile.PostsLast7Days != 4 {
+		t.Fatalf("public summary missing join date or recent posts: %+v", profile)
+	}
 	const avatarCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
 	// Profile indexing populates serving columns only after per-slot clearance.
 	// It does not write the record-level image_subject_states used for posts.

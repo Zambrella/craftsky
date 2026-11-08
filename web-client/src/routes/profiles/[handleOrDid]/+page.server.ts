@@ -1,3 +1,5 @@
+import { publicProfileForDisplay } from '#lib/api/public-client.ts';
+import { profileTabs } from '#lib/features/social/presentation.ts';
 import { authenticatedPage } from '#lib/server/auth/page.ts';
 import { error } from '@sveltejs/kit';
 import { selected } from '#lib/server/auth/session.ts';
@@ -8,7 +10,8 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, url, fetch, cookies }) => {
 	if (selected(cookies, url))
 		return { authenticated: await authenticatedPage({ cookies, url }) };
-	const tab = url.searchParams.get('tab') || 'posts';
+	const requestedTab = url.searchParams.get('tab');
+	const tab = requestedTab || 'projects';
 	if (
 		![
 			'posts',
@@ -25,15 +28,29 @@ export const load: PageServerLoad = async ({ params, url, fetch, cookies }) => {
 	if (cursor.length > 2048) error(400, 'Invalid cursor');
 	const id = encodeURIComponent(params.handleOrDid.replace(/^@/, ''));
 	const profile = await publicAPI<Profile>(fetch, `profiles/${id}`);
-	if (['about', 'products', 'events'].includes(tab) && !profile.business)
+	const selectedTab =
+		requestedTab || profileTabs(publicProfileForDisplay(profile), false)[0];
+	if (
+		['about', 'products', 'events'].includes(selectedTab) &&
+		!profile.business
+	)
 		error(400, 'Invalid profile tab');
 	const query = new URLSearchParams({ cursor });
-	const posts = ['posts', 'projects', 'comments', 'reposts'].includes(tab)
-		? await publicAPI<PostPage>(fetch, `profiles/${id}/${tab}?${query}`)
+	const posts = ['posts', 'projects', 'comments', 'reposts'].includes(
+		selectedTab
+	)
+		? await publicAPI<PostPage>(fetch, `profiles/${id}/${selectedTab}?${query}`)
 		: { items: [] };
 	const events: Page<BusinessEvent> =
-		tab === 'events'
+		selectedTab === 'events'
 			? await publicAPI(fetch, `profiles/${id}/events?${query}`)
 			: { items: [] };
-	return { authenticated: null, profile, posts, events, tab, cursor };
+	return {
+		authenticated: null,
+		profile,
+		posts,
+		events,
+		tab: selectedTab,
+		cursor
+	};
 };

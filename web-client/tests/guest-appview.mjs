@@ -90,14 +90,18 @@ createServer((req, res) => {
 	const path = decodeURIComponent(
 		url.pathname.slice('/v1/public/'.length)
 	).replace(/^profiles\/@/, 'profiles/');
-	if (/^profiles\/(refresh.test|did:plc:refresh)(?:\/posts)?$/.test(path)) {
+	if (
+		/^profiles\/(refresh.test|did:plc:refresh)(?:\/(?:posts|projects))?$/.test(
+			path
+		)
+	) {
 		const identity = {
 			...author,
 			did: 'did:plc:refresh',
 			handle: 'refresh.test',
 			displayName: refreshed ? 'Updated reader' : 'Original reader'
 		};
-		if (!path.endsWith('/posts'))
+		if (!path.endsWith('/posts') && !path.endsWith('/projects'))
 			return send(200, {
 				...identity,
 				crafts: [],
@@ -143,7 +147,7 @@ createServer((req, res) => {
 					: undefined
 		});
 	if (
-		/^profiles\/(did:plc:alice|alice.test)\/posts$/.test(path) &&
+		/^profiles\/(did:plc:alice|alice.test)\/(posts|projects)$/.test(path) &&
 		url.searchParams.get('cursor') === 'profile-page-two'
 	)
 		return send(200, {
@@ -232,6 +236,8 @@ createServer((req, res) => {
 			links: [],
 			postCount: 1,
 			projectCount: 1,
+			createdAt: '2026-01-01T00:00:00Z',
+			postsLast7Days: 3,
 			followerCount: 2,
 			followingCount: 1,
 			description: 'Making things in public.'

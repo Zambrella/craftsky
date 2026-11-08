@@ -6,8 +6,13 @@
 	import { onMount } from 'svelte';
 	let {
 		onExplore,
+		embedded = false,
 		returnTo = '/feed'
-	}: { onExplore?: () => void; returnTo?: string } = $props();
+	}: {
+		onExplore?: () => void;
+		embedded?: boolean;
+		returnTo?: string;
+	} = $props();
 	let handle = $state(''),
 		busy = $state(false),
 		message = $state(''),
@@ -45,7 +50,7 @@
 	}
 </script>
 
-<div class="welcome-scaffold">
+<div class="welcome-scaffold" class:embedded>
 	<div class="welcome-crafts" aria-hidden="true">
 		{#each ['knitting', 'sewing', 'crochet', 'quilting', 'embroidery'] as craft}<span
 				style={'--craft-mask:url(/craft_icons/' + craft + '.svg)'}
@@ -84,11 +89,6 @@
 				disabled={busy || !ready}>{busy ? 'Redirecting…' : 'Sign in'}</button
 			>
 		</form>
-		{#if onExplore}<button
-				class="button secondary-sign-in"
-				type="button"
-				onclick={onExplore}>Explore CraftSky</button
-			>{/if}
 		<details class="atmosphere-explainer">
 			<summary>What is an Atmosphere account?</summary>
 			<p>
@@ -97,6 +97,11 @@
 				Atmosphere account, or register a new one.
 			</p>
 		</details>
+		{#if onExplore}<button
+				class="explore-button"
+				type="button"
+				onclick={onExplore}>Explore CraftSky</button
+			>{/if}
 		<p class="welcome-legal">
 			By continuing, you agree to our <a
 				href="https://craftsky.social/terms"
@@ -124,6 +129,21 @@
 		padding: 32px 16px;
 		position: relative;
 		overflow: hidden;
+	}
+	.welcome-scaffold.embedded {
+		min-height: 0;
+		padding: 24px;
+	}
+	.explore-button {
+		margin-top: 12px;
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--primary);
+	}
+	.explore-button:hover {
+		background: transparent;
+		text-decoration: underline;
 	}
 	.welcome-crafts {
 		position: absolute;
@@ -259,6 +279,9 @@
 		color: var(--ink-2);
 	}
 	@media (max-width: 420px) {
+		.welcome-scaffold.embedded {
+			padding: 12px;
+		}
 		.auth-card {
 			padding: 32px 16px;
 		}

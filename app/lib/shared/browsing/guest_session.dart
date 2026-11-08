@@ -47,3 +47,16 @@ final class GuestSession {
 }
 
 final guestSessionProvider = Provider<GuestSession>((ref) => GuestSession());
+
+class GuestPromptOpen extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void open() => state = true;
+  void close() {
+    if (ref.mounted) state = false;
+  }
+}
+
+final guestPromptOpenProvider = NotifierProvider<GuestPromptOpen, bool>(
+  GuestPromptOpen.new,
+);

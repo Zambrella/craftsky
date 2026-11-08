@@ -78,9 +78,7 @@ test('profile, tab, pagination and author navigation work without JavaScript', a
 }) => {
 	await page.goto('/profiles/alice.test');
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Alice');
-	await expect(
-		page.getByText('Business account', { exact: true })
-	).toBeVisible();
+	await expect(page.getByText('Business', { exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Bad link' })).toHaveCount(0);
 	await page.getByRole('link', { name: 'Projects', exact: true }).click();
 	await expect(
@@ -195,7 +193,7 @@ test('Flutter theme tokens, bundled fonts and narrow layouts are applied', async
 	page
 }) => {
 	await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-	await page.goto('/profiles/alice.test');
+	await page.goto('/profiles/alice.test?tab=projects');
 	await expect(page.locator('body')).toHaveCSS(
 		'font-family',
 		'Outfit, system-ui, sans-serif'
@@ -205,7 +203,7 @@ test('Flutter theme tokens, bundled fonts and narrow layouts are applied', async
 		'background-color',
 		'rgb(21, 53, 214)'
 	);
-	await expect(page.locator('.post-card').first()).toHaveCSS(
+	await expect(page.locator('.member-post').first()).toHaveCSS(
 		'border-radius',
 		'14px'
 	);

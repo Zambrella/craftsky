@@ -35,6 +35,7 @@ class HomeFeedDefinition {
   final String? craftType;
   final String? label;
 
-  bool get supportsFilters => source == HomeFeedSource.projects;
+  bool get supportsFilters =>
+      source == HomeFeedSource.projects && craftType != '';
   bool get supportsSort => source == HomeFeedSource.projects;
 }

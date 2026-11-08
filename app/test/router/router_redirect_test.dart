@@ -349,7 +349,11 @@ void main() {
             .path,
         name == 'search' ? '/search' : '/feed',
       );
-      expect(find.text('Sign in / Register'), findsOneWidget);
+      await tester.ensureVisible(find.text('Explore CraftSky'));
+      await tester.tap(find.text('Explore CraftSky'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Register'), findsOneWidget);
     });
   }
   test('status destinations map only to canonical typed top-level routes', () {

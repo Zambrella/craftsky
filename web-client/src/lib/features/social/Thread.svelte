@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		signInContext,
+		protectAccountAction,
+		type RequestSignIn
+	} from '../browsing/account-action';
 	import { untrack, onMount, onDestroy, tick, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -36,6 +41,7 @@
 	} = $props();
 	const snapshot = untrack(() => initialPost);
 	const guest = $derived(api.audience === 'guest');
+	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -249,6 +255,8 @@
 {#if !section && post && visible(post) && (post.likeCount || post.repostCount || post.quoteCount)}<nav
 		class="thread-interactions"
 		aria-label="Post interactions"
+		onclickcapture={(event) =>
+			protectAccountAction(guest, requestSignIn, event)}
 	>
 		{#if post.likeCount}<a
 				href={`/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/likes`}
@@ -311,8 +319,10 @@
 					}}
 				/>{/if}
 		</div>
-		{#if !guest && post && visible(post)}<a
+		{#if post && visible(post)}<a
 				class="comment-compose"
+				class:guest
+				onclick={(event) => protectAccountAction(guest, requestSignIn, event)}
 				href={'/compose/reply?did=' +
 					encodeURIComponent(did) +
 					'&rkey=' +
@@ -499,10 +509,16 @@
 		padding: 8px 0;
 	}
 	@media (max-width: 600px) {
+		.comment-compose.guest {
+			display: none;
+		}
 		.comment-compose {
 			position: fixed;
 			z-index: 8;
-			bottom: max(16px, env(safe-area-inset-bottom));
+			bottom: calc(
+				max(16px, env(safe-area-inset-bottom)) +
+					var(--guest-banner-height, 0px) + var(--guest-navigation-height, 0px)
+			);
 			left: 16px;
 			right: 16px;
 			margin: 0;

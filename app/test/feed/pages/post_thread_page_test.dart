@@ -206,6 +206,27 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  testWidgets('guest detail hides the standalone comment prompt', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(430, 932);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await _pumpThread(
+      tester,
+      FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section('Public thread root'),
+      ),
+      guest: true,
+    );
+    expect(find.text('Public thread root'), findsOneWidget);
+    expect(find.byKey(const ValueKey('threadStickyReplyPrompt')), findsNothing);
+    expect(find.byKey(const ValueKey('threadInlineReplyPrompt')), findsNothing);
+    expect(find.byType(PostCard), findsOneWidget);
+  });
+
   for (final showComments in [false, true]) {
     for (final hasComments in [false, true]) {
       testWidgets(
@@ -1661,11 +1682,12 @@ Future<void> _pumpThread(
   WidgetTester tester,
   FakePostRepository repository, {
   bool showComments = false,
+  bool guest = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        testMemberBrowsingOverride,
+        if (guest) testGuestBrowsingOverride else testMemberBrowsingOverride,
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',

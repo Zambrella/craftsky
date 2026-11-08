@@ -1834,6 +1834,30 @@ void main() {
       expect(find.textContaining('unavailable.invalid'), findsNothing);
     });
 
+    for (final kind in [
+      PostCardContentKind.comment,
+      PostCardContentKind.reply,
+    ]) {
+      testWidgets(
+        'labels $kind action Reply without public parent references',
+        (
+          tester,
+        ) async {
+          await _pump(
+            tester,
+            PostCard(
+              post: _post(),
+              contentKind: kind,
+              showReplyCount: false,
+              showReplyLabel: true,
+            ),
+          );
+          expect(find.text('Reply'), findsOneWidget);
+          expect(find.text('Comment'), findsNothing);
+        },
+      );
+    }
+
     testWidgets('colours reply label when viewer has replied', (tester) async {
       await _pump(
         tester,

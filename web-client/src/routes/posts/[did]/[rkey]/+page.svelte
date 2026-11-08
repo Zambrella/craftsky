@@ -10,7 +10,7 @@
 	});
 	import AuthenticatedPage from '#lib/features/shell/AuthenticatedPage.svelte';
 	import Metadata from '#lib/Metadata.svelte';
-	import PostCard from '#lib/PostCard.svelte';
+	import MemberPost from '#lib/features/social/MemberPost.svelte';
 	import {
 		description,
 		postPath,
@@ -41,10 +41,6 @@
 				>← More from {authorName(data.post.author)}</a
 			>
 		</p>
-		<PostCard post={data.post} detail />
-		<p class="reading-note">
-			You’re viewing a public CraftSky page. Join the conversation in the mobile
-			app.
-		</p>
+		<MemberPost value={publicPostForDisplay(data.post)} {api} detail />
 	{/if}
 {/if}
