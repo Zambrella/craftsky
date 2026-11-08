@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
@@ -108,6 +109,20 @@ Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
   return result ?? false;
 }
 
+/// Returns a local route only for the canonical CraftSky app origin.
+String? craftskyLinkLocation(Uri uri) {
+  if ((uri.scheme != 'https' && uri.scheme != 'http') ||
+      uri.host != 'app.craftsky.social' ||
+      uri.userInfo.isNotEmpty ||
+      (uri.hasPort && uri.port != (uri.scheme == 'https' ? 443 : 80)) ||
+      uri.path.startsWith('//')) {
+    return null;
+  }
+  return '${uri.path.isEmpty ? '/' : uri.path}'
+      '${uri.hasQuery ? '?${uri.query}' : ''}'
+      '${uri.hasFragment ? '#${uri.fragment}' : ''}';
+}
+
 /// Confirms and then launches an external HTTP(S) link.
 Future<void> confirmAndLaunchExternalLink(
   BuildContext context, {
@@ -116,6 +131,11 @@ Future<void> confirmAndLaunchExternalLink(
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
   try {
+    final location = craftskyLinkLocation(uri);
+    if (location != null) {
+      await context.push<void>(location);
+      return;
+    }
     final confirmed = await confirmOpenLink(context, uri);
     if (!confirmed) return;
     final launched = await launchUrl(uri);
@@ -143,12 +163,14 @@ Future<void> confirmAndLaunchExternalAction(
   required ExternalLinkLauncher launchUrl,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
-  final hydrated = hydratedExternalActionUri(
-    uri.toString(),
-    allowMailto: true,
-  );
+  final hydrated = hydratedExternalActionUri(uri.toString(), allowMailto: true);
   if (hydrated != uri) return;
   try {
+    final location = craftskyLinkLocation(uri);
+    if (location != null) {
+      await context.push<void>(location);
+      return;
+    }
     final confirmed = await confirmOpenLink(context, uri);
     if (!confirmed) return;
     final launched = await launchUrl(uri);

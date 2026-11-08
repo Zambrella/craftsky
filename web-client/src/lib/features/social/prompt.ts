@@ -1,4 +1,5 @@
 import { mount, unmount, onDestroy } from 'svelte';
+import { goto } from '$app/navigation';
 import PromptDialog from './PromptDialog.svelte';
 
 export interface PromptOptions {
@@ -40,9 +41,36 @@ export function confirmExternalLink(
 	anchor: EventTarget | null = event.currentTarget
 ) {
 	if (!(anchor instanceof HTMLAnchorElement)) return;
-	event.preventDefault();
 	const href = anchor.href;
-	if (!['https:', 'http:', 'mailto:'].includes(new URL(href).protocol)) return;
+	const url = new URL(href);
+	if (
+		['https:', 'http:'].includes(url.protocol) &&
+		url.hostname === 'app.craftsky.social' &&
+		!url.port &&
+		!url.username &&
+		!url.password &&
+		!url.pathname.startsWith('//')
+	) {
+		const destination = `${url.pathname}${url.search}${url.hash}`;
+		anchor.href = destination;
+		anchor.removeAttribute('target');
+		// Use the router even when called by the shell's document-level listener.
+		// Modified clicks retain the browser's native new-tab/window behavior.
+		if (
+			!event.button &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!event.shiftKey &&
+			!event.altKey
+		) {
+			event.preventDefault();
+			void goto(destination);
+		}
+		return;
+	}
+	if (url.origin === location.origin) return;
+	event.preventDefault();
+	if (!['https:', 'http:', 'mailto:'].includes(url.protocol)) return;
 	void prompt({
 		title: 'Open link?',
 		detail: 'This will open outside CraftSky.',
