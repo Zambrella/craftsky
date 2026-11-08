@@ -1,3 +1,5 @@
+import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -49,7 +51,11 @@ class _CraftChip extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
-    final display = _toSentenceCase(label);
+    final id = ProfileCraftHero.idFor(label);
+    final craft = Craft.fromId(id);
+    final display = craft == null
+        ? _toSentenceCase(id)
+        : craftLabel(craft, AppLocalizations.of(context));
     final chip = Container(
       padding: EdgeInsets.symmetric(horizontal: spacing.sp3, vertical: 6),
       decoration: BoxDecoration(
