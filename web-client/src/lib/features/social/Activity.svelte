@@ -157,8 +157,26 @@
 		class:system={!item.actor}
 		style={profileStyle(item.actor?.customisation)}
 	>
-		<a class="notification-main" href={destination(item)}
-			>{#if item.actor}<div class="notification-avatar">
+		<div class="notification-main">
+			{#if destination(item)}<a
+					class="notification-destination"
+					href={destination(item)}
+					aria-label={[
+						item.actor?.displayName || item.actor?.handle,
+						copy.action
+					]
+						.filter(Boolean)
+						.join(' ')}
+				></a>{/if}
+			{#if item.actor}<a
+					class="notification-avatar notification-profile"
+					href={copy.available
+						? '/profiles/' + encodeURIComponent(item.actor.did)
+						: undefined}
+					aria-label={copy.available
+						? 'View profile of ' + (item.actor.displayName || item.actor.handle)
+						: undefined}
+				>
 					<Avatar
 						author={copy.available
 							? {
@@ -181,17 +199,21 @@
 						class:generic={copy.icon === 'activity' && copy.available}
 						><Icon name={copy.icon} filled /></span
 					>
-				</div>{:else}<span
+				</a>{:else}<span
 					class="system-icon"
 					class:generic={copy.icon === 'activity'}
 					><Icon name={copy.icon} /></span
 				>{/if}
 			<div class="notification-body">
 				<p class="notification-title">
-					{#if item.actor && copy.available}<strong
-							>{item.actor.displayName ||
-								item.actor.handle ||
-								'Account unavailable'}</strong
+					{#if item.actor && copy.available}<a
+							class="notification-profile"
+							href={'/profiles/' + encodeURIComponent(item.actor.did)}
+							><strong
+								>{item.actor.displayName ||
+									item.actor.handle ||
+									'Account unavailable'}</strong
+							></a
 						>
 					{/if}{' '}{copy.action}
 				</p>
@@ -212,8 +234,8 @@
 					</div>{/if}<time datetime={item.createdAt}
 					>{compactDate(item.createdAt)}</time
 				>
-			</div></a
-		>
+			</div>
+		</div>
 		{#if copy.canFollow && item.actor?.did !== did}<button
 				class="follow-notification"
 				class:following={item.actor?.viewerIsFollowing}
@@ -296,6 +318,25 @@
 		gap: 12px;
 		text-decoration: none;
 		color: var(--ink);
+	}
+	.notification-destination::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+	}
+	.notification-destination:focus-visible::after {
+		outline: 2px solid var(--primary);
+		outline-offset: -2px;
+	}
+	.notification-profile,
+	.follow-notification {
+		position: relative;
+		z-index: 2;
+	}
+	.notification-profile {
+		color: inherit;
+		text-decoration: none;
 	}
 	.notification-avatar {
 		position: relative;

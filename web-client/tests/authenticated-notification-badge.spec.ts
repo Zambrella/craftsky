@@ -42,6 +42,60 @@ test.beforeEach(async ({ page, context }) => {
 });
 
 for (const width of [390, 1280]) {
+	test(`notification profile links and row destinations stay separate at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/notifications');
+		const row = page.locator('.notification').first();
+		const avatar = row.locator('.notification-avatar');
+		const name = row.locator('.notification-title a');
+		const profile = await avatar.getAttribute('href');
+		const destination = await row
+			.locator('.notification-destination')
+			.getAttribute('href');
+		expect(profile).toMatch(/^\/profiles\//);
+		expect(destination).toMatch(/^\/posts\//);
+		await expect(name).toHaveAttribute('href', profile!);
+
+		await avatar.click();
+		await expect(page).toHaveURL(new RegExp(profile! + '$'));
+		await page.goto('/notifications');
+		await name.click();
+		await expect(page).toHaveURL(new RegExp(profile! + '$'));
+		await page.goto('/notifications');
+		await name.focus();
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(new RegExp(profile! + '$'));
+
+		for (const target of ['.notification-preview', 'time']) {
+			await page.goto('/notifications');
+			// Click the visible content's coordinates: the row link covers this area.
+			const bounds = await row.locator(target).boundingBox();
+			expect(bounds).not.toBeNull();
+			await page.mouse.click(
+				bounds!.x + bounds!.width / 2,
+				bounds!.y + bounds!.height / 2
+			);
+			await expect(page).toHaveURL(new RegExp(destination! + '$'));
+		}
+		await page.goto('/notifications');
+		await row.click({ position: { x: 4, y: 4 } });
+		await expect(page).toHaveURL(new RegExp(destination! + '$'));
+
+		await page.goto('/notifications');
+		const followRow = page
+			.locator('.notification')
+			.filter({ has: page.locator('.follow-notification') });
+		await followRow
+			.getByRole('button', { name: 'Follow', exact: true })
+			.click();
+		await expect(
+			followRow.getByRole('button', { name: 'Unfollow', exact: true })
+		).toBeVisible();
+		await expect(page).toHaveURL(/\/notifications$/);
+	});
+
 	test(`notifications clear their badge immediately and ignore stale polls at ${width}px`, async ({
 		page
 	}) => {
