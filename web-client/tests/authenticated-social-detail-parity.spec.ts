@@ -1790,3 +1790,153 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		await expect(page).toHaveURL(/\/compose\/reply/);
 	});
 }
+
+test('YouTube embeds require consent, retain timestamps, remember permission and handle playback errors', async ({
+	page
+}) => {
+	let youtubeRequests = 0;
+	await page.route('https://www.youtube.com/iframe_api', (route) => {
+		youtubeRequests++;
+		return route.fulfill({
+			contentType: 'application/javascript',
+			body: `window.YT = { Player: function(frame, options) { window.youtubeFailure = options.events.onError; this.destroy = function() {}; } }; window.onYouTubeIframeAPIReady();`
+		});
+	});
+	await page.route('https://www.youtube-nocookie.com/**', (route) => {
+		youtubeRequests++;
+		return route.fulfill({
+			contentType: 'text/html',
+			body: '<html><body>Fixture player</body></html>'
+		});
+	});
+	await page.route(
+		'https://fixture.craftsky.test/youtube-thumbnail.svg',
+		(route) =>
+			route.fulfill({
+				contentType: 'image/svg+xml',
+				body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="240"><rect width="120" height="240" fill="blue"/></svg>'
+			})
+	);
+	await timeline(
+		page,
+		post('youtube', {
+			external: {
+				uri: 'https://m.youtube.com/shorts/dQw4w9WgXcQ?t=1m30s',
+				title: 'Knitting tutorial',
+				description: 'Learn a stitch',
+				thumb: { url: 'https://fixture.craftsky.test/youtube-thumbnail.svg' }
+			}
+		})
+	);
+	await page.goto('/feed');
+	const play = page.getByRole('button', {
+		name: 'Play YouTube video: Knitting tutorial',
+		exact: true
+	});
+	await expect(play).toBeVisible();
+	for (const width of [390, 1280]) {
+		await page.setViewportSize({ width, height: 900 });
+		const media = play.locator('.preview-media');
+		await expect(media).toHaveCSS('aspect-ratio', '16 / 9');
+		const bounds = await media.boundingBox();
+		expect(bounds!.width / bounds!.height).toBeCloseTo(16 / 9, 2);
+		const image = await media.locator('img').boundingBox();
+		expect(image!.width).toBeCloseTo(bounds!.width, 1);
+		expect(image!.height).toBeCloseTo(bounds!.height, 1);
+		await expect(media.locator('img')).toHaveCSS('object-fit', 'cover');
+	}
+	await expect(play.locator('.preview-copy strong')).toHaveText(
+		'Knitting tutorial'
+	);
+	await expect(play.locator('.description')).toHaveText('Learn a stitch');
+	await expect(play.locator('.host')).toHaveText('m.youtube.com');
+	expect(youtubeRequests).toBe(0);
+	await play.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Play video from YouTube?' })
+	).toBeVisible();
+	expect(youtubeRequests).toBe(0);
+	await page.keyboard.press('Escape');
+	await expect(play).toBeFocused();
+	await play.click();
+	await page.getByRole('button', { name: 'Allow once', exact: true }).click();
+	const frame = page.getByTitle('YouTube video player: Knitting tutorial');
+	await expect(frame).toHaveAttribute(
+		'src',
+		/youtube-nocookie.com\/embed\/dQw4w9WgXcQ\?.*start=90/
+	);
+	await expect(frame).toHaveCSS('aspect-ratio', '9 / 16');
+	await expect(frame).toHaveAttribute(
+		'referrerpolicy',
+		'strict-origin-when-cross-origin'
+	);
+	await expect(page).toHaveURL(/\/feed$/);
+	await page.reload();
+	await play.click();
+	await page
+		.getByRole('button', { name: 'Always allow YouTube', exact: true })
+		.click();
+	await expect(frame).toBeVisible();
+	await page.reload();
+	await play.click();
+	await expect(frame).toBeVisible();
+	await expect(
+		page.getByRole('dialog', { name: 'Play video from YouTube?' })
+	).not.toBeVisible();
+	await page.waitForFunction(() => 'youtubeFailure' in window);
+	await page.evaluate(() =>
+		(window as typeof window & { youtubeFailure: () => void }).youtubeFailure()
+	);
+	await expect(
+		page
+			.getByRole('status')
+			.filter({ hasText: 'This video can’t be played here.' })
+	).toBeVisible();
+	await expect(frame).toHaveCount(0);
+	await page
+		.getByRole('link', { name: 'Open in YouTube', exact: true })
+		.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Open link?', exact: true })
+	).toBeVisible();
+});
+
+test('blocked YouTube API retains an external fallback', async ({ page }) => {
+	await page.route('https://www.youtube.com/iframe_api', (route) =>
+		route.abort()
+	);
+	await page.route('https://www.youtube-nocookie.com/**', (route) =>
+		route.fulfill({ contentType: 'text/html', body: 'Fixture player' })
+	);
+	await timeline(
+		page,
+		post('youtube-blocked', {
+			external: {
+				uri: 'https://youtu.be/dQw4w9WgXcQ',
+				title: 'Landscape tutorial',
+				description: ''
+			}
+		})
+	);
+	await page.goto('/feed');
+	await page
+		.getByRole('button', {
+			name: 'Play YouTube video: Landscape tutorial',
+			exact: true
+		})
+		.click();
+	await page
+		.getByRole('dialog')
+		.getByText('Playing this video connects to YouTube.', { exact: false })
+		.click();
+	await expect(page).toHaveURL(/\/feed$/);
+	await page.getByRole('button', { name: 'Allow once', exact: true }).click();
+	await expect(
+		page
+			.getByRole('status')
+			.filter({ hasText: 'This video can’t be played here.' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Open in YouTube', exact: true })
+	).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ');
+});

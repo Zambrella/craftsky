@@ -36,7 +36,12 @@ export default defineConfig({
 				mode: 'hash',
 				directives: {
 					'default-src': ['self'],
-					'script-src': ['self', 'wasm-unsafe-eval'],
+					'script-src': [
+						'self',
+						'wasm-unsafe-eval',
+						'https://www.youtube.com',
+						'https://s.ytimg.com'
+					],
 					'style-src': ['self', 'unsafe-inline'],
 					'img-src': ['self', 'https:', 'blob:', 'data:'],
 					'media-src': ['self', 'https:', 'blob:'],
@@ -44,7 +49,10 @@ export default defineConfig({
 					'base-uri': ['none'],
 					'form-action': ['self'],
 					'frame-ancestors': ['none'],
-					'frame-src': ['https://player.mediadelivery.net'],
+					'frame-src': [
+						'https://player.mediadelivery.net',
+						'https://www.youtube-nocookie.com'
+					],
 					'object-src': ['none']
 				}
 			}

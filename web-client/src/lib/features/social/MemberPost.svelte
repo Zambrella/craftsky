@@ -34,6 +34,7 @@
 	import RichText from './RichText.svelte';
 	import ExpandableBody from './ExpandableBody.svelte';
 	import VideoPlayer from './VideoPlayer.svelte';
+	import ExternalCard from './ExternalCard.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import LikeReaction from './LikeReaction.svelte';
 	import PostSummary from './PostSummary.svelte';
@@ -507,18 +508,9 @@
 								rkey={post.rkey}
 							/>{/if}{/snippet}
 				</PostCard>{/if}
-			{#if !savedAt && post.external && safeLink(post.external.uri)}<a
-					class="external-card"
-					href={safeLink(post.external.uri)}
-					rel="ugc nofollow noreferrer"
-					><strong>{post.external.title}</strong>
-					{#if safeLink(post.external.thumb?.url || '')}<img
-							src={safeLink(post.external.thumb!.url)}
-							alt=""
-							loading="lazy"
-						/>{/if}
-					<p>{post.external.description}</p></a
-				>{/if}
+			{#if !savedAt && post.external}{#key post.external.uri}<ExternalCard
+						external={post.external}
+					/>{/key}{/if}
 			{#if !savedAt && post.quoteView}<aside
 					class="quote-card"
 					aria-label="Quoted post"
@@ -1017,12 +1009,6 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 12px;
-	}
-	.external-card img {
-		max-height: 240px;
-		width: 100%;
-		object-fit: cover;
-		margin-top: 8px;
 	}
 	.protected-post {
 		min-height: 110px;
