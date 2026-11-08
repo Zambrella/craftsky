@@ -20,7 +20,17 @@ import 'package:material_ui/material_ui.dart';
 enum _WelcomeAction { signIn, register }
 
 class WelcomePage extends ConsumerStatefulWidget {
-  const new({this.linkLauncher = launchExternalLink, super.key});
+  const new({
+    this.linkLauncher = launchExternalLink,
+    this.onExplore,
+    this.embedded = false,
+    this.onStartAuth,
+    super.key,
+  });
+
+  final bool embedded;
+  final VoidCallback? onExplore;
+  final VoidCallback? onStartAuth;
 
   final ExternalLinkLauncher linkLauncher;
 
@@ -62,113 +72,125 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     final shadows = theme.extension<BrandShadowTheme>()!;
     final busy = ref.watch(authControllerProvider) is AsyncLoading;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _CraftScaffoldBackground()),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                padding: EdgeInsets.all(spacing.sp4),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight - spacing.sp4 * 2,
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: double.infinity,
-                      constraints: const BoxConstraints(maxWidth: 560),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: constraints.maxWidth < 420
-                            ? spacing.sp4
-                            : spacing.sp6,
-                        vertical: spacing.sp6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: swatches.paper2,
-                        border: Border.all(color: colors.onSurface, width: 1.5),
-                        borderRadius: BorderRadius.circular(radius.r3),
-                        boxShadow: shadows.drop,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            l10n.welcomeJoinTitle,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.displaySmall,
+    final content = Stack(
+      children: [
+        const Positioned.fill(child: _CraftScaffoldBackground()),
+        SafeArea(
+          top: !widget.embedded,
+          bottom: !widget.embedded,
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: EdgeInsets.all(spacing.sp4),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: widget.embedded
+                      ? 0
+                      : constraints.maxHeight - spacing.sp4 * 2,
+                ),
+                child: Center(
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: constraints.maxWidth < 420
+                          ? spacing.sp4
+                          : spacing.sp6,
+                      vertical: spacing.sp6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: swatches.paper2,
+                      border: Border.all(color: colors.onSurface, width: 1.5),
+                      borderRadius: BorderRadius.circular(radius.r3),
+                      boxShadow: shadows.drop,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          l10n.welcomeJoinTitle,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.displaySmall,
+                        ),
+                        SizedBox(height: spacing.sp2),
+                        Text(
+                          l10n.welcomeSubtitle,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
-                          SizedBox(height: spacing.sp2),
-                          Text(
-                            l10n.welcomeSubtitle,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
+                        ),
+                        SizedBox(height: spacing.sp5),
+                        ChunkyButton(
+                          onPressed: busy ? null : _startRegistration,
+                          child: ActionProgress(
+                            isLoading:
+                                busy &&
+                                _pendingAction == _WelcomeAction.register,
+                            child: Text(l10n.welcomeRegisterAction),
                           ),
-                          SizedBox(height: spacing.sp5),
-                          ChunkyButton(
-                            onPressed: busy ? null : _startRegistration,
-                            child: ActionProgress(
-                              isLoading:
-                                  busy &&
-                                  _pendingAction == _WelcomeAction.register,
-                              child: Text(l10n.welcomeRegisterAction),
-                            ),
+                        ),
+                        SizedBox(height: spacing.sp2),
+                        Text(
+                          l10n.welcomeRegistrationHandoff,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
-                          SizedBox(height: spacing.sp2),
-                          Text(
-                            l10n.welcomeRegistrationHandoff,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
+                        ),
+                        SizedBox(height: spacing.sp5),
+                        _OrDivider(label: l10n.welcomeOr),
+                        SizedBox(height: spacing.sp5),
+                        HandleTypeaheadField(
+                          key: keys.auth.handle,
+                          hintText: 'your-handle.bsky.social',
+                          controller: _handleController,
+                          enabled: !busy,
+                          onSubmitted: (_) => _signIn(),
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        ChunkyButton(
+                          key: keys.auth.signIn,
+                          variant: ChunkyButtonVariant.secondary,
+                          onPressed: busy ? null : _signIn,
+                          child: ActionProgress(
+                            isLoading:
+                                busy && _pendingAction == _WelcomeAction.signIn,
+                            child: Text(l10n.welcomeSignInAction),
                           ),
-                          SizedBox(height: spacing.sp5),
-                          _OrDivider(label: l10n.welcomeOr),
-                          SizedBox(height: spacing.sp5),
-                          HandleTypeaheadField(
-                            key: keys.auth.handle,
-                            hintText: 'your-handle.bsky.social',
-                            controller: _handleController,
-                            enabled: !busy,
-                            onSubmitted: (_) => _signIn(),
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          ChunkyButton(
-                            key: keys.auth.signIn,
-                            variant: ChunkyButtonVariant.secondary,
-                            onPressed: busy ? null : _signIn,
-                            child: ActionProgress(
-                              isLoading:
-                                  busy &&
-                                  _pendingAction == _WelcomeAction.signIn,
-                              child: Text(l10n.welcomeSignInAction),
-                            ),
-                          ),
-                          SizedBox(height: spacing.sp5),
-                          _AtmosphereExplainer(l10n: l10n),
-                          SizedBox(height: spacing.sp5),
-                          _LegalLinks(
-                            l10n: l10n,
-                            onTerms: () => _openLink(_termsUri),
-                            onPrivacy: () => _openLink(_privacyUri),
+                        ),
+                        SizedBox(height: spacing.sp5),
+                        _AtmosphereExplainer(l10n: l10n),
+                        if (widget.onExplore != null) ...[
+                          SizedBox(height: spacing.sp3),
+                          TextButton(
+                            onPressed: busy ? null : widget.onExplore,
+                            child: const Text('Explore CraftSky'),
                           ),
                         ],
-                      ),
+                        SizedBox(height: spacing.sp5),
+                        _LegalLinks(
+                          l10n: l10n,
+                          onTerms: () => _openLink(_termsUri),
+                          onPrivacy: () => _openLink(_privacyUri),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    return widget.embedded
+        ? Material(type: MaterialType.transparency, child: content)
+        : Scaffold(body: content);
   }
 
   void _signIn() {
     if (ref.read(authControllerProvider).isLoading) return;
+    widget.onStartAuth?.call();
     setState(() => _pendingAction = _WelcomeAction.signIn);
     unawaited(
       ref
@@ -179,6 +201,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
 
   void _startRegistration() {
     if (ref.read(authControllerProvider).isLoading) return;
+    widget.onStartAuth?.call();
     setState(() => _pendingAction = _WelcomeAction.register);
     unawaited(ref.read(authControllerProvider.notifier).startRegistration());
   }

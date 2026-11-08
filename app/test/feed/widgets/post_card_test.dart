@@ -38,6 +38,7 @@ import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provide
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/public_read_transport.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
@@ -63,6 +64,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../profile/fakes/fake_profile_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 Post _post({
@@ -1141,6 +1143,37 @@ void main() {
     );
 
     testWidgets(
+      'IR-004 REG-004 guest transport preserves imported-card disclosure',
+      (tester) async {
+        final wire =
+            _post(
+                externalImport: const ExternalImport(source: 'instagram'),
+              ).toMap()
+              ..remove('indexedAt')
+              ..remove('viewerHasLiked')
+              ..remove('viewerHasReposted')
+              ..remove('viewerHasReplied')
+              ..remove('viewerHasSaved');
+        final display =
+            PublicReadRequest.resolve(
+                  '/v1/posts/did:plc:alice/3lf2abc',
+                  'GET',
+                  {},
+                ).adapt(wire)!
+                as Map<String, dynamic>;
+        final post = PostMapper.fromMap(display);
+        for (final audience in [
+          testMemberBrowsingOverride,
+          testGuestBrowsingOverride,
+        ]) {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await _pump(tester, PostCard(post: post), overrides: [audience]);
+          expect(find.text('Imported from Instagram'), findsOneWidget);
+        }
+      },
+    );
+
+    testWidgets(
       'REG-007 ordinary and unknown full posts show no provenance label',
       (tester) async {
         for (final provenance in <ExternalImport?>[
@@ -1800,6 +1833,30 @@ void main() {
       expect(find.byIcon(CraftskyIconsBold.more), findsNothing);
       expect(find.textContaining('unavailable.invalid'), findsNothing);
     });
+
+    for (final kind in [
+      PostCardContentKind.comment,
+      PostCardContentKind.reply,
+    ]) {
+      testWidgets(
+        'labels $kind action Reply without public parent references',
+        (
+          tester,
+        ) async {
+          await _pump(
+            tester,
+            PostCard(
+              post: _post(),
+              contentKind: kind,
+              showReplyCount: false,
+              showReplyLabel: true,
+            ),
+          );
+          expect(find.text('Reply'), findsOneWidget);
+          expect(find.text('Comment'), findsNothing);
+        },
+      );
+    }
 
     testWidgets('colours reply label when viewer has replied', (tester) async {
       await _pump(

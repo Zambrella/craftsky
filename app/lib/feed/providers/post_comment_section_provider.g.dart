@@ -17,7 +17,13 @@ final class PostCommentSectionProvider
         $AsyncNotifierProvider<PostCommentSection, model.PostCommentSection> {
   PostCommentSectionProvider._({
     required PostCommentSectionFamily super.from,
-    required (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
+    required (
+      Did,
+      RecordKey, {
+      model.CommentSort sort,
+      AtUri? focus,
+      BrowsingContext? audience,
+    })
     super.argument,
   }) : super(
          retry: null,
@@ -53,7 +59,7 @@ final class PostCommentSectionProvider
 }
 
 String _$postCommentSectionHash() =>
-    r'a72be2714c67efa55f9471e0cd9a8678014fe822';
+    r'639eae4cb2af783132291e4b12e9e30c7b2580af';
 
 final class PostCommentSectionFamily extends $Family
     with
@@ -62,7 +68,13 @@ final class PostCommentSectionFamily extends $Family
           AsyncValue<model.PostCommentSection>,
           model.PostCommentSection,
           FutureOr<model.PostCommentSection>,
-          (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
+          (
+            Did,
+            RecordKey, {
+            model.CommentSort sort,
+            AtUri? focus,
+            BrowsingContext? audience,
+          })
         > {
   PostCommentSectionFamily._()
     : super(
@@ -78,8 +90,9 @@ final class PostCommentSectionFamily extends $Family
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) => PostCommentSectionProvider._(
-    argument: (did, rkey, sort: sort, focus: focus),
+    argument: (did, rkey, sort: sort, focus: focus, audience: audience),
     from: this,
   );
 
@@ -90,17 +103,26 @@ final class PostCommentSectionFamily extends $Family
 abstract class _$PostCommentSection
     extends $AsyncNotifier<model.PostCommentSection> {
   late final _$args =
-      ref.$arg as (Did, RecordKey, {model.CommentSort sort, AtUri? focus});
+      ref.$arg
+          as (
+            Did,
+            RecordKey, {
+            model.CommentSort sort,
+            AtUri? focus,
+            BrowsingContext? audience,
+          });
   Did get did => _$args.$1;
   RecordKey get rkey => _$args.$2;
   model.CommentSort get sort => _$args.sort;
   AtUri? get focus => _$args.focus;
+  BrowsingContext? get audience => _$args.audience;
 
   FutureOr<model.PostCommentSection> build(
     Did did,
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   });
   @$mustCallSuper
   @override
@@ -124,7 +146,13 @@ abstract class _$PostCommentSection
             >;
     return element.handleCreate(
       ref,
-      () => build(_$args.$1, _$args.$2, sort: _$args.sort, focus: _$args.focus),
+      () => build(
+        _$args.$1,
+        _$args.$2,
+        sort: _$args.sort,
+        focus: _$args.focus,
+        audience: _$args.audience,
+      ),
     );
   }
 }
@@ -136,7 +164,13 @@ final class PostCommentPageLoaderProvider
     extends $AsyncNotifierProvider<PostCommentPageLoader, void> {
   PostCommentPageLoaderProvider._({
     required PostCommentPageLoaderFamily super.from,
-    required (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
+    required (
+      Did,
+      RecordKey, {
+      model.CommentSort sort,
+      AtUri? focus,
+      BrowsingContext? audience,
+    })
     super.argument,
   }) : super(
          retry: null,
@@ -172,7 +206,7 @@ final class PostCommentPageLoaderProvider
 }
 
 String _$postCommentPageLoaderHash() =>
-    r'47cc15006ece5cad6a2ba5c33d37675f6a0c082e';
+    r'055d677fab6c80b91db982336567c6fadb99799f';
 
 final class PostCommentPageLoaderFamily extends $Family
     with
@@ -181,7 +215,13 @@ final class PostCommentPageLoaderFamily extends $Family
           AsyncValue<void>,
           void,
           FutureOr<void>,
-          (Did, RecordKey, {model.CommentSort sort, AtUri? focus})
+          (
+            Did,
+            RecordKey, {
+            model.CommentSort sort,
+            AtUri? focus,
+            BrowsingContext? audience,
+          })
         > {
   PostCommentPageLoaderFamily._()
     : super(
@@ -197,8 +237,9 @@ final class PostCommentPageLoaderFamily extends $Family
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) => PostCommentPageLoaderProvider._(
-    argument: (did, rkey, sort: sort, focus: focus),
+    argument: (did, rkey, sort: sort, focus: focus, audience: audience),
     from: this,
   );
 
@@ -208,17 +249,26 @@ final class PostCommentPageLoaderFamily extends $Family
 
 abstract class _$PostCommentPageLoader extends $AsyncNotifier<void> {
   late final _$args =
-      ref.$arg as (Did, RecordKey, {model.CommentSort sort, AtUri? focus});
+      ref.$arg
+          as (
+            Did,
+            RecordKey, {
+            model.CommentSort sort,
+            AtUri? focus,
+            BrowsingContext? audience,
+          });
   Did get did => _$args.$1;
   RecordKey get rkey => _$args.$2;
   model.CommentSort get sort => _$args.sort;
   AtUri? get focus => _$args.focus;
+  BrowsingContext? get audience => _$args.audience;
 
   FutureOr<void> build(
     Did did,
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   });
   @$mustCallSuper
   @override
@@ -234,7 +284,13 @@ abstract class _$PostCommentPageLoader extends $AsyncNotifier<void> {
             >;
     return element.handleCreate(
       ref,
-      () => build(_$args.$1, _$args.$2, sort: _$args.sort, focus: _$args.focus),
+      () => build(
+        _$args.$1,
+        _$args.$2,
+        sort: _$args.sort,
+        focus: _$args.focus,
+        audience: _$args.audience,
+      ),
     );
   }
 }
@@ -252,6 +308,7 @@ final class PostCommentRepliesLoaderProvider
       AtUri commentUri,
       model.CommentSort sort,
       AtUri? focus,
+      BrowsingContext? audience,
     })
     super.argument,
   }) : super(
@@ -289,7 +346,7 @@ final class PostCommentRepliesLoaderProvider
 }
 
 String _$postCommentRepliesLoaderHash() =>
-    r'3fca3f8e2b420e7b4cdedac6be62eecce906476a';
+    r'3df9ea4b1d0c1889823393250b367e5888f4d51f';
 
 final class PostCommentRepliesLoaderFamily extends $Family
     with
@@ -304,6 +361,7 @@ final class PostCommentRepliesLoaderFamily extends $Family
             AtUri commentUri,
             model.CommentSort sort,
             AtUri? focus,
+            BrowsingContext? audience,
           })
         > {
   PostCommentRepliesLoaderFamily._()
@@ -321,8 +379,16 @@ final class PostCommentRepliesLoaderFamily extends $Family
     required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) => PostCommentRepliesLoaderProvider._(
-    argument: (did, rkey, commentUri: commentUri, sort: sort, focus: focus),
+    argument: (
+      did,
+      rkey,
+      commentUri: commentUri,
+      sort: sort,
+      focus: focus,
+      audience: audience,
+    ),
     from: this,
   );
 
@@ -339,12 +405,14 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
             AtUri commentUri,
             model.CommentSort sort,
             AtUri? focus,
+            BrowsingContext? audience,
           });
   Did get did => _$args.$1;
   RecordKey get rkey => _$args.$2;
   AtUri get commentUri => _$args.commentUri;
   model.CommentSort get sort => _$args.sort;
   AtUri? get focus => _$args.focus;
+  BrowsingContext? get audience => _$args.audience;
 
   FutureOr<void> build(
     Did did,
@@ -352,6 +420,7 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
     required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   });
   @$mustCallSuper
   @override
@@ -373,6 +442,7 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
         commentUri: _$args.commentUri,
         sort: _$args.sort,
         focus: _$args.focus,
+        audience: _$args.audience,
       ),
     );
   }

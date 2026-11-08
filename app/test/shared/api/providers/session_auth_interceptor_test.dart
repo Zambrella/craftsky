@@ -10,6 +10,42 @@ class _CapturingHandler extends RequestInterceptorHandler {
 }
 
 void main() {
+  test(
+    'IT-008 public reads omit all credentials even on an account client',
+    () async {
+      final options = RequestOptions(
+        path: '/v1/public/projects',
+        headers: {
+          'Cookie': 'private-cookie',
+          'Authorization': 'Bearer canary',
+          'DPoP': 'proof',
+          'X-PDS-Token': 'pds',
+        },
+      );
+      SessionAuthInterceptor.fixed(
+        token: 'member-secret',
+        readDeviceId: () async => 'device',
+      ).onRequest(options, _CapturingHandler());
+      await _pumpEventLoop();
+      expect(
+        options.headers.keys.map((key) => key.toLowerCase()),
+        isNot(
+          anyOf(
+            contains('authorization'),
+            contains('dpop'),
+            contains('cookie'),
+          ),
+        ),
+      );
+      expect(
+        options.headers.keys.any(
+          (key) => key.toLowerCase().startsWith('x-pds-'),
+        ),
+        isFalse,
+      );
+    },
+  );
+
   test('fixed account requests attach captured bearer and device ID', () async {
     final options = RequestOptions(path: '/v1/whoami');
     SessionAuthInterceptor.fixed(

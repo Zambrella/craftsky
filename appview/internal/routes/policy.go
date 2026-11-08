@@ -228,6 +228,7 @@ var retainedSuspendedMutations = map[string]bool{
 // Denied mutations are explicit so a new authenticated mutation cannot silently
 // inherit policy; an absent classification prevents catalogue construction.
 var deniedSuspendedMutations = map[string]bool{
+	"PUT /v1/preferences/logged-out-visibility":                            true,
 	"POST /v1/chat/sync":                                                   true,
 	"PUT /v1/chat/push-preferences":                                        true,
 	"PUT /v1/chat/connection":                                              true,
@@ -299,10 +300,29 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
 		{Method: "GET", PathPattern: "/v1/public/stats", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "POST", PathPattern: "/v1/public/posts/{did}/{rkey}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
+		{Method: "POST", PathPattern: "/v1/public/profiles/{handleOrDid}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}/video-captions/{captionCid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/search/hashtags/{tag}/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/events", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/events/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}/likes", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}/reposts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}/quotes", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/search/profiles", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/search/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/search/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/search/hashtags", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/comments", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/reposts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}/thread", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/preferences/logged-out-visibility", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/preferences/logged-out-visibility", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/notification-opens/{reference}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/chat/sync", NoActivity: true, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/incoming-policy", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

@@ -47,7 +47,7 @@ import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/deterministic_pump.dart';
-
+import '../test_support/member_browsing_context.dart';
 import '../test_support/notification_text.dart';
 
 void main() {
@@ -155,7 +155,10 @@ void main() {
         addTearDown(router.dispose);
         await tester.pumpWidget(
           ProviderScope(
-            overrides: [postRepositoryProvider.overrideWithValue(repository)],
+            overrides: [
+              testMemberBrowsingOverride,
+              postRepositoryProvider.overrideWithValue(repository),
+            ],
             child: MaterialApp.router(
               theme: AppTheme.lightThemeData,
               localizationsDelegates: appLocalizationsDelegates,
@@ -192,6 +195,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           notificationRepositoryProvider.overrideWithValue(
             const _FakeNotificationRepository(NotificationPage(items: [])),
           ),
@@ -218,7 +222,10 @@ void main() {
       ]);
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            notificationRepositoryProvider.overrideWithValue(repo),
+          ],
           child: const _TestApp(home: NotificationsPage()),
         ),
       );
@@ -256,7 +263,10 @@ void main() {
     ]);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          notificationRepositoryProvider.overrideWithValue(repo),
+        ],
         child: const _TestApp(home: NotificationsPage()),
       ),
     );
@@ -279,7 +289,10 @@ void main() {
     ]);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          notificationRepositoryProvider.overrideWithValue(repo),
+        ],
         child: const _TestApp(home: NotificationsPage()),
       ),
     );
@@ -305,6 +318,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             notificationRepositoryProvider.overrideWithValue(
               const _FakeNotificationRepository(NotificationPage(items: [])),
             ),
@@ -344,6 +358,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           notificationRepositoryProvider.overrideWithValue(
             _QueueNotificationRepository([page.future]),
           ),
@@ -364,6 +379,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           notificationRepositoryProvider.overrideWithValue(
             const _FakeNotificationRepository(NotificationPage(items: [])),
           ),
@@ -394,7 +410,10 @@ void main() {
     ]);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          notificationRepositoryProvider.overrideWithValue(repo),
+        ],
         child: const _TestApp(home: NotificationsPage()),
       ),
     );
@@ -412,6 +431,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           notificationRepositoryProvider.overrideWithValue(
             _FakeNotificationRepository(
               NotificationPage(
@@ -902,7 +922,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
         child: _TestApp(
           home: Scaffold(
             body: NotificationRow(
@@ -945,7 +968,10 @@ void main() {
           profile = profile.copyWith(viewerIsFollowing: false),
     );
     final container = ProviderContainer.test(
-      overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        testMemberBrowsingOverride,
+        profileRepositoryProvider.overrideWithValue(repository),
+      ],
     );
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -963,7 +989,10 @@ void main() {
     // Use the profile page mutation without tapping the notification row.
     for (final following in [true, false]) {
       final current = await container.read(
-        userProfileProvider(profile.did).future,
+        userProfileProvider(
+          profile.did,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       await container
           .read(toggleFollowProfileProvider.notifier)
@@ -997,6 +1026,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               profileRepositoryProvider.overrideWithValue(repository),
             ],
             child: _TestApp(
@@ -1062,7 +1092,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
         child: _TestApp(
           home: MessengerScope(
             messenger: messenger,
@@ -1108,6 +1141,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           accountRelationshipRepositoryProvider(
             account,
           ).overrideWith((ref) async => relationshipRepository),
@@ -1159,7 +1193,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          notificationRepositoryProvider.overrideWithValue(repo),
+        ],
         child: const _TestApp(home: NotificationsPage()),
       ),
     );
@@ -1218,6 +1255,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           notificationRepositoryProvider.overrideWithValue(
             _FakeNotificationRepository(
               NotificationPage(

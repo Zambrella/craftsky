@@ -8,9 +8,11 @@ import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/browsing/guest_session.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 class AuthCompletePage extends ConsumerStatefulWidget {
@@ -57,7 +59,9 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
         // Leave the expired-link action visible if local session lookup fails.
         return;
       }
-      if (mounted && auth is SignedIn) const FeedRoute().go(context);
+      if (mounted && auth is SignedIn) {
+        context.go(ref.read(guestSessionProvider).returnTo);
+      }
     }
   }
 
@@ -79,7 +83,7 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
             ref.read(sessionRegistryProvider).value?.activeLease == chatLease) {
           const ChatInboxRoute().go(context);
         } else {
-          const FeedRoute().go(context);
+          context.go(ref.read(guestSessionProvider).returnTo);
         }
       }
     });

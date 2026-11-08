@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
+import '../test_support/member_browsing_context.dart';
 import 'fakes/fake_profile_repository.dart';
 
 final _seedProfile = Profile(
@@ -160,6 +161,7 @@ Future<void> _pumpEditDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: List.from([
+        testMemberBrowsingOverride,
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
         ...overrides,

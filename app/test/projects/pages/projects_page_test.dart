@@ -28,6 +28,7 @@ import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -48,6 +49,7 @@ import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
 import '../../test_support/deterministic_pump.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_project_repository.dart';
 
 Post _post(int index) => PostMapper.fromMap({
@@ -80,11 +82,15 @@ Future<void> _pumpProjects(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         authSessionProvider.overrideWith(
           profile == null ? SignedOutAuthSession.new : SignedInAuthSession.new,
         ),
         if (profile != null)
-          userProfileProvider(Did.parse('did:plc:test')).overrideWith(
+          userProfileProvider(
+            Did.parse('did:plc:test'),
+            audience: testMemberBrowsingAudience,
+          ).overrideWith(
             () => _TestUserProfile(profile),
           ),
         activeLanguagePreferencesProvider.overrideWith(
@@ -419,6 +425,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(
                 () => SignedInAuthSession(did: 'did:plc:alice'),
               ),
@@ -606,7 +613,12 @@ void main() {
       tester.element(find.byType(HomePage)),
     );
     container
-        .read(userProfileProvider(Did.parse('did:plc:test')).notifier)
+        .read(
+          userProfileProvider(
+            Did.parse('did:plc:test'),
+            audience: testMemberBrowsingAudience,
+          ).notifier,
+        )
         .setCached(
           Profile(
             did: 'did:plc:test',
@@ -707,6 +719,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(
             () => SignedInAuthSession(did: 'did:plc:alice'),
           ),
@@ -1091,6 +1104,7 @@ void main() {
     final container = ProviderScope.containerOf(context);
     final feed = projectFeedProvider(
       const ProjectBrowseQuery(craftTypes: [knitting]),
+      audience: testMemberBrowsingAudience,
     );
     expect(container.exists(feed), isTrue);
     Navigator.of(context).pushReplacement<void, void>(
@@ -1145,6 +1159,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedOutAuthSession.new),
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
@@ -1316,6 +1331,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedOutAuthSession.new),
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
@@ -1353,5 +1369,5 @@ class _TestUserProfile extends UserProfile {
   new(this.profile);
   final Future<Profile> profile;
   @override
-  Future<Profile> build(Did did) => profile;
+  Future<Profile> build(Did did, {BrowsingContext? audience}) => profile;
 }

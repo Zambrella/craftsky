@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final _aliceDid = Did.parse('did:plc:alice');
@@ -85,32 +86,55 @@ void main() {
           },
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         final subscription = container.listen(
-          postCommentSectionProvider(_aliceDid, _rootRkey),
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
         final initial = await container.read(
-          postCommentSectionProvider(_aliceDid, _rootRkey).future,
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ).future,
         );
         expect(initial.comments.cursor, 'c1');
 
         final loaderSubscription = container.listen(
-          postCommentPageLoaderProvider(_aliceDid, _rootRkey),
+          postCommentPageLoaderProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         );
         addTearDown(loaderSubscription.close);
         final firstLoad = container
             .read(
-              postCommentPageLoaderProvider(_aliceDid, _rootRkey).notifier,
+              postCommentPageLoaderProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ).notifier,
             )
             .load();
         final duplicateLoad = container
             .read(
-              postCommentPageLoaderProvider(_aliceDid, _rootRkey).notifier,
+              postCommentPageLoaderProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ).notifier,
             )
             .load();
 
@@ -121,13 +145,25 @@ void main() {
         ]);
         expect(
           container
-              .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+              .read(
+                postCommentSectionProvider(
+                  _aliceDid,
+                  _rootRkey,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
               .hasValue,
           isTrue,
         );
         expect(
           container
-              .read(postCommentPageLoaderProvider(_aliceDid, _rootRkey))
+              .read(
+                postCommentPageLoaderProvider(
+                  _aliceDid,
+                  _rootRkey,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
               .isLoading,
           isTrue,
         );
@@ -138,7 +174,13 @@ void main() {
         await Future.wait([firstLoad, duplicateLoad]);
 
         final updated = container
-            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+            .read(
+              postCommentSectionProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!;
         expect(updated.comments.items.map((item) => item.post.rkey), [
           'comment-1',
@@ -173,22 +215,34 @@ void main() {
           },
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         final subscription = container.listen(
-          postCommentSectionProvider(_aliceDid, _rootRkey),
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
         await container.read(
-          postCommentSectionProvider(_aliceDid, _rootRkey).future,
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ).future,
         );
         final loaderSubscription = container.listen(
           postCommentRepliesLoaderProvider(
             _aliceDid,
             _rootRkey,
             commentUri: commentA.post.uri,
+            audience: testMemberBrowsingAudience,
           ),
           (_, _) {},
         );
@@ -199,12 +253,19 @@ void main() {
                 _aliceDid,
                 _rootRkey,
                 commentUri: commentA.post.uri,
+                audience: testMemberBrowsingAudience,
               ).notifier,
             )
             .load();
 
         final updated = container
-            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+            .read(
+              postCommentSectionProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!;
         final updatedA = updated.comments.items.firstWhere(
           (item) => item.post.uri == commentA.post.uri,
@@ -246,22 +307,34 @@ void main() {
             pendingReplies.future,
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
       final subscription = container.listen(
-        postCommentSectionProvider(_aliceDid, _rootRkey),
+        postCommentSectionProvider(
+          _aliceDid,
+          _rootRkey,
+          audience: testMemberBrowsingAudience,
+        ),
         (_, _) {},
       );
       addTearDown(subscription.close);
 
       await container.read(
-        postCommentSectionProvider(_aliceDid, _rootRkey).future,
+        postCommentSectionProvider(
+          _aliceDid,
+          _rootRkey,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       final loaderASubscription = container.listen(
         postCommentRepliesLoaderProvider(
           _aliceDid,
           _rootRkey,
           commentUri: commentA.post.uri,
+          audience: testMemberBrowsingAudience,
         ),
         (_, _) {},
       );
@@ -270,6 +343,7 @@ void main() {
           _aliceDid,
           _rootRkey,
           commentUri: commentB.post.uri,
+          audience: testMemberBrowsingAudience,
         ),
         (_, _) {},
       );
@@ -282,6 +356,7 @@ void main() {
               _aliceDid,
               _rootRkey,
               commentUri: commentA.post.uri,
+              audience: testMemberBrowsingAudience,
             ).notifier,
           )
           .load();
@@ -289,7 +364,13 @@ void main() {
 
       expect(
         container
-            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+            .read(
+              postCommentSectionProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .hasValue,
         isTrue,
       );
@@ -300,6 +381,7 @@ void main() {
                 _aliceDid,
                 _rootRkey,
                 commentUri: commentA.post.uri,
+                audience: testMemberBrowsingAudience,
               ),
             )
             .isLoading,
@@ -312,6 +394,7 @@ void main() {
                 _aliceDid,
                 _rootRkey,
                 commentUri: commentB.post.uri,
+                audience: testMemberBrowsingAudience,
               ),
             )
             .isLoading,
@@ -330,13 +413,20 @@ void main() {
                 _aliceDid,
                 _rootRkey,
                 commentUri: commentA.post.uri,
+                audience: testMemberBrowsingAudience,
               ),
             )
             .hasValue,
         isTrue,
       );
       final updated = container
-          .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+          .read(
+            postCommentSectionProvider(
+              _aliceDid,
+              _rootRkey,
+              audience: testMemberBrowsingAudience,
+            ),
+          )
           .value!;
       final updatedA = updated.comments.items.firstWhere(
         (item) => item.post.uri == commentA.post.uri,
@@ -382,20 +472,32 @@ void main() {
               ReplyPage(loaded: true, items: [_reply('child', 2)]),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         final sectionSubscription = container.listen(
-          postCommentSectionProvider(_aliceDid, _rootRkey),
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         );
         addTearDown(sectionSubscription.close);
         await container.read(
-          postCommentSectionProvider(_aliceDid, _rootRkey).future,
+          postCommentSectionProvider(
+            _aliceDid,
+            _rootRkey,
+            audience: testMemberBrowsingAudience,
+          ).future,
         );
         final loader = postCommentRepliesLoaderProvider(
           _aliceDid,
           _rootRkey,
           commentUri: placeholder.uri,
+          audience: testMemberBrowsingAudience,
         );
         final loaderSubscription = container.listen(loader, (_, _) {});
         addTearDown(loaderSubscription.close);
@@ -405,7 +507,13 @@ void main() {
         expect(fetchedDid, Did.parse('did:plc:bob'));
         expect(fetchedRkey, RecordKey.parse('muted-comment'));
         final revealed = container
-            .read(postCommentSectionProvider(_aliceDid, _rootRkey))
+            .read(
+              postCommentSectionProvider(
+                _aliceDid,
+                _rootRkey,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!
             .comments
             .items

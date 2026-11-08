@@ -15,6 +15,8 @@ import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -28,7 +30,10 @@ void main() {
       ]);
       final target = _target();
       final container = ProviderContainer(
-        overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          memberBrowsingOverrideFor('did:plc:viewer'),
+          businessRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
       final subscription = container.listen(
@@ -81,7 +86,10 @@ void main() {
         owner: AtIdentifier.parse('business.example'),
       );
       final container = ProviderContainer(
-        overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          memberBrowsingOverrideFor('did:plc:viewer'),
+          businessRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -133,7 +141,10 @@ void main() {
       ]);
       final target = _target();
       final container = ProviderContainer(
-        overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          memberBrowsingOverrideFor('did:plc:viewer'),
+          businessRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -158,7 +169,10 @@ void main() {
     ]);
     final target = _target();
     final container = ProviderContainer(
-      overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        memberBrowsingOverrideFor('did:plc:viewer'),
+        businessRepositoryProvider.overrideWithValue(repository),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -209,7 +223,10 @@ void main() {
         owner: AtIdentifier.parse('did:plc:business'),
       );
       final container = ProviderContainer(
-        overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          memberBrowsingOverrideFor('did:plc:viewer'),
+          businessRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
       final subscription = container.listen(
@@ -225,7 +242,7 @@ void main() {
           .refresh();
       await Future<void>.delayed(Duration.zero);
       final lease = AccountSessionLease(
-        account: target.account,
+        account: target.account!,
         sessionGeneration: 0,
       );
       _installSharedEventOverlay(container, lease, accepted);
@@ -270,7 +287,10 @@ void main() {
         owner: AtIdentifier.parse('did:plc:business'),
       );
       final container = ProviderContainer(
-        overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          memberBrowsingOverrideFor('did:plc:viewer'),
+          businessRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
       final provider = profileBusinessEventsProvider(target);
@@ -283,7 +303,7 @@ void main() {
       await container.read(provider.future);
 
       final lease = AccountSessionLease(
-        account: target.account,
+        account: target.account!,
         sessionGeneration: 0,
       );
       final overlays = container.read(pdsRecordOperationControllerProvider);

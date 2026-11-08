@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
+
 	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { confirmNavigation } from '../social/navigation-prompt';
@@ -326,6 +328,7 @@
 			>{/each}
 	</div>
 {:else if section === 'privacy'}
+	<LoggedOutVisibility {api} />
 	<div class="native-list">
 		<label class="switch-row native-option"
 			><SettingsIcon name="errorReporting" /><span class="tile-copy"

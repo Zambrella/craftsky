@@ -20,6 +20,9 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/guest_frame.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -59,6 +62,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
 }
 
 class _PostThreadPageState extends ConsumerState<PostThreadPage> {
+  BrowsingContext? _audience;
   CommentSort _sort = CommentSort.oldest;
   PostCommentSection? _lastSection;
   AtUri? _createdTargetUri;
@@ -66,6 +70,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
 
   @override
   Widget build(BuildContext context) {
+    final audience = ref.watch(browsingContextProvider);
+    if (_audience != audience) {
+      _audience = audience;
+      _lastSection = null;
+    }
     final l10n = AppLocalizations.of(context);
     final viewerDid = switch (ref.watch(authSessionProvider).value) {
       SignedIn(:final did) => did,
@@ -77,6 +86,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         widget.rkey,
         sort: _sort,
         focus: widget.focus,
+        audience: ref.read(browsingContextProvider),
       ),
     );
     final pageLoaderAsync = ref.watch(
@@ -85,6 +95,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         widget.rkey,
         sort: _sort,
         focus: widget.focus,
+        audience: ref.read(browsingContextProvider),
       ),
     );
     final formFactor = FormFactorWidget.of(context);
@@ -148,6 +159,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                   widget.rkey,
                   sort: _sort,
                   focus: widget.focus,
+                  audience: ref.read(browsingContextProvider),
                 ),
               ),
             )
@@ -163,6 +175,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                           widget.rkey,
                           sort: _sort,
                           focus: widget.focus,
+                          audience: ref.read(browsingContextProvider),
                         ),
                       ),
                     ),
@@ -176,7 +189,8 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                       createdTargetUri: _createdTargetUri,
                       showComments: widget.showComments,
                       viewerDid: viewerDid,
-                      showInlineComposer: formFactor.isLarge,
+                      showInlineComposer:
+                          viewerDid != null && formFactor.isLarge,
                       isLoadingMoreComments: pageLoaderAsync.isLoading,
                       isRefreshingComments: isRefreshingComments,
                       onRefresh: () async {
@@ -186,6 +200,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                             widget.rkey,
                             sort: _sort,
                             focus: widget.focus,
+                            audience: ref.read(browsingContextProvider),
                           ).future,
                         );
                       },
@@ -196,6 +211,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                               widget.rkey,
                               sort: _sort,
                               focus: widget.focus,
+                              audience: ref.read(browsingContextProvider),
                             ).notifier,
                           )
                           .load(),
@@ -206,6 +222,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                               widget.rkey,
                               sort: _sort,
                               focus: widget.focus,
+                              audience: ref.read(browsingContextProvider),
                             ).notifier,
                           )
                           .collapseReplies(commentUri),
@@ -223,6 +240,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                     widget.rkey,
                     sort: _sort,
                     focus: widget.focus,
+                    audience: ref.read(browsingContextProvider),
                   ),
                 ),
               ),
@@ -233,11 +251,13 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
               ),
             },
       bottomNavigationBar: switch (visibleSection) {
-        final value? when formFactor.isSmall => _ReplyPrompt(
-          key: const ValueKey('threadStickyReplyPrompt'),
-          post: value.post,
-          isRootPrompt: true,
-        ),
+        final value?
+            when formFactor.isSmall && !ref.watch(isGuestBrowsingProvider) =>
+          _ReplyPrompt(
+            key: const ValueKey('threadStickyReplyPrompt'),
+            post: value.post,
+            isRootPrompt: true,
+          ),
         _ => null,
       },
     );
@@ -277,6 +297,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
             widget.rkey,
             sort: _sort,
             focus: widget.focus,
+            audience: ref.read(browsingContextProvider),
           ),
         )
         .value;
@@ -288,6 +309,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         widget.rkey,
         sort: _sort,
         focus: widget.focus,
+        audience: ref.read(browsingContextProvider),
       ).notifier,
     );
     if (reply.parent.uri == reply.root.uri) {
@@ -339,6 +361,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
               widget.rkey,
               sort: _sort,
               focus: widget.focus,
+              audience: ref.read(browsingContextProvider),
             ).notifier,
           )
           .setRepliesForComment(
@@ -356,6 +379,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
               widget.rkey,
               sort: _sort,
               focus: widget.focus,
+              audience: ref.read(browsingContextProvider),
             ).notifier,
           )
           .insertCreatedReply(parentUri: reply.parent.uri, post: post);
@@ -544,6 +568,25 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
       onRefresh: widget.onRefresh,
       controller: _controller,
       slivers: [
+        if (ref.watch(isGuestBrowsingProvider))
+          for (final ancestor in widget.section.ancestors)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+                child: ancestor.state == 'visible' && ancestor.post != null
+                    ? PostCard(
+                        post: ancestor.post!,
+                        onTap: () => PostThreadRoute(
+                          did: ancestor.post!.author.did.toString(),
+                          rkey: ancestor.post!.rkey.toString(),
+                        ).push<void>(context),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('Post unavailable'),
+                      ),
+              ),
+            ),
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: spacing.sp2),
@@ -556,6 +599,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   allowProfilePinAction: true,
                   projectVariant: ProjectCardVariant.detail,
                   replyTooltip: l10n.postCommentAction,
+                  replyRequiresAccount: true,
                   onReply: () => showPostComposerSheet(
                     context,
                     replyTarget: widget.section.post,
@@ -583,18 +627,24 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                     padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
                     child: PostInteractionSummary(
                       post: widget.section.post,
-                      onLikes: () => PostLikesRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
-                      onReposts: () => PostRepostsRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
-                      onQuotes: () => PostQuotesRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
+                      onLikes: ref.watch(isGuestBrowsingProvider)
+                          ? () => unawaited(showGuestSignIn(context, ref))
+                          : () => PostLikesRoute(
+                              did: widget.section.post.author.did.toString(),
+                              rkey: widget.section.post.rkey.toString(),
+                            ).push<void>(context),
+                      onReposts: ref.watch(isGuestBrowsingProvider)
+                          ? () => unawaited(showGuestSignIn(context, ref))
+                          : () => PostRepostsRoute(
+                              did: widget.section.post.author.did.toString(),
+                              rkey: widget.section.post.rkey.toString(),
+                            ).push<void>(context),
+                      onQuotes: ref.watch(isGuestBrowsingProvider)
+                          ? () => unawaited(showGuestSignIn(context, ref))
+                          : () => PostQuotesRoute(
+                              did: widget.section.post.author.did.toString(),
+                              rkey: widget.section.post.rkey.toString(),
+                            ).push<void>(context),
                     ),
                   ),
               ],
@@ -608,18 +658,20 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
               key: _commentsKey,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: SortMenuButton<CommentSort>(
-                      selectedValue: widget.selectedSort,
-                      options: _commentSortOptions(l10n),
-                      onChanged: widget.onSortChanged,
+                if (!ref.watch(isGuestBrowsingProvider))
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: SortMenuButton<CommentSort>(
+                        selectedValue: widget.selectedSort,
+                        options: _commentSortOptions(l10n),
+                        onChanged: widget.onSortChanged,
+                      ),
                     ),
                   ),
-                ),
-                if (widget.showInlineComposer)
+                if (widget.showInlineComposer &&
+                    !ref.watch(isGuestBrowsingProvider))
                   _ReplyPrompt(
                     key: const ValueKey('threadInlineReplyPrompt'),
                     post: widget.section.post,
@@ -726,6 +778,7 @@ class _CommentCard extends ConsumerWidget {
       commentUri: item.post.uri,
       sort: sort,
       focus: focus,
+      audience: ref.read(browsingContextProvider),
     );
     final repliesLoaderAsync = ref.watch(repliesLoader);
     final column = Column(

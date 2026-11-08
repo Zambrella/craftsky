@@ -1087,6 +1087,26 @@ createServer(async (req, res) => {
 			message: 'language preferences lookup failed'
 		});
 	const state = settings.get(owner);
+	if (pathname === '/v1/preferences/logged-out-visibility') {
+		if (method === 'PUT') {
+			if (!req.headers['idempotency-key'])
+				return send(400, {
+					error: 'invalid_request',
+					message: 'Operation key required'
+				});
+			state.loggedOutVisibility = {
+				hideFromLoggedOut: body.hideFromLoggedOut,
+				expectedCid: 'visibility-' + randomUUID()
+			};
+		}
+		return send(
+			200,
+			state.loggedOutVisibility || {
+				hideFromLoggedOut: false,
+				expectedCid: 'visibility-initial'
+			}
+		);
+	}
 	if (pathname === '/v1/notifications/preferences') {
 		if (method === 'PATCH')
 			for (const [category, patch] of Object.entries(body.preferences))

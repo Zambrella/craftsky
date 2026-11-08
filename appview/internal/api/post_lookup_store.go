@@ -19,7 +19,7 @@ func (s *PostStore) ReadPostByURI(ctx context.Context, uri string) (*PostRow, er
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = $1
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 	`
 	row, err := scanPostRow(s.pool.QueryRow(ctx, q, uri))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -53,7 +53,7 @@ func (s *PostStore) ReadEligiblePostsByURI(ctx context.Context, viewer syntax.DI
 		  AND NOT ` + postAuthorBlockedPredicate("p", "$2") + `
 		  AND NOT ` + postReplyAuthorBlockedPredicate("p") + `
 		  AND NOT ` + postMentionAuthorBlockedPredicate("p") + `
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 	`
 	rows, err := s.pool.Query(ctx, q, values, viewer)
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.did = $1 AND p.rkey = $2
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 	`
 	row, err := scanPostRow(s.pool.QueryRow(ctx, q, did, rkey))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -277,7 +277,7 @@ func (s *PostStore) ResolveShareTarget(ctx context.Context, did, rkey string) (*
 		       p.is_project
 		FROM craftsky_posts p
 		WHERE p.did = $1 AND p.rkey = $2
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 	`
 	out := &ShareTargetRef{}
 	err := s.pool.QueryRow(ctx, q, did, rkey).Scan(&out.URI, &out.CID, &out.IsReply, &out.IsProject)

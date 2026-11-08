@@ -1,5 +1,7 @@
 // Explicit consumer API allowlist. Operator, dev, auth and public routes are excluded.
 const routes: [string, RegExp][] = [
+	['GET', /^\/v1\/preferences\/logged-out-visibility$/],
+	['PUT', /^\/v1\/preferences\/logged-out-visibility$/],
 	['GET', /^\/v1\/chat\/notification\-opens\/[^/]+$/],
 	['POST', /^\/v1\/chat\/sync$/],
 	['GET', /^\/v1\/chat\/incoming\-policy$/],

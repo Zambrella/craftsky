@@ -39,6 +39,15 @@ async function openCase() {
   await screen.findByText('A synthetic craft project.')
   return user
 }
+
+test('operator sees guest reports and their optional unverified contact email', async () => {
+  fixture(path => path.endsWith('/cases/' + reference) ? response({ ...initial, reports: [{ ...initial.reports[0], reporterDid: '', contactEmail: 'visitor@example.test' }] }) : undefined)
+  await openCase()
+  expect(screen.getByText(/Logged-out visitor/)).toBeTruthy()
+  const contact = screen.getByRole('link', { name: 'visitor@example.test' })
+  expect(contact.getAttribute('href')).toBe('mailto:visitor%40example.test')
+  expect(screen.getByText(/Contact email \(unverified\)/)).toBeTruthy()
+})
 async function prepareDecision(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText('Decision'), 'violation')
   await user.selectOptions(screen.getByLabelText('Policy reason'), 'spam')

@@ -64,7 +64,7 @@ void main() {
           .build(did);
       final assertion = expectLater(
         result,
-        throwsA(isA<AccountOperationCanceled>()),
+        throwsA(isA<AccountOperationCancellation>()),
       );
       await started.future;
       subscription.close();

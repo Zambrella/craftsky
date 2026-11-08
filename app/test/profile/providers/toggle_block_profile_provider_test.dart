@@ -24,6 +24,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_profile_repository.dart';
 
 void main() {
@@ -87,7 +88,10 @@ void main() {
       onBlock: (_, _) => accepted.future,
     );
     final container = ProviderContainer.test(
-      overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        testMemberBrowsingOverride,
+        profileRepositoryProvider.overrideWithValue(repo),
+      ],
     );
 
     final pending = container
@@ -130,6 +134,7 @@ void main() {
     );
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         profileRepositoryProvider.overrideWithValue(repo),
         pdsMutationDelayProvider.overrideWithValue((_) async {}),
         pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -160,6 +165,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           profileRepositoryProvider.overrideWithValue(repo),
           notificationRepositoryProvider.overrideWithValue(notifications),
           pdsRecordOperationControllerProvider.overrideWithValue(
@@ -194,6 +200,7 @@ void main() {
     final repo = FakeProfileRepository(onUnblock: (_, _) async {});
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         profileRepositoryProvider.overrideWithValue(repo),
         pdsRecordOperationControllerProvider.overrideWithValue(controller),
       ],

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/guestvisibility"
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/profilelinks"
 	"social.craftsky/appview/internal/tap"
@@ -60,6 +61,9 @@ type blueskyProfileRecord struct {
 func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	if ev.Collection != blueskyProfileNSID {
 		return nil
+	}
+	if ev.Rev != "" {
+		return b.handleVersionedProfile(ctx, ev)
 	}
 	if b.imageScanKey != nil {
 		return b.handleWithImageSafety(ctx, ev)
@@ -120,6 +124,52 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	default:
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+// Visibility and presentation commit together, including on the image-safety
+// path. Begin creates a savepoint when the projection worker owns the outer tx.
+func (b *BlueskyProfile) handleVersionedProfile(ctx context.Context, ev tap.Event) error {
+	tx, err := b.database().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	preference := guestvisibility.Unknown
+	if ev.Action == "create" || ev.Action == "update" {
+		preference = guestvisibility.ParsePreference(ev.Record)
+	} else if ev.Action != "delete" {
+		return fmt.Errorf("unknown profile action %q", ev.Action)
+	}
+	accepted, err := guestvisibility.ApplyTx(ctx, tx, ev.DID, preference, guestvisibility.Evidence{
+		Revision: ev.Rev, CID: ev.CID, Kind: guestvisibility.Source,
+	})
+	if err != nil {
+		return err
+	}
+	if accepted {
+		if ev.Action == "delete" {
+			// Keep only the visibility revision floor so delayed older evidence
+			// cannot recreate guest presentation after deletion.
+			if b.imageScanKey != nil {
+				if _, err := tx.Exec(ctx, `DELETE FROM profile_image_candidates WHERE profile_did=$1`, ev.DID); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.Exec(ctx, `UPDATE bluesky_profiles SET display_name=NULL,description=NULL,pronouns=NULL,
+				avatar_cid=NULL,avatar_mime=NULL,banner_cid=NULL,banner_mime=NULL,links='[]',record_cid=''
+				WHERE did=$1`, ev.DID); err != nil {
+				return err
+			}
+		} else {
+			clone := *b
+			clone.projectionDB = tx
+			ev.Rev = "" // Already checked; reuse existing presentation/image logic.
+			if err := clone.Handle(ctx, ev); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (b *BlueskyProfile) handleWithImageSafety(ctx context.Context, ev tap.Event) error {

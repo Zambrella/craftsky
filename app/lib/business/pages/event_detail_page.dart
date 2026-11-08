@@ -10,6 +10,7 @@ import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
 import 'package:craftsky_app/shared/sharing/record_links.dart';
@@ -34,7 +35,7 @@ class EventDetailPage extends ConsumerWidget {
     super.key,
   });
 
-  final AccountKey account;
+  final AccountKey? account;
   final Did owner;
   final RecordKey rkey;
   final ExternalLinkLauncher launchExternal;
@@ -48,7 +49,7 @@ class EventDetailPage extends ConsumerWidget {
       owner: owner,
       rkey: rkey,
     );
-    final isOwner = account.did == owner;
+    final isOwner = account?.did == owner;
     final lease = isOwner
         ? ref.watch(sessionRegistryProvider).value?.activeLease?.session
         : null;
@@ -62,7 +63,7 @@ class EventDetailPage extends ConsumerWidget {
           AsyncData(:final value)
               when !access.isLoading &&
                   !access.hasError &&
-                  value.did == account.did =>
+                  value.did == account?.did =>
             value.allowsBusiness,
           _ => false,
         });
@@ -70,14 +71,19 @@ class EventDetailPage extends ConsumerWidget {
         ? const AsyncData<BusinessEventDetailState>(
             BusinessEventDetailUnavailable(),
           )
-        : ref.watch(businessEventDetailProvider(target));
+        : ref.watch(
+            businessEventDetailProvider(
+              target,
+              audience: ref.read(browsingContextProvider),
+            ),
+          );
     final event = switch (detail) {
       AsyncData(value: BusinessEventDetailAvailable(:final event)) => event,
       _ => null,
     };
     final recordMenu = event != null
         ? CraftskyContextMenuButton(
-            tooltip: account.did == event.did
+            tooltip: account?.did == event.did
                 ? l10n.postMoreActions
                 : l10n.businessEventReportAction,
             groups: [
@@ -86,15 +92,16 @@ class EventDetailPage extends ConsumerWidget {
                   ...linkSharingMenuItems(
                     context,
                     RecordLinks.event(event.did, event.rkey),
+                    canSendViaChat: account != null,
                   ),
-                  if (account.did != event.did)
+                  if (account != null && account?.did != event.did)
                     CraftskyContextMenuItem(
                       text: l10n.businessEventReportAction,
                       icon: CraftskyIconsBold.report,
                       onPressed: () => showBusinessEventReportSheet(
                         context,
                         ref,
-                        account: account,
+                        account: account!,
                         owner: event.did,
                         rkey: event.rkey,
                       ),
@@ -108,7 +115,7 @@ class EventDetailPage extends ConsumerWidget {
       AsyncData(value: BusinessEventDetailAvailable(:final event)) => Scaffold(
         body: _AvailableEventDetail(
           event: event,
-          isOwner: account.did == event.did,
+          isOwner: account?.did == event.did,
           reportAction: recordMenu,
           launchExternal: launchExternal,
           confirmExternal: confirmExternal,
@@ -120,8 +127,14 @@ class EventDetailPage extends ConsumerWidget {
           AsyncData(value: BusinessEventDetailUnavailable()) =>
             const _Unavailable(),
           AsyncError() => _LoadError(
-            onRetry: () =>
-                ref.read(businessEventDetailProvider(target).notifier).retry(),
+            onRetry: () => ref
+                .read(
+                  businessEventDetailProvider(
+                    target,
+                    audience: ref.read(browsingContextProvider),
+                  ).notifier,
+                )
+                .retry(),
           ),
           _ => Center(
             child: Semantics(

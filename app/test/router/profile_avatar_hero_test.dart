@@ -28,6 +28,7 @@ import 'package:material_ui/material_ui.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+import '../test_support/member_browsing_context.dart';
 
 final _profile = Profile(
   did: 'did:plc:alice',
@@ -94,6 +95,7 @@ Future<GoRouter> _pumpScene(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(
           FakeProfileRepository(onFetch: (_) => pending.future),

@@ -14,6 +14,7 @@ import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -119,7 +120,13 @@ class ToggleLikePost extends _$ToggleLikePost {
 void _invalidateLikeReads(Ref ref, Post post) {
   if (!ref.mounted) return;
   ref
-    ..invalidate(postProvider(post.author.did, post.rkey))
+    ..invalidate(
+      postProvider(
+        post.author.did,
+        post.rkey,
+        audience: ref.read(browsingContextProvider),
+      ),
+    )
     ..invalidate(postCommentSectionProvider)
     ..invalidate(postQuotesProvider)
     ..invalidate(timelineProvider)

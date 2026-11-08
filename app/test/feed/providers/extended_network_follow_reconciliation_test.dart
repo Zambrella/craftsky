@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../profile/fakes/fake_profile_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../../test_support/post_fixtures.dart';
 import '../fakes/fake_post_repository.dart';
 
@@ -47,6 +48,7 @@ ProviderContainer _container({
   required PdsRecordOperationController controller,
 }) => ProviderContainer.test(
   overrides: [
+    testMemberBrowsingOverride,
     activeLanguagePreferencesProvider.overrideWith(
       (ref) => const LanguagePreferences(
         primaryLanguage: 'en',

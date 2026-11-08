@@ -23,7 +23,7 @@ func (s *PublicStatsStore) PublicStats(ctx context.Context) (*PublicStats, error
 	const finishedStatus = "social.craftsky.feed.defs#finished"
 	query := `
  WITH public_accounts AS MATERIALIZED (
-   SELECT cp.did FROM craftsky_profiles cp WHERE TRUE ` + publicOwnerPredicate + `
+   SELECT cp.did FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did WHERE TRUE ` + publicOwnerPredicate + `
  ), public_posts AS MATERIALIZED (
    SELECT p.is_project, p.quote_uri, pp.uri AS project_uri,
           pp.common_craft_type, pp.common_status

@@ -67,7 +67,8 @@
 							undefined,
 							'Link copied.'
 						)}><Icon name="link" />Copy event link</button
-				>{#if viewerDid !== did}<button onclick={() => (reporting = !reporting)}
+				>{#if viewerDid && viewerDid !== did}<button
+						onclick={() => (reporting = !reporting)}
 						><Icon name="shield" />Report event</button
 					>{/if}
 			</div>

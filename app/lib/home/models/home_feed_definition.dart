@@ -5,6 +5,11 @@ enum HomeFeedSource { following, extendedNetwork, projects }
 /// Stable identity and capabilities, independent of tab order and presentation.
 /// Additional built-in sources and saved queries can join this catalog later.
 class HomeFeedDefinition {
+  const new allCrafts()
+    : id = 'projects:all',
+      source = HomeFeedSource.projects,
+      craftType = '',
+      label = 'All crafts';
   const new following()
     : id = 'following',
       source = HomeFeedSource.following,
@@ -30,6 +35,7 @@ class HomeFeedDefinition {
   final String? craftType;
   final String? label;
 
-  bool get supportsFilters => source == HomeFeedSource.projects;
+  bool get supportsFilters =>
+      source == HomeFeedSource.projects && craftType != '';
   bool get supportsSort => source == HomeFeedSource.projects;
 }

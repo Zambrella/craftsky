@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_slivers.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -22,7 +23,9 @@ class ProfileProjectsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final projectsAsync = ref.watch(userProjectsProvider(did));
+    final projectsAsync = ref.watch(
+      userProjectsProvider(did, audience: ref.read(browsingContextProvider)),
+    );
 
     listenToProfilePostActions(context, ref);
 
@@ -39,8 +42,14 @@ class ProfileProjectsTab extends ConsumerWidget {
           title: l10n.profileTabProjects,
           subtitle: l10n.profileEmptyProjects,
         ),
-        onLoadMore: () =>
-            ref.read(userProjectsProvider(did).notifier).loadMore(),
+        onLoadMore: () => ref
+            .read(
+              userProjectsProvider(
+                did,
+                audience: ref.read(browsingContextProvider),
+              ).notifier,
+            )
+            .loadMore(),
       ),
       AsyncError(:final error) => ProfileTabErrorSliver(
         message: AppErrorMapper.map(
@@ -48,7 +57,12 @@ class ProfileProjectsTab extends ConsumerWidget {
           fallbackKind: AppErrorKind.backgroundLoadFailed,
           source: 'background_load',
         ).message(l10n),
-        onRetry: () => ref.invalidate(userProjectsProvider(did)),
+        onRetry: () => ref.invalidate(
+          userProjectsProvider(
+            did,
+            audience: ref.read(browsingContextProvider),
+          ),
+        ),
       ),
       _ => const ProfileTabLoadingSliver(),
     };

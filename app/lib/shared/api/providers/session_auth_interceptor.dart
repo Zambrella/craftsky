@@ -56,6 +56,13 @@ class SessionAuthInterceptor extends Interceptor {
         headers[entry.key] = value;
       }
     }
+    final publicRead = Uri.parse(options.path).path.startsWith('/v1/public/');
+    if (publicRead) {
+      headers.removeWhere((key, _) => key.toLowerCase() == 'cookie');
+      options.headers = headers;
+      handler.next(options);
+      return;
+    }
     options.headers = headers;
     final deviceId = await _readDeviceId();
     options.headers['X-Craftsky-Device-Id'] = deviceId;

@@ -28,6 +28,7 @@ import 'package:craftsky_app/router/widgets/desktop_discovery_sidebar.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
@@ -114,17 +115,21 @@ bool _hasRoomForNavigationFooter(
   double availableHeight, {
   required bool rail,
   required bool hasVersion,
+  int? destinationCount,
+  bool hasCompose = true,
 }) {
   final spacing = Theme.of(context).extension<SpacingTheme>()!;
   final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
   final routeHeight = 56 * (textScale > 1 ? textScale : 1);
-  final routeListHeight = _menuDestinations.length * routeHeight + spacing.sp4;
+  final routeListHeight =
+      (destinationCount ?? _menuDestinations.length) * routeHeight +
+      spacing.sp4;
   final footerHeight =
       2 * _utilityLinkHeight +
       56 +
       (hasVersion ? spacing.sp5 * (textScale > 1 ? textScale : 1) : 0) +
       (rail ? spacing.sp3 + spacing.sp2 : spacing.sp4);
-  final composeHeight = rail ? spacing.sp8 : 0;
+  final composeHeight = rail && hasCompose ? spacing.sp8 : 0;
   return availableHeight >= routeListHeight + composeHeight + footerHeight;
 }
 
@@ -249,6 +254,137 @@ class _AuthenticatedShellNavigationScope extends InheritedWidget {
       false;
 }
 
+class _ShellContent extends StatelessWidget {
+  const new({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        key: const Key('large-shell-content'),
+        constraints: const BoxConstraints(
+          maxWidth: _largeScreenContentMaxWidth,
+        ),
+        child: SizedBox.expand(child: child),
+      ),
+    ),
+  );
+}
+
+/// Public browsing shares member content sizing and navigation widgets.
+class GuestNavigationFrame extends ConsumerStatefulWidget {
+  const new({
+    required this.child,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    super.key,
+  });
+  final Widget child;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  @override
+  ConsumerState<GuestNavigationFrame> createState() =>
+      _GuestNavigationFrameState();
+}
+
+class _GuestNavigationFrameState extends ConsumerState<GuestNavigationFrame> {
+  final FocusNode _profileFocus = FocusNode();
+  final GlobalKey _profileAnchor = GlobalKey();
+  final GlobalKey<ScaffoldState> _scaffold = GlobalKey();
+  final FocusNode _menuFocus = FocusNode();
+  bool _drawerOpen = false;
+
+  Future<void> _openLink(Uri uri) async {
+    var opened = false;
+    try {
+      opened = await launchExternalLink(uri);
+    } on Object {
+      // Platform link handlers can fail by returning false or by throwing.
+    }
+    if (mounted && !opened) {
+      context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+    }
+  }
+
+  @override
+  void dispose() {
+    _profileFocus.dispose();
+    _menuFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = NotificationBadge.fromCount(0);
+    final info = ref.exists(appDependenciesProvider)
+        ? ref.watch(packageInfoProvider)
+        : null;
+    final version = info == null
+        ? null
+        : AppLocalizations.of(context)
+              .navigationBuildVersion(info.version, info.buildNumber);
+    if (FormFactorWidget.of(context).isLarge) {
+      return Row(
+        children: [
+          _ShellNavigationRail(
+            guest: true,
+            selectedIndex: widget.selectedIndex,
+            onDestinationSelected: widget.onDestinationSelected,
+            notificationBadge: badge,
+            buildVersionLabel: version,
+            profileAnchorKey: _profileAnchor,
+            profileFocusNode: _profileFocus,
+            onOpenAccountSwitcher: null,
+            onOpenTerms: () =>
+                _openLink(Uri.parse('https://craftsky.social/terms')),
+            onOpenPrivacy: () =>
+                _openLink(Uri.parse('https://craftsky.social/privacy')),
+            onOpenFeedback: () => _openLink(settingsSupportUri),
+            onCompose: (_) {},
+          ),
+          _ShellContent(child: widget.child),
+        ],
+      );
+    }
+    return Scaffold(
+      key: _scaffold,
+      onDrawerChanged: (open) => setState(() => _drawerOpen = open),
+      drawer: _ShellDrawer(
+        guest: true,
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: widget.onDestinationSelected,
+        notificationBadge: badge,
+        buildVersionLabel: version,
+        profileFocusNode: _profileFocus,
+        onOpenAccountSwitcher: null,
+        onOpenTerms: () =>
+            _openLink(Uri.parse('https://craftsky.social/terms')),
+        onOpenPrivacy: () =>
+            _openLink(Uri.parse('https://craftsky.social/privacy')),
+        onOpenFeedback: () => _openLink(settingsSupportUri),
+      ),
+      body: AppShellDrawerScope(
+        openDrawer: () => _scaffold.currentState?.openDrawer(),
+        isDrawerOpen: _drawerOpen,
+        menuButtonFocusNode: _menuFocus,
+        child: widget.child,
+      ),
+      bottomNavigationBar: _ShellNavigationBar(
+        guest: true,
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: widget.onDestinationSelected,
+        notificationBadge: badge,
+        profileAvatarUrl: null,
+        profileSeed: '',
+        profileCustomisation: ProfileCustomisation.defaults,
+        profileFocusNode: _profileFocus,
+        onOpenAccountSwitcher: null,
+      ),
+    );
+  }
+}
+
 class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
   const new({
     required this.selectedIndex,
@@ -341,18 +477,7 @@ class _LargeShellNavigationFrameState
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        key: const Key('large-shell-content'),
-                        constraints: const BoxConstraints(
-                          maxWidth: _largeScreenContentMaxWidth,
-                        ),
-                        child: SizedBox.expand(child: widget.child),
-                      ),
-                    ),
-                  ),
+                  _ShellContent(child: widget.child),
                   if (formFactor == FormFactor.desktop) ...[
                     SizedBox(
                       key: const Key('desktop-sidebar-divider'),
@@ -518,6 +643,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(isGuestBrowsingProvider)) {
+      return widget.navigationShell;
+    }
     final formFactor = FormFactorWidget.of(context);
     final registry = ref.watch(sessionRegistryProvider).value;
     final activeIdentity = ref.watch(activeAccountIdentityProvider).value;
@@ -532,7 +660,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 value.did == activeLease.account.did) {
           ref
             ..invalidate(activeAccountIdentityProvider)
-            ..invalidate(userProfileProvider(activeLease.account.did))
+            ..invalidate(
+              userProfileProvider(
+                activeLease.account.did,
+                audience: ref.read(browsingContextProvider),
+              ),
+            )
             ..invalidate(savedPostFoldersProvider(activeLease.account))
             ..invalidate(savedPostsProvider)
             ..invalidate(followerGrowthProvider);
@@ -771,8 +904,10 @@ class _ShellDrawer extends StatefulWidget {
     required this.onOpenTerms,
     required this.onOpenPrivacy,
     required this.onOpenFeedback,
+    this.guest = false,
   });
 
+  final bool guest;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final NotificationBadge notificationBadge;
@@ -819,6 +954,8 @@ class _ShellDrawerState extends State<_ShellDrawer> {
               constraints.maxHeight,
               rail: false,
               hasVersion: buildVersionLabel != null,
+              destinationCount: widget.guest ? 2 : null,
+              hasCompose: !widget.guest,
             );
             return Column(
               children: [
@@ -827,7 +964,10 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                     padding: EdgeInsets.symmetric(vertical: spacing.sp2),
                     children: [
                       for (final (index, destination)
-                          in _primaryDestinations.indexed)
+                          in (widget.guest
+                                  ? _primaryDestinations.take(2)
+                                  : _primaryDestinations)
+                              .indexed)
                         ListTile(
                           selected: selectedIndex == index,
                           leading: index == 4
@@ -873,30 +1013,31 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                               : null,
                           onTap: () => _selectAndClose(context, index),
                         ),
-                      for (final (offset, destination)
-                          in _secondaryDestinations.indexed)
-                        ListTile(
-                          selected:
-                              selectedIndex ==
-                              _primaryDestinations.length + offset,
-                          leading: _DestinationIcon(
-                            icon:
+                      if (!widget.guest)
+                        for (final (offset, destination)
+                            in _secondaryDestinations.indexed)
+                          ListTile(
+                            selected:
                                 selectedIndex ==
-                                    _primaryDestinations.length + offset
-                                ? destination.selectedIcon
-                                : destination.icon,
-                          ),
-                          title: Text(
-                            _destinationLabel(
-                              l10n,
+                                _primaryDestinations.length + offset,
+                            leading: _DestinationIcon(
+                              icon:
+                                  selectedIndex ==
+                                      _primaryDestinations.length + offset
+                                  ? destination.selectedIcon
+                                  : destination.icon,
+                            ),
+                            title: Text(
+                              _destinationLabel(
+                                l10n,
+                                _primaryDestinations.length + offset,
+                              ),
+                            ),
+                            onTap: () => _selectAndClose(
+                              context,
                               _primaryDestinations.length + offset,
                             ),
                           ),
-                          onTap: () => _selectAndClose(
-                            context,
-                            _primaryDestinations.length + offset,
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -985,8 +1126,10 @@ class _ShellNavigationBar extends StatelessWidget {
     required this.profileCustomisation,
     required this.profileFocusNode,
     required this.onOpenAccountSwitcher,
+    this.guest = false,
   });
 
+  final bool guest;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final NotificationBadge notificationBadge;
@@ -1011,7 +1154,9 @@ class _ShellNavigationBar extends StatelessWidget {
           labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
           onDestinationSelected: onDestinationSelected,
           destinations: [
-            for (final (index, d) in _primaryDestinations.indexed)
+            for (final (index, d)
+                in (guest ? _primaryDestinations.take(2) : _primaryDestinations)
+                    .indexed)
               NavigationDestination(
                 icon: _DestinationIcon(
                   messaging: index == 2,
@@ -1074,8 +1219,10 @@ class _ShellNavigationRail extends StatelessWidget {
     required this.onOpenPrivacy,
     required this.onOpenFeedback,
     required this.onCompose,
+    this.guest = false,
   });
 
+  final bool guest;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final NotificationBadge notificationBadge;
@@ -1105,6 +1252,8 @@ class _ShellNavigationRail extends StatelessWidget {
             constraints.maxHeight,
             rail: true,
             hasVersion: buildVersionLabel != null,
+            destinationCount: guest ? 2 : null,
+            hasCompose: !guest,
           );
           return Column(
             children: [
@@ -1115,29 +1264,35 @@ class _ShellNavigationRail extends StatelessWidget {
                   onDestinationSelected: onDestinationSelected,
                   extended: true,
                   scrollable: true,
-                  trailing: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      spacing.sp3,
-                      spacing.sp2,
-                      spacing.sp3,
-                      spacing.sp3,
-                    ),
-                    child: SizedBox(
-                      width: 200,
-                      child: Builder(
-                        builder: (buttonContext) =>
-                            CraftskyFloatingActionButton.extended(
-                              tooltip: l10n.postComposeAction,
-                              minimumHeight: 44,
-                              onPressed: () => onCompose(buttonContext),
-                              icon: const Icon(CraftskyIconsBold.add),
-                              label: Text(l10n.postComposeAction),
+                  trailing: guest
+                      ? null
+                      : Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            spacing.sp3,
+                            spacing.sp2,
+                            spacing.sp3,
+                            spacing.sp3,
+                          ),
+                          child: SizedBox(
+                            width: 200,
+                            child: Builder(
+                              builder: (buttonContext) =>
+                                  CraftskyFloatingActionButton.extended(
+                                    tooltip: l10n.postComposeAction,
+                                    minimumHeight: 44,
+                                    onPressed: () => onCompose(buttonContext),
+                                    icon: const Icon(CraftskyIconsBold.add),
+                                    label: Text(l10n.postComposeAction),
+                                  ),
                             ),
-                      ),
-                    ),
-                  ),
+                          ),
+                        ),
                   destinations: [
-                    for (final (index, d) in _menuDestinations.indexed)
+                    for (final (index, d)
+                        in (guest
+                                ? _primaryDestinations.take(2)
+                                : _menuDestinations)
+                            .indexed)
                       NavigationRailDestination(
                         icon: _DestinationIcon(
                           icon: d.icon,

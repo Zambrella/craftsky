@@ -8,12 +8,15 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../test_support/member_browsing_context.dart';
 
 void main() {
   testWidgets(
@@ -64,8 +67,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            userProfileProvider(did)
-                .overrideWith(() => _Profile(pending.future)),
+            testMemberBrowsingOverride,
+            userProfileProvider(
+              did,
+              audience: testMemberBrowsingAudience,
+            ).overrideWith(() => _Profile(pending.future)),
           ],
           child: MaterialApp.router(
             routerConfig: router,
@@ -115,5 +121,5 @@ class _Profile extends UserProfile {
   new(this.pending);
   final Future<Profile> pending;
   @override
-  Future<Profile> build(Did did) => pending;
+  Future<Profile> build(Did did, {BrowsingContext? audience}) => pending;
 }

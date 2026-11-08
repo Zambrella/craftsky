@@ -24,6 +24,8 @@ import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
@@ -35,6 +37,8 @@ import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/guest_frame.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -67,6 +71,7 @@ enum PostCardContentKind { post, comment, reply }
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
+  if (ref.watch(isGuestBrowsingProvider)) return post;
   // Mutation state notifies rows to rebuild; the value itself is per subject.
   ref
     ..watch(toggleLikePostProvider)
@@ -105,6 +110,7 @@ class PostCard extends ConsumerWidget {
     this.showRepostAction = true,
     this.showReplyCount = true,
     this.showReplyLabel = false,
+    this.replyRequiresAccount = false,
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
     this.contentKind = PostCardContentKind.post,
@@ -141,6 +147,7 @@ class PostCard extends ConsumerWidget {
   final bool showRepostAction;
   final bool showReplyCount;
   final bool showReplyLabel;
+  final bool replyRequiresAccount;
   final bool isHighlighted;
   final PostCardStyle style;
   final PostCardContentKind contentKind;
@@ -175,6 +182,14 @@ class PostCard extends ConsumerWidget {
         contentKind: contentKind,
       );
     }
+    if (ref.watch(isGuestBrowsingProvider)) {
+      return _PostCardImageSelection(
+        key: ValueKey(post.uri),
+        initialIndex: _initialImageIndex(post),
+        builder: (selection) =>
+            _buildContent(context, ref, post, null, selection),
+      );
+    }
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
     final scope = likePostMutationScopeForLease(activeLease?.session, post);
     final failed =
@@ -206,6 +221,8 @@ class PostCard extends ConsumerWidget {
     VoidCallback? onLike,
     ValueNotifier<int> imageSelection,
   ) {
+    final guest = ref.watch(isGuestBrowsingProvider);
+    void requireAccount() => unawaited(showGuestSignIn(context, ref));
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
@@ -297,7 +314,11 @@ class PostCard extends ConsumerWidget {
     final isFlat = style == PostCardStyle.flat;
     final canShowShareAction = showRepostAction && post.reply == null;
     void likeOnDoubleTap() {
-      if (!post.viewerHasLiked) onLike?.call();
+      if (guest) {
+        requireAccount();
+      } else if (!post.viewerHasLiked) {
+        onLike?.call();
+      }
     }
 
     Widget postBody() {
@@ -314,7 +335,8 @@ class PostCard extends ConsumerWidget {
       );
     }
 
-    final responseAction = post.reply == null
+    final responseAction =
+        post.reply == null && contentKind == PostCardContentKind.post
         ? l10n.postCommentAction
         : l10n.postThreadReplyAction;
     final effectiveReportLabel =
@@ -585,7 +607,7 @@ class PostCard extends ConsumerWidget {
                               tooltip: post.viewerHasLiked
                                   ? l10n.postUnlikeAction
                                   : l10n.postLikeAction,
-                              onPressed: onLike,
+                              onPressed: guest ? requireAccount : onLike,
                             ),
                             _PostCardAction(
                               icon: CraftskyIconsBold.comment,
@@ -594,7 +616,17 @@ class PostCard extends ConsumerWidget {
                               selectedColor: replyAccent,
                               tooltip: replyTooltip ?? responseAction,
                               label: showReplyLabel ? responseAction : null,
-                              onPressed: onReply,
+                              onPressed: guest
+                                  ? post.reply != null ||
+                                            showReplyLabel ||
+                                            replyRequiresAccount
+                                        ? requireAccount
+                                        : () => PostThreadRoute(
+                                            did: post.author.did,
+                                            rkey: post.rkey,
+                                            showComments: true,
+                                          ).push<void>(context)
+                                  : onReply,
                             ),
                             if (canShowShareAction)
                               _PostCardShareAction(
@@ -617,8 +649,10 @@ class PostCard extends ConsumerWidget {
                                         post.images!.length,
                                       )
                                     : null,
-                                onRepost: onRepost,
-                                onQuote: onQuote == null
+                                onRepost: guest ? requireAccount : onRepost,
+                                onQuote: guest
+                                    ? (_) => requireAccount()
+                                    : onQuote == null
                                     ? null
                                     : (useCurrentImage) => onQuote!(
                                         useCurrentImage
@@ -629,15 +663,28 @@ class PostCard extends ConsumerWidget {
                           ],
                         ),
                         const Spacer(),
-                        if (account != null)
+                        if (guest)
+                          SizedBox.square(
+                            dimension: 48,
+                            child: IconButton(
+                              icon: const Icon(CraftskyIconsBold.unsaved),
+                              tooltip: l10n.savedPostSaveAction,
+                              onPressed: requireAccount,
+                            ),
+                          )
+                        else if (account != null)
                           SavedPostBookmarkButton(account: account, post: post),
                         _PostCardMenu(
+                          canSendViaChat: true,
+                          onRequestSignIn: guest ? requireAccount : null,
                           url: RecordLinks.post(post),
                           onViewLikes:
                               post.reply != null &&
                                   post.likeCount > 0 &&
                                   onViewLikes != null
-                              ? onViewLikes
+                              ? guest
+                                    ? requireAccount
+                                    : onViewLikes
                               : null,
                           pinLabel: pinPresentation == null
                               ? null
@@ -690,8 +737,21 @@ class PostCard extends ConsumerWidget {
                                   ),
                                 )
                               : null,
-                          onDelete: onDelete,
-                          onReport: onReport,
+                          onDelete: guest ? null : onDelete,
+                          onReport: guest
+                              ? () => showPostReportSheet(
+                                  context,
+                                  ref,
+                                  post,
+                                  subjectType: switch (contentKind) {
+                                    PostCardContentKind.comment =>
+                                      ReportSubjectType.comment,
+                                    PostCardContentKind.reply =>
+                                      ReportSubjectType.reply,
+                                    _ => null,
+                                  },
+                                )
+                              : onReport,
                           tooltip: deleteTooltip,
                           label: deleteLabel,
                           reportLabel: effectiveReportLabel,
@@ -700,7 +760,9 @@ class PostCard extends ConsumerWidget {
                           isRelationshipBusy:
                               blockState.isLoading ||
                               effectiveRelationship.pendingAction != null,
-                          onMuteToggle: relationshipProvider == null
+                          onMuteToggle: guest
+                              ? requireAccount
+                              : relationshipProvider == null
                               ? null
                               : () => unawaited(
                                   _mutateAuthorRelationship(
@@ -712,7 +774,9 @@ class PostCard extends ConsumerWidget {
                                         : ProfileRelationshipAction.mute,
                                   ),
                                 ),
-                          onBlockToggle: relationshipProvider == null
+                          onBlockToggle: guest
+                              ? requireAccount
+                              : relationshipProvider == null
                               ? null
                               : () => unawaited(
                                   _confirmBlockAuthor(
@@ -1099,6 +1163,7 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 
 class _PostCardMenu extends StatelessWidget {
   const new({
+    required this.canSendViaChat,
     required this.url,
     required this.onViewLikes,
     required this.pinLabel,
@@ -1117,8 +1182,11 @@ class _PostCardMenu extends StatelessWidget {
     this.tooltip,
     this.label,
     this.reportLabel,
+    this.onRequestSignIn,
   });
 
+  final VoidCallback? onRequestSignIn;
+  final bool canSendViaChat;
   final String url;
   final VoidCallback? onViewLikes;
   final String? pinLabel;
@@ -1160,7 +1228,14 @@ class _PostCardMenu extends StatelessWidget {
               ],
             ),
           CraftskyContextMenuGroup(
-            items: [...linkSharingMenuItems(context, url)],
+            items: [
+              ...linkSharingMenuItems(
+                context,
+                url,
+                canSendViaChat: canSendViaChat,
+                onSendViaChat: onRequestSignIn,
+              ),
+            ],
           ),
           CraftskyContextMenuGroup(
             items: [

@@ -25,6 +25,8 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
+
 void main() {
   test(
     'IT-007 saves one complete declaration with current CID and order',
@@ -250,13 +252,19 @@ void main() {
       addTearDown(container.dispose);
       await container.read(sessionRegistryProvider.future);
       final subscription = container.listen(
-        userProfileProvider(Did.parse('did:plc:owner')),
+        userProfileProvider(
+          Did.parse('did:plc:owner'),
+          audience: container.read(browsingContextProvider),
+        ),
         (_, _) {},
         fireImmediately: true,
       );
       addTearDown(subscription.close);
       await container.read(
-        userProfileProvider(Did.parse('did:plc:owner')).future,
+        userProfileProvider(
+          Did.parse('did:plc:owner'),
+          audience: container.read(browsingContextProvider),
+        ).future,
       );
       final initial = await container.read(productsControllerProvider.future);
       final first = initial.products.first;
@@ -277,9 +285,17 @@ void main() {
           currency: first.currency,
         ),
       ];
-      container.invalidate(userProfileProvider(Did.parse('did:plc:owner')));
+      container.invalidate(
+        userProfileProvider(
+          Did.parse('did:plc:owner'),
+          audience: container.read(browsingContextProvider),
+        ),
+      );
       final staleProfileRead = container.read(
-        userProfileProvider(Did.parse('did:plc:owner')).future,
+        userProfileProvider(
+          Did.parse('did:plc:owner'),
+          audience: container.read(browsingContextProvider),
+        ).future,
       );
       await Future<void>.delayed(Duration.zero);
       expect(profileRepository.fetches, 2);
@@ -296,7 +312,10 @@ void main() {
       laggingRead.complete(oldProfile.copyWith(business: null));
 
       final reconciled = await container.read(
-        userProfileProvider(Did.parse('did:plc:owner')).future,
+        userProfileProvider(
+          Did.parse('did:plc:owner'),
+          audience: container.read(browsingContextProvider),
+        ).future,
       );
       expect(
         reconciled.business?.products.map((product) => product.title),
@@ -313,7 +332,12 @@ void main() {
       );
       expect(
         container
-            .read(userProfileProvider(Did.parse('did:plc:owner')))
+            .read(
+              userProfileProvider(
+                Did.parse('did:plc:owner'),
+                audience: container.read(browsingContextProvider),
+              ),
+            )
             .requireValue
             .business
             ?.products
@@ -331,6 +355,7 @@ ProviderContainer _container(
   Future<Profile> Function()? loader,
 }) => ProviderContainer(
   overrides: [
+    memberBrowsingOverrideFor('did:plc:viewer'),
     activeAccountIdentityProvider.overrideWith(
       (_) async => ActiveAccountIdentity(
         lease: AccountSessionLease(

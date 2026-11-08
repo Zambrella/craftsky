@@ -45,7 +45,7 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
    EXISTS(SELECT 1 FROM unnest(p.langs) lang WHERE lower(split_part(lang,'-',1))='en') AS search_english
   FROM craftsky_posts p
   LEFT JOIN craftsky_project_posts pp ON pp.uri=p.uri
-  WHERE ` + scope + relationshipTopLevelPredicate("$6") + postVisibleModerationPredicate + languageVisibilityPredicate("p", "$6", "$7") + `
+  WHERE ` + scope + relationshipTopLevelPredicate("$6") + postReadPredicate(ctx) + languageVisibilityPredicate("p", "$6", "$7") + `
  ), reliable AS MATERIALIZED (
   SELECT p.*,craftsky_search_score(search_fields,search_weights,search_english,$1::jsonb) AS reliable_score FROM eligible p
  ), words AS (

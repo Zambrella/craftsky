@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_profile_repository.dart';
 
 void main() {
@@ -23,6 +24,7 @@ void main() {
     final response = Completer<Profile>();
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         profileRepositoryProvider.overrideWithValue(
           FakeProfileRepository(onFollow: (_) => response.future),
         ),
@@ -66,15 +68,23 @@ void main() {
           onFollow: (_) => completer.future,
         );
         final container = ProviderContainer.test(
-          overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
         );
         final subscription = container.listen(
-          userProfileProvider(bobDid),
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
-        await container.read(userProfileProvider(bobDid).future);
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         final toggle = container.read(toggleFollowProfileProvider.notifier);
         final pending = toggle.toggle(
@@ -84,10 +94,21 @@ void main() {
 
         expect(container.read(toggleFollowProfileProvider).isLoading, isTrue);
         expect(
-          container.read(userProfileProvider(bobDid)).value,
+          container
+              .read(
+                userProfileProvider(
+                  bobDid,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
+              .value,
           isNotNull,
         );
-        final optimistic = container.read(userProfileProvider(bobDid)).value!;
+        final optimistic = container
+            .read(
+              userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+            )
+            .value!;
         expect(optimistic.viewerIsFollowing, isFalse);
         expect(optimistic.followerCount, 4);
 
@@ -95,9 +116,18 @@ void main() {
           seed.copyWith(viewerIsFollowing: true, followerCount: 9),
         );
         await pending;
-        await container.read(userProfileProvider(bobDid).future);
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
-        final confirmed = container.read(userProfileProvider(bobDid)).value!;
+        final confirmed = container
+            .read(
+              userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+            )
+            .value!;
         expect(confirmed.viewerIsFollowing, isTrue);
         expect(confirmed.followerCount, 5);
       },
@@ -121,6 +151,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           profileRepositoryProvider.overrideWithValue(repo),
           pdsMutationDelayProvider.overrideWithValue((_) async {}),
           pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -159,7 +190,10 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(repo),
+        ],
       );
 
       final first = container
@@ -203,34 +237,68 @@ void main() {
           ),
         );
         final container = ProviderContainer.test(
-          overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
         );
         final subscription = container.listen(
-          userProfileProvider(bobDid),
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
           (_, _) {},
         );
         addTearDown(subscription.close);
-        final seed = await container.read(userProfileProvider(bobDid).future);
+        final seed = await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         await container
             .read(toggleFollowProfileProvider.notifier)
             .toggle(cacheKey: bobDid, profile: seed);
-        container.invalidate(userProfileProvider(bobDid));
-        var stale = await container.read(userProfileProvider(bobDid).future);
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
+        var stale = await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
         expect(stale.viewerIsFollowing, isTrue);
         expect(stale.followerCount, 5);
 
-        container.invalidate(userProfileProvider(bobDid));
-        stale = await container.read(userProfileProvider(bobDid).future);
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
+        stale = await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
         expect(stale.followerCount, 5);
 
         authoritativeFollowing = true;
-        container.invalidate(userProfileProvider(bobDid));
-        await container.read(userProfileProvider(bobDid).future);
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
         authoritativeFollowing = false;
-        container.invalidate(userProfileProvider(bobDid));
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
         final afterAgreement = await container.read(
-          userProfileProvider(bobDid).future,
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
         );
         expect(afterAgreement.viewerIsFollowing, isFalse);
         expect(afterAgreement.followerCount, 4);
@@ -255,30 +323,48 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             profileRepositoryProvider.overrideWithValue(repo),
             pdsRecordOperationControllerProvider.overrideWithValue(controller),
           ],
         );
         final subscription = container.listen(
-          userProfileProvider(bobDid),
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
           (_, _) {},
         );
         addTearDown(subscription.close);
-        await container.read(userProfileProvider(bobDid).future);
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         await container
             .read(toggleFollowProfileProvider.notifier)
             .toggle(cacheKey: bobDid, profile: stale);
-        container.invalidate(userProfileProvider(bobDid));
-        final masked = await container.read(userProfileProvider(bobDid).future);
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
+        final masked = await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
         expect(masked.viewerIsFollowing, isFalse);
         expect(masked.followerCount, 0);
 
         now = now.add(const Duration(seconds: 31));
         controller.advanceTime();
-        container.invalidate(userProfileProvider(bobDid));
+        container.invalidate(
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+        );
         final expired = await container.read(
-          userProfileProvider(bobDid).future,
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
         );
         expect(expired.viewerIsFollowing, isTrue);
         expect(expired.followerCount, 0);
@@ -299,15 +385,23 @@ void main() {
         onFollow: (_) async => throw Exception('boom'),
       );
       final container = ProviderContainer.test(
-        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(repo),
+        ],
       );
       final subscription = container.listen(
-        userProfileProvider(bobDid),
+        userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
         (_, _) {},
       );
       addTearDown(subscription.close);
 
-      await container.read(userProfileProvider(bobDid).future);
+      await container.read(
+        userProfileProvider(
+          bobDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleFollowProfileProvider.notifier)
           .toggle(
@@ -315,7 +409,11 @@ void main() {
             profile: seed,
           );
 
-      final current = container.read(userProfileProvider(bobDid)).value!;
+      final current = container
+          .read(
+            userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+          )
+          .value!;
       expect(current.viewerIsFollowing, isFalse);
       expect(current.followerCount, 4);
       expect(container.read(toggleFollowProfileProvider).hasError, isTrue);
@@ -339,15 +437,23 @@ void main() {
           onUnfollow: (_) => completer.future,
         );
         final container = ProviderContainer.test(
-          overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
         );
         final subscription = container.listen(
-          userProfileProvider(bobDid),
+          userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
           (_, _) {},
         );
         addTearDown(subscription.close);
 
-        await container.read(userProfileProvider(bobDid).future);
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
         final pending = container
             .read(toggleFollowProfileProvider.notifier)
             .toggle(
@@ -356,7 +462,9 @@ void main() {
             );
 
         final pendingProfile = container
-            .read(userProfileProvider(bobDid))
+            .read(
+              userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+            )
             .value!;
         expect(pendingProfile.viewerIsFollowing, isTrue);
         expect(pendingProfile.followerCount, 4);
@@ -365,9 +473,18 @@ void main() {
           seed.copyWith(viewerIsFollowing: false, followerCount: 1),
         );
         await pending;
-        await container.read(userProfileProvider(bobDid).future);
+        await container.read(
+          userProfileProvider(
+            bobDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
-        final confirmed = container.read(userProfileProvider(bobDid)).value!;
+        final confirmed = container
+            .read(
+              userProfileProvider(bobDid, audience: testMemberBrowsingAudience),
+            )
+            .value!;
         expect(confirmed.viewerIsFollowing, isFalse);
         expect(confirmed.followerCount, 3);
       },

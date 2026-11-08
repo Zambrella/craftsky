@@ -26,7 +26,8 @@
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
-	let { api, did }: { api: CraftskyAPI; did: string } = $props();
+	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
+	const guest = $derived(api.audience === 'guest');
 	type FeedItem = {
 		key: string;
 		post: PostPresentation;
@@ -61,8 +62,11 @@
 			historyView?.save({ profile, items, cursor, pages: loadedPages });
 	}
 	const craft = page.url.searchParams.get('craft') || '';
-	const extendedNetwork =
-		!craft && page.url.searchParams.get('source') === 'extended-network';
+	const extendedNetwork = $derived(
+		!guest &&
+			!craft &&
+			page.url.searchParams.get('source') === 'extended-network'
+	);
 	const filters = browseFilters(page.url.searchParams);
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
@@ -93,9 +97,12 @@
 		const request = historyView?.beginLoad();
 		await work.run(
 			async () => {
-				if (!profile) profile = await api.profiles.me();
-				const options = { limit: 30, cursor: more ? cursor : undefined };
-				if (!craft) {
+				if (!guest && !profile) profile = await api.profiles.me();
+				const options = {
+					limit: guest ? 20 : 30,
+					cursor: more ? cursor : undefined
+				};
+				if (!craft && !guest) {
 					const result = await (extendedNetwork
 						? api.posts.extendedNetwork(options)
 						: api.posts.timeline(options));
@@ -111,9 +118,13 @@
 				}
 				const result = await api.search.browseProjects({
 					...options,
-					craftType: [
-						craft.includes('#') ? craft : `social.craftsky.feed.defs#${craft}`
-					],
+					craftType: craft
+						? [
+								craft.includes('#')
+									? craft
+									: `social.craftsky.feed.defs#${craft}`
+							]
+						: undefined,
 					sort:
 						page.url.searchParams.get('sort') === 'popular'
 							? 'popular'
@@ -181,7 +192,7 @@
 <div class="feed-content" hidden={page.url.pathname.endsWith('/filters')}>
 	<div class="workspace-heading">
 		<h1>Home</h1>
-		{#if craft}<div class="heading-actions">
+		{#if craft || guest}<div class="heading-actions">
 				<ChoiceMenu
 					label="Sort projects"
 					appBar
@@ -192,28 +203,33 @@
 						{ value: 'popular', label: 'Popular', icon: 'growth' }
 					]}
 				/>
-				<button
-					class="filter-trigger icon-button"
-					aria-label="Filter projects"
-					onclick={() => goto('/feed/filters' + page.url.search)}
-					><Icon name="filter" /><span class="filter-label">Filters</span
-					>{#if Object.keys(filters).length}<span
-							class="filter-dot"
-							aria-label="Filters applied"
-						></span>{/if}</button
-				>
+				{#if craft}
+					<button
+						class="filter-trigger icon-button"
+						aria-label="Filter projects"
+						onclick={() => goto('/feed/filters' + page.url.search)}
+						><Icon name="filter" /><span class="filter-label">Filters</span
+						>{#if Object.keys(filters).length}<span
+								class="filter-dot"
+								aria-label="Filters applied"
+							></span>{/if}</button
+					>{/if}
 			</div>{/if}
 	</div>
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">
 		<a
 			href="/feed"
 			aria-current={!craft && !extendedNetwork ? 'page' : undefined}
-			><Icon name="users" size={18} />Following</a
-		><a
-			href="/feed?source=extended-network"
-			aria-current={extendedNetwork ? 'page' : undefined}
-			><Icon name="extendedNetwork" size={18} />Extended network</a
-		>{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
+			><Icon name={guest ? 'home' : 'users'} size={18} />{guest
+				? 'All crafts'
+				: 'Following'}</a
+		>
+		{#if !guest}<a
+				href="/feed?source=extended-network"
+				aria-current={extendedNetwork ? 'page' : undefined}
+				><Icon name="extendedNetwork" size={18} />Extended network</a
+			>{/if}
+		{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
 				craftKey(item.id)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
@@ -251,7 +267,8 @@
 			>
 				{#snippet actions()}{#if extendedNetwork}<a href="/feed">Following</a><a
 							href="/search">Search CraftSky</a
-						>{:else if !craft}<a href="/settings/instagram">Connect Instagram</a
+						>{:else if !craft && !guest}<a href="/settings/instagram"
+							>Connect Instagram</a
 						><a href="/search">Search CraftSky</a><a
 							href={'/feed?craft=' +
 								encodeURIComponent(

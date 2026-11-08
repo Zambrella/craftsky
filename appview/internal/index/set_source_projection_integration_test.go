@@ -102,7 +102,7 @@ func TestInvalidLatestFollowRemovesPreviousFactThroughProductionDispatcher(t *te
 	assertSetFactCounts(t, pool, uri, 0, 0)
 }
 
-func TestInvalidLatestBlueskyProfileRemovesPreviousServingRow(t *testing.T) {
+func TestInvalidLatestBlueskyProfileClearsPreviousPresentation(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	ctx := context.Background()
 	now := time.Date(2026, 9, 23, 16, 0, 0, 0, time.UTC)
@@ -148,8 +148,12 @@ func TestInvalidLatestBlueskyProfileRemovesPreviousServingRow(t *testing.T) {
 	event.ID, event.Rev, event.CID, event.Action = 2, "3aaaaaaaaaaa3", "bafy-invalid", "update"
 	event.Record = json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":42}`)
 	project()
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM bluesky_profiles WHERE did=$1`, actor).Scan(&count); err != nil || count != 0 {
-		t.Fatalf("after invalid: %d, %v", count, err)
+	var cleared bool
+	if err := pool.QueryRow(ctx, `SELECT display_name IS NULL AND description IS NULL
+		AND avatar_cid IS NULL AND banner_cid IS NULL AND links='[]'::jsonb
+		AND guest_visibility_hidden IS NULL AND guest_visibility_revision=$2
+		FROM bluesky_profiles WHERE did=$1`, actor, event.Rev).Scan(&cleared); err != nil || !cleared {
+		t.Fatalf("invalid profile retained presentation or lost its revision fence: cleared=%v err=%v", cleared, err)
 	}
 }
 

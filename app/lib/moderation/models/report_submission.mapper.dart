@@ -33,11 +33,18 @@ class ReportSubmissionMapper extends ClassMapperBase<ReportSubmission> {
     _$details,
     opt: true,
   );
+  static String? _$contactEmail(ReportSubmission v) => v.contactEmail;
+  static const Field<ReportSubmission, String> _f$contactEmail = Field(
+    'contactEmail',
+    _$contactEmail,
+    opt: true,
+  );
 
   @override
   final MappableFields<ReportSubmission> fields = const {
     #reasonType: _f$reasonType,
     #details: _f$details,
+    #contactEmail: _f$contactEmail,
   };
   @override
   final bool ignoreNull = true;
@@ -46,6 +53,7 @@ class ReportSubmissionMapper extends ClassMapperBase<ReportSubmission> {
     return ReportSubmission(
       reasonType: data.dec(_f$reasonType),
       details: data.dec(_f$details),
+      contactEmail: data.dec(_f$contactEmail),
     );
   }
 
@@ -111,7 +119,7 @@ extension ReportSubmissionValueCopy<$R, $Out>
 
 abstract class ReportSubmissionCopyWith<$R, $In extends ReportSubmission, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? reasonType, String? details});
+  $R call({String? reasonType, String? details, String? contactEmail});
   ReportSubmissionCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -126,16 +134,22 @@ class _ReportSubmissionCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ReportSubmission> $mapper =
       ReportSubmissionMapper.ensureInitialized();
   @override
-  $R call({String? reasonType, Object? details = $none}) => $apply(
+  $R call({
+    String? reasonType,
+    Object? details = $none,
+    Object? contactEmail = $none,
+  }) => $apply(
     FieldCopyWithData({
       if (reasonType != null) #reasonType: reasonType,
       if (details != $none) #details: details,
+      if (contactEmail != $none) #contactEmail: contactEmail,
     }),
   );
   @override
   ReportSubmission $make(CopyWithData data) => ReportSubmission(
     reasonType: data.get(#reasonType, or: $value.reasonType),
     details: data.get(#details, or: $value.details),
+    contactEmail: data.get(#contactEmail, or: $value.contactEmail),
   );
 
   @override

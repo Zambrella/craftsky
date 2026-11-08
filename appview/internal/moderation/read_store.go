@@ -119,11 +119,12 @@ func decodeQueueCursor(raw []byte, cursor *queueCursor) error {
 }
 
 type AdminReport struct {
-	ID          string     `json:"id"`
-	ReporterDID syntax.DID `json:"reporterDid"`
-	Reason      string     `json:"reason"`
-	Details     string     `json:"details,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
+	ID           string     `json:"id"`
+	ReporterDID  syntax.DID `json:"reporterDid"`
+	ContactEmail string     `json:"contactEmail,omitempty"`
+	Reason       string     `json:"reason"`
+	Details      string     `json:"details,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
 }
 type AdminEvent struct {
 	Type         string    `json:"type"`
@@ -200,7 +201,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 	if err != nil {
 		return AdminDetail{}, fmt.Errorf("present moderation subject snapshot: %w", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT r.id,r.reporter_did,r.reason_type,COALESCE(r.details,''),r.created_at FROM moderation_reports r JOIN moderation_case_reports cr ON cr.report_id=r.id WHERE cr.case_id=$1 ORDER BY r.created_at,r.id`, id)
+	rows, err := s.pool.Query(ctx, `SELECT r.id,COALESCE(r.reporter_did,''),r.reason_type,COALESCE(r.details,''),r.created_at,COALESCE(r.contact_email,'') FROM moderation_reports r JOIN moderation_case_reports cr ON cr.report_id=r.id WHERE cr.case_id=$1 ORDER BY r.created_at,r.id`, id)
 	if err != nil {
 		return AdminDetail{}, err
 	}
@@ -208,7 +209,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 	detail.Reports = []AdminReport{}
 	for rows.Next() {
 		var report AdminReport
-		if err := rows.Scan(&report.ID, &report.ReporterDID, &report.Reason, &report.Details, &report.CreatedAt); err != nil {
+		if err := rows.Scan(&report.ID, &report.ReporterDID, &report.Reason, &report.Details, &report.CreatedAt, &report.ContactEmail); err != nil {
 			return AdminDetail{}, err
 		}
 		detail.Reports = append(detail.Reports, report)

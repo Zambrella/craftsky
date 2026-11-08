@@ -16,6 +16,7 @@ import (
 func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.T) {
 	pool := testdb.WithSchema(t, adjudicationTestDDL+`
         ALTER TABLE moderation_reports ADD COLUMN reporter_did TEXT NOT NULL DEFAULT 'did:example:reporter';
+		ALTER TABLE moderation_reports ADD COLUMN contact_email TEXT;
         ALTER TABLE moderation_reports ADD COLUMN reason_type TEXT NOT NULL DEFAULT 'spam';
         ALTER TABLE moderation_reports ADD COLUMN details TEXT;
     `)

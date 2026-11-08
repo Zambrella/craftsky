@@ -34,6 +34,7 @@ const (
 // metadata only.
 type CreateReportInput struct {
 	ReporterDID             string
+	ContactEmail            *string
 	SubjectType             ReportSubjectType
 	SubjectDID              string
 	SubjectCollection       *string
@@ -55,6 +56,7 @@ type CreateReportInput struct {
 type ReportRow struct {
 	ID                      string
 	ReporterDID             string
+	ContactEmail            *string
 	SubjectType             ReportSubjectType
 	SubjectDID              string
 	SubjectCollection       *string
@@ -95,9 +97,13 @@ func NewReportStore(pool *pgxpool.Pool, caseAttacher ...AcceptedReportAttacher) 
 // CreateReport inserts a private report row. Duplicate reports are allowed by
 // design; there is deliberately no uniqueness constraint over reporter/subject.
 func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput) (*ReportRow, error) {
-	reporter, err := syntax.ParseDID(input.ReporterDID)
-	if err != nil {
-		return nil, fmt.Errorf("report reporter DID: %w", err)
+	var reporter syntax.DID
+	var err error
+	if input.ReporterDID != "" {
+		reporter, err = syntax.ParseDID(input.ReporterDID)
+		if err != nil {
+			return nil, fmt.Errorf("report reporter DID: %w", err)
+		}
 	}
 	subject, err := syntax.ParseDID(input.SubjectDID)
 	if err != nil {
@@ -108,7 +114,12 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 		return nil, fmt.Errorf("report create begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, reporter, []syntax.DID{subject}); err != nil {
+	if reporter == "" {
+		err = ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{subject})
+	} else {
+		err = ownerlifecycle.GuardPrivateMutationTx(ctx, tx, reporter, []syntax.DID{subject})
+	}
+	if err != nil {
 		return nil, fmt.Errorf("report create authorization: %w", err)
 	}
 	const q = `
@@ -127,12 +138,13 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 			device_id,
 			forwarding_status,
 			forwarding_schema_version,
-			forwarding_prepared_at
+			forwarding_prepared_at,
+			contact_email
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING
 			id,
-			reporter_did,
+			COALESCE(reporter_did,''),
 			subject_type,
 			subject_did,
 			subject_collection,
@@ -146,13 +158,14 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 			forwarding_status,
 			forwarding_schema_version,
 			forwarding_prepared_at,
-			created_at
+			created_at,
+			contact_email
 	`
 	out := &ReportRow{}
 	var subjectType string
 	err = tx.QueryRow(ctx, q,
 		uuid.NewString(),
-		input.ReporterDID,
+		optionalString(input.ReporterDID),
 		string(input.SubjectType),
 		input.SubjectDID,
 		input.SubjectCollection,
@@ -166,6 +179,7 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 		input.ForwardingStatus,
 		input.ForwardingSchemaVersion,
 		input.ForwardingPreparedAt,
+		input.ContactEmail,
 	).Scan(
 		&out.ID,
 		&out.ReporterDID,
@@ -183,6 +197,7 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 		&out.ForwardingSchemaVersion,
 		&out.ForwardingPreparedAt,
 		&out.CreatedAt,
+		&out.ContactEmail,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("report create: %w", err)

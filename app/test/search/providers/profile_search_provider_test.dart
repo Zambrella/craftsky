@@ -7,6 +7,7 @@ import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_search_repository.dart';
 
 ProfileSearchResult _profile(String suffix) => ProfileSearchResult(
@@ -39,6 +40,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -50,7 +52,10 @@ void main() {
       );
 
       final state = await container.read(
-        profileSearchProvider(const ProfileSearchQuery(q: 'ali')).future,
+        profileSearchProvider(
+          const ProfileSearchQuery(q: 'ali'),
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
 
       expect(seenQ, 'ali');
@@ -82,6 +87,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -93,6 +99,7 @@ void main() {
       );
       final provider = profileSearchProvider(
         const ProfileSearchQuery(q: 'ali'),
+        audience: testMemberBrowsingAudience,
       );
 
       await container.read(provider.future);

@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		signInContext,
+		protectAccountAction,
+		type RequestSignIn
+	} from '../browsing/account-action';
 	import { reportFailure } from '../diagnostics/client';
 	import type { DiagnosticOperation } from '../diagnostics/privacy';
 	import { userErrorMessage } from '#lib/user-facing-error.ts';
@@ -61,7 +66,7 @@
 		reason?: Author;
 		followedBy?: Author;
 		api: CraftskyAPI;
-		did: string;
+		did?: string;
 		detail?: boolean;
 		flat?: boolean;
 		initialImageCid?: string;
@@ -69,6 +74,8 @@
 		onRemove?: () => void;
 		onMoved?: () => void;
 	} = $props();
+	const guest = $derived(api.audience === 'guest');
+	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -122,7 +129,7 @@
 		useCurrentImage = false;
 	});
 	$effect(() => {
-		if (plus && post?.author.did === did && pinSlot(post))
+		if (plus && post && post.author.did === did && pinSlot(post))
 			void pins.load().catch(() => {});
 	});
 	onDestroy(() => {
@@ -456,7 +463,7 @@
 		onclick={showGallery}
 		role="presentation"
 	>
-		<LikeReaction bind:this={heart} host={cardElement} />
+		{#if !guest}<LikeReaction bind:this={heart} host={cardElement} />{/if}
 		{#if reason && !savedAt}<a
 				class="repost-attribution"
 				href={'/profiles/' + encodeURIComponent(reason.did)}
@@ -533,7 +540,12 @@
 								>{/if}
 						</div>{/if}
 				</aside>{/if}
-			<nav class="post-actions" aria-label="Post actions">
+			<nav
+				class="post-actions"
+				aria-label="Post actions"
+				onclickcapture={(event) =>
+					protectAccountAction(guest, requestSignIn, event)}
+			>
 				{#if savedAt}<time class="saved-date" datetime={savedAt}
 						>{compactDate(savedAt)}</time
 					><span class="action-spacer"></span>
@@ -551,7 +563,9 @@
 							}}
 						></button>
 						<div class="menu-items">
-							<button onclick={share}><Icon name="link" />Copy link</button><a
+							<button data-public-action onclick={share}
+								><Icon name="link" />Copy link</button
+							><a
 								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}
 								><Icon name="send" />Send via chat</a
@@ -675,7 +689,9 @@
 									><Icon name="users" />Likes</a
 								>
 								<div class="menu-divider"></div>{/if}
-							<button onclick={share}><Icon name="link" />Copy link</button>
+							<button data-public-action onclick={share}
+								><Icon name="link" />Copy link</button
+							>
 							<a
 								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}
@@ -695,7 +711,7 @@
 									><Icon name="block" />{post.author.blocking
 										? 'Unblock account'
 										: 'Block account'}</button
-								><button onclick={() => (reportOpen = true)}
+								><button data-public-action onclick={() => (reportOpen = true)}
 									><Icon name="report" />Report {post.reply
 										? post.reply.parent.uri === post.reply.root.uri
 											? 'comment'
@@ -738,6 +754,7 @@
 				onCancel={() => (confirmation = undefined)}
 			/>{/if}
 		{#if reportOpen}<ReportForm
+				showContactEmail={guest}
 				subject={post.reply
 					? post.reply.parent.uri === post.reply.root.uri
 						? 'comment'

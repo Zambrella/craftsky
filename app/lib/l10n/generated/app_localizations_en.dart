@@ -5257,4 +5257,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatConversationReportDisclosure =>
       'Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.';
+
+  @override
+  String get reportContactEmailLabel => 'Contact email (optional)';
+
+  @override
+  String get reportContactEmailHelp =>
+      'Only CraftSky moderators can see this. Add it if you would like us to contact you about your report.';
+
+  @override
+  String get reportContactEmailInvalid => 'Enter a valid email address.';
 }

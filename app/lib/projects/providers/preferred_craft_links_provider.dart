@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderFamily;
 
@@ -10,7 +11,10 @@ final ProviderFamily<AsyncValue<List<ProjectOption>>, ActiveAccountLease>
 preferredCraftLinksProvider = Provider.autoDispose
     .family<AsyncValue<List<ProjectOption>>, ActiveAccountLease>((ref, lease) {
       final profileState = ref.watch(
-        userProfileProvider(lease.session.account.did),
+        userProfileProvider(
+          lease.session.account.did,
+          audience: ref.read(browsingContextProvider),
+        ),
       );
       // Riverpod can retain a failure while automatically retrying. whenData's
       // loading mapping discards that cause, so preserve it explicitly here.

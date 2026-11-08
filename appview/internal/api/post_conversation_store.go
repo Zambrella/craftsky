@@ -34,7 +34,7 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		  AND NOT ` + postAuthorBlockedPredicate("p", "$5") + `
 		  AND NOT ` + postReplyAuthorBlockedPredicate("p") + `
 		  AND NOT ` + postMentionAuthorBlockedPredicate("p") + `
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		  AND ($2::timestamptz IS NULL
 		       OR (LEAST(p.created_at, p.indexed_at, p.profile_sort_at), p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
 		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, LEAST(p.created_at, p.indexed_at, p.profile_sort_at) ` + orderDirection + `, p.uri ` + orderDirection + `
@@ -100,7 +100,7 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 			WHERE (branch.created_at, branch.uri) > ($3::timestamptz, $4::text)
 			  AND NOT branch.protected
 			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
-			` + postVisibleModerationPredicate + `
+			` + postReadPredicate(ctx) + `
 		)
 	`
 	var hasMore bool
@@ -146,7 +146,7 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 			       OR (branch.created_at, branch.uri) > ($3::timestamptz, $4::text))
 			  AND NOT branch.protected
 			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
-			` + postVisibleModerationPredicate + `
+			` + postReadPredicate(ctx) + `
 			ORDER BY branch.created_at ASC, branch.uri ASC
 			LIMIT $5
 		)
@@ -156,7 +156,7 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE true
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		ORDER BY page.created_at ASC, page.uri ASC
 	`
 	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, curCreatedAt, curURI, limit, viewerDID)
@@ -231,7 +231,7 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 			WHERE (branch.created_at, branch.uri) <= (focus.created_at, focus.uri)
 			  AND NOT branch.protected
 			  AND (branch.muted_ancestor_uri IS NULL OR branch.muted_ancestor_uri = branch.uri)
-			` + postVisibleModerationPredicate + `
+			` + postReadPredicate(ctx) + `
 			ORDER BY branch.created_at DESC, branch.uri DESC
 			LIMIT $4
 		), ordered_page AS (
@@ -245,7 +245,7 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE true
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		ORDER BY ordered_page.created_at ASC, ordered_page.uri ASC
 	`
 	rows, err := s.pool.Query(ctx, q, commentURI, rootURI, focusURI, limit, viewerDID)

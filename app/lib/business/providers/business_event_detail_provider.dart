@@ -1,11 +1,13 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -20,7 +22,7 @@ final class BusinessEventDetailTarget {
     required this.rkey,
   });
 
-  final AccountKey account;
+  final AccountKey? account;
   final Did owner;
   final RecordKey rkey;
 
@@ -56,16 +58,31 @@ final class BusinessEventDetailUnavailable extends BusinessEventDetailState {
 class BusinessEventDetail extends _$BusinessEventDetail {
   @override
   Future<BusinessEventDetailState> build(
-    BusinessEventDetailTarget target,
-  ) async {
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    BusinessEventDetailTarget target, {
+    BrowsingContext? audience,
+  }) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
+    final accountOperation = ContentReadGuard.capture(ref);
+    if (ref.watch(isGuestBrowsingProvider)) {
+      final event = await accountOperation.step(
+        () => ref
+            .watch(businessRepositoryProvider)
+            .getEvent(target.owner, target.rkey),
+      );
+      return BusinessEventDetailAvailable(event);
+    }
     final ownership = accountOperation.ownership;
     if (ownership != null && ownership.session.account != target.account) {
       throw DiagnosticStateError('Active account changed');
     }
     final lease =
         ownership?.session ??
-        AccountSessionLease(account: target.account, sessionGeneration: 0);
+        AccountSessionLease(account: target.account!, sessionGeneration: 0);
     final uri =
         'at://${target.owner}/social.craftsky.business.event/${target.rkey}';
     final readFence = captureBusinessEventRead(ref, lease, uri);

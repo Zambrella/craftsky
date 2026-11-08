@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { onDestroy, getContext, untrack } from 'svelte';
+	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import type {
 		CraftskyAPI,
@@ -27,7 +27,12 @@
 		type PageView
 	} from '../shell/page-history';
 	import { label } from '#lib/public.ts';
-	let { api, did }: { api: CraftskyAPI; did: string } = $props();
+	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
+	const guest = $derived(api.audience === 'guest');
+	let ready = $state(false);
+	onMount(() => {
+		ready = true;
+	});
 	type SearchSnapshot = {
 		authors: Author[];
 		posts: PostPresentation[];
@@ -48,7 +53,7 @@
 	let suggestionWork = $state(new Work('social.Search.action'));
 	let waitingForSuggestions = $state(false);
 	let suggestionController: AbortController | undefined;
-	const showSuggestions = $derived(suggesting && !!query.trim());
+	const showSuggestions = $derived(!guest && suggesting && !!query.trim());
 	let top = $state<TopHashtags>();
 	let authors = $state<Author[]>([]),
 		posts = $state<PostPresentation[]>([]),
@@ -70,6 +75,7 @@
 	}
 	function suggest() {
 		resetSuggestions();
+		if (guest) return;
 		const term = query.trim();
 		suggesting = !!term;
 		if (!term) return;
@@ -117,12 +123,17 @@
 		const term = q,
 			category = tab,
 			pending = work;
-		const options = { q: term, cursor: more ? cursor : undefined, limit: 30 };
+		const options = {
+			q: term,
+			cursor: more ? cursor : undefined,
+			limit: guest ? 20 : 30
+		};
 		await pending.run(
 			async (): Promise<
 				Partial<SearchSnapshot> & { cursor?: string | null }
 			> => {
 				if (!term) {
+					if (guest) return { authors: [], posts: [], tags: [], recent: [] };
 					const [members, history, hashtags] = await Promise.all([
 						api.profiles.recent(),
 						api.search.recent(),
@@ -172,7 +183,7 @@
 			suggesting = false;
 			resetSuggestions();
 		});
-		if (term)
+		if (term && !guest)
 			void api.search
 				.saveRecent({ type: 'query', displayLabel: term, payload: { q: term } })
 				.catch(() => {});
@@ -237,6 +248,7 @@
 		};
 	}
 	function remember(author: Author) {
+		if (guest) return;
 		void api.search
 			.saveRecent({
 				type: 'profile',
@@ -271,6 +283,7 @@
 				id="search"
 				name="q"
 				type="search"
+				disabled={!ready}
 				bind:value={query}
 				oninput={suggest}
 				placeholder="Search hashtags, people or projects..."
@@ -281,6 +294,7 @@
 					aria-label="Clear search"
 					onclick={() => {
 						query = '';
+						if (guest) void goto('/search', { replace: true });
 						suggesting = false;
 						resetSuggestions();
 						document.getElementById('search')?.focus();
@@ -289,7 +303,12 @@
 					></button
 				>{/if}
 		</div>
-		<button type="submit" class="visually-hidden" tabindex="-1">Search</button
+		<button
+			type="submit"
+			class:visually-hidden={!guest}
+			class:search-submit={guest}
+			disabled={!ready}
+			tabindex={guest ? 0 : -1}>Search</button
 		>{#if query || q}<a
 				class="cancel-search"
 				href="/search"
@@ -375,7 +394,10 @@
 		skeleton={tab === 'profiles' || !q ? 'people' : 'posts'}
 		reload={() => load()}
 	/>
-	{#if !q}{#if recent.length}<section class="search-discovery">
+	{#if !q && guest}<p class="empty">
+			Search public profiles, posts, projects and hashtags.
+		</p>{/if}
+	{#if !q && !guest}{#if recent.length}<section class="search-discovery">
 				<h2>Recent searches</h2>
 				{#each recent as item}<div class="recent-row">
 						<a href={recentDestination(item)}>{item.displayLabel}</a><button
@@ -438,6 +460,21 @@
 {/if}
 
 <style>
+	.search-submit {
+		padding: 10px 12px;
+		min-height: 44px;
+		font-size: 14px;
+	}
+	@media (max-width: 600px) {
+		.search-submit {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			overflow: hidden;
+			clip-path: inset(50%);
+		}
+	}
 	.search-form {
 		padding: 12px 16px;
 		margin: 0;

@@ -234,12 +234,24 @@
 						>Show all notifications</a
 					>{/if}{/snippet}</EmptyState
 		>{/if}{/each}{#if cursor}<button
-		class="button next"
+		class="next"
 		disabled={work.busy}
 		onclick={() => load(true)}>Load more</button
 	>{/if}
 
 <style>
+	.next {
+		display: block;
+		margin: 16px auto;
+		border: 0;
+		background: transparent;
+		color: var(--primary);
+		box-shadow: none;
+	}
+	.next:hover {
+		color: var(--primary-hover);
+		text-decoration: underline;
+	}
 	.notification-categories {
 		margin-left: auto;
 	}

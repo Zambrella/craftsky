@@ -105,6 +105,7 @@ func reportRecordHandler(targets PostReportTargetResolver, reports ReportCreator
 
 		row, err := reports.CreateReport(r.Context(), CreateReportInput{
 			ReporterDID:             reporterDID.String(),
+			ContactEmail:            req.ContactEmail,
 			SubjectType:             subjectType,
 			SubjectDID:              target.DID,
 			SubjectCollection:       &collection,
@@ -199,7 +200,8 @@ func ReportBusinessEventHandler(
 		}
 		row, err := reports.CreateReport(r.Context(), CreateReportInput{
 			ReporterDID: reporterDID.String(), SubjectType: ReportSubjectEvent,
-			SubjectDID: targetDID, SubjectCollection: &collection,
+			ContactEmail: req.ContactEmail,
+			SubjectDID:   targetDID, SubjectCollection: &collection,
 			SubjectRkey: &targetRkey, SubjectURI: &targetURI, SubjectCIDSnapshot: &targetCID,
 			ReasonType: req.ReasonType, Details: normalizedDetails, DeviceID: optionalString(deviceID),
 			ForwardingStatus: metadata.Status, ForwardingSchemaVersion: metadata.SchemaVersion,
@@ -260,6 +262,7 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 
 		row, err := reports.CreateReport(r.Context(), CreateReportInput{
 			ReporterDID:             reporterDID.String(),
+			ContactEmail:            req.ContactEmail,
 			SubjectType:             ReportSubjectAccount,
 			SubjectDID:              target.DID,
 			SubmittedHandleSnapshot: optionalString(target.SubmittedHandleSnapshot),
@@ -304,6 +307,7 @@ func decodeValidateReport(w http.ResponseWriter, r *http.Request, runID string) 
 		envelope.WriteError(w, http.StatusUnprocessableEntity, "validation_failed", "validation failed", runID, nil)
 		return ReportRequest{}, nil, false
 	}
+	req.ContactEmail, _ = NormalizeReportContactEmail(req.ContactEmail)
 	return req, normalizedDetails, true
 }
 

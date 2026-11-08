@@ -25,6 +25,7 @@ import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -103,6 +104,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _onQueryChanged(String value) {
     setState(() => _draftQuery = value);
     _debounce?.cancel();
+    if (ref.read(isGuestBrowsingProvider)) return;
     _debounce = Timer(_suggestionDebounce, () {
       if (!mounted) return;
       setState(() => _debouncedQuery = value);
@@ -117,6 +119,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _debouncedQuery = '';
     });
     _focusNode.requestFocus();
+    if (ref.read(isGuestBrowsingProvider)) const SearchRoute().go(context);
   }
 
   void _cancelSearch() {
@@ -144,6 +147,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _saveQueryRecent(String query) {
+    if (ref.read(isGuestBrowsingProvider)) return Future<void>.value();
     assert(query.isNotEmpty, 'query must not be empty');
     return ref
         .read(saveRecentSearchProvider.notifier)
@@ -165,6 +169,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _saveProfileRecent(ProfileSearchResult profile) async {
+    if (ref.read(isGuestBrowsingProvider)) return;
     final handle = ProfileHandle(profile.handle);
     await ref
         .read(saveRecentSearchProvider.notifier)
@@ -192,6 +197,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _saveHashtagRecent(String tag) {
+    if (ref.read(isGuestBrowsingProvider)) return Future<void>.value();
     return ref
         .read(saveRecentSearchProvider.notifier)
         .save(
@@ -206,18 +212,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    ref
-      ..listen(saveRecentSearchProvider, (_, next) {
-        if (next.hasError) context.showError(l10n.searchRecentSaveError);
-      })
-      ..listen(deleteRecentSearchProvider, (_, next) {
-        if (next.hasError) context.showError(l10n.searchRecentDeleteError);
-      });
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref
+        ..listen(saveRecentSearchProvider, (_, next) {
+          if (next.hasError) context.showError(l10n.searchRecentSaveError);
+        })
+        ..listen(deleteRecentSearchProvider, (_, next) {
+          if (next.hasError) context.showError(l10n.searchRecentDeleteError);
+        });
+    }
 
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final draft = _draftQuery.trim();
-    final showSuggestions = !_hasSubmittedQuery && _focusNode.hasFocus;
+    final guest = ref.watch(isGuestBrowsingProvider);
+    final showSuggestions =
+        !guest && !_hasSubmittedQuery && _focusNode.hasFocus;
     final headerSlivers = _headerSlivers(l10n, spacing);
     if (_hasSubmittedQuery) {
       return Scaffold(
@@ -254,29 +264,40 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       );
     }
 
-    final body = switch ((_hasSubmittedQuery, showSuggestions, draft.isEmpty)) {
-      (true, _, _) => const <Widget>[],
-      (false, true, true) => const <Widget>[],
-      (false, true, false) => _SuggestionList.slivers(
-        context: context,
-        ref: ref,
-        query: _debouncedQuery.trim(),
-        isWaitingForDebounce: _debouncedQuery.trim() != draft,
-        beforeOpenProfile: _saveProfileRecent,
-        onOpenHashtag: _openHashtag,
-        onViewAllProfiles: () => _openResultTab(SearchResultsTab.profiles),
-        onViewAllHashtags: () => _openResultTab(SearchResultsTab.tags),
-      ),
-      _ => _BlankSearchView.slivers(
-        context: context,
-        ref: ref,
-        onOpenQuery: (query) => SearchRoute(q: query).go(context),
-        onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
-        onOpenProfile: (did) => unawaited(
-          UserProfileRoute(did: did).push<void>(context),
-        ),
-      ),
-    };
+    final body = guest
+        ? <Widget>[
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Submit a search to explore CraftSky'),
+              ),
+            ),
+          ]
+        : switch ((_hasSubmittedQuery, showSuggestions, draft.isEmpty)) {
+            (true, _, _) => const <Widget>[],
+            (false, true, true) => const <Widget>[],
+            (false, true, false) => _SuggestionList.slivers(
+              context: context,
+              ref: ref,
+              query: _debouncedQuery.trim(),
+              isWaitingForDebounce: _debouncedQuery.trim() != draft,
+              beforeOpenProfile: _saveProfileRecent,
+              onOpenHashtag: _openHashtag,
+              onViewAllProfiles: () =>
+                  _openResultTab(SearchResultsTab.profiles),
+              onViewAllHashtags: () => _openResultTab(SearchResultsTab.tags),
+            ),
+            _ => _BlankSearchView.slivers(
+              context: context,
+              ref: ref,
+              onOpenQuery: (query) => SearchRoute(q: query).go(context),
+              onOpenHashtag: (tag) =>
+                  TagSearchRoute(tag: tag).push<void>(context),
+              onOpenProfile: (did) => unawaited(
+                UserProfileRoute(did: did).push<void>(context),
+              ),
+            ),
+          };
 
     return Scaffold(
       body: CustomScrollView(slivers: [...headerSlivers, ...body]),

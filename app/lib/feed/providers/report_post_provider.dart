@@ -5,6 +5,8 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'report_post_provider.g.dart';
@@ -20,13 +22,15 @@ class ReportPost extends _$ReportPost {
     required ReportSubmission submission,
   }) async {
     if (state.isLoading) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final publish = ref.read(isGuestBrowsingProvider)
+        ? ContentReadGuard.capture(ref).publish
+        : ActiveAccountOperation.capture(ref).publish;
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
       return await repo.report(did, rkey, submission);
     });
-    accountOperation.publish(() => state = result);
+    publish(() => state = result);
   }
 
   void reset() => state = const AsyncData(null);

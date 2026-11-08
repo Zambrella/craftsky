@@ -218,7 +218,7 @@ func (pds *postEditConditionalPDS) applyWrites(_ context.Context, owner syntax.D
 		pds.records[records[i].URI] = setCommandRecord{cid: records[i].CID, value: write.Record}
 		pds.lastWrites[i] = DispatchStep{Action: write.Action, URI: records[i].URI, ExpectedCID: write.ExpectedCID}
 	}
-	pds.revision = syntax.NewTIDFromInteger(syntax.TID("3aaaaaaaaaaa2").Integer() + uint64(pds.applyCalls))
+	pds.revision = syntax.NewTIDFromInteger(pds.revision.Integer() + 1)
 	var err error
 	pds.head, err = postEditTestRecordCID(map[string]any{"head": pds.applyCalls, "previous": head.String()})
 	if err != nil {

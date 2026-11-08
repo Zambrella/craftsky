@@ -9,6 +9,8 @@ export type Author = {
 	business?: boolean;
 };
 export type Profile = Author & {
+	businessProfile?: import('./api/types').BusinessProfile;
+	hasUpcomingEvents?: boolean;
 	description?: string;
 	pronouns?: string;
 	banner?: string;

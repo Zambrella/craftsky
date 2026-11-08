@@ -22,6 +22,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 const _did = 'did:plc:alice';
@@ -728,6 +729,7 @@ ProviderContainer _container(
   final value = registry ?? SessionRegistry.empty();
   return ProviderContainer.test(
     overrides: [
+      if (registry == null) testMemberBrowsingOverride,
       postRepositoryProvider.overrideWithValue(repository),
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(value),

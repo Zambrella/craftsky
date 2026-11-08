@@ -63,6 +63,39 @@ final class _RegistryStorage implements SessionRegistryStorage {
 void main() {
   setUpAll(initializeMappers);
 
+  testWidgets('AT-002 reusable welcome content offers Explore CraftSky', (
+    tester,
+  ) async {
+    var explored = false;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_RecordingAuthController.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: WelcomePage(onExplore: () => explored = true),
+        ),
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.text('What is an Atmosphere account?')).dy,
+      lessThan(tester.getTopLeft(find.text('Explore CraftSky')).dy),
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Explore CraftSky'),
+        matching: find.byType(TextButton),
+      ),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('Explore CraftSky'));
+    await tester.tap(find.text('Explore CraftSky'));
+    expect(explored, true);
+  });
+
   testWidgets('renders the craft icon scaffold background', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

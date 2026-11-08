@@ -52,6 +52,7 @@ import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +62,7 @@ import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../projects/fakes/fake_project_repository.dart';
+import '../test_support/member_browsing_context.dart';
 
 ActiveAccountInitialization _initialization(bool completed) =>
     ActiveAccountInitialization(
@@ -323,17 +325,38 @@ void main() {
     'profile',
     'settings',
   ]) {
-    testWidgets('status destination $name retains signed-out redirect', (
+    testWidgets('status destination $name preserves public browsing gates', (
       tester,
     ) async {
       final container = ProviderContainer.test(
-        overrides: [authSessionProvider.overrideWith(SignedOutAuthSession.new)],
+        retry: (_, _) => null,
+        overrides: [
+          testGuestBrowsingOverride,
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
+        ],
       );
       await _pumpRouter(tester, container);
       expect(
         activateStatusDestination(container.read(goRouterProvider), name),
         isTrue,
       );
+      await tester.pumpAndSettle();
+      expect(
+        container
+            .read(goRouterProvider)
+            .routeInformationProvider
+            .value
+            .uri
+            .path,
+        name == 'search' ? '/search' : '/feed',
+      );
+      await tester.ensureVisible(find.text('Explore CraftSky'));
+      await tester.tap(find.text('Explore CraftSky'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your craft. Your community.'), findsOneWidget);
+      final join = find.widgetWithText(ChunkyButton, 'Join');
+      expect(join, findsOneWidget);
+      await tester.tap(join);
       await tester.pumpAndSettle();
       expect(find.byType(WelcomePage), findsOneWidget);
     });
@@ -364,25 +387,31 @@ void main() {
   });
 
   group('router redirect', () {
-    testWidgets('SignedOut + /feed → WelcomePage', (tester) async {
-      final container = ProviderContainer.test(
-        overrides: [
-          authSessionProvider.overrideWith(SignedOutAuthSession.new),
-        ],
-      );
-      await _pumpRouter(
-        tester,
-        container,
-        initialLocation: RouteLocations.feed,
-      );
-      expect(find.byType(WelcomePage), findsOneWidget);
-    });
+    testWidgets(
+      'SignedOut + /feed renders the welcome modal above public home',
+      (tester) async {
+        final container = ProviderContainer.test(
+          retry: (_, _) => null,
+          overrides: [
+            testGuestBrowsingOverride,
+            authSessionProvider.overrideWith(SignedOutAuthSession.new),
+          ],
+        );
+        await _pumpRouter(
+          tester,
+          container,
+          initialLocation: RouteLocations.feed,
+        );
+        expect(find.byType(WelcomePage), findsOneWidget);
+      },
+    );
 
     testWidgets(
       'SignedOut + legacy token callback stays on page but fails closed',
       (tester) async {
         final container = ProviderContainer.test(
           overrides: [
+            testGuestBrowsingOverride,
             authSessionProvider.overrideWith(SignedOutAuthSession.new),
           ],
         );
@@ -422,6 +451,7 @@ void main() {
         var registrationStarts = 0;
         final container = ProviderContainer.test(
           overrides: [
+            testGuestBrowsingOverride,
             authSessionProvider.overrideWith(SignedOutAuthSession.new),
             authControllerProvider.overrideWith(
               () => _CompletionAuthController(
@@ -466,6 +496,7 @@ void main() {
         var registrationStarts = 0;
         final container = ProviderContainer.test(
           overrides: [
+            testGuestBrowsingOverride,
             authSessionProvider.overrideWith(SignedOutAuthSession.new),
             authControllerProvider.overrideWith(
               () => _CompletionAuthController(
@@ -649,6 +680,7 @@ void main() {
     testWidgets('SignedIn + onboarded can open Add account', (tester) async {
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -677,6 +709,7 @@ void main() {
       (tester) async {
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             activeAccountInitializationProvider.overrideWith(
               (ref) => _initialization(true),
@@ -800,6 +833,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -826,6 +860,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -860,6 +895,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -899,6 +935,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -924,6 +961,7 @@ void main() {
     ) async {
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -966,6 +1004,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountInitializationProvider.overrideWith(
             (ref) => _initialization(true),
@@ -984,9 +1023,15 @@ void main() {
       expect(page.focus, focus);
     });
 
-    testWidgets('SignedOut + /posts/:did/:rkey → WelcomePage', (tester) async {
+    testWidgets('SignedOut + /posts/:did/:rkey reads the public thread', (
+      tester,
+    ) async {
       final container = ProviderContainer.test(
-        overrides: [authSessionProvider.overrideWith(SignedOutAuthSession.new)],
+        retry: (_, _) => null,
+        overrides: [
+          testGuestBrowsingOverride,
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
+        ],
       );
       await _pumpRouter(
         tester,
@@ -994,7 +1039,8 @@ void main() {
         initialLocation: '/posts/did:plc:alice/root',
       );
 
-      expect(find.byType(WelcomePage), findsOneWidget);
+      expect(find.byType(PostThreadPage), findsOneWidget);
+      expect(find.byType(WelcomePage), findsNothing);
     });
 
     testWidgets(
@@ -1002,6 +1048,7 @@ void main() {
       (tester) async {
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             activeAccountInitializationProvider.overrideWith(
               (ref) => _initialization(false),

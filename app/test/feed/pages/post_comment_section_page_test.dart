@@ -26,6 +26,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../test_support/deterministic_pump.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 Post _post(
@@ -96,6 +97,7 @@ Future<void> _pumpCommentSection(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',

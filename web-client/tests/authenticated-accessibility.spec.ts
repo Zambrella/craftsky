@@ -168,7 +168,7 @@ test('sign-in suggestions and all onboarding steps remain accessible in both the
 	);
 	for (const colorScheme of ['light', 'dark'] as const) {
 		await page.emulateMedia({ colorScheme });
-		await page.goto('/sign-in');
+		await page.goto('/sign-in?add=1');
 		const handle = page.getByRole('combobox', {
 			name: 'Your Atmosphere Handle'
 		});

@@ -15,6 +15,8 @@ import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
+
 void main() {
   test(
     'IT-013 a pre-mutation detail read cannot discard an accepted overlay',
@@ -34,7 +36,7 @@ void main() {
       await repository.started.future;
 
       final lease = AccountSessionLease(
-        account: target.account,
+        account: target.account!,
         sessionGeneration: 0,
       );
       final controller = container.read(pdsRecordOperationControllerProvider);
@@ -83,7 +85,7 @@ void main() {
       await repository.started.future;
 
       final lease = AccountSessionLease(
-        account: target.account,
+        account: target.account!,
         sessionGeneration: 0,
       );
       final controller = container.read(pdsRecordOperationControllerProvider);
@@ -125,7 +127,7 @@ void main() {
       await repository.started.future;
 
       final lease = AccountSessionLease(
-        account: target.account,
+        account: target.account!,
         sessionGeneration: 0,
       );
       final controller = container.read(pdsRecordOperationControllerProvider);
@@ -153,6 +155,7 @@ void main() {
 ProviderContainer _detailContainer(_DetailRepository repository) =>
     ProviderContainer(
       overrides: [
+        memberBrowsingOverrideFor('did:plc:account'),
         businessRepositoryProvider.overrideWithValue(repository),
         pdsRecordOperationControllerProvider.overrideWithValue(
           PdsRecordOperationController(schedule: (_, _) {}),

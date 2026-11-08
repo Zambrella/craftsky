@@ -6,12 +6,14 @@
 	let {
 		subject,
 		busy = false,
+		showContactEmail = false,
 		onRetry,
 		onSubmit,
 		onCancel
 	}: {
 		subject: string;
 		busy?: boolean;
+		showContactEmail?: boolean;
 		onRetry?: () => unknown;
 		onSubmit: (value: ReportSubmission) => void;
 		onCancel: () => void;
@@ -19,6 +21,7 @@
 	let group = $state(''),
 		reason = $state(''),
 		details = $state('');
+	let contactEmail = $state('');
 	let dialog = $state<HTMLDialogElement>(null!);
 	const choices = $derived(
 		catalogue.reasons.filter((value) => value.group === group)
@@ -54,7 +57,13 @@
 				reason !== 'intellectualProperty' &&
 				details.length <= 1000
 			)
-				onSubmit({ reasonType: reason, details: details.trim() || undefined });
+				onSubmit({
+					reasonType: reason,
+					details: details.trim() || undefined,
+					...(showContactEmail
+						? { contactEmail: contactEmail.trim() || undefined }
+						: {})
+				});
 		}}
 	>
 		<header>
@@ -132,7 +141,23 @@
 							rows="4"
 							disabled={busy}></textarea></label
 					>
-					<p class="details-count">{details.length}/1000</p>{/if}{/if}
+					<p class="details-count">{details.length}/1000</p>
+					{#if showContactEmail}<label class="details-label"
+							>Contact email (optional)
+							<input
+								name="contactEmail"
+								type="email"
+								maxlength="254"
+								bind:value={contactEmail}
+								disabled={busy}
+								autocomplete="email"
+							/>
+						</label>
+						<p class="guidance">
+							Only CraftSky moderators can see this. Add it if you would like us
+							to contact you about your report.
+						</p>{/if}
+				{/if}{/if}
 			{#if onRetry}<button
 					type="button"
 					disabled={busy}

@@ -129,7 +129,7 @@ func (s *SearchStore) searchProjectsObserved(
 			OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $13)
 		  ))
 		` + relationshipTopLevelPredicate(relationshipParam) + `
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		` + languageVisibilityPredicate("p", relationshipParam, languagesParam) + `
 		)
 		SELECT ` + postSelectColumns + `, popularity_score

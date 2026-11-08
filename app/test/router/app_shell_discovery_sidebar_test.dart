@@ -34,6 +34,8 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -76,7 +78,7 @@ class _Profile extends UserProfile {
   final Future<Profile>? profile;
   final Future<Profile> Function()? readProfile;
   @override
-  Future<Profile> build(Did did) =>
+  Future<Profile> build(Did did, {BrowsingContext? audience}) =>
       readProfile?.call() ??
       profile ??
       Future.value(
@@ -203,8 +205,9 @@ Future<GoRouter> _pumpSidebar(
           ),
         ),
         if (repository == null)
-          userProfileProvider(Did.parse('did:plc:test'))
-              .overrideWith(() => _Profile(profile, readProfile)),
+          userProfileProvider.overrideWith2(
+            (_) => _Profile(profile, readProfile),
+          ),
         accountNotificationNewnessRepositoryProvider.overrideWith(
           (ref, account) async => _Zero(),
         ),
@@ -832,7 +835,14 @@ void main() {
       if (variant != 'cached') {
         profilePending = variant != 'late-members-only';
         memberPending = variant != 'late-profile-only';
-        if (profilePending) container.invalidate(userProfileProvider(a.did));
+        if (profilePending) {
+          container.invalidate(
+            userProfileProvider(
+              a.did,
+              audience: container.read(browsingContextProvider),
+            ),
+          );
+        }
         if (memberPending) container.invalidate(recentMembersProvider(leaseA));
         await _pumpFrames(tester);
       }
@@ -877,7 +887,12 @@ void main() {
         findsOneWidget,
       );
       container
-          .read(userProfileProvider(b.did).notifier)
+          .read(
+            userProfileProvider(
+              b.did,
+              audience: container.read(browsingContextProvider),
+            ).notifier,
+          )
           .setCached(b.copyWith(crafts: ['quilting']));
       await _pumpFrames(tester);
       expect(find.byKey(const Key('discovery-craft-sewing')), findsNothing);
@@ -1306,13 +1321,23 @@ void main() {
         );
         expect(
           container
-              .read(userProfileProvider(Did.parse('did:plc:test')))
+              .read(
+                userProfileProvider(
+                  Did.parse('did:plc:test'),
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .requireValue
               .crafts,
           ['knitting', 'sewing'],
         );
         container
-            .read(userProfileProvider(Did.parse('did:plc:test')).notifier)
+            .read(
+              userProfileProvider(
+                Did.parse('did:plc:test'),
+                audience: container.read(browsingContextProvider),
+              ).notifier,
+            )
             .setCached(
               Profile(
                 did: 'did:plc:test',

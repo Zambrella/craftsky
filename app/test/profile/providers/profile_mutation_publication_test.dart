@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -109,7 +110,10 @@ void main() {
         );
         addTearDown(container.dispose);
         await container.read(sessionRegistryProvider.future);
-        final profileProvider = userProfileProvider(lease.session.account.did);
+        final profileProvider = userProfileProvider(
+          lease.session.account.did,
+          audience: container.read(browsingContextProvider),
+        );
         final profileSubscription = container.listen(
           profileProvider,
           (_, _) {},

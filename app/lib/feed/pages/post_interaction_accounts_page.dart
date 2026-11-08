@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
@@ -28,7 +29,12 @@ class PostInteractionAccountsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final provider = postInteractionAccountsProvider(did, rkey, kind);
+    final provider = postInteractionAccountsProvider(
+      did,
+      rkey,
+      kind,
+      audience: ref.read(browsingContextProvider),
+    );
     final accounts = ref.watch(provider);
     final data = accounts.value;
     final l10n = AppLocalizations.of(context);

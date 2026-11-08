@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
 import 'package:craftsky_app/feed/models/post_uri.dart';
@@ -9,6 +8,8 @@ import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'post_comment_section_provider.g.dart';
@@ -23,7 +24,14 @@ class PostCommentSection extends _$PostCommentSection {
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     listenForPostEdits(ref, () {
       final current = state.value;
       if (current == null) return;
@@ -35,7 +43,7 @@ class PostCommentSection extends _$PostCommentSection {
         ),
       );
     });
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final section = await repo.commentSection(
       did,
@@ -123,16 +131,25 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
     RecordKey rkey, {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) {}
 
   Future<void> load() async {
     if (state.isLoading) return;
 
     final current = ref
-        .read(postCommentSectionProvider(did, rkey, sort: sort, focus: focus))
+        .read(
+          postCommentSectionProvider(
+            did,
+            rkey,
+            sort: sort,
+            focus: focus,
+            audience: audience,
+          ),
+        )
         .value;
     if (current == null || current.comments.cursor == null) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
 
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
@@ -152,6 +169,7 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
               rkey,
               sort: sort,
               focus: focus,
+              audience: audience,
             ).notifier,
           )
           .appendCommentPage(page.comments);
@@ -169,6 +187,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
     required AtUri commentUri,
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
+    BrowsingContext? audience,
   }) {}
 
   Future<void> load() async {
@@ -183,7 +202,15 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
     if (state.isLoading) return;
 
     final current = ref
-        .read(postCommentSectionProvider(did, rkey, sort: sort, focus: focus))
+        .read(
+          postCommentSectionProvider(
+            did,
+            rkey,
+            sort: sort,
+            focus: focus,
+            audience: audience,
+          ),
+        )
         .value;
     if (current == null) return;
 
@@ -192,7 +219,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
         .firstOrNull;
     if (comment == null) return;
     if (comment.replies.loaded && comment.replies.cursor == null) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
 
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
@@ -221,6 +248,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
                 rkey,
                 sort: sort,
                 focus: focus,
+                audience: audience,
               ).notifier,
             )
             .replacePost(revealed);
@@ -232,6 +260,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
               rkey,
               sort: sort,
               focus: focus,
+              audience: audience,
             ).notifier,
           )
           .setRepliesForComment(

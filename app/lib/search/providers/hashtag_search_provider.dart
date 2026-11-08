@@ -1,10 +1,13 @@
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_result_state.dart';
 import 'package:craftsky_app/search/providers/search_pagination.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'hashtag_search_provider.g.dart';
@@ -14,7 +17,16 @@ const searchResultsPageLimit = 25;
 @riverpod
 class HashtagSearch extends _$HashtagSearch {
   @override
-  Future<SearchPostResultsState> build(HashtagSearchQuery query) async {
+  Future<SearchPostResultsState> build(
+    HashtagSearchQuery query, {
+    BrowsingContext? audience,
+  }) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     listenForPostEdits(ref, () {
       final current = state.value;
       if (current == null) return;
@@ -22,7 +34,9 @@ class HashtagSearch extends _$HashtagSearch {
         current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
       );
     });
-    ref.watch(activeContentLanguagePolicyProvider);
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref.watch(activeContentLanguagePolicyProvider);
+    }
     final page = await ref
         .watch(searchRepositoryProvider)
         .searchHashtagPosts(
@@ -30,6 +44,7 @@ class HashtagSearch extends _$HashtagSearch {
           sort: query.sort,
           limit: searchResultsPageLimit,
         );
+    read.requireCurrent();
     return SearchPostResultsState(
       items: applyPostRecordListOverlays(
         ref,
@@ -45,7 +60,7 @@ class HashtagSearch extends _$HashtagSearch {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
     state = const AsyncLoading<SearchPostResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref

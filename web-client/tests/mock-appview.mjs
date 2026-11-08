@@ -6,6 +6,14 @@ const author = {
 	avatar: 'https://cdn.example/avatar.jpg'
 };
 const post = {
+	uri: 'at://did:plc:alice/social.craftsky.feed.post/first',
+	cid: 'public-post-cid',
+	tags: [],
+	langs: [],
+	likeCount: 0,
+	repostCount: 0,
+	quoteCount: 0,
+	replyCount: 0,
 	rkey: 'first',
 	text: 'A linen dress <script>alert("unsafe")</script>',
 	author,
@@ -45,7 +53,14 @@ createServer((req, res) => {
 	if (url.pathname.endsWith('/posts') || url.pathname.endsWith('/projects'))
 		return send(200, {
 			items: url.searchParams.get('cursor')
-				? [{ ...post, rkey: 'older', text: 'An older project' }]
+				? [
+						{
+							...post,
+							uri: 'at://did:plc:alice/social.craftsky.feed.post/older',
+							rkey: 'older',
+							text: 'An older project'
+						}
+					]
 				: [post],
 			cursor: url.searchParams.get('cursor') ? undefined : 'next-page'
 		});

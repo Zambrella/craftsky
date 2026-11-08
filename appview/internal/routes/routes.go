@@ -149,6 +149,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	// Keep BodyLimit outside response decorators so ResponseController reaches
 	// net/http's writer and can install the route-specific read deadline.
 	bodyLimit := m.bodyLimit
+	if policy.Method == http.MethodPost && strings.HasPrefix(policy.PathPattern, "/v1/public/") && strings.HasSuffix(policy.PathPattern, "/reports") && (bodyLimit.DefaultJSONBytes == 0 || bodyLimit.DefaultJSONBytes > 8192) {
+		bodyLimit.DefaultJSONBytes = 8192
+	}
 	if strings.HasPrefix(policy.PathPattern, "/v1/chat/") && (bodyLimit.DefaultJSONBytes == 0 || bodyLimit.DefaultJSONBytes > 64<<10) {
 		bodyLimit.DefaultJSONBytes = 64 << 10
 	}
@@ -502,7 +505,11 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 
 	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
 	registerPublicStatsRoute(mux, v1mw, api.NewPublicStatsStore(deps.DB))
-	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver)
+	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver, api.PublicVideoCaptionHandler(postStore, deps.VideoCaptionFetcher, deps.Logger))
+	registerPublicReportRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver, deps.ReportStore)
+	visibilitySettings, _ := deps.PDSAddressedCommands.(api.GuestVisibilitySettings)
+	registerGuestVisibilityRoutes(mux, v1mw, visibilitySettings)
+
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinOptions := api.ProfilePinStoreOptions{Observer: observer, RequirePlus: deps.Subscriptions != nil}
 	if deps.Subscriptions != nil {

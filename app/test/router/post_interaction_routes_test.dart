@@ -410,20 +410,22 @@ void main() {
         expect(find.byType(NavigationBar), findsNothing);
       });
 
-      testWidgets('signed-out direct $suffix redirects to welcome', (
-        tester,
-      ) async {
-        await _pumpRouter(
+      testWidgets(
+        'signed-out direct $suffix reads public interaction details',
+        (
           tester,
-          _container(signedIn: false),
-          initialLocation: '/posts/$_did/$_rkey/$suffix',
-          size: const Size(390, 844),
-        );
+        ) async {
+          await _pumpRouter(
+            tester,
+            _container(signedIn: false),
+            initialLocation: '/posts/$_did/$_rkey/$suffix',
+            size: const Size(390, 844),
+          );
 
-        expect(find.byType(WelcomePage), findsOneWidget);
-        expect(find.byType(PostInteractionAccountsPage), findsNothing);
-        expect(find.byType(PostQuotesPage), findsNothing);
-      });
+          expect(find.byType(WelcomePage), findsNothing);
+          _expectDestination(suffix, tester);
+        },
+      );
     }
 
     testWidgets('large direct route retains authenticated shell rail', (

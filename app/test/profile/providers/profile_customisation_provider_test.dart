@@ -13,6 +13,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_profile_repository.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
@@ -58,12 +59,18 @@ void main() {
       addTearDown(container.dispose);
       await container.read(sessionRegistryProvider.future);
       final profileSubscription = container.listen(
-        userProfileProvider(Did.parse('did:plc:alice')),
+        userProfileProvider(
+          Did.parse('did:plc:alice'),
+          audience: container.read(browsingContextProvider),
+        ),
         (_, _) {},
       );
       addTearDown(profileSubscription.close);
       await container.read(
-        userProfileProvider(Did.parse('did:plc:alice')).future,
+        userProfileProvider(
+          Did.parse('did:plc:alice'),
+          audience: container.read(browsingContextProvider),
+        ).future,
       );
 
       final initial = await container.read(
@@ -122,7 +129,12 @@ void main() {
       );
       expect(
         container
-            .read(userProfileProvider(Did.parse('did:plc:alice')))
+            .read(
+              userProfileProvider(
+                Did.parse('did:plc:alice'),
+                audience: container.read(browsingContextProvider),
+              ),
+            )
             .value
             ?.customisation,
         authoritative,
@@ -138,7 +150,10 @@ void main() {
         onUpdateCustomisation: (_) async => throw StateError('save failed'),
       );
       final container = ProviderContainer(
-        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       addTearDown(container.dispose);
       await container.read(profileCustomisationEditorProvider.future);

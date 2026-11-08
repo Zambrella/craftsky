@@ -439,12 +439,6 @@
   },
   {
     "method": "GET",
-    "path": "/v1/feed/extended-network",
-    "category": "appview.feed.extended-network",
-    "public": true
-  },
-  {
-    "method": "GET",
     "path": "/v1/feed/timeline",
     "category": "appview.feed.timeline",
     "public": true
@@ -1482,21 +1476,141 @@
     "public": true
   },
   {
-    "method": "POST",
-    "path": "/v1/blobs/videos/{jobId}/status",
-    "category": "appview.blobs.videos.status",
-    "public": false
-  },
-  {
     "method": "GET",
     "path": "/v1/public/stats",
     "category": "appview.public.stats",
     "public": true
   },
   {
+    "method": "GET",
+    "path": "/v1/public/projects",
+    "category": "appview.public.projects.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/search/hashtags/{tag}/posts",
+    "category": "appview.public.search.read",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}/events",
+    "category": "appview.public.profiles.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/events/{did}/{rkey}",
+    "category": "appview.public.events.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}/likes",
+    "category": "appview.public.posts.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}/reposts",
+    "category": "appview.public.posts.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}/quotes",
+    "category": "appview.public.posts.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/search/profiles",
+    "category": "appview.public.search.read",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/search/posts",
+    "category": "appview.public.search.read",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/search/projects",
+    "category": "appview.public.search.read",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/search/hashtags",
+    "category": "appview.public.search.read",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}/comments",
+    "category": "appview.public.profiles.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}/reposts",
+    "category": "appview.public.profiles.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}/thread",
+    "category": "appview.public.posts.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/preferences/logged-out-visibility",
+    "category": "appview.preferences.logged_out_visibility",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/preferences/logged-out-visibility",
+    "category": "appview.preferences.logged_out_visibility",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}/video-captions/{captionCid}",
+    "category": "appview.public.posts.read",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/feed/extended-network",
+    "category": "appview.feed.extended-network",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/status",
+    "category": "appview.blobs.videos.status",
+    "public": false
+  },
+  {
     "method": "POST",
     "path": "/v1/blobs/videos/{jobId}/cancel",
     "category": "appview.blobs.videos.cancel",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/public/posts/{did}/{rkey}/reports",
+    "category": "appview.public.posts.reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/public/profiles/{handleOrDid}/reports",
+    "category": "appview.public.profiles.reports",
     "public": false
   }
 ]

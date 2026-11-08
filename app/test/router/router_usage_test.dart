@@ -7,6 +7,7 @@ import '../test_support/source_scan.dart';
 void main() {
   test('application navigation uses typed route methods where possible', () {
     const rawNavigationExceptions = {
+      'lib/auth/pages/auth_complete_page.dart': 'restores a validated public reading destination after authentication',
       'lib/router/router.dart': 'defines routes and redirect locations',
       'lib/router/app_shell.dart': 'adapts dynamic destinations and branches',
       'lib/auth/providers/account_boundary_provider.dart':

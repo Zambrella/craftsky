@@ -449,6 +449,10 @@ app-test *ARGS:
 app-test-integration DEVICE *ARGS:
     cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' {{ARGS}}
 
+# Native guest UI contracts with isolated repositories; no live account/PDS.
+app-test-guest-integration DEVICE *ARGS:
+    cd app && flutter test integration_test/guest_browsing_test.dart -d '{{DEVICE}}' --no-pub {{ARGS}}
+
 # CI integration gate. Dependency resolution is a separate CI step so this
 # command compiles and runs only the dedicated device suite.
 app-test-integration-ci DEVICE *ARGS:
@@ -624,13 +628,14 @@ app-run-status *ARGS: app-env-init
 
 # SvelteKit web client and preserved public SSR pages (does not deploy).
 public-app-setup:
-    cd web-client && npm ci && npx playwright install chromium
+    cd web-client && npm ci && npx playwright install chromium webkit
 
 public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
     python3 -m unittest discover -s scripts -p test_release.py
     python3 -m unittest discover -s scripts -p test_web_client_deploy.py
     cd web-client && npm run test:release
+
 
 # Run the web client against this worktree's backend (start just dev-d first).
 public-app-dev *ARGS:
@@ -651,3 +656,7 @@ web-client-preview TAG:
 # Read-only smoke checks after preview upload or dashboard promotion.
 web-client-verify ORIGIN:
     python3 scripts/web-client-deploy verify '{{ORIGIN}}'
+
+# Regenerate the narrowly scoped guest visibility storage queries.
+guest-visibility-sqlc:
+    cd appview && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate -f sqlc.guestvisibility.yaml

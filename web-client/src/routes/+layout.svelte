@@ -1,6 +1,9 @@
 <script lang="ts">
 	import '../style.css';
 	import { authenticatedContext } from '#lib/features/shell/page-context.ts';
+	import GuestRuntime from '#lib/features/browsing/GuestRuntime.svelte';
+	import { guestRoute } from '#lib/routes.ts';
+
 	import AppShell from '#lib/features/shell/AppShell.svelte';
 	import { installFieldValidation } from '#lib/field-validation.ts';
 	import { onMount, setContext } from 'svelte';
@@ -42,6 +45,9 @@
 				session={authenticatedData.session}
 				accounts={authenticatedData.accounts}>{@render children()}</AppShell
 			>{/key}
+	{:else if guestRoute(page.url.pathname)}<GuestRuntime
+			>{@render children()}</GuestRuntime
+		>
 	{:else if page.url.pathname === '/sign-in'}
 		<main id="main" class="welcome-main">{@render children()}</main>
 	{:else}

@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
@@ -32,11 +33,13 @@ ProfileRelationship applyBlockRelationshipOverlay(
   BlockOverlayReader read,
   ProfileRelationship relationship,
   Did targetDid,
-) => applyBlockRelationshipOverlayForScope(
-  read(pdsRecordOperationControllerProvider),
-  blockProfileMutationScope(read, targetDid),
-  relationship,
-);
+) => read(isGuestBrowsingProvider)
+    ? relationship
+    : applyBlockRelationshipOverlayForScope(
+        read(pdsRecordOperationControllerProvider),
+        blockProfileMutationScope(read, targetDid),
+        relationship,
+      );
 
 bool isLogicallyBlocking(
   BlockOverlayReader read,

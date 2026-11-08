@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		signInContext,
+		protectAccountAction,
+		type RequestSignIn
+	} from '../browsing/account-action';
 	import { notify } from './toasts.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
@@ -33,13 +38,24 @@
 	let {
 		api,
 		session,
+		initial,
 		id
 	}: {
 		api: CraftskyAPI;
-		session: { id: string; did: string; handle: string };
+		session?: { id: string; did: string; handle: string };
 		id: string;
+		initial?: {
+			profile: Profile;
+			posts: { items: PostPresentation[]; cursor?: string | null };
+			events: { items: BusinessEvent[]; cursor?: string | null };
+			tab: string;
+		};
 	} = $props();
+	const snapshot = untrack(() => initial);
+	const guest = $derived(api.audience === 'guest');
+	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const work = new Work('social.Profile.action');
+
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -52,8 +68,9 @@
 			cursor?: string | null;
 		}
 	>();
-	let loadedTab: string | undefined;
-	let profile = $state<Profile>();
+	let loadedTab: string | undefined = snapshot?.tab;
+	let hydrated = $state(false);
+	let profile = $state<Profile | undefined>(snapshot?.profile);
 	let identityElement = $state<HTMLElement>();
 	let headerCollapsed = $state(false);
 	function updateHeader() {
@@ -63,16 +80,26 @@
 	$effect(() => {
 		if (identityElement) updateHeader();
 	});
-	let posts = $state<PostPresentation[]>([]),
-		events = $state<BusinessEvent[]>([]),
-		cursor = $state<string | null>();
+	let posts = $state<PostPresentation[]>(snapshot?.posts.items || []),
+		events = $state<BusinessEvent[]>(snapshot?.events.items || []),
+		cursor = $state<string | null | undefined>(
+			snapshot?.tab === 'events'
+				? snapshot.events.cursor
+				: snapshot?.posts.cursor
+		);
+	if (snapshot) {
+		work.hasLoaded = true;
+		untrack(() => {
+			contentWork.hasLoaded = true;
+		});
+	}
 	let reportLink = $state<string>();
 	let reportOpen = $state(false);
 	let confirmBlock = $state(false);
 	let reveal = $state(false);
 	let tabs = $derived(
 		profile
-			? profileTabs(profile, profile.did === session.did)
+			? profileTabs(profile, profile.did === session?.did)
 			: ['projects', 'posts', 'comments', 'reposts']
 	);
 	let tab = $derived(
@@ -104,6 +131,8 @@
 	);
 	let generation = 0;
 	onMount(() => {
+		hydrated = true;
+		if (snapshot) return;
 		void work.run(
 			() => api.profiles.get(id),
 			(value) => {
@@ -260,7 +289,7 @@
 	}
 </script>
 
-{#if profile ? profile.did !== session.did : ![session.did, session.handle].includes(id)}<div
+{#if profile ? profile.did !== session?.did : ![session?.did, session?.handle].includes(id)}<div
 		class="profile-navigation"
 		class:collapsed={headerCollapsed}
 		style={profile ? profileStyle(profile.customisation) : undefined}
@@ -332,7 +361,11 @@
 				</div>{/if}
 			{#if !profile.moderation || reveal}{#if profile.business}<BusinessSummary
 						business={profile.business}
-					/>{:else}<div class="profile-stats" aria-label="Profile summary">
+					/>{:else}<div
+						class="profile-stats"
+						role="group"
+						aria-label="Profile summary"
+					>
 						{#if profile.isCraftskyProfile && profile.createdAt}<div>
 								<Icon name="calendar" size={20} /><strong
 									>{joinedAge(profile.createdAt)}</strong
@@ -349,8 +382,12 @@
 								><span>Projects</span>
 							</div>{/if}
 					</div>{/if}{/if}
-			<div class="actions profile-actions">
-				{#if profile.did === session.did}<a
+			<div
+				class="actions profile-actions"
+				onclickcapture={(event) =>
+					protectAccountAction(guest, requestSignIn, event)}
+			>
+				{#if profile.did === session?.did}<a
 						class="secondary-button"
 						href="/profile/edit"><Icon name="edit" />Edit profile</a
 					><a
@@ -387,6 +424,7 @@
 					></button>
 					<div class="menu-items">
 						<button
+							data-public-action
 							disabled={work.busy}
 							onclick={() =>
 								void work.run(
@@ -406,7 +444,8 @@
 										encodeURIComponent(profile.did)
 								)}><Icon name="send" />Send via chat</a
 						>
-						{#if profile.did !== session.did}<button
+						{#if profile.did !== session?.did}<button
+								data-public-action
 								onclick={() => {
 									const url =
 										'https://app.craftsky.social/profiles/' +
@@ -433,6 +472,7 @@
 									? 'Unblock account'
 									: 'Block account'}</button
 							><button
+								data-public-action
 								disabled={work.busy || !!work.retry}
 								onclick={() => {
 									reportLink = undefined;
@@ -450,7 +490,7 @@
 					</div>
 				</details>
 			</div>
-			{#if profile.did !== session.did && profile.mutualFollowerCount}<a
+			{#if !guest && profile.did !== session?.did && profile.mutualFollowerCount}<a
 					class="mutual-link"
 					href={'/profiles/' + encodeURIComponent(id) + '/mutual-followers'}
 					><Icon name="profile" size={18} />{profile.mutualFollowerCount} mutual followers</a
@@ -487,6 +527,7 @@
 				onCancel={() => (confirmBlock = false)}
 			/>{/if}
 		{#if reportOpen}<ReportForm
+				showContactEmail={guest}
 				subject={reportLink ? 'profile link' : 'profile'}
 				busy={work.busy}
 				onRetry={work.retry}
@@ -527,11 +568,11 @@
 							{product}
 						/>{:else}<EmptyState
 							title="Products"
-							detail={profile.did === session.did
+							detail={profile.did === session?.did
 								? 'Add products to show what your business offers.'
 								: 'No products shared yet.'}
 							icon="business"
-							>{#snippet actions()}{#if profile?.did === session.did}<a
+							>{#snippet actions()}{#if profile?.did === session?.did}<a
 										href="/settings/products">Manage products</a
 									>{/if}{/snippet}</EmptyState
 						>{/each}
@@ -541,11 +582,11 @@
 							{event}
 						/>{:else}{#if !contentWork.busy && !contentWork.error}<EmptyState
 								title="Upcoming events"
-								detail={profile.did === session.did
+								detail={profile.did === session?.did
 									? 'Share your next workshop, market or event.'
 									: 'No upcoming events.'}
 								icon="calendar"
-								>{#snippet actions()}{#if profile?.did === session.did}<a
+								>{#snippet actions()}{#if profile?.did === session?.did}<a
 											href="/settings/events">Manage events</a
 										>{/if}{/snippet}</EmptyState
 							>{/if}{/each}
@@ -553,7 +594,7 @@
 						value={post}
 						flat={tab === 'comments'}
 						{api}
-						did={session.did}
+						did={session?.did}
 						onRemove={() => {
 							posts = posts.filter((value) => value !== post);
 						}}
@@ -562,11 +603,17 @@
 							detail="Nothing shared here yet."
 							icon="drafts"
 						/>{/if}{/each}{/if}
-			{#if cursor}<button
-					class="next"
-					disabled={contentWork.busy}
-					onclick={more}>Load more</button
-				>{/if}
+			{#if cursor}{#if guest && !hydrated}<a
+						class="next"
+						href={'/profiles/' +
+							encodeURIComponent(id) +
+							'?' +
+							new URLSearchParams({ tab, cursor })}>Older {tab}</a
+					>{:else}<button
+						class="next"
+						disabled={contentWork.busy}
+						onclick={more}>Load more</button
+					>{/if}{/if}
 		</div>
 	</div>{/if}
 

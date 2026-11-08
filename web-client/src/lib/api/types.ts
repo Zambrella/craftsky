@@ -332,6 +332,7 @@ export interface CommentItem {
 	placement: 'focused' | 'viewerAuthored' | 'normal';
 }
 export interface CommentSection {
+	ancestors?: { state: string; post?: Post }[];
 	post: PostPresentation;
 	comments: Page<CommentItem>;
 	sort: 'oldest' | 'newest' | 'follows';
@@ -348,6 +349,7 @@ export interface ProfilePins {
 export interface ReportSubmission {
 	reasonType: string;
 	details?: string;
+	contactEmail?: string;
 }
 export interface ReportResult {
 	id?: string;
@@ -727,4 +729,16 @@ export interface ModerationStanding {
 }
 export interface ModerationHistoryItem {
 	[key: string]: Json | undefined;
+}
+
+// Owner-only shared Bluesky profile preference and retry identity.
+export interface VisibilityIntent {
+	hideFromLoggedOut: boolean;
+	expectedCid: string;
+	operationKey: string;
+}
+export interface VisibilitySetting {
+	hideFromLoggedOut: boolean;
+	expectedCid: string;
+	pending?: VisibilityIntent;
 }

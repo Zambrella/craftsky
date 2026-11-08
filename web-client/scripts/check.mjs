@@ -21,6 +21,7 @@ for (const worker of ['0', '1']) {
 	const env = { ...fixture, WEB_CLIENT_WORKER: worker };
 	run('test:e2e', env);
 	run('test:e2e:app', env);
+	run('test:e2e:guest', env);
 	run(
 		'test:e2e:app',
 		{

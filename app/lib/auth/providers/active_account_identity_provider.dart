@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef _ActiveIdentityTarget = ({
@@ -34,7 +35,10 @@ final activeAccountIdentityProvider =
         if (target == null) return null;
 
         final profile = await ref.watch(
-          userProfileProvider(target.did).future,
+          userProfileProvider(
+            target.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
         );
         if (!ref.mounted) return null;
         final current = ref.read(sessionRegistryProvider).value;

@@ -12,6 +12,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../../test_support/pagination_contract.dart';
 import '../fakes/fake_post_repository.dart';
 
@@ -51,6 +52,7 @@ PaginationContractSubject<Post> _paginationSubject(
   );
   final container = ProviderContainer.test(
     overrides: [
+      testMemberBrowsingOverride,
       activeLanguagePreferencesProvider.overrideWith(
         (ref) => const LanguagePreferences(
           primaryLanguage: 'en',
@@ -60,7 +62,10 @@ PaginationContractSubject<Post> _paginationSubject(
       postRepositoryProvider.overrideWithValue(repository),
     ],
   );
-  final provider = userPostsProvider(_aliceDid);
+  final provider = userPostsProvider(
+    _aliceDid,
+    audience: testMemberBrowsingAudience,
+  );
   final subscription = container.listen(provider, (_, _) {});
 
   return PaginationContractSubject(
@@ -102,6 +107,7 @@ void main() {
         var calls = 0;
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -118,7 +124,10 @@ void main() {
             ),
           ],
         );
-        final provider = userPostsProvider(_aliceDid);
+        final provider = userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        );
         final subscription = container.listen(provider, (_, _) {});
         await container.read(provider.future);
         final pending = container.read(provider.notifier).build(_aliceDid);
@@ -138,6 +147,7 @@ void main() {
 
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -149,7 +159,10 @@ void main() {
       );
 
       final state = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(state.items, isEmpty);
       expect(state.cursor, isNull);
@@ -186,6 +199,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -195,7 +209,10 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        final provider = userPostsProvider(_aliceDid);
+        final provider = userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        );
         final subscription = container.listen(provider, (_, _) {});
         addTearDown(subscription.close);
 

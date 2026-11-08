@@ -112,7 +112,7 @@ Exit codes for `cli request`:
 - [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — atproto identifiers, identity resolution, OAuth/DPoP sessions, XRPC clients, repository verification, generated Bluesky types, and the Tap sidecar source
 - [`github.com/coder/websocket`](https://github.com/coder/websocket) — WebSocket client for the Tap `/channel` stream
 - [`pgx/v5`](https://github.com/jackc/pgx) — Postgres driver + pool
-- [`sqlc`](https://sqlc.dev) — SQL → Go codegen — to be adopted once first queries land
+- [`sqlc`](https://sqlc.dev) — SQL → Go codegen. Guest visibility queries use the pinned `just guest-visibility-sqlc` recipe; edit `queries/guest_visibility.sql`, regenerate, and include `internal/guestvisibilitydb/` with the source changes.
 - [`cobra`](https://github.com/spf13/cobra) — CLI framework
 - [`golang-migrate/v4`](https://github.com/golang-migrate/migrate) — migrations, wrapped by `cmd/cli`
 - [`godotenv`](https://github.com/joho/godotenv) — env file loader

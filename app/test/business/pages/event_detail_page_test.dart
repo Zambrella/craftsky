@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
@@ -402,6 +403,7 @@ void main() {
               owner: owner,
               rkey: rkey,
             ),
+            audience: container.read(browsingContextProvider),
           ).notifier,
         )
         .retry();
@@ -606,6 +608,7 @@ Future<void> _pump(
 }) => tester.pumpWidget(
   ProviderScope(
     overrides: [
+      if (ownerTier == null) memberBrowsingOverrideFor('did:plc:viewer'),
       businessRepositoryProvider.overrideWithValue(repository),
       if (ownerTier != null) ...[
         secureSessionRegistryStorageProvider.overrideWithValue(

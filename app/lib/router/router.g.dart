@@ -88,6 +88,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
   factory: $AuthenticatedShellRouteExtension._fromState,
   routes: [
     StatefulShellRouteData.$route(
+      navigatorContainerBuilder: AppShellRoute.$navigatorContainerBuilder,
       factory: $AppShellRouteExtension._fromState,
       branches: [
         StatefulShellBranchData.$branch(
@@ -1655,4 +1656,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'94d3f4e4dcf34678c8126ad1c74fe514650668df';
+String _$goRouterHash() => r'cb8a9aed3cf040d8c5cc4ed70ed79bbcc5e9f49d';

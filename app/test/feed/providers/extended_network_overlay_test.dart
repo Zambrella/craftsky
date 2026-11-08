@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../../test_support/post_fixtures.dart';
 import '../fakes/fake_post_repository.dart';
 
@@ -34,6 +35,7 @@ void main() {
     });
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -90,6 +92,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',

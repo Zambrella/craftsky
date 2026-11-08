@@ -25,6 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../feed/fakes/fake_post_repository.dart';
 import '../../projects/fakes/fake_project_repository.dart';
 import '../../search/fakes/fake_search_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 
 final _preferencesProvider =
     NotifierProvider<_Preferences, LanguagePreferences>(_Preferences.new);
@@ -92,6 +93,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => ref.watch(_preferencesProvider),
           ),
@@ -103,28 +105,43 @@ void main() {
       final subscriptions = <ProviderSubscription<Object?>>[
         container.listen<Object?>(timelineProvider, (_, _) {}),
         container.listen<Object?>(
-          projectFeedProvider(const ProjectBrowseQuery()),
+          projectFeedProvider(
+            const ProjectBrowseQuery(),
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         ),
         container.listen<Object?>(
-          postSearchProvider(const PostSearchQuery(q: 'query')),
+          postSearchProvider(
+            const PostSearchQuery(q: 'query'),
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         ),
         container.listen<Object?>(
-          projectSearchProvider(const ProjectSearchQuery(q: 'query')),
+          projectSearchProvider(
+            const ProjectSearchQuery(q: 'query'),
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         ),
         container.listen<Object?>(
-          hashtagSearchProvider(const HashtagSearchQuery(tag: 'tag')),
-          (_, _) {},
-        ),
-        container.listen<Object?>(userPostsProvider(_aliceDid), (_, _) {}),
-        container.listen<Object?>(
-          userProjectsProvider(_aliceDid),
+          hashtagSearchProvider(
+            const HashtagSearchQuery(tag: 'tag'),
+            audience: testMemberBrowsingAudience,
+          ),
           (_, _) {},
         ),
         container.listen<Object?>(
-          userCommentsProvider(_aliceDid),
+          userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          (_, _) {},
+        ),
+        container.listen<Object?>(
+          userProjectsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          (_, _) {},
+        ),
+        container.listen<Object?>(
+          userCommentsProvider(_aliceDid, audience: testMemberBrowsingAudience),
           (_, _) {},
         ),
       ];
@@ -137,20 +154,47 @@ void main() {
       await Future.wait([
         container.read(timelineProvider.future),
         container.read(
-          projectFeedProvider(const ProjectBrowseQuery()).future,
+          projectFeedProvider(
+            const ProjectBrowseQuery(),
+            audience: testMemberBrowsingAudience,
+          ).future,
         ),
         container.read(
-          postSearchProvider(const PostSearchQuery(q: 'query')).future,
+          postSearchProvider(
+            const PostSearchQuery(q: 'query'),
+            audience: testMemberBrowsingAudience,
+          ).future,
         ),
         container.read(
-          projectSearchProvider(const ProjectSearchQuery(q: 'query')).future,
+          projectSearchProvider(
+            const ProjectSearchQuery(q: 'query'),
+            audience: testMemberBrowsingAudience,
+          ).future,
         ),
         container.read(
-          hashtagSearchProvider(const HashtagSearchQuery(tag: 'tag')).future,
+          hashtagSearchProvider(
+            const HashtagSearchQuery(tag: 'tag'),
+            audience: testMemberBrowsingAudience,
+          ).future,
         ),
-        container.read(userPostsProvider(_aliceDid).future),
-        container.read(userProjectsProvider(_aliceDid).future),
-        container.read(userCommentsProvider(_aliceDid).future),
+        container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        ),
+        container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        ),
+        container.read(
+          userCommentsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        ),
       ]);
       expect(calls.values, everyElement(1));
       expect(calls, hasLength(8));

@@ -128,7 +128,11 @@ func moderationFlowMigrationDDL(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("read moderation flow migration: %v", err)
 	}
-	return string(ddl)
+	guestDDL, err := os.ReadFile(filepath.Join(filepath.Dir(path), "000119_guest_reports.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(ddl) + string(guestDDL)
 }
 
 func TestReportStore_CreateReport_PersistsPrivatePostAndProfileReports(t *testing.T) {
@@ -319,6 +323,44 @@ func TestReportStore_CreateReport_AttachesDuplicateReportsToOneCase(t *testing.T
 	}
 	if cases != 1 || reports != 2 || associations != 2 {
 		t.Fatalf("cases/reports/associations = %d/%d/%d, want 1/2/2", cases, reports, associations)
+	}
+}
+
+func TestReportStore_AnonymousReportUsesExistingModerationQueue(t *testing.T) {
+	pool := testdb.WithSchema(t, reportStoreBaseDDL+moderationFlowMigrationDDL(t)+reportCaseDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES('did:plc:bob','seed')`); err != nil {
+		t.Fatal(err)
+	}
+	row, err := api.NewReportStore(pool, moderation.NewStore(pool)).CreateReport(ctx, api.CreateReportInput{
+		SubjectType: api.ReportSubjectAccount, SubjectDID: "did:plc:bob",
+		ReasonType: "spam", Details: ptrString("private guest report"), ContactEmail: ptrString("visitor@example.test"),
+		ForwardingStatus: "prepared_not_submitted", ForwardingPreparedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.ReporterDID != "" {
+		t.Fatal("anonymous report manufactured an account identity")
+	}
+	assertStringPtr(t, "contact", row.ContactEmail, ptrString("visitor@example.test"))
+	var reporter *string
+	if err := pool.QueryRow(ctx, `SELECT reporter_did FROM moderation_reports WHERE id=$1`, row.ID).Scan(&reporter); err != nil || reporter != nil {
+		t.Fatalf("reporter=%v err=%v", reporter, err)
+	}
+	var attached int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_case_reports WHERE report_id=$1`, row.ID).Scan(&attached); err != nil || attached != 1 {
+		t.Fatalf("attached=%d err=%v", attached, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET state='terminal' WHERE owner_did='did:plc:bob'`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = api.NewReportStore(pool).CreateReport(ctx, api.CreateReportInput{
+		SubjectType: api.ReportSubjectAccount, SubjectDID: "did:plc:bob", ReasonType: "spam",
+		ForwardingStatus: "prepared_not_submitted", ForwardingPreparedAt: time.Now(),
+	})
+	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("terminal guest report error=%v", err)
 	}
 }
 

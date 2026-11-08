@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -171,7 +172,9 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     ref
       ..invalidate(chatPreviewProvider)
       ..invalidate(chatRecipientAvailabilityProvider)
-      ..invalidate(userProfileProvider(did))
+      ..invalidate(
+        userProfileProvider(did, audience: ref.read(browsingContextProvider)),
+      )
       ..invalidate(timelineProvider)
       ..invalidate(extendedNetworkProvider)
       ..invalidate(blankSearchProvider)

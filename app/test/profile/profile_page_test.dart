@@ -55,6 +55,7 @@ import '../fakes/image_cache_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
+import '../test_support/member_browsing_context.dart';
 import '../test_support/post_fixtures.dart';
 import 'fakes/fake_profile_repository.dart';
 
@@ -66,6 +67,85 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    testWidgets(
+      'guest profile uses Projects, all summary stats and account prompts',
+      (tester) async {
+        var follows = 0;
+        final profile = Profile(
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+          displayName: 'Alice',
+          crafts: const [],
+          createdAt: DateTime.utc(2026),
+          postsLast7Days: 3,
+          projectCount: 2,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              testGuestBrowsingOverride,
+              authSessionProvider.overrideWith(SignedOutAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(
+                FakeProfileRepository(
+                  onFetch: (_) async => profile,
+                  onFollow: (_) async {
+                    follows++;
+                    return profile;
+                  },
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onListProjectsByAuthor: (_, {cursor, limit}) async =>
+                      const PostPage(items: []),
+                ),
+              ),
+              activeLanguagePreferencesProvider.overrideWithValue(
+                const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: profile.did),
+            ),
+          ),
+        );
+        await pumpUntilFound(
+          tester,
+          find.byType(ProfileTabBar),
+          description: 'guest profile tabs',
+        );
+        await tester.pumpAndSettle();
+        expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+        expect(find.text('Joined'), findsOneWidget);
+        expect(find.text('Last 7 days'), findsOneWidget);
+        await tester.ensureVisible(find.text('Follow').last);
+        await tester.tap(find.text('Follow').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Join CraftSky'), findsOneWidget);
+        expect(follows, 0);
+        await tester.ensureVisible(find.text('Explore CraftSky'));
+        await tester.tap(find.text('Explore CraftSky'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byTooltip('More profile actions').hitTestable().last,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Report profile'));
+        await tester.pumpAndSettle();
+        expect(find.text('Report profile'), findsOneWidget);
+        expect(find.text('Join CraftSky'), findsNothing);
+        await tester.tap(find.text('Spam, misleading or off-topic content'));
+        await tester.pump();
+        expect(find.text('Contact email (optional)'), findsOneWidget);
+      },
+    );
+
     for (final ownProfile in [false, true]) {
       for (final disableAnimations in [false, true]) {
         testWidgets(
@@ -87,6 +167,7 @@ void main() {
             await tester.pumpWidget(
               ProviderScope(
                 overrides: [
+                  testMemberBrowsingOverride,
                   authSessionProvider.overrideWith(SignedInAuthSession.new),
                   profileRepositoryProvider.overrideWithValue(
                     FakeProfileRepository(onFetch: (_) async => profile),
@@ -181,7 +262,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            profileRepositoryProvider.overrideWithValue(repo),
+          ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
@@ -238,6 +322,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(posts),
@@ -307,6 +392,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             sharedPreferencesProvider.overrideWithValue(preferences),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
@@ -367,6 +453,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -405,6 +492,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -447,6 +535,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -503,6 +592,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -980,6 +1070,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1031,6 +1122,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1106,6 +1198,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1160,6 +1253,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             accountRelationshipRepositoryProvider(
@@ -1227,6 +1321,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               accountRelationshipRepositoryProvider(
@@ -1292,6 +1387,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1324,6 +1420,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1357,6 +1454,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1402,6 +1500,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           profileRepositoryProvider.overrideWithValue(repo),
           postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1424,7 +1523,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Previously loaded private profile'), findsWidgets);
 
-      container.invalidate(userProfileProvider(Did.parse('did:plc:alice')));
+      container.invalidate(
+        userProfileProvider(
+          Did.parse('did:plc:alice'),
+          audience: testMemberBrowsingAudience,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -1451,6 +1555,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1502,6 +1607,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           profileRepositoryProvider.overrideWithValue(repo),
           postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1524,7 +1630,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Authenticated cached profile'), findsWidgets);
 
-      container.invalidate(userProfileProvider(Did.parse('did:plc:alice')));
+      container.invalidate(
+        userProfileProvider(
+          Did.parse('did:plc:alice'),
+          audience: testMemberBrowsingAudience,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -1548,6 +1659,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1615,6 +1727,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1723,6 +1836,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              testMemberBrowsingOverride,
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               profileRepositoryProvider.overrideWithValue(repo),
               postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1785,6 +1899,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1818,6 +1933,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1861,6 +1977,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1906,6 +2023,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1951,6 +2069,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -1997,6 +2116,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -2037,6 +2157,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -2079,6 +2200,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
@@ -2119,6 +2241,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),

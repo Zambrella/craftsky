@@ -34,6 +34,7 @@ import {
 	type Pending
 } from './session';
 import { allowedRoute, safeProxyPath } from './routes';
+import { authenticatedPage } from './page';
 import { upstream, UpstreamError, safeFailure } from './upstream';
 
 const origin = 'https://app.craftsky.social';
@@ -677,6 +678,29 @@ describe('account-specific proxy and session actions', () => {
 			(await call(proxyGet, event(jar, '/api/appview/v1/profiles/me'))).status
 		).toBe(502);
 	});
+	it('logs out with a body-free POST and removes only the named account', async () => {
+		const jar = new CookieJar().add(A).add(B).active(B.id);
+		fetcher.mockImplementation(async (url, init) => {
+			if (
+				url !== 'https://appview.example.test/v1/auth/logout' ||
+				init?.method !== 'POST'
+			)
+				return response({ error: 'not_found' }, 404);
+			if (init.body !== undefined)
+				return response({ error: 'request_body_not_allowed' }, 400);
+			return response(undefined, 204);
+		});
+		expect(
+			(
+				await call(
+					logout,
+					event(jar, '/api/auth/logout', 'POST', { accountId: A.id })
+				)
+			).status
+		).toBe(204);
+		expect(credentials(jar.cookies, new URL(origin))).toEqual([B]);
+		expect(jar.values.get('__Host-craftsky_active')).toBe(B.id);
+	});
 	it('keeps cookies when logout cannot reach AppView, then removes only the named account after success', async () => {
 		const jar = new CookieJar().add(A).add(B).active(B.id);
 		fetcher
@@ -906,4 +930,26 @@ it('rejects declared oversized JSON before fetching upstream', async () => {
 	);
 	expect(result.status).toBe(413);
 	expect(fetcher).not.toHaveBeenCalled();
+});
+it('UT-005 keeps the public reading destination after a member session expires', async () => {
+	const jar = new CookieJar().add(A).active(A.id);
+	vi.stubGlobal(
+		'fetch',
+		vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(response({ error: 'unauthorized' }, 401))
+	);
+	const target = new URL(
+		await location(
+			authenticatedPage,
+			event(jar, '/profiles/alice.test?tab=comments')
+		),
+		origin
+	);
+	expect(target.pathname).toBe('/sign-in');
+	expect(target.searchParams.get('returnTo')).toBe(
+		'/profiles/alice.test?tab=comments'
+	);
+	expect(target.searchParams.get('error')).toBe('session_expired');
+	expect(jar.cookies.get('__Host-craftsky_account_' + A.id)).toBeUndefined();
 });

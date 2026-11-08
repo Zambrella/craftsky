@@ -78,9 +78,7 @@ test('profile, tab, pagination and author navigation work without JavaScript', a
 }) => {
 	await page.goto('/profiles/alice.test');
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Alice');
-	await expect(
-		page.getByText('Business account', { exact: true })
-	).toBeVisible();
+	await expect(page.getByText('Business', { exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Bad link' })).toHaveCount(0);
 	await page.getByRole('link', { name: 'Projects', exact: true }).click();
 	await expect(
@@ -195,7 +193,7 @@ test('Flutter theme tokens, bundled fonts and narrow layouts are applied', async
 	page
 }) => {
 	await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-	await page.goto('/profiles/alice.test');
+	await page.goto('/profiles/alice.test?tab=projects');
 	await expect(page.locator('body')).toHaveCSS(
 		'font-family',
 		'Outfit, system-ui, sans-serif'
@@ -205,7 +203,7 @@ test('Flutter theme tokens, bundled fonts and narrow layouts are applied', async
 		'background-color',
 		'rgb(21, 53, 214)'
 	);
-	await expect(page.locator('.post-card').first()).toHaveCSS(
+	await expect(page.locator('.member-post').first()).toHaveCSS(
 		'border-radius',
 		'14px'
 	);
@@ -230,18 +228,17 @@ test('a page remains readable when images cannot load', async ({ page }) => {
 	await expect(page.getByAltText('A handmade blue linen dress')).toBeAttached();
 });
 
-test('root opens sign-in and private routes require a session', async ({
+test('root opens public home and private routes retain authentication', async ({
 	page,
 	request
 }) => {
 	await page.goto('/');
-	await expect(page).toHaveURL('/sign-in');
+	await expect(page).toHaveURL('/feed');
 	await expect(
-		page.getByRole('heading', { name: 'Join CraftSky' })
+		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();
-	await expect(page.getByLabel('Your Atmosphere Handle')).toBeVisible();
+	expect((await request.get('/feed', { maxRedirects: 0 })).status()).toBe(200);
 	for (const path of [
-		'/feed',
 		'/notifications',
 		'/messages/conversations/example',
 		'/profile',
@@ -251,7 +248,6 @@ test('root opens sign-in and private routes require a session', async ({
 		expect(response.status()).toBe(303);
 		expect(response.headers().location).toBe('/sign-in');
 	}
-	for (const path of ['/app/home', '/home', '/activity', '/unknown']) {
+	for (const path of ['/app/home', '/home', '/activity', '/unknown'])
 		expect((await request.get(path)).status()).toBe(404);
-	}
 });

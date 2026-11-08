@@ -32,6 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final _aliceDid = Did.parse('did:plc:alice');
@@ -112,6 +113,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -157,6 +159,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -192,6 +195,7 @@ void main() {
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -213,6 +217,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -243,7 +248,10 @@ void main() {
               _post(rkey: 'video'),
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         const proof = CreatePostVideo(
           jobId: 'job-one',
@@ -278,7 +286,10 @@ void main() {
           onCreate: ({required text, reply, images}) async => throw failure,
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
         final transitions = <AsyncValue<Post?>>[];
         container.listen(
@@ -373,6 +384,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -397,7 +409,10 @@ void main() {
         onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
       const external = CreatePostExternal(
         uri: 'https://final.example/pattern#section',
@@ -436,6 +451,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -469,6 +485,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -521,6 +538,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -561,6 +579,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -572,21 +591,53 @@ void main() {
         );
 
         // Pre-instantiate both family entries so they are "live".
-        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        );
 
         await container
             .read(createPostProvider.notifier)
             .create(text: 'hi', langs: _langs, sponsored: false);
-        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        );
 
-        final didEntry = container.read(userPostsProvider(_aliceDid)).value!;
-        final handleEntry = container.read(userPostsProvider(_aliceDid)).value!;
+        final didEntry = container
+            .read(
+              userPostsProvider(
+                _aliceDid,
+                audience: container.read(browsingContextProvider),
+              ),
+            )
+            .value!;
+        final handleEntry = container
+            .read(
+              userPostsProvider(
+                _aliceDid,
+                audience: container.read(browsingContextProvider),
+              ),
+            )
+            .value!;
         expect(didEntry.items.map((p) => p.rkey), ['new', 'old']);
         expect(handleEntry.items.map((p) => p.rkey), ['new', 'old']);
 
-        container.invalidate(userPostsProvider(_aliceDid));
+        container.invalidate(
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ),
+        );
         final staleRefresh = await container.read(
-          userPostsProvider(_aliceDid).future,
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
         );
         expect(staleRefresh.items.map((post) => post.rkey), ['new', 'old']);
       },
@@ -603,6 +654,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -634,6 +686,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -681,6 +734,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -721,7 +775,11 @@ void main() {
         expect(localPost.images!.single.cid.value, imageCid);
 
         final directRead = container.listen(
-          postProvider(_aliceDid, localPost.rkey),
+          postProvider(
+            _aliceDid,
+            localPost.rkey,
+            audience: container.read(browsingContextProvider),
+          ),
           (_, _) {},
           fireImmediately: true,
         );
@@ -765,6 +823,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -776,7 +835,12 @@ void main() {
       );
 
       await container.read(timelineProvider.future);
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: container.read(browsingContextProvider),
+        ).future,
+      );
 
       await container
           .read(createPostProvider.notifier)
@@ -788,7 +852,12 @@ void main() {
           );
       await Future.wait([
         container.read(timelineProvider.future),
-        container.read(userPostsProvider(_aliceDid).future),
+        container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        ),
       ]);
 
       expect(fake.lastCreateQuote?.uri, quote.uri);
@@ -804,7 +873,12 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider(_aliceDid))
+            .read(
+              userPostsProvider(
+                _aliceDid,
+                audience: container.read(browsingContextProvider),
+              ),
+            )
             .value!
             .items
             .map((p) => p.rkey),
@@ -812,7 +886,12 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider(_aliceDid))
+            .read(
+              userPostsProvider(
+                _aliceDid,
+                audience: container.read(browsingContextProvider),
+              ),
+            )
             .value!
             .items
             .map((p) => p.rkey),
@@ -833,6 +912,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -864,6 +944,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -972,6 +1053,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -982,14 +1064,26 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: container.read(browsingContextProvider),
+        ).future,
+      );
 
       await container
           .read(createPostProvider.notifier)
           .create(text: 'hi', langs: _langs, sponsored: false);
 
       expect(container.read(createPostProvider).hasError, isTrue);
-      final list = container.read(userPostsProvider(_aliceDid)).value!;
+      final list = container
+          .read(
+            userPostsProvider(
+              _aliceDid,
+              audience: container.read(browsingContextProvider),
+            ),
+          )
+          .value!;
       expect(list.items.map((p) => p.rkey), ['old']);
     });
 
@@ -1011,6 +1105,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -1057,6 +1152,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -1067,8 +1163,18 @@ void main() {
           ],
         );
         await container.read(timelineProvider.future);
-        await container.read(userPostsProvider(_aliceDid).future);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        );
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        );
 
         await container
             .read(createPostProvider.notifier)
@@ -1080,7 +1186,12 @@ void main() {
             );
         await Future.wait([
           container.read(timelineProvider.future),
-          container.read(userProjectsProvider(_aliceDid).future),
+          container.read(
+            userProjectsProvider(
+              _aliceDid,
+              audience: container.read(browsingContextProvider),
+            ).future,
+          ),
         ]);
 
         expect(
@@ -1096,7 +1207,12 @@ void main() {
         );
         expect(
           container
-              .read(userProjectsProvider(_aliceDid))
+              .read(
+                userProjectsProvider(
+                  _aliceDid,
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .value!
               .items
               .map((p) => p.rkey),
@@ -1107,7 +1223,12 @@ void main() {
         );
         expect(
           container
-              .read(userProjectsProvider(_aliceDid))
+              .read(
+                userProjectsProvider(
+                  _aliceDid,
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .value!
               .items
               .map((p) => p.rkey),
@@ -1118,7 +1239,12 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider(_aliceDid))
+              .read(
+                userPostsProvider(
+                  _aliceDid,
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .value!
               .items
               .map((p) => p.rkey),
@@ -1128,7 +1254,12 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider(_aliceDid))
+              .read(
+                userPostsProvider(
+                  _aliceDid,
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .value!
               .items
               .map((p) => p.rkey),
@@ -1155,6 +1286,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -1165,7 +1297,10 @@ void main() {
           ],
         );
         await container.read(
-          userProjectsProvider(_aliceDid).future,
+          userProjectsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
         );
 
         await container
@@ -1176,12 +1311,22 @@ void main() {
               sponsored: false,
               project: _project,
             );
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: container.read(browsingContextProvider),
+          ).future,
+        );
 
         expect(container.read(createPostProvider).value?.project, _project);
         expect(
           container
-              .read(userProjectsProvider(_aliceDid))
+              .read(
+                userProjectsProvider(
+                  _aliceDid,
+                  audience: container.read(browsingContextProvider),
+                ),
+              )
               .value!
               .items
               .single

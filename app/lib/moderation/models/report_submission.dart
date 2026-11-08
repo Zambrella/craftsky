@@ -4,8 +4,9 @@ part 'report_submission.mapper.dart';
 
 @MappableClass(ignoreNull: true)
 class ReportSubmission with ReportSubmissionMappable {
-  const new({required this.reasonType, this.details});
+  const new({required this.reasonType, this.details, this.contactEmail});
 
   final String reasonType;
   final String? details;
+  final String? contactEmail;
 }

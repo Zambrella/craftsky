@@ -21,6 +21,7 @@ class ReportSubjectSheet extends StatefulWidget {
     this.submitError,
     this.onChanged,
     this.onExternalRoute,
+    this.showContactEmail = false,
   });
 
   final ReportSubjectType subjectType;
@@ -29,6 +30,7 @@ class ReportSubjectSheet extends StatefulWidget {
   final String? submitError;
   final VoidCallback? onChanged;
   final Future<bool> Function(Uri uri)? onExternalRoute;
+  final bool showContactEmail;
 
   @override
   State<ReportSubjectSheet> createState() => _ReportSubjectSheetState();
@@ -41,6 +43,8 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
 
   final _formKey = GlobalKey<FormBuilderState>();
   final _detailsController = TextEditingController();
+  final _contactEmailController = TextEditingController();
+  bool _contactEmailInvalid = false;
   final _detailsFocusNode = FocusNode(debugLabel: 'reportDetails');
   ReportGroup? _group;
   ReportReason? _reason;
@@ -52,6 +56,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
   @override
   void dispose() {
     _detailsController.dispose();
+    _contactEmailController.dispose();
     _detailsFocusNode.dispose();
     super.dispose();
   }
@@ -197,6 +202,26 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                           ? l10n.reportDetailsTooLong
                           : null,
                     ),
+                    if (widget.showContactEmail) ...[
+                      SizedBox(height: spacing.sp3),
+                      BrandTextField(
+                        label: l10n.reportContactEmailLabel,
+                        controller: _contactEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.email],
+                        autocorrect: false,
+                        enabled: !widget.isSubmitting,
+                        helperText: l10n.reportContactEmailHelp,
+                        errorText: _contactEmailInvalid
+                            ? l10n.reportContactEmailInvalid
+                            : null,
+                        onChanged: (_) {
+                          setState(() => _contactEmailInvalid = false);
+                          widget.onChanged?.call();
+                        },
+                      ),
+                    ],
                   ],
                 ],
                 if (widget.submitError case final error?) ...[
@@ -230,12 +255,22 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
     }
     final formValid = _formKey.currentState?.saveAndValidate() ?? false;
     if (!formValid || _detailsTooLong) return;
+    final email = _contactEmailController.text.trim();
+    if (widget.showContactEmail &&
+        email.isNotEmpty &&
+        (email.length > 254 || FormBuilderValidators.email()(email) != null)) {
+      setState(() => _contactEmailInvalid = true);
+      return;
+    }
 
     final trimmed = _details.trim();
     widget.onSubmit(
       ReportSubmission(
         reasonType: reason.reasonType,
         details: trimmed.isEmpty ? null : trimmed,
+        contactEmail: widget.showContactEmail && email.isNotEmpty
+            ? email
+            : null,
       ),
     );
   }

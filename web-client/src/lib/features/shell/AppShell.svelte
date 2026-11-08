@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { routeTitle } from './page-context';
+	import RailNavigation from './RailNavigation.svelte';
+	import NavigationFooter from './NavigationFooter.svelte';
+	import { contentBounds } from './content-bounds';
 	import { authenticatedRoute } from '#lib/routes.ts';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { notify } from '../social/toasts.svelte';
@@ -176,30 +179,6 @@
 		document.addEventListener('click', external);
 		return () => document.removeEventListener('click', external);
 	});
-	function contentBounds(node: HTMLElement) {
-		const update = () => {
-			const box = node.getBoundingClientRect();
-			document.documentElement.style.setProperty(
-				'--app-content-left',
-				`${box.left}px`
-			);
-			document.documentElement.style.setProperty(
-				'--app-content-width',
-				`${box.width}px`
-			);
-		};
-		const observer = new ResizeObserver(update);
-		observer.observe(node);
-		window.addEventListener('resize', update);
-		update();
-		return {
-			destroy() {
-				observer.disconnect();
-				window.removeEventListener('resize', update);
-			}
-		};
-	}
-	const version = __CRAFTSKY_VERSION__.trim();
 	let accountProfiles = $state<Record<string, Profile>>({});
 	let accountAnchor = $state<{ left: number; top: number }>();
 	function openAccounts(event?: MouseEvent) {
@@ -657,45 +636,28 @@
 	inert={accountMenu}
 	hidden={gated}
 >
-	<nav aria-label="App navigation">
-		{#each nav as [key, label, href]}<div class="rail-row">
-				<a
-					{href}
-					aria-current={active(key) ? 'page' : undefined}
-					onclick={(event) => reselect(event, key)}
-					><span class="rail-icon"
-						><Icon name={key} filled={active(key)} /></span
-					><span>{label === 'Activity' ? 'Notifications' : label}</span
-					>{#if key === 'activity' && activityBadge.count}<span
-							class="count-badge"
-							>{activityBadge.count > 99 ? '99+' : activityBadge.count}</span
-						>{:else if key === 'messages' && newMessages}<span
-							class="count-badge">{newMessages > 99 ? '99+' : newMessages}</span
-						>{/if}</a
-				>{#if key === 'profile'}<button
-						class="icon-button rail-switch"
-						aria-label={'Switch accounts, @' + session.handle}
-						aria-expanded={accountMenu}
-						onclick={openAccounts}><Icon name="switch" size={20} /></button
-					>{/if}
-			</div>{/each}
-	</nav>
+	<RailNavigation {nav} {active} onSelect={reselect}>
+		{#snippet badge(key)}
+			{#if key === 'activity' && activityBadge.count}<span class="count-badge"
+					>{activityBadge.count > 99 ? '99+' : activityBadge.count}</span
+				>
+			{:else if key === 'messages' && newMessages}<span class="count-badge"
+					>{newMessages > 99 ? '99+' : newMessages}</span
+				>{/if}
+		{/snippet}
+		{#snippet trailing(key)}
+			{#if key === 'profile'}<button
+					class="icon-button rail-switch"
+					aria-label={'Switch accounts, @' + session.handle}
+					aria-expanded={accountMenu}
+					onclick={openAccounts}><Icon name="switch" size={20} /></button
+				>{/if}
+		{/snippet}
+	</RailNavigation>
 	<button class="button" onclick={choosePostType} aria-label="Create post"
 		><Icon name="plus" />New post</button
 	>
-	<div class="sidebar-about">
-		<a href="https://craftsky.social/terms" target="_blank" rel="noreferrer"
-			>Terms</a
-		><a href="https://craftsky.social/privacy" target="_blank" rel="noreferrer"
-			>Privacy</a
-		><a
-			href="https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en"
-			target="_blank"
-			rel="noreferrer"
-			class="sidebar-feedback"><Icon name="messages" size={20} />Feedback</a
-		>
-		{#if version}<small>{version}</small>{/if}
-	</div>
+	<NavigationFooter />
 </aside>
 {#if accountMenu}<button
 		class="account-scrim"

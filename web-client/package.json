@@ -10,6 +10,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",
 		"test:e2e": "playwright test",
+		"test:e2e:guest": "playwright test --config tests/playwright-guest.config.ts",
 		"test:e2e:app": "playwright test --config tests/playwright-authenticated.config.ts",
 		"test:e2e:live": "node scripts/live-smoke.mjs",
 		"lint": "svelte-kit sync && eslint . --max-warnings=0",
