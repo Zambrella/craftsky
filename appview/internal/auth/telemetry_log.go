@@ -44,7 +44,7 @@ func authLogErrorAttrs(ctx context.Context, runID, operation, category string, e
 		fields["result"] = "expected"
 	}
 	if errors.As(err, &diagnostic) && errors.Is(err, ErrOAuthFlowInvalid) &&
-		(strings.HasPrefix(diagnostic.Reason(), "scope_") || diagnostic.Reason() == "callback_request_unavailable") {
+		(strings.HasPrefix(diagnostic.Reason(), "scope_") || diagnostic.Reason() == "callback_request_unavailable" || diagnostic.Reason() == "callback_owner_generation_changed") {
 		fields["error_category"] = "validation"
 	}
 	for _, attr := range ctxkeys.DiagnosticFailureAttrs(ctx, err, fields) {

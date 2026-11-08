@@ -862,3 +862,28 @@ func TestRecurrenceCauseFactsRemainPrivateAcrossSinks(t *testing.T) {
 		}
 	}
 }
+
+func TestChatSyncFailureStagesAndAttemptsSurviveBothSinks(t *testing.T) {
+	for _, stage := range []string{"claim", "select_session", "session_discovery", "connection", "transport", "get_status", "get_log", "decode_log", "list_conversations", "profile_conversations", "get_conversation", "check_block", "persist", "finalize_failure"} {
+		t.Run(stage, func(t *testing.T) {
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			observer := New(Config{Env: "test", Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			observer.ObservePrivateFailure(context.Background(), errors.New("PRIVATE_CHAT_PAYLOAD"), syntax.DID("did:plc:owner"), "", "chat.sync", stage, "error", 3)
+			observer.Flush(time.Second)
+			events := transport.Events()
+			if len(events) != 1 || events[0].Tags["failure_stage"] != stage || events[0].Tags["attempt"] != "3" {
+				t.Fatal("chat failure stage or durable attempt lost")
+			}
+			payload, err := json.Marshal(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, sink := range []string{local.String(), string(payload)} {
+				if !strings.Contains(sink, stage) || !strings.Contains(sink, "chat.sync") || strings.Contains(sink, "PRIVATE_CHAT_PAYLOAD") {
+					t.Fatal("chat diagnostic evidence lost or private payload escaped")
+				}
+			}
+		})
+	}
+}

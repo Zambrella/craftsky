@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
+import 'package:craftsky_app/shared/api/retiring_http_client_adapter.dart';
 import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/public_read_transport.dart';
@@ -66,7 +67,7 @@ BaseOptions baseDioOptions() {
 
 @Riverpod(keepAlive: true)
 Dio anonymousDio(Ref ref) {
-  final client = Dio(baseDioOptions());
+  final client = _newClient();
   _addDebugApiDelay(client);
   client.interceptors.addAll([
     SessionAuthInterceptor.anonymous(
@@ -105,7 +106,7 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
     account: account,
     sessionGeneration: target.generation,
   );
-  final client = Dio(baseDioOptions());
+  final client = _newClient();
   _addDebugApiDelay(client);
   client.interceptors.addAll([
     SessionAuthInterceptor.fixed(
@@ -126,7 +127,7 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
 Dio dio(Ref ref) {
   final browsing = ref.watch(browsingContextProvider);
   if (browsing is GuestBrowsingContext) {
-    final publicClient = Dio(baseDioOptions());
+    final publicClient = _newClient();
     publicClient.interceptors.addAll([
       PublicReadInterceptor(),
       const ErrorMappingInterceptor(),
@@ -137,7 +138,7 @@ Dio dio(Ref ref) {
   final active = ref.watch(
     sessionRegistryProvider.select(_activeClientTarget),
   );
-  final client = Dio(baseDioOptions());
+  final client = _newClient();
   _addDebugApiDelay(client);
   if (active == null) {
     client.interceptors.addAll([
@@ -172,6 +173,14 @@ void _addDebugApiDelay(Dio client) {
   client.interceptors.add(
     DebugApiDelayInterceptor(_durationFromMilliseconds(_debugApiDelayMs)),
   );
+}
+
+Dio _newClient() {
+  final client = Dio(baseDioOptions());
+  client.httpClientAdapter = RetiringHttpClientAdapter(
+    client.httpClientAdapter,
+  );
+  return client;
 }
 
 Duration _durationFromMilliseconds(int milliseconds) =>

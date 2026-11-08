@@ -35,6 +35,7 @@ final class DraftUpdatePlan {
     if (orderedMedia.length > defaultMaxPostImages) {
       throw const DraftRepositoryException(
         DraftRepositoryFailureReason.invalidRequest,
+        validationFailure: DraftValidationFailure.imageLimit,
       );
     }
     final currentById = {
@@ -50,6 +51,7 @@ final class DraftUpdatePlan {
       if (!nextIds.add(media.mediaId)) {
         throw const DraftRepositoryException(
           DraftRepositoryFailureReason.invalidRequest,
+          validationFailure: DraftValidationFailure.duplicateMedia,
         );
       }
       switch (media) {
@@ -66,6 +68,7 @@ final class DraftUpdatePlan {
           if (!matches) {
             throw const DraftRepositoryException(
               DraftRepositoryFailureReason.invalidRequest,
+              validationFailure: DraftValidationFailure.staleMedia,
             );
           }
           retainedFileNames.add(stored.storageFileName);
@@ -91,6 +94,7 @@ final class DraftUpdatePlan {
             'image/png' => 'png',
             _ => throw const DraftRepositoryException(
               DraftRepositoryFailureReason.invalidRequest,
+              validationFailure: DraftValidationFailure.mediaType,
             ),
           };
           final descriptor = DraftMediaDescriptor(

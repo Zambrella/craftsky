@@ -67,6 +67,7 @@ class ProjectSearch extends _$ProjectSearch {
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );
+      accountOperation.requireCurrent();
       return SearchPostResultsState(
         items: appendUniquePosts(
           current.items,

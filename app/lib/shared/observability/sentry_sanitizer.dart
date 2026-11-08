@@ -26,6 +26,10 @@ final class SentrySanitizer {
     'platform',
     'environment',
     'release',
+    'schedulerPhase',
+    'lifecycleState',
+    'semanticsEnabled',
+    'accessibilityAnimationsDisabled',
   };
 
   static const _allowedBreadcrumbCategories = {

@@ -88,7 +88,12 @@ func (worker *Synchronizer) Run(ctx context.Context) error {
 			// The scheduler is the one private diagnostic owner. Expected per-owner
 			// authorization recovery above never creates a repeated issue.
 			if worker.observer != nil {
-				worker.observer.ObservePrivateFailure(runCtx, item.err, item.owner, "", "chat.sync", "poll", "error", 1)
+				stage, attempt := "poll", 1
+				var failure *syncFailure
+				if errors.As(item.err, &failure) {
+					stage, attempt = failure.stage, failure.attempt
+				}
+				worker.observer.ObservePrivateFailure(runCtx, item.err, item.owner, "", "chat.sync", stage, "error", attempt)
 			}
 		}
 	}

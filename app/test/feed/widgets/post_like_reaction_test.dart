@@ -4,6 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:rive/rive.dart' as rive;
 
+final class _PaintingContext implements FlowPaintingContext {
+  bool painted = false;
+  @override
+  Size get size => const Size(360, 300);
+  @override
+  int get childCount => 1;
+  @override
+  Size? getChildSize(int i) => const Size.square(160);
+  @override
+  void paintChild(int i, {Matrix4? transform, double opacity = 1.0}) {
+    painted = true;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late rive.File file;
@@ -18,9 +32,7 @@ void main() {
 
   Future<ProviderContainer> containerForTest() async {
     final container = ProviderContainer(
-      overrides: [
-        likeAnimationFileProvider.overrideWith((ref) async => file),
-      ],
+      overrides: [likeAnimationFileProvider.overrideWith((ref) async => file)],
     );
     addTearDown(container.dispose);
     await container.read(likeAnimationFileProvider.future);
@@ -72,6 +84,56 @@ void main() {
       ),
     ),
   );
+
+  testWidgets('collapsed route transform skips feedback until visible again', (
+    tester,
+  ) async {
+    final container = await containerForTest();
+    final scale = ValueNotifier<double>(1);
+    addTearDown(scale.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ClipRect(
+              child: ValueListenableBuilder<double>(
+                valueListenable: scale,
+                builder: (_, value, child) =>
+                    Transform.scale(scale: value, child: child),
+                child: SizedBox(
+                  width: 360,
+                  height: 300,
+                  child: PostLikeReaction(
+                    liked: false,
+                    onLike: () {},
+                    builder: (_, react) =>
+                        TextButton(onPressed: react, child: const Text('Like')),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Like'));
+    await tester.pump();
+    scale.value = 0;
+    await tester.pump();
+    // A repaint callback may still be issued for retained feedback while its
+    // ancestor transform is collapsed. Exercise the delegate with that tree.
+    final painting = _PaintingContext();
+    tester.widget<Flow>(find.byType(Flow)).delegate.paintChildren(painting);
+    expect(painting.painted, isFalse);
+    expect(tester.takeException(), isNull);
+    scale.value = 1;
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(rive.RiveWidget), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('plays the real asset centrally without intercepting taps', (
     tester,
@@ -201,9 +263,7 @@ void main() {
 
   testWidgets(
     'rapid unlike, replay, rollback and recycled cards clear feedback',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final container = await containerForTest();
       await tester.pumpWidget(scene(container, onLike: () {}));
       await tester.tap(find.text('Like'));

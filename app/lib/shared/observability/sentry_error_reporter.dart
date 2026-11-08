@@ -15,6 +15,7 @@ import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:logging/logging.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:sentry_logging/sentry_logging.dart';
@@ -174,6 +175,7 @@ void configureDiagnosticOptions(
     _DiagnosticCauseExtractor<ApiServerError>(),
     _DiagnosticCauseExtractor<ApiNetworkError>(),
     _DiagnosticCauseExtractor<DioException>(),
+    _DiagnosticCauseExtractor<ProviderException>(),
   ].forEach(options.addExceptionCauseExtractor);
   options
     // Retain the filtered transaction path; production tracing is disabled.
@@ -201,10 +203,7 @@ void configureDiagnosticOptions(
         };
         if (record.object case final DiagnosticMessage message) {
           safe.data!.addAll(
-            _breadcrumbContext(
-              message.context,
-              failure: record.error != null,
-            ),
+            _breadcrumbContext(message.context, failure: record.error != null),
           );
         }
       }
@@ -260,9 +259,7 @@ void configureDiagnosticOptions(
     ..beforeSend = (event, hint) {
       // SDK automatic integrations decorate the original typed throwable.
       // Explicit owners already classify with their terminal/retry context.
-      if (event.throwableMechanism case ThrowableMechanism(
-        :final throwable,
-      )) {
+      if (event.throwableMechanism case ThrowableMechanism(:final throwable)) {
         if (throwable is Object &&
             isExpectedDiagnostic(
               throwable,
@@ -300,6 +297,10 @@ final class _DiagnosticCauseExtractor<T> extends ExceptionCauseExtractor<T> {
       ) => (diagnosticCause, diagnosticStack),
       ApiException(:final details) => (details.cause, details.stackTrace),
       DioException(:final error, :final stackTrace) => (error, stackTrace),
+      ProviderException(:final exception, :final stackTrace) => (
+        exception,
+        stackTrace,
+      ),
       _ => (null, null),
     };
     return cause == null ? null : ExceptionCause(cause, stack);
@@ -325,7 +326,29 @@ final class _WithoutAttachmentsTransport implements Transport {
   }
 }
 
+// Early initialization/native callbacks may run before a Flutter binding exists.
+// Diagnostic enrichment must not prevent the original event from being sent.
+Map<String, Object?> _runtimeDiagnosticContext() {
+  try {
+    final binding = WidgetsBinding.instance;
+    return {
+      'schedulerPhase': binding.schedulerPhase.name,
+      'lifecycleState': binding.lifecycleState?.name,
+      'semanticsEnabled': binding.platformDispatcher.semanticsEnabled,
+      'accessibilityAnimationsDisabled':
+          binding.platformDispatcher.accessibilityFeatures.disableAnimations,
+    };
+  } on Object {
+    return const {};
+  }
+}
+
 SentryEvent _protectEvent(SentryEvent event) {
+  event.contexts['operation'] = {
+    if (event.contexts['operation'] case final Map<String, dynamic> operation)
+      ...operation,
+    ..._runtimeDiagnosticContext(),
+  };
   event
     ..request = null
     ..user = null
@@ -333,8 +356,20 @@ SentryEvent _protectEvent(SentryEvent event) {
     // ignore: deprecated_member_use
     ..extra = null
     ..message = null
-    ..serverName = null
-    ..threads = null;
+    ..serverName = null;
+  // Retain the sampled crashing/current thread for native hang diagnosis.
+  // Thread names, unknown SDK fields, locals and source remain excluded.
+  event.threads = [
+    for (final thread in event.threads ?? <SentryThread>[])
+      if ((thread.crashed == true || thread.current == true) &&
+          thread.stacktrace != null)
+        SentryThread(
+          id: thread.id,
+          crashed: thread.crashed,
+          current: thread.current,
+          stacktrace: _protectStack(thread.stacktrace!, stripUnknown: true),
+        ),
+  ];
   // Filter tags separately from the private-field clearing cascade above.
   event.tags = {
     for (final entry in SentrySanitizer.sanitizeContext(
@@ -403,55 +438,8 @@ SentryEvent _protectEvent(SentryEvent event) {
     exception.value = throwable is Object
         ? selectedCause(throwable)['message']! as String
         : 'Operation failed';
-    final stack = exception.stackTrace;
-    if (stack != null &&
-        stack.frames.any(
-          (frame) =>
-              frame.vars.isNotEmpty ||
-              frame.contextLine != null ||
-              frame.preContext.isNotEmpty ||
-              frame.postContext.isNotEmpty,
-        )) {
-      // Only frames carrying private locals/source need replacement. Native
-      // frames without those fields keep the SDK structure and symbolication.
-      exception.stackTrace = SentryStackTrace(
-        snapshot: stack.snapshot,
-        lang: stack.lang,
-        frames: [
-          for (final frame in stack.frames)
-            SentryStackFrame(
-              function: frame.function,
-              module: frame.module,
-              fileName: frame.fileName,
-              absPath: frame.absPath,
-              lineNo: frame.lineNo,
-              colNo: frame.colNo,
-              inApp: frame.inApp,
-              instructionAddr: frame.instructionAddr,
-              imageAddr: frame.imageAddr,
-              symbolAddr: frame.symbolAddr,
-              rawFunction: frame.rawFunction,
-              package: frame.package,
-              native: frame.native,
-              platform: frame.platform,
-              stackStart: frame.stackStart,
-              symbol: frame.symbol,
-              framesOmitted: frame.framesOmitted,
-            ),
-        ],
-      );
-    }
-    for (final frame in exception.stackTrace?.frames ?? <SentryStackFrame>[]) {
-      frame.absPath = null;
-      if (frame.fileName != null) {
-        frame.fileName = boundDiagnosticText(
-          frame.fileName!.replaceAll(r'\', '/').split('/').last,
-          160,
-        );
-      }
-      if (frame.function != null) {
-        frame.function = boundDiagnosticText(frame.function!, 256);
-      }
+    if (exception.stackTrace case final SentryStackTrace stack) {
+      exception.stackTrace = _protectStack(stack);
     }
   }
   event.breadcrumbs = [
@@ -459,6 +447,63 @@ SentryEvent _protectEvent(SentryEvent event) {
       if (_protectBreadcrumb(breadcrumb) case final Breadcrumb safe) safe,
   ];
   return event;
+}
+
+SentryStackTrace _protectStack(
+  SentryStackTrace original, {
+  bool stripUnknown = false,
+}) {
+  var stack = original;
+  if (stripUnknown ||
+      stack.frames.any(
+        (frame) =>
+            frame.vars.isNotEmpty ||
+            frame.contextLine != null ||
+            frame.preContext.isNotEmpty ||
+            frame.postContext.isNotEmpty,
+      )) {
+    // Only frames carrying private locals/source need replacement. Native
+    // frames without those fields keep the SDK structure and symbolication.
+    stack = SentryStackTrace(
+      snapshot: stack.snapshot,
+      lang: stack.lang,
+      frames: [
+        for (final frame in stack.frames)
+          SentryStackFrame(
+            function: frame.function,
+            module: frame.module,
+            fileName: frame.fileName,
+            absPath: frame.absPath,
+            lineNo: frame.lineNo,
+            colNo: frame.colNo,
+            inApp: frame.inApp,
+            instructionAddr: frame.instructionAddr,
+            imageAddr: frame.imageAddr,
+            symbolAddr: frame.symbolAddr,
+            rawFunction: frame.rawFunction,
+            package: frame.package,
+            native: frame.native,
+            platform: frame.platform,
+            stackStart: frame.stackStart,
+            symbol: frame.symbol,
+            framesOmitted: frame.framesOmitted,
+          ),
+      ],
+    );
+  }
+  for (final frame in stack.frames) {
+    frame.absPath = null;
+    if (frame.fileName != null) {
+      frame.fileName = boundDiagnosticText(
+        frame.fileName!.replaceAll(r'\', '/').split('/').last,
+        160,
+      );
+    }
+    if (frame.function != null) {
+      frame.function = boundDiagnosticText(frame.function!, 256);
+    }
+  }
+  return stack;
 }
 
 Map<String, Object?> _boundFields(Map<String, Object?> fields) => {
