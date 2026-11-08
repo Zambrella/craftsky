@@ -538,6 +538,64 @@ func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 	}
 }
 
+// Both clients send the typed @ prefix to autocomplete and submitted search.
+func TestProfileSearchHandlersIgnoreLeadingAt(t *testing.T) {
+	t.Parallel()
+	pool := hashtagSearchTestPool(t)
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:alicia"} {
+		seedMember(t, pool, did)
+	}
+	seedSearchIdentity(t, pool, "did:plc:viewer", "viewer.craftsky.social", "Viewer", "")
+	seedSearchIdentity(t, pool, "did:plc:alice", "alice.craftsky.social", "Alice", "")
+	seedSearchIdentity(t, pool, "did:plc:alicia", "alicia.craftsky.social", "Alicia", "")
+	store := api.NewSearchStore(pool, nil)
+	for _, endpoint := range []string{"profiles", "suggestions"} {
+		for _, tc := range []struct {
+			query string
+			want  int
+		}{
+			{"ali", 2},
+			{"%20%40ALI%20", 2},
+			{"%40alice.craftsky.social", 1},
+			{"%40", 0},
+		} {
+			t.Run(endpoint+"/"+tc.query, func(t *testing.T) {
+				handler := api.SearchProfilesHandler(store, testlog.Discard())
+				if endpoint == "suggestions" {
+					handler = api.SearchSuggestionsHandler(store, testlog.Discard())
+				}
+				req := httptest.NewRequest(http.MethodGet, "/v1/search/"+endpoint+"?q="+tc.query+"&types=profiles&limit=1&profileLimit=1", nil)
+				req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+				if rr.Code != http.StatusOK {
+					t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+				}
+				var body struct {
+					Items    []api.ProfileSearchSummary   `json:"items"`
+					Cursor   *string                      `json:"cursor"`
+					Profiles api.SuggestionProfileSection `json:"profiles"`
+				}
+				if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				items := body.Items
+				hasMore := body.Cursor != nil && *body.Cursor != ""
+				if endpoint == "suggestions" {
+					items, hasMore = body.Profiles.Items, body.Profiles.HasMore
+				}
+				wantCount := min(tc.want, 1)
+				if len(items) != wantCount || hasMore != (tc.want > 1) {
+					t.Fatalf("response = %s, want %d items, hasMore=%v", rr.Body.String(), wantCount, tc.want > 1)
+				}
+				if wantCount > 0 && items[0].DID.String() != "did:plc:alice" {
+					t.Fatalf("first match = %s, want alice", items[0].DID)
+				}
+			})
+		}
+	}
+}
+
 func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 	t.Parallel()
 	pool := hashtagSearchTestPool(t)

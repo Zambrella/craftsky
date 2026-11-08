@@ -848,7 +848,7 @@ test('search categories retain loaded results and independent positions without 
 			category === 'Profiles'
 				? page.locator('.maker-result')
 				: category === 'Tags'
-					? page.locator('.tag-result')
+					? page.getByRole('link', { name: /^#knitting\d+\b/ })
 					: page.locator('.member-post');
 		await expect(results).toHaveCount(
 			category === 'Posts' ? 24 : category === 'Projects' ? 12 : 30
@@ -930,7 +930,9 @@ test('switching away from a loading search tab ignores its late result', async (
 		await tabs.getByRole('link', { name: 'Projects', exact: true }).click();
 		await expect.poll(() => requests).toBe(1);
 		await tabs.getByRole('link', { name: 'Tags', exact: true }).click();
-		await expect(page.locator('.tag-result')).toHaveCount(1);
+		await expect(
+			page.getByRole('link', { name: '#knitting 10 posts', exact: true })
+		).toBeVisible();
 	} finally {
 		release();
 	}

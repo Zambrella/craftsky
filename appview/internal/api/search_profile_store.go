@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -41,10 +40,13 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
-	queryLower := strings.ToLower(strings.TrimSpace(req.Query))
+	queryLower := normalizeProfileSearchTerm(req.Query)
 	cur, err := DecodeProfileSearchCursor(req.Cursor)
 	if err != nil {
 		return nil, "", err
+	}
+	if queryLower == "" {
+		return []ProfileSearchRow{}, "", nil
 	}
 	// Profile search is deliberately stale-tolerant presentation. The bounded
 	// identity refresh worker repairs rows older than the authoritative 24-hour

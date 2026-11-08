@@ -38,7 +38,7 @@ func (t ProfileRankTuple) Less(other ProfileRankTuple) bool {
 }
 
 func ProfileRelevanceRank(query, handle, displayName, description string) (int, bool) {
-	q := strings.ToLower(strings.TrimSpace(query))
+	q := normalizeProfileSearchTerm(query)
 	if q == "" {
 		return 0, false
 	}
@@ -63,4 +63,10 @@ func normalizeHashtagSearchTerm(raw string) string {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	value = strings.TrimPrefix(value, "#")
 	return strings.TrimSpace(value)
+}
+
+// A leading @ selects profile intent in clients; it is not part of a handle.
+func normalizeProfileSearchTerm(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	return strings.TrimSpace(strings.TrimPrefix(value, "@"))
 }

@@ -85,6 +85,7 @@ class _RecentSearchSection extends ConsumerWidget {
             :final crafts,
           ))
             ProfileAccountListTile(
+              contentPadding: EdgeInsets.zero,
               account: ProfileAccountSummary(
                 did: did.toString(),
                 handle: handle,
@@ -101,11 +102,27 @@ class _RecentSearchSection extends ConsumerWidget {
                     .delete(recent.id),
               ),
             )
+          else if (recent.payload case HashtagRecentSearchPayload(:final tag))
+            _HashtagResultTile.recent(
+              tag: tag,
+              onTap: () => _openRecent(recent),
+              trailing: IconButton(
+                tooltip: l10n.searchDeleteRecentAction,
+                icon: const Icon(CraftskyIconsBold.close),
+                onPressed: () => ref
+                    .read(deleteRecentSearchProvider.notifier)
+                    .delete(recent.id),
+              ),
+            )
           else
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(recent.displayLabel),
+            _SearchResultTile(
+              leading: switch (recent.payload) {
+                QueryRecentSearchPayload(:final q)
+                    when q.trim().startsWith('#') =>
+                  const Text('#'),
+                _ => const Icon(CraftskyIcons.search),
+              },
+              title: recent.displayLabel,
               trailing: IconButton(
                 tooltip: l10n.searchDeleteRecentAction,
                 icon: const Icon(CraftskyIconsBold.close),

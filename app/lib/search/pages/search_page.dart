@@ -6,6 +6,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -488,22 +489,63 @@ class _ProfileResultTile extends StatelessWidget {
 }
 
 class _HashtagResultTile extends StatelessWidget {
-  const new({required this.hashtag, required this.onTap});
+  new({required HashtagSearchResult hashtag, required this.onTap})
+    : tag = hashtag.tag,
+      postCount = hashtag.postCount,
+      trailing = null;
 
-  final HashtagSearchResult hashtag;
+  const new recent({required this.tag, required this.onTap, this.trailing})
+    : postCount = null;
+
+  final String tag;
+  final int? postCount;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const CircleAvatar(child: Text('#')),
-      title: Text('#${hashtag.tag}'),
-      subtitle: Text(l10n.searchTagPostCount(hashtag.postCount)),
+    final count = postCount;
+    return _SearchResultTile(
+      leading: const Text('#'),
+      title: '#$tag',
+      subtitle: count == null
+          ? null
+          : AppLocalizations.of(context).searchTagPostCount(count),
+      trailing: trailing,
       onTap: onTap,
     );
   }
+}
+
+class _SearchResultTile extends StatelessWidget {
+  const new({
+    required this.leading,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    horizontalTitleGap: 12,
+    minLeadingWidth: 0,
+    leading: SizedBox.square(
+      dimension: ProfileAvatarSize.small.outerDimension,
+      child: CircleAvatar(child: leading),
+    ),
+    title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle!),
+    trailing: trailing,
+    onTap: onTap,
+  );
 }
 
 class _ErrorView extends StatelessWidget {

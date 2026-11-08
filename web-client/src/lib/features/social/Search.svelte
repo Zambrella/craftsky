@@ -16,11 +16,16 @@
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import { profileStyle } from './model';
-	import { recentDestination, searchDestination } from './search-model';
+	import {
+		recentAuthor,
+		recentDestination,
+		searchDestination
+	} from './search-model';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
+	import SearchResultRow from './SearchResultRow.svelte';
 	import {
 		PageHistory,
 		pageHistoryContext,
@@ -358,16 +363,14 @@
 									>View all</a
 								>{/if}
 						</div>
-						{#each suggestions.hashtags.items as tag}<a
-								class="suggestion-tag account-row"
+						{#each suggestions.hashtags.items as tag}
+							<SearchResultRow
 								href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
-								><span class="hashtag-icon" aria-hidden="true">#</span><span
-									><span>#{tag.tag}</span><small
-										>{tag.postCount}
-										{tag.postCount === 1 ? 'post' : 'posts'}</small
-									></span
-								></a
-							>{/each}
+								label={'#' + tag.tag}
+								hashtag
+								postCount={tag.postCount}
+							/>
+						{/each}
 					</section>
 				{/if}
 				{#if !suggestions.profiles.items?.length && !suggestions.hashtags.items?.length}<EmptyState
@@ -399,8 +402,11 @@
 		</p>{/if}
 	{#if !q && !guest}{#if recent.length}<section class="search-discovery">
 				<h2>Recent searches</h2>
-				{#each recent as item}<div class="recent-row">
-						<a href={recentDestination(item)}>{item.displayLabel}</a><button
+				{#each recent as item}
+					{@const author = recentAuthor(item)}
+					{#snippet removeRecent()}
+						<button
+							class="remove-recent"
 							aria-label="Remove recent search"
 							disabled={work.busy}
 							onclick={() =>
@@ -409,7 +415,31 @@
 									() => (recent = recent.filter((old) => old.id !== item.id))
 								)}><Icon name="close" size={18} /></button
 						>
-					</div>{/each}
+					{/snippet}
+					{#if author}
+						<div class="recent-row">
+							<a href={recentDestination(item)}
+								><Avatar author={authorValue(author)} /><CompactIdentity
+									{author}
+								/></a
+							>
+							{@render removeRecent()}
+						</div>
+					{:else}
+						<SearchResultRow
+							href={recentDestination(item)}
+							label={item.type === 'hashtag' &&
+							typeof item.payload.tag === 'string'
+								? '#' + item.payload.tag
+								: item.displayLabel}
+							hashtag={item.type === 'hashtag' ||
+								(item.type === 'query' &&
+									typeof item.payload.q === 'string' &&
+									item.payload.q.trim().startsWith('#'))}
+							trailing={removeRecent}
+						/>
+					{/if}
+				{/each}
 			</section>{/if}
 		{#if top?.groups.length}<section class="search-discovery stack">
 				<h2>Trending hashtags</h2>
@@ -440,13 +470,16 @@
 			></a
 		>{/each}
 	{#each posts as post}<MemberPost value={post} {api} {did} />{/each}
-	{#each tags as tag}<a
-			class="account-row tag-result"
+	{#each tags as tag}
+		<SearchResultRow
 			href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
-			><span class="hashtag-icon">#</span><span
-				><strong>#{tag.tag}</strong><small>{tag.postCount} posts</small></span
-			></a
-		>{/each}
+			label={'#' + tag.tag}
+			hashtag
+			postCount={tag.postCount}
+			inset
+			divider
+		/>
+	{/each}
 	{#if q && !work.busy && !work.error && !authors.length && !posts.length && !tags.length}<EmptyState
 			title="No results found"
 			detail="Try another search."
@@ -590,9 +623,10 @@
 		display: flex;
 		gap: 8px;
 		align-items: center;
-		min-height: 48px;
+		min-height: 68px;
 	}
 	.recent-row a {
+		min-width: 0;
 		display: flex;
 		gap: 12px;
 		align-items: center;
@@ -600,14 +634,13 @@
 		color: var(--ink);
 		flex: 1;
 	}
-	.recent-row button {
+	.remove-recent {
 		border: 0;
 		box-shadow: none;
 		background: transparent;
 		padding: 10px;
 	}
-	.maker-result,
-	.tag-result {
+	.maker-result {
 		margin: 0;
 		padding: 12px 16px;
 		gap: 12px;
@@ -618,16 +651,6 @@
 		color: var(--ink);
 	}
 
-	.hashtag-icon {
-		width: 44px;
-		height: 44px;
-		display: grid;
-		place-items: center;
-		background: var(--primary-soft);
-		color: var(--primary);
-		border-radius: 50%;
-		font-size: 24px;
-	}
 	.suggestions {
 		padding: 8px 0;
 		gap: 24px;
@@ -658,21 +681,6 @@
 		padding: 8px 16px;
 		gap: 12px;
 		min-height: 60px;
-	}
-	.suggestions .suggestion-tag {
-		padding: 12px 0;
-		gap: 16px;
-	}
-	.suggestion-tag {
-		font-size: 16px;
-	}
-	.suggestion-tag small {
-		font-size: 14px;
-		margin-top: 2px;
-	}
-	.hashtag-icon {
-		flex-shrink: 0;
-		color: var(--ink);
 	}
 	.clear-circle {
 		width: 20px;
