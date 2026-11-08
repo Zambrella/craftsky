@@ -203,8 +203,14 @@
 	});
 	$effect(() => {
 		if (!dialog) return;
-		if (guest.promptOpen && !dialog.open) dialog.showModal();
-		else if (!guest.promptOpen && dialog.open) {
+		if (guest.promptOpen && !dialog.open) {
+			dialog.showModal();
+			// Native dialog autofocus can select the explainer while the auth
+			// controls are still disabled during startup. Start without a focused
+			// control; keyboard navigation will focus controls normally.
+			if (document.activeElement instanceof HTMLElement)
+				document.activeElement.blur();
+		} else if (!guest.promptOpen && dialog.open) {
 			dialog.close();
 			// Safari touch activation does not focus buttons before opening a
 			// dialog, so native dialog restoration alone loses the trigger.
