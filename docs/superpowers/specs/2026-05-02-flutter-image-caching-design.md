@@ -431,7 +431,6 @@ The implementation plan will be authored separately via the writing-plans skill,
 - **Feed post-image call sites** — light up `FeedImageCacheManager` once the blob-upload spec lands and post media starts coming through the API.
 - **Manual precaching of the user's own avatar** — only if metrics show the first-render delay is user-visible.
 - **Per-cache "Clear" controls** — split the single tile into per-cache options once we have telemetry that shows users actually want that granularity.
-- **Web platform support** — current spec targets mobile + desktop; if the Flutter web build becomes a target, revisit because `flutter_cache_manager` uses `path_provider` which has different semantics on web.
 
 ## References
 

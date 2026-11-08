@@ -43,12 +43,4 @@ retain those values with the release record. The releasable artifacts are
 under `app/build/debug-info/<target>` and
 `app/build/app/obfuscation-<target>.map.json`.
 
-Web release smoke build:
-
-```sh
-cd app
-flutter build web --release --source-maps
-dart run sentry_dart_plugin
-```
-
 Manual check before production release: trigger a controlled reportable error in staging and confirm the Sentry event has the expected environment, release/dist, readable Dart frames, and no forbidden sensitive fields.

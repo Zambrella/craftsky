@@ -25,7 +25,7 @@ Support website-card link previews in CraftSky, following the Bluesky model: URL
   - URLs become tappable link facets and open externally through `url_launcher`; no preview is fetched or rendered.
   - Quote posts occupy the single `embed` union slot.
 - Constraints discovered:
-  - Flutter web is a real target, so browser CORS prevents reliable client-side fetching of arbitrary pages.
+  - Link preview fetching belongs in AppView so mobile and Svelte clients share the same results.
   - Lexicon changes require the `atproto-lexicon` skill, an ADR, `just lexgen`, and committed generated output.
   - The current Bluesky `app.bsky.embed.external` type requires `uri`, `title`, and `description`, has an optional `image/*` blob capped at exactly 1,000,000 bytes, and has no title/description or thumbnail-dimension fields.
   - Existing CraftSky image upload and rendering paths support JPEG, PNG, and WebP.
@@ -129,7 +129,7 @@ Risks: inconsistent previews and image-fetch failures on web.
 Recommended approach: **Option B: AppView fetches; Flutter selects; the PDS record reuses `app.bsky.embed.external`.**
 
 Why:
-1. It preserves CraftSky's AppView-mediated network architecture and works on Flutter web.
+1. It preserves CraftSky's AppView-mediated network architecture for both mobile platforms.
 2. It keeps the important Bluesky property: one frozen public card that readers never refetch.
 3. Standard lexicon reuse improves interoperability and avoids a redundant load-bearing schema.
 4. Explicit candidate, image-exclusion, scheduled-post, and failure rules make composer behavior deterministic.
@@ -208,7 +208,7 @@ Pattern pages, shop links, tutorials, and inspiration links currently appear wit
 | FR-019 | Functional | Must | Federated records containing both top-level images and standard external shall remain indexed, but all CraftSky read views shall apply images-win and omit external. | Preserve valid post content while enforcing product presentation. | User decision | AC-020 |
 | NFR-001 | Non-functional | Should | Reachable preview page phases should complete within 5 seconds at p95, and composer input/scrolling shall remain responsive during queued network work. | UX quality. | Discovery | AC-006, AC-010 |
 | NFR-002 | Non-functional | Must | No user-supplied page, base, image, or redirect URL shall cause AppView to communicate with a non-public address or nonstandard port, including through DNS rebinding or mixed answers. | SSRF boundary. | User decisions | AC-004, AC-005 |
-| NFR-003 | Non-functional | Must | Preview behavior shall be equivalent on Flutter web, iOS, Android, and desktop; no platform performs direct third-party preview fetches. | Web CORS and architecture. | Discovery | AC-010, AC-013 |
+| NFR-003 | Non-functional | Must | Preview behavior shall be equivalent on iOS and Android; no platform performs direct third-party preview fetches. | Web CORS and architecture. | Discovery | AC-010, AC-013 |
 | NFR-004 | Non-functional | Must | Logs, metrics, traces, Sentry events, and client analytics shall contain no URL, hostname, query, redirect target, title, description, thumbnail bytes, post text, or user/session identity from preview operations. | Unpublished intent is sensitive. | User decision / telemetry precedent | AC-022 |
 | RULE-001 | Business rule | Must | A post carries at most one embed. Quote posts do not fetch/accept external cards. | Open-union semantics. | Discovery | AC-008, AC-014 |
 | RULE-002 | Business rule | Must | External cards and top-level post images are mutually exclusive; images win. Quote embeds retain their existing ability to coexist with images. | User decision. | User answer | AC-014, AC-020 |

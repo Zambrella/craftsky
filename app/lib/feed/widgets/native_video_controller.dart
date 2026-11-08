@@ -491,9 +491,8 @@ final class MediaKitNativeVideoAdapter
     required bool isPortraitVideo,
   }) async {
     _fullscreen = true;
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS)) {
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
       return await defaultEnterNativeFullscreen();
     }
     try {
@@ -513,9 +512,8 @@ final class MediaKitNativeVideoAdapter
 
   Future<void> _exitFullscreen() async {
     _fullscreen = false;
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS)) {
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
       return await defaultExitNativeFullscreen();
     }
     try {

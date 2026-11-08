@@ -153,7 +153,7 @@ Within grouped rows, each test ID is executed and recorded separately before mov
 - Write failing tests: Added controller, layout, failure, lifecycle, captions, accessibility, and reusable-surface tests.
 - Confirmed failure: Canonical HLS video had no app-owned player abstraction or lifecycle behavior.
 - Implement: Added `media_kit` initialization and adapter, HLS-only playback, active-player coordination, pause/dispose on visibility and app lifecycle, URI-backed selectable WebVTT resources with cleanup, full-screen/layout behavior, soft errors, and standard/saved surfaces.
-- Run command: Focused player/surface tests, Android/iOS/macOS/web builds, and full Flutter suite pass.
+- Run command: Focused player/surface tests, Android/iOS builds, and full Flutter suite pass.
 
 ### Step 11: IT-020, AT-012, REG-001 Through REG-008
 - Write failing tests: Added bounded video metric/redaction tests, privacy-copy coverage, and explicit existing-media/scheduled/business/Tap/draft regressions.

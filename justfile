@@ -366,15 +366,6 @@ app-run *ARGS: app-env-init
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
 
-app-run-chrome: app-env-init
-    #!/usr/bin/env bash
-    set -euo pipefail
-    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
-    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
-    cd app
-    flutter run -d chrome --dart-define-from-file=config/local.env \
-      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
-
 app-run-ios: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
@@ -426,9 +417,6 @@ app-run-production *ARGS:
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
     flutter run --dart-define-from-file="$config" {{ARGS}}
-
-app-run-production-chrome:
-    just app-run-production -- -d chrome
 
 app-run-production-ios:
     just app-run-production -- -d ios
@@ -501,15 +489,6 @@ importer-build-preview:
 # Run Playwright browser integration and acceptance tests.
 importer-test-e2e *ARGS:
     npm run --prefix instagram-importer test:e2e -- {{ARGS}}
-
-app-build-web ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    environment={{ quote(ENV) }}
-    config="config/${environment}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build web --dart-define-from-file="$config"
 
 # Build a mobile release with Sentry enabled, then upload its debug symbols.
 _app-build-mobile TARGET ENV:

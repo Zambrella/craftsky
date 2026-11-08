@@ -6,10 +6,10 @@ Status: Accepted (maintainer confirmed scope and host)
 ## Context
 
 Shared CraftSky projects, posts and profiles need useful initial HTML, search
-indexing and page-specific link previews. A Flutter web bootstrap cannot provide
+indexing and page-specific link previews. A client-rendered bootstrap cannot provide
 that document experience. The maintainer selected `app.craftsky.social` so the
 same links can open installed mobile apps. This supersedes earlier proposals
-for `share.craftsky.social` and the vision document's original Flutter-web stack
+for `share.craftsky.social` and the vision document's original client stack
 choice; the product principles remain unchanged.
 
 ## Decision

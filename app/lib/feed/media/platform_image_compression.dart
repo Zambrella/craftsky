@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
-bool get supportsAppleHeic =>
-    !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+bool get supportsAppleHeic => defaultTargetPlatform == TargetPlatform.iOS;
 
 /// Native calls remain on the root isolate; the plugin dispatches its work.
 /// Never enable native debug logging: some implementations write source files.

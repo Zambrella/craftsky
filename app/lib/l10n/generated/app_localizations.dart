@@ -8979,12 +8979,6 @@ abstract class AppLocalizations {
   /// **'Update'**
   String get serviceStatusUpdate;
 
-  /// No description provided for @serviceStatusReload.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload'**
-  String get serviceStatusReload;
-
   /// No description provided for @serviceStatusActionFailed.
   ///
   /// In en, this message translates to:

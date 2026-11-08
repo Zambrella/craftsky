@@ -12,7 +12,7 @@ just app-env-init
 
 That creates:
 
-- `app/config/local.env` for Chrome, macOS, and iOS simulator.
+- `app/config/local.env` for iOS simulator.
 - `app/config/local-android.env` for the Android emulator.
 
 Build config files must be created explicitly from their examples:

@@ -26,7 +26,7 @@ class CraftskyDeviceInfo with CraftskyDeviceInfoMappable {
     required this.osVersion,
   });
 
-  /// 'Android' | 'iOS' | 'Web'
+  /// 'Android' | 'iOS'
   final String platform;
   final String deviceId;
   final String model;
@@ -78,17 +78,6 @@ Future<AppDependencies> appDependencies(Ref ref) async {
 Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
   final plugin = DeviceInfoPlugin();
 
-  if (kIsWeb) {
-    final web = await plugin.webBrowserInfo;
-    return CraftskyDeviceInfo(
-      platform: 'Web',
-      deviceId: '',
-      brand: web.browserName.name,
-      model: web.userAgent ?? '',
-      osVersion: web.platform ?? '',
-    );
-  }
-
   switch (defaultTargetPlatform) {
     case TargetPlatform.android:
       final android = await plugin.androidInfo;
@@ -109,7 +98,7 @@ Future<CraftskyDeviceInfo> _resolveDeviceInfo() async {
         osVersion: ios.systemVersion,
       );
     // Desktop and fuchsia are intentionally out of scope for v1 — spec
-    // Section 2 restricts the scaffold to Android, iOS, and Web.
+    // Section 2 restricts the scaffold to Android and iOS.
     case TargetPlatform.fuchsia:
     case TargetPlatform.linux:
     case TargetPlatform.macOS:

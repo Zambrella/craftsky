@@ -13,7 +13,7 @@ Extend the existing service-status feature in place. Keep its anonymous independ
 
 Continue using a Riverpod `Notifier` for deterministic policy/timer/persistence state. Add an independent runtime-version provider and small platform action adapters with injectable boundaries and standard trusted-host image loading. Use the existing full-page cover composition for the update experience rather than replacing the GoRouter or navigating away from retained editors. A visible status page has route semantics and consumes back; it does not need a new URL or destructive route-stack redirect.
 
-Use installed `package_info_plus`, `url_launcher`, `web`, Dio and existing design-system components; no update-specific package or new app framework is required. D-013 adds an explicitly pinned Python publication-validator dependency. The installed `pub_semver` 2.2.1 source was inspected: its `compareTo` includes build metadata and its grammar accepts leading-zero components. Do not use that comparator directly as the status contract. Define a small strict, metadata-free status version value object and parity fixtures; keep the unrelated app-wide version provider unchanged.
+Use installed `package_info_plus`, `url_launcher`, Dio and existing design-system components; no update-specific package or new app framework is required. D-013 adds an explicitly pinned Python publication-validator dependency. The installed `pub_semver` 2.2.1 source was inspected: its `compareTo` includes build metadata and its grammar accepts leading-zero components. Do not use that comparator directly as the status contract. Define a small strict, metadata-free status version value object and parity fixtures; keep the unrelated app-wide version provider unchanged.
 
 ## 3. Affected Areas
 
@@ -37,7 +37,6 @@ Paths below are relative to the repository root. New names are implementation ta
 | `app/lib/service_status/providers/status_runtime_provider.dart` | Create | Independent package-info read and supported platform selection, with injectable values | FR-001, FR-002, RULE-003 | UT-002/008, AT-002/010 |
 | `app/lib/service_status/providers/service_status_controller.dart` | Change | Separate trust state, single presentation selection, revision-safe dismissal/activation state | FR-001, FR-006, FR-008, FR-009, RULE-001, RULE-003 | UT-003–UT-006, UT-008, AT-001/007/011 |
 | `app/lib/service_status/data/announcement_dismissal_store.dart` | Change | Keep current single-revision API; new schema-2 key and explicit captured-revision writes | FR-008, FR-009 | UT-006, IT-002, AT-007 |
-| `app/lib/service_status/data/status_actions.dart`, `status_reload_stub.dart`, `status_reload_web.dart` | Create | Typed action callbacks, official listings, existing external launcher reuse, conditional web reload | FR-004, FR-005, FR-010 | AT-004/005/008, IT-004/005 |
 | `app/lib/service_status/widgets/status_message_image.dart` | Change | Standard trusted-host network image with bounded decorative display and failure fallback | FR-011, NFR-003, D-014 | AT-009, IT-006 |
 | `app/lib/service_status/widgets/update_required_screen.dart` | Create | Full-page themed update action, pending/failure feedback, semantics and bounded scrolling | FR-003–FR-005, NFR-002 | AT-002/004/005/009, MAN-001/003 |
 | `app/lib/service_status/widgets/announcement_modal.dart` | Change | Title/description/image/CTA plus retained explicit dismissal | FR-007, FR-008, FR-010, FR-011, NFR-002 | AT-006/008/009, REG-002 |
@@ -52,8 +51,6 @@ Paths below are relative to the repository root. New names are implementation ta
 | `app/test/service_status/` existing suites; new `app_version_eligibility_test.dart`, `update_required_test.dart`, `message_cta_test.dart` | Change / create during TDD | Planned unit/widget/integration tests and schema-2 fixtures | All Must requirements | AT-001–AT-011, UT-001–UT-009, REG-001–REG-004 |
 | `app/test/observability/service_status_diagnostics_test.dart` | Change | New operation/privacy/failure-path sink coverage | NFR-003 | IT-006, REG-004 |
 | `app/integration_test/critical_journeys_test.dart` and status helper | Change | Actual preferences adapter recreation, native plugin and loopback schema-2 behavior | FR-001, FR-008, NFR-001 | IT-001/002, REG-003 |
-| `web/test/service-status-reload.spec.js`, `web/test/service-status-reload-server.py`, `web/playwright.status.config.js` | Create | External Playwright runner survives target Flutter app reload; dedicated isolated loopback server | FR-005, NFR-001 | IT-005 |
-| `app/test/service_status/support/status_reload_harness.dart` | Create | Compile-time-selected fixture entrypoint using production status host/controller/actions, deterministic app state and safe version marker | FR-003, FR-005, NFR-001 | AT-005, IT-005 |
 
 No Go/AppView, lexicon, database migration, production Blueprint or public-site deployment changes are planned. Existing status repository transports remain intact apart from model fixtures/imports and any safe shared bounded-reader extraction justified by image loading.
 
@@ -143,7 +140,7 @@ Map named destinations to existing `FeedRoute`, `ProjectsRoute`, `SearchRoute`, 
 
 ### Public image loading
 
-Updated by user decision D-014 on 2026-10-21: use `Image.network` for optional images from a trusted public HTTPS host. Keep the image decorative, bounded to 200 logical pixels high with `BoxFit.contain`, and fail-soft with an error builder. No AppView client or authorization/account/device headers are supplied. The standard Flutter image provider owns request/caching behavior; remove custom native/web byte loaders, auto-disposed providers and their transport-specific tests. Cookies/referrer/redirects, fetch size/deadline and cancellation follow platform defaults. Require a host compatible with Flutter web CORS; no custom HTML-image fallback is introduced.
+Updated by user decision D-014 on 2026-10-21: use `Image.network` for optional images from a trusted public HTTPS host. Keep the image decorative, bounded to 200 logical pixels high with `BoxFit.contain`, and fail-soft with an error builder. No AppView client or authorization/account/device headers are supplied. The standard Flutter image provider owns request/caching behavior; remove custom native/web byte loaders, auto-disposed providers and their transport-specific tests. Cookies/referrer/redirects, fetch size/deadline and cancellation follow platform defaults. Require a host compatible; no custom HTML-image fallback is introduced.
 
 AT-009 retains rendering, pending/failure fallback, layout, dismissal/CTA usability and cover-removal coverage through the real NetworkImage path with disposable HTTP fixtures. IT-006 retains status transport isolation and image diagnostic sink coverage. The earlier 5 MiB/ten-second/explicit-omit/abort requirements are superseded for images only; status JSON transport is unchanged.
 
@@ -234,14 +231,6 @@ Each row is a red-green-refactor slice or a small related group. Use the existin
 | 10 | IT-001/002/006, REG-001–REG-004 | Transport/device/regression suites | Existing native/browser fetch harness, loopback status, real storage plugin | Update existing schema-1 fixtures; no artificial expected failure needed for unchanged protective regressions |
 | 11 | IT-005, AT-005, MAN-002 | Dedicated external browser reload spec | Two compiled safe harness builds and separate loopback status server, described below | Current feature has no reload adapter/CTA; same running tab cannot recover to build B |
 
-### Browser harness for DR-004
-
-Reuse the pinned `@playwright/test` already in `web/package.json`, with a dedicated config/testMatch/server so public-site tests and their server remain separate. Do not run a reload inside the Flutter test-runner document. Build `status_reload_harness.dart` twice in debug mode into temporary directories (the existing status endpoint validator permits loopback overrides only in debug), explicitly assigning version A `1.8.0+1` and B `1.9.0+2`; actual compiled version metadata must be distinguishable through a harmless visible/semantics marker. Use the production package-info runtime provider, status host/controller, actions and reload adapter. Enable Flutter semantics in the harness so Playwright can observe labelled actions and the harmless version marker without relying on canvas coordinates. Override only unrelated app/session dependencies and debug loopback status origin, not the reload implementation or version comparison.
-
-The external Python server serves an atomically switchable build root at a fixed loopback origin with SPA fallback for a non-root path plus query and proper asset MIME types, no-store on unversioned entry/bootstrap/version resources, and the independent schema-2 status endpoint. Playwright owns a separate process/page and survives reload. Open A, retain that same page, switch server root to B and set minimum `1.9.0`, wait for an accepted update page, tap Reload once, assert a real document navigation and compiled B marker/current URL. Assert no repeated navigation after recovery. Separate cases keep A served (gate returns) and make startup status unavailable (fail open). Capture safe results/request headers, not credentials. Do not manually unregister a worker or clear the entire browser cache to force success.
-
-This harness proves the adapter and local build transition only. Actual production/preview bootstrap, browser and CDN behavior still requires MAN-002. Existing checked-in `scripts/web-deploy` deploys the public website; it is not evidence of a Flutter app deploy/cache path. No modification or deployment of that unrelated site is planned. Discover the real Flutter hosting/cache configuration before any separately authorized release work; if cache fixes are needed, prepare a scoped concrete change then.
-
 ### Focused commands
 
 Run from repository root during implementation unless a `cd app` command is shown. Commands are planned, not executed here.
@@ -250,12 +239,10 @@ Run from repository root during implementation unless a `cd app` command is show
 just service-status-test
 just app-test --no-pub test/service_status/service_status_document_test.dart
 just app-test --no-pub test/service_status test/observability/service_status_diagnostics_test.dart
-just app-test --no-pub --platform chrome test/service_status/service_status_repository_web.browser.dart
 just app-test-integration DEVICE --no-pub
 just app-analyze
 ```
 
-For the external harness, build both artifacts with `flutter build web --debug --target test/service_status/support/status_reload_harness.dart --build-name ... --build-number ... --output ...` from `app/`, passing only the local harness/status defines needed. Use two explicit temporary output paths, then `npm exec --prefix web -- playwright test --config web/playwright.status.config.js` from root with those paths supplied via task-specific environment names. Finalize CLI flag support against the installed SDK help before execution; do not install or upgrade packages merely to run this test. Existing pinned tools may need normal environment setup, which must be reported if unavailable.
 
 Generate model/localization output only after the relevant red/green slice requires it: `dart run build_runner build` and `flutter gen-l10n` from `app/`. Inspect `git status` immediately; avoid filtered generation that can delete unrelated generated files. Do not recreate desktop platforms. Run required focused gates once after final changes; expand only for new failures/risks.
 
@@ -278,7 +265,7 @@ Generate model/localization output only after the relevant red/green slice requi
 | CPQ-001 | Non-blocking design decision resolved | DR-003 bounded dismissal history | Reusing A after B dismissal may resurface A | Retain single durable revision; require fresh campaign identities, document/test the reuse sequence, no history ledger. |
 | CPQ-002 | Non-blocking implementation verification | External browser harness requires valid pinned SDK build flags and installed Playwright browser | Local reload proof may be unavailable until normal tooling setup | Use separate runner and compiled A/B artifacts; inspect installed help, report environmental blockers without replacing proof with mocks. |
 | CPQ-003 | Release verification dependency | Actual Flutter hosting/cache path is not established by the public-site deploy script | Reload can fetch stale assets under hosted caching | MAN-002 before claiming full AC-008 verification. Inspect real hosting after separate scoped authorization; no speculative public-site changes. |
-| CPQ-004 | Release verification dependency | Official listing availability and physical platform/back/reader behavior | Widget fake success is insufficient | MAN-001/003 on iOS/Android/web with safe local/authorized preview configuration. |
+| CPQ-004 | Release verification dependency | Official listing availability and physical platform/back/reader behavior | Widget fake success is insufficient | MAN-001/003 on iOS/Android with safe local/authorized preview configuration. |
 | CPQ-005 | Non-blocking resource choice | Public image origin needs anonymous CORS access on web | Some supplied URLs render only a fallback | Standard fail-soft Image.network loading per D-014; document trusted-host/web CORS requirements; no proxy or custom fallback. |
 | CPQ-006 | Non-blocking rollout dependency | New schema is not understood by old installed clients; new client fails open on schema 1 | Mandatory-update capability starts only after compatible app release/config publication | Keep rollout limitation in runbook, release app and publish separately, do not claim backward enforcement. |
 

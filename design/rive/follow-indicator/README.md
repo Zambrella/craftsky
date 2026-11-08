@@ -17,5 +17,5 @@ Local in-memory preview (no network writes):
 
 ```sh
 cd app
-flutter run -d web-server --web-port 7360 --target test/fixtures/follow_animation_preview.dart
+flutter run -d <device-id> --target test/fixtures/follow_animation_preview.dart
 ```

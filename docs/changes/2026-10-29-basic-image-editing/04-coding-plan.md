@@ -190,7 +190,7 @@ Automate CraftSky-owned unit/provider and widget behaviour only, as requested. U
 
 Use existing ProviderContainer.test, fakes, completers and reporters. For edited media, assert current bytes/hash/dimensions/MIME/order/alt at provider/adapter boundaries. Test clearing old stored origin so the existing repository receives fresh prepared media. Do not relabel a full file-backed workflow as a unit test; rely on existing repository tests for storage mechanics.
 
-Brief manual checks (MAN-001–MAN-003) use the finished app: crop/rotate and cancel/accept a photo; compose an avatar and inspect its circle; save/reopen a post and project draft; check relevant controls/focus/labels. Use available iOS/Android/web targets and record what was checked. No new fixture application, browser matrix, codec export comparison, memory profiling project or physical-device test infrastructure is required. Package platform support is trusted. Normal local/test-environment publishing may be checked if already available and authorized; no production write is required.
+Brief manual checks (MAN-001–MAN-003) use the finished app: crop/rotate and cancel/accept a photo; compose an avatar and inspect its circle; save/reopen a post and project draft; check relevant controls/focus/labels. Use available iOS/Android targets and record what was checked. No new fixture application, browser matrix, codec export comparison, memory profiling project or physical-device test infrastructure is required. Package platform support is trusted. Normal local/test-environment publishing may be checked if already available and authorized; no production write is required.
 
 ## 10. Sequencing And Guardrails
 

@@ -209,7 +209,7 @@ An authenticated owner can ask apps and sites to hide their account from logged-
 
 ## 16. UI / API / CLI Impact
 
-- UI: mobile and Svelte guest shell, craft selection/search, shared content/thread/profile rendering, auth modal, persistent banner and Privacy toggle. Flutter web remains a supported app target; parity coverage includes its guest routing if shipped alongside Svelte.
+- UI: mobile and Svelte guest shell, craft selection/search, shared content/thread/profile rendering, auth modal, persistent banner and Privacy toggle.
 - API: safe anonymous feed/search/thread/public-detail data; shared eligibility for content and SSR/OG. Exact endpoints/DTOs deferred to coding plan. Private/write access policies stay explicit. Keep `/v1/`, camelCase, standard errors and opaque bounded cursors.
 - CLI: no new CLI or backfill mechanism is required or authorized.
 - Background jobs: existing profile ingestion must retain labels and converge external changes. New recurring jobs are not assumed.
@@ -274,7 +274,7 @@ All assumptions ASM-001–ASM-009 were confirmed by the user on 5 November 2026.
 
 | ID | Assumption | Impact If Wrong |
 |---|---|---|
-| ASM-001 | Web means the current Svelte client; the supported Flutter web app must also retain guest-capable behavior if distributed. | Adjust platform test matrix before implementation |
+| ASM-001 | Web means the current Svelte client; Flutter supports iOS and Android. | Adjust platform test matrix before implementation |
 | ASM-002 | Automatically offer the welcome modal once per guest browsing session; Explore prevents repeat prompts in that session. Direct profile/post links open unobstructed. | Change modal recurrence/entry rules and AC-002/004 |
 | ASM-003 | Guest default is the existing unpersonalized all-crafts view, with all available craft feeds selectable; no new ranking or account-based recommendations. | Specify initial craft/order before test design |
 | ASM-004 | “All public information” includes existing public profile sections, project details, media, reply policy and read-only social counts/relationships where the product exposes them; it excludes private-by-intent and account-only features. New social graph screens are not required. | Expand or reduce route/field inventory before test design |

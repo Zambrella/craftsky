@@ -39,7 +39,6 @@ No API or lexicon changes. No deployment or release performed.
 - `fvm flutter test test/instagram_migration`: 92 passed (rerun after the iOS cleanup restriction).
 - `fvm flutter analyze`: no issues after the final cleanup adjustment.
 - Android `:app:compileDebugKotlin`: build successful, including `android_file_picker`.
-- `fvm flutter build web --debug --no-pub`: built successfully; Wasm dry run succeeded.
 - `fvm flutter build ios --simulator --debug --no-codesign --no-pub`: built successfully. Existing media-kit Swift Package Manager adoption warnings remain.
 - Physical-device large ZIP, cloud-provider, low-storage and process-death journeys have not been exercised.
 

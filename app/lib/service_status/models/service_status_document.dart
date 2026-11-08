@@ -39,7 +39,7 @@ final class ServiceStatusDocument with ServiceStatusDocumentMappable {
         throw const FormatException('Status section');
       }
       if (section == 'minimumVersions') {
-        for (final platform in ['ios', 'android', 'web']) {
+        for (final platform in ['ios', 'android']) {
           if (item.containsKey(platform)) _version(item[platform]);
         }
         continue;
@@ -196,10 +196,9 @@ final class StatusMaintenance with StatusMaintenanceMappable {
   generateMethods: GenerateMethods.decode | GenerateMethods.encode,
 )
 final class StatusMinimumVersions with StatusMinimumVersionsMappable {
-  const new({this.ios, this.android, this.web});
+  const new({this.ios, this.android});
   final String? ios;
   final String? android;
-  final String? web;
 }
 
 @MappableClass(

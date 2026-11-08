@@ -82,7 +82,7 @@ const _videoProbeChannel = MethodChannel('social.craftsky/local_video');
 Future<VideoProbeResult> _probeVideo(XFile file) async {
   // MPV's software renderer aborts on rotated videos on iOS Simulator.
   // Probe local iOS assets without creating a playback texture at all.
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
     final data = await _videoProbeChannel.invokeMapMethod<String, Object?>(
       'probe',
       {'path': file.path},

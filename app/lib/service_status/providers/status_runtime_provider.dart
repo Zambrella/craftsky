@@ -4,10 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-enum StatusPlatform { ios, android, web }
+enum StatusPlatform { ios, android }
 
 final statusPlatformProvider = Provider<StatusPlatform?>((ref) {
-  if (kIsWeb) return StatusPlatform.web;
   return switch (defaultTargetPlatform) {
     TargetPlatform.iOS => StatusPlatform.ios,
     TargetPlatform.android => StatusPlatform.android,
@@ -37,7 +36,6 @@ bool requiresStatusUpdate(
   final minimum = switch (platform) {
     StatusPlatform.ios => minima.ios,
     StatusPlatform.android => minima.android,
-    StatusPlatform.web => minima.web,
   };
   return minimum != null &&
       current.compareTo(StatusAppVersion.parse(minimum)) < 0;

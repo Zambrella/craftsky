@@ -122,8 +122,6 @@ Validated locally on October 12, 2026:
 - `dart run build_runner build`: completed successfully.
 - `dart format --output=none --set-exit-if-changed lib test integration_test`:
   1,412 files checked, no changes required.
-- `flutter build web --release --wasm --no-pub`: WebAssembly and JavaScript
-  compilation passed.
 - `flutter build ios --simulator --no-codesign --no-pub`: passed on Xcode 27.
 - `flutter build macos --release --no-pub`: passed on Xcode 27.
 - `flutter build apk --debug --no-pub`: passed with built-in Kotlin enabled.

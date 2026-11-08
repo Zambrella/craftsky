@@ -1,6 +1,6 @@
 # CraftSky Flutter client
 
-The Flutter client for CraftSky, supporting **iOS, Android, and web only**. Native macOS, Windows, and Linux apps are not supported. `app.craftsky.social` hosts the server-rendered public web client, verified app links, and OAuth browser fallbacks. See [`web-client/`](../web-client/README.md). See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
+The Flutter client for CraftSky, supporting **iOS and Android only**. Native macOS, Windows, and Linux apps are not supported. `app.craftsky.social` hosts the server-rendered public web client, verified app links, and OAuth browser fallbacks. See [`web-client/`](../web-client/README.md). See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
 
 Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atproto primitives, but the happy path for data is:
 
@@ -47,7 +47,7 @@ The Android application ID and iOS bundle ID are both `social.craftsky.app`.
 
 The app talks to the AppView via `CRAFTSKY_API_BASE_URL`. In debug builds the
 default is `http://127.0.0.1:18080`. Android uses ADB reverse to reach the
-host's loopback listener; Chrome and iOS simulator runs use
+host's loopback listener; iOS simulator runs use
 `localhost` directly. The emulator's `10.0.2.2` alias reaches the host but
 is rejected by AppView's local Host policy with HTTP 421.
 
@@ -62,7 +62,6 @@ Then run from the repo root:
 ```bash
 just app-run-ios
 just app-run-android
-just app-run-chrome
 # Interactive picker, including Android (prepares ADB reverse automatically):
 just app-run
 # Physical Android device connected via USB with USB debugging enabled:

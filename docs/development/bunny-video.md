@@ -43,7 +43,7 @@ From the repository root:
 
 ```bash
 just dev-d
-just app-run-chrome
+just app-run-ios
 # Alternatively:
 just app-run-ios
 just app-run-android

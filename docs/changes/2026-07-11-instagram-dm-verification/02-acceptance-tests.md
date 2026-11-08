@@ -430,7 +430,7 @@ Feature: Private Instagram ZIP import
 ## 10. Out Of Scope
 
 - Scraping, Instagram follower/following API reads, OAuth-only verification, ManyChat, export-possession proof, or server-side archive parsing.
-- Flutter web ZIP parsing, whole-archive in-memory decode, and extraction of
+- Whole-archive in-memory decode and extraction of
   unrelated ZIP entries.
 - Collection or persistence of accounts that follow the importing member or follower-derived matches.
 - PDS storage of private Instagram data or a lexicon change.

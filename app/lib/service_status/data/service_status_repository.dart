@@ -1,9 +1,7 @@
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
-export 'service_status_repository_stub.dart'
-    if (dart.library.io) 'service_status_repository_native.dart'
-    if (dart.library.js_interop) 'service_status_repository_web.dart';
+export 'service_status_repository_native.dart';
 
 final class StatusRequest {
   const new(this.result, this.cancel);

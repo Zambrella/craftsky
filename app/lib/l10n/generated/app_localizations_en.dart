@@ -5093,9 +5093,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serviceStatusUpdate => 'Update';
 
   @override
-  String get serviceStatusReload => 'Reload';
-
-  @override
   String get serviceStatusActionFailed =>
       'Could not open this action. Please try again.';
 

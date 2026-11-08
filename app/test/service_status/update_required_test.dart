@@ -77,59 +77,6 @@ void main() {
   );
 
   // AT-005 / FR-005, NFR-001 / AC-008
-  testWidgets('web reload is requested once only on explicit user action', (
-    tester,
-  ) async {
-    final repository = FakeStatusRepository();
-    var reloads = 0;
-    final container = ProviderContainer(
-      overrides: [
-        statusRuntimeOverrides.last,
-        statusPlatformProvider.overrideWithValue(StatusPlatform.web),
-        statusReloadProvider.overrideWithValue(() => reloads++),
-        serviceStatusRepositoryProvider.overrideWithValue(repository),
-      ],
-    );
-    final controller = container.read(serviceStatusControllerProvider.notifier);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (_, child) => ServiceStatusHost(child: child!),
-          home: const Scaffold(body: Text('App')),
-        ),
-      ),
-    );
-    await tester.pump();
-    for (var i = 0; i < 2; i++) {
-      final refresh = controller.refresh();
-      repository.requests.last.complete(
-        ServiceStatusDocument(
-          revision: 'D$i',
-          minimumVersions: const StatusMinimumVersions(web: '1.9.0'),
-        ),
-      );
-      await tester.pump();
-      await refresh;
-    }
-    expect(reloads, 0);
-    await tester.tap(find.text('Reload'));
-    await tester.pump();
-    expect(reloads, 1);
-    await tester.tap(find.text('Reload'));
-    await tester.pump();
-    expect(
-      reloads,
-      1,
-      reason: 'A pending document navigation fences repeated taps',
-    );
-    expect(find.text('Update required'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox.shrink());
-    container.dispose();
-  });
 
   // AT-004 / FR-004 / AC-007
   for (final platform in [StatusPlatform.ios, StatusPlatform.android]) {

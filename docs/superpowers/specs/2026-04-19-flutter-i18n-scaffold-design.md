@@ -212,7 +212,6 @@ After implementation, in `app/`:
 2. `flutter analyze` — clean.
 3. `dart run custom_lint` — clean.
 4. `flutter test` — 5/5 passing (4 theme + 1 smoke, now with the l10n assertion).
-5. `flutter build web` — succeeds.
 6. `flutter run` smoke-check (by user): `HomePage` renders identical to before.
 
 ## Done when

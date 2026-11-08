@@ -10,7 +10,7 @@ The shared control replaces existing pull-to-refresh surfaces, preserving their 
 python3 design/rive/yarn-refresh/generate_scene.py
 bash design/rive/yarn-refresh/build-asset.sh
 cd app
-flutter run -d web-server --web-port 7362 --target test/fixtures/yarn_refresh_preview.dart
+flutter run -d <device-id> --target test/fixtures/yarn_refresh_preview.dart
 ```
 
 The preview uses real post cards and the shared refresh control with a local delayed callback; it makes no network writes.

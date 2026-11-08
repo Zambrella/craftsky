@@ -26,11 +26,7 @@ class _UpdateRequiredScreenState extends ConsumerState<UpdateRequiredScreen> {
     var success = false;
     try {
       final platform = ref.read(statusPlatformProvider);
-      if (platform == StatusPlatform.web) {
-        ref.read(statusReloadProvider)();
-        // The document is leaving; retain the guard until it unloads.
-        return;
-      } else if (platform != null) {
+      if (platform != null) {
         success = await ref.read(statusExternalLauncherProvider)(
           officialStatusStore(platform),
         );
@@ -94,10 +90,7 @@ class _UpdateRequiredScreenState extends ConsumerState<UpdateRequiredScreen> {
                             autofocus: true,
                             onPressed: _pending ? null : _activate,
                             child: Text(
-                              ref.watch(statusPlatformProvider) ==
-                                      StatusPlatform.web
-                                  ? l10n.serviceStatusReload
-                                  : l10n.serviceStatusUpdate,
+                              l10n.serviceStatusUpdate,
                             ),
                           ),
                         ],

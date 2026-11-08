@@ -17,8 +17,9 @@ The [product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQ
 
 ## Supported platforms
 
-The CraftSky app supports **iOS, Android, and web only**. Native macOS, Windows,
-and Linux apps are not supported.
+The Flutter app supports **iOS and Android only**. The web client uses SvelteKit;
+see [web-client/](web-client/README.md). Native macOS, Windows, and Linux apps are
+not supported.
 
 ## Contributing
 

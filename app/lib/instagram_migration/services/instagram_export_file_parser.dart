@@ -1,6 +1,5 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_export_file_parser_web.dart'
-    if (dart.library.io) 'package:craftsky_app/instagram_migration/services/instagram_export_file_parser_native.dart'
+import 'package:craftsky_app/instagram_migration/services/instagram_export_file_parser_native.dart'
     as platform;
 import 'package:craftsky_app/instagram_migration/services/instagram_export_limits.dart';
 

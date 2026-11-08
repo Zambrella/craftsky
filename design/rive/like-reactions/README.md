@@ -36,4 +36,4 @@ rive inspect design/rive/like-reactions --summary
 rive design/rive/like-reactions --once
 ```
 
-Regenerating replaces manual edits to `scene.rml`. Native Flutter/web runtime checks, final display size, reduced-motion behavior, like-action replay, and integration into the post overlay come after a direction is chosen. Nothing has been uploaded or published to a Rive account.
+Regenerating replaces manual edits to `scene.rml`. Native Flutter runtime checks, final display size, reduced-motion behavior, like-action replay, and integration into the post overlay come after a direction is chosen. Nothing has been uploaded or published to a Rive account.

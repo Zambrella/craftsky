@@ -522,7 +522,7 @@ Feature: OAuth-time Bluesky profile projection
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
 | GAP-001 | True cross-device cold-start behavior is not covered by one automated Flutter process. | FR-018, RULE-004 | Current test harness is process-local and has no device farm. | Cover server authority through Go integration tests and reconstruct Flutter containers with empty local state; optionally verify on two devices before release. |
-| GAP-002 | Real OS gallery/camera permission and picker behavior cannot be proven by widget mocks. | FR-023 | `image_picker` platform channels are outside widget-test scope. | Execute MAN-001 on iOS, Android, and web; retain media-service unit tests for validation/preparation. |
+| GAP-002 | Real OS gallery/camera permission and picker behavior cannot be proven by widget mocks. | FR-023 | `image_picker` platform channels are outside widget-test scope. | Execute MAN-001 on iOS and Android; retain media-service unit tests for validation/preparation. |
 | GAP-003 | Visual quality across every locale is not exhaustively automated. | NFR-001, NFR-002 | Generated localization and arbitrary string expansion exceed practical matrix size. | Automate English large-text/viewport cases and perform MAN-002 with representative long strings. |
 | GAP-004 | Last-write-wins can overwrite a concurrent external profile edit by design. | RULE-006 | Conflict control was explicitly excluded. | Keep regression coverage proving no accidental concurrency contract was introduced; retain RISK-009 in implementation review. |
 

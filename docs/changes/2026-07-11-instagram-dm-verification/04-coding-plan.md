@@ -501,7 +501,6 @@ just test
   - Meta app/dashboard setup and production enablement;
   - additional real export fixtures;
   - repository-wide member export/deletion UI;
-  - Flutter web ZIP support;
   - automatic conflict adjudication;
   - progress UI for private background operations.
 

@@ -566,7 +566,6 @@ and secret-scan suites instead of duplicating their established coverage.
   - `just app-analyze`
   - `just app-build-ios staging`
   - `just app-build-apk staging`
-  - `just app-build-web staging`
 
 ## 11. Risks And Open Questions
 

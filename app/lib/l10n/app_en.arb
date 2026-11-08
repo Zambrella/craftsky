@@ -3715,7 +3715,6 @@
   "serviceStatusUpdateTitle": "Update required",
   "serviceStatusUpdateDescription": "Please update CraftSky to continue.",
   "serviceStatusUpdate": "Update",
-  "serviceStatusReload": "Reload",
   "serviceStatusActionFailed": "Could not open this action. Please try again.",
   "notificationMentionPostRow": "{actor} mentioned you in a post",
   "@notificationMentionPostRow": {

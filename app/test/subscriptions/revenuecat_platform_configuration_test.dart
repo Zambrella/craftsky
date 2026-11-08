@@ -41,7 +41,6 @@ void main() {
       final configurator = _RecordingConfigurator();
 
       for (final platform in [
-        RevenueCatPlatform.web,
         RevenueCatPlatform.macos,
         RevenueCatPlatform.windows,
         RevenueCatPlatform.linux,

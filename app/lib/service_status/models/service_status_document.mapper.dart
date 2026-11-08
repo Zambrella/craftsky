@@ -245,18 +245,11 @@ class StatusMinimumVersionsMapper
     _$android,
     opt: true,
   );
-  static String? _$web(StatusMinimumVersions v) => v.web;
-  static const Field<StatusMinimumVersions, String> _f$web = Field(
-    'web',
-    _$web,
-    opt: true,
-  );
 
   @override
   final MappableFields<StatusMinimumVersions> fields = const {
     #ios: _f$ios,
     #android: _f$android,
-    #web: _f$web,
   };
   @override
   final bool ignoreNull = true;
@@ -265,7 +258,6 @@ class StatusMinimumVersionsMapper
     return StatusMinimumVersions(
       ios: data.dec(_f$ios),
       android: data.dec(_f$android),
-      web: data.dec(_f$web),
     );
   }
 
