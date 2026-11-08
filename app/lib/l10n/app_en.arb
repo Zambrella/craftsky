@@ -3825,5 +3825,8 @@
   "chatReportConversationTitle": "Report conversation",
   "@chatReportConversationTitle": {"description": "Action and form title for reporting a direct conversation to Bluesky."},
   "chatConversationReportDisclosure": "Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.",
-  "@chatConversationReportDisclosure": {"description": "Names the destination of conversation reports."}
+  "@chatConversationReportDisclosure": {"description": "Names the destination of conversation reports."},
+  "reportContactEmailLabel": "Contact email (optional)",
+  "reportContactEmailHelp": "Only CraftSky moderators can see this. Add it if you would like us to contact you about your report.",
+  "reportContactEmailInvalid": "Enter a valid email address."
 }

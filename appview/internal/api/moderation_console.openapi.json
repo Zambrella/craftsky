@@ -6204,6 +6204,9 @@
                     "reporterDid": {
                       "type": "string"
                     },
+                    "contactEmail": {
+                      "type": "string"
+                    },
                     "createdAt": {
                       "type": "string"
                     }

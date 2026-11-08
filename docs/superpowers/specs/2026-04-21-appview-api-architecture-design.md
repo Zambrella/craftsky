@@ -132,8 +132,9 @@ X-Craftsky-Device-Id: <client-generated-device-id>
 - `/health`, `/healthz` — ops.
 - `/oauth/*` — per OAuth BFF spec.
 - `POST /v1/auth/login` — by definition pre-auth.
+- Guest browsing uses the closed `/v1/public/*` read surface. Its only writes are `POST /v1/public/posts/{did}/{rkey}/reports` and `POST /v1/public/profiles/{handleOrDid}/reports`: private moderation intake for public-visible targets, without member identity or device authority. The shared report body accepts `reasonType`, optional `details` (1,000 characters), and optional `contactEmail` (validated, up to 254 bytes). These endpoints return only `reportId` and `status`, apply an 8 KiB JSON limit and separate aggregate admission (10/minute, burst 10, two concurrent requests), and never cache responses. See the [guest reporting implementation note](../../changes/2026-11-05-logged-out-browsing/07-guest-reporting.md).
 
-Every other endpoint under `/v1/` requires authentication.
+Other endpoints under `/v1/` require authentication unless their route policy explicitly allows anonymous access.
 
 ### 3.3 Schema addition
 

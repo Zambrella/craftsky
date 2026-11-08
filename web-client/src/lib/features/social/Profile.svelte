@@ -472,6 +472,7 @@
 									? 'Unblock account'
 									: 'Block account'}</button
 							><button
+								data-public-action
 								disabled={work.busy || !!work.retry}
 								onclick={() => {
 									reportLink = undefined;
@@ -526,6 +527,7 @@
 				onCancel={() => (confirmBlock = false)}
 			/>{/if}
 		{#if reportOpen}<ReportForm
+				showContactEmail={guest}
 				subject={reportLink ? 'profile link' : 'profile'}
 				busy={work.busy}
 				onRetry={work.retry}

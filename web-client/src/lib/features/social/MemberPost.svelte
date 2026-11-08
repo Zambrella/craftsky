@@ -711,7 +711,7 @@
 									><Icon name="block" />{post.author.blocking
 										? 'Unblock account'
 										: 'Block account'}</button
-								><button onclick={() => (reportOpen = true)}
+								><button data-public-action onclick={() => (reportOpen = true)}
 									><Icon name="report" />Report {post.reply
 										? post.reply.parent.uri === post.reply.root.uri
 											? 'comment'
@@ -754,6 +754,7 @@
 				onCancel={() => (confirmation = undefined)}
 			/>{/if}
 		{#if reportOpen}<ReportForm
+				showContactEmail={guest}
 				subject={post.reply
 					? post.reply.parent.uri === post.reply.root.uri
 						? 'comment'

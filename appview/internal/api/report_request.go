@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/mail"
 	"strings"
 )
 
@@ -13,8 +14,9 @@ const maxReportDetailsCharacters = 1000
 // ReportRequest is the shared body shape accepted by post/profile report
 // endpoints. Details are AppView-private plain text.
 type ReportRequest struct {
-	ReasonType string  `json:"reasonType"`
-	Details    *string `json:"details,omitempty"`
+	ReasonType   string  `json:"reasonType"`
+	Details      *string `json:"details,omitempty"`
+	ContactEmail *string `json:"contactEmail,omitempty"`
 }
 
 // DecodeReportRequest reads the shared JSON report body and rejects malformed
@@ -28,7 +30,7 @@ func DecodeReportRequest(body io.Reader) (ReportRequest, error) {
 	if err := json.Unmarshal(raw, &rawMap); err != nil {
 		return ReportRequest{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": err.Error()}}
 	}
-	allowed := map[string]struct{}{"reasonType": {}, "details": {}}
+	allowed := map[string]struct{}{"reasonType": {}, "details": {}, "contactEmail": {}}
 	unknown := map[string]string{}
 	for key := range rawMap {
 		if _, ok := allowed[key]; !ok {
@@ -90,6 +92,9 @@ func ValidateReportRequest(req ReportRequest) error {
 	if !IsApprovedReportReason(req.ReasonType) {
 		fields["reasonType"] = "must be an approved report reason"
 	}
+	if _, err := NormalizeReportContactEmail(req.ContactEmail); err != nil {
+		fields["contactEmail"] = "must be a valid email address"
+	}
 	if _, err := NormalizeReportDetails(req.Details); err != nil {
 		var detailErr *FieldError
 		if fe, ok := err.(*FieldError); ok {
@@ -107,4 +112,16 @@ func ValidateReportRequest(req ReportRequest) error {
 		return &FieldError{Code: "validation_failed", Fields: fields}
 	}
 	return nil
+}
+
+func NormalizeReportContactEmail(value *string) (*string, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return nil, nil
+	}
+	email := strings.TrimSpace(*value)
+	address, err := mail.ParseAddress(email)
+	if err != nil || len(email) > 254 || strings.ContainsAny(email, "\r\n") || address.Address != email {
+		return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{"contactEmail": "must be a valid email address"}}
+	}
+	return &email, nil
 }

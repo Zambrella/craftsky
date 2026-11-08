@@ -27,8 +27,9 @@ export const POST: RequestHandler = async ({ request, url, cookies }) => {
 				await upstream(
 					'/v1/auth/logout',
 					device(cookies, url),
-					{},
-					account.token
+					undefined,
+					account.token,
+					'POST'
 				);
 			} catch (error) {
 				if (!(error instanceof UpstreamError && error.status === 401))

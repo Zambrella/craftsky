@@ -11,7 +11,7 @@ export type Page<T> = { items: T[]; cursor?: string }
 export type CaseItem = { caseReference: string; state: 'open' | 'resolved'; origin: string; subjectType: string; subjectDid: string; reportCount: number; revision: number; createdAt: string }
 export type CaseDetail = CaseItem & {
   ownerDid: string; subjectUri?: string; subjectCidSnapshot?: string; incidentReference?: string; appealStatus?: string; appealRationale?: string;
-  reports: { id: string; reporterDid: string; reason: string; details?: string; createdAt: string }[];
+  reports: { id: string; reporterDid: string; contactEmail?: string; reason: string; details?: string; createdAt: string }[];
   events: { type: string; actorId: string; sourceSystem: string; revision: number; createdAt: string }[];
   decisions: { disposition: string; reason?: string; evidenceNotes?: string; userSafeDetail?: string; severityRationale?: string; legalClassification?: string; createdAt: string }[];
   effects: { effectId: string; type: Effect; action: string; rationale?: string; active: boolean; createdAt: string }[];

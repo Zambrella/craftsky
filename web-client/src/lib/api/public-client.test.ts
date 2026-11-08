@@ -38,6 +38,39 @@ it('reads the explicit public contract with no credentials or private defaults o
 		viewerHasSaved: false
 	});
 });
+it('submits only post and profile reports without credentials', async () => {
+	const fetcher = vi.fn<typeof fetch>(async () =>
+		Response.json(
+			{ reportId: 'guest-report', status: 'accepted' },
+			{ status: 201 }
+		)
+	);
+	const api = new PublicCraftskyAPI(fetcher);
+	const submission = {
+		reasonType: 'privacy',
+		details: 'Private details',
+		contactEmail: 'visitor@example.test'
+	};
+	await expect(
+		api.posts.report('did:plc:alice', 'first', submission)
+	).resolves.toMatchObject({ status: 'accepted' });
+	await expect(
+		api.profiles.report('did:plc:alice', submission)
+	).resolves.toMatchObject({ status: 'accepted' });
+	expect(fetcher.mock.calls.map(([path]) => String(path))).toEqual([
+		'/api/public/posts/did%3Aplc%3Aalice/first/reports',
+		'/api/public/profiles/%40did%3Aplc%3Aalice/reports'
+	]);
+	for (const [, options] of fetcher.mock.calls) {
+		expect(options).toMatchObject({
+			method: 'POST',
+			credentials: 'omit',
+			redirect: 'manual'
+		});
+		expect(new Headers(options?.headers).has('authorization')).toBe(false);
+		expect(JSON.parse(String(options?.body))).toEqual(submission);
+	}
+});
 it('rejects all mutations, private reads and discovery before fetch', async () => {
 	const fetcher = vi.fn<typeof fetch>();
 	const api = new PublicCraftskyAPI(fetcher);

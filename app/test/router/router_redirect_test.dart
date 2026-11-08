@@ -52,6 +52,7 @@ import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -352,8 +353,12 @@ void main() {
       await tester.ensureVisible(find.text('Explore CraftSky'));
       await tester.tap(find.text('Explore CraftSky'));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Register'), findsOneWidget);
+      expect(find.text('Your craft. Your community.'), findsOneWidget);
+      final join = find.widgetWithText(ChunkyButton, 'Join');
+      expect(join, findsOneWidget);
+      await tester.tap(join);
+      await tester.pumpAndSettle();
+      expect(find.byType(WelcomePage), findsOneWidget);
     });
   }
   test('status destinations map only to canonical typed top-level routes', () {

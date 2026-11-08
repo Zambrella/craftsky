@@ -33,6 +33,40 @@ Future<void> _pump(
 
 void main() {
   group('ReportSubjectSheet', () {
+    for (final email in ['', 'visitor@example.test']) {
+      testWidgets('guest report accepts optional contact email "$email"', (
+        tester,
+      ) async {
+        ReportSubmission? submitted;
+        await _pump(
+          tester,
+          ReportSubjectSheet(
+            subjectType: ReportSubjectType.post,
+            showContactEmail: true,
+            onSubmit: (value) => submitted = value,
+          ),
+        );
+        await tester.tap(find.text('Spam, misleading or off-topic content'));
+        await tester.pump();
+        await tester.tap(find.text('Spam'));
+        await tester.pump();
+        final input = find.descendant(
+          of: find.widgetWithText(BrandTextField, 'Contact email (optional)'),
+          matching: find.byType(TextField),
+        );
+        await tester.ensureVisible(input);
+        await tester.enterText(input, 'not an email');
+        await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+        await tester.pump();
+        expect(submitted, isNull);
+        expect(find.text('Enter a valid email address.'), findsOneWidget);
+        await tester.enterText(input, email.isEmpty ? '' : ' $email ');
+        await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+        await tester.pump();
+        expect(submitted?.reasonType, 'spam');
+        expect(submitted?.contactEmail, email.isEmpty ? null : email);
+      });
+    }
     for (final (subjectType, title) in [
       (ReportSubjectType.comment, 'Report comment'),
       (ReportSubjectType.reply, 'Report reply'),

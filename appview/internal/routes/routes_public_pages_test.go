@@ -6,8 +6,57 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"social.craftsky/appview/internal/api"
+	"strings"
 	"testing"
 )
+
+func TestPublicReportRoutesValidateWithoutAccount(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, path := range []string{
+		"/v1/public/posts/did:plc:alice/post1/reports",
+		"/v1/public/profiles/did:plc:alice/reports",
+	} {
+		r := httptest.NewRequest("POST", path, strings.NewReader(`{"reasonType":"not-a-reason"}`))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		if w.Code != 422 || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPublicReportAdmissionCannotBeBypassedWithDeviceHeaders(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for i := 0; i < 11; i++ {
+		r := httptest.NewRequest("POST", "/v1/public/profiles/did:plc:alice/reports", strings.NewReader(`{"reasonType":"invalid"}`))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Craftsky-Device-Id", string(rune('a'+i)))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		want := 422
+		if i == 10 {
+			want = 429
+		}
+		if w.Code != want {
+			t.Fatalf("attempt %d: %d %s", i, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPublicReportBodyLimit(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	r := httptest.NewRequest("POST", "/v1/public/profiles/did:plc:alice/reports", strings.NewReader(`{"reasonType":"spam","details":"`+strings.Repeat("x", 8192)+`"}`))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != 413 {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
 
 func TestPublicPageAdmissionBoundsAnonymousWork(t *testing.T) {
 	for _, saturated := range []bool{false, true} {

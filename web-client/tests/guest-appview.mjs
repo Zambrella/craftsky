@@ -91,6 +91,12 @@ createServer((req, res) => {
 		url.pathname.slice('/v1/public/'.length)
 	).replace(/^profiles\/@/, 'profiles/');
 	if (
+		req.method === 'POST' &&
+		/^(posts\/[^/]+\/[^/]+|profiles\/[^/]+)\/reports$/.test(path)
+	) {
+		return send(201, { reportId: 'guest-report', status: 'accepted' });
+	}
+	if (
 		/^profiles\/(refresh.test|did:plc:refresh)(?:\/(?:posts|projects))?$/.test(
 			path
 		)

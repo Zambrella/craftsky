@@ -201,6 +201,25 @@ final class PublicReadInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     try {
+      if (options.method == 'POST' &&
+          options.queryParameters.isEmpty &&
+          RegExp(r'^/v1/(posts/[^/]+/[^/]+|profiles/[^/]+)/reports$')
+              .hasMatch(options.path)) {
+        final parent = PublicReadRequest.resolve(
+          options.path.substring(0, options.path.length - '/reports'.length),
+          'GET',
+          {},
+        );
+        options
+          ..path = '${parent.path}/reports'
+          ..headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          }
+          ..followRedirects = false;
+        handler.next(options);
+        return;
+      }
       final request = PublicReadRequest.resolve(
         options.path,
         options.method,
@@ -236,10 +255,10 @@ final class PublicReadInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
-    response.data =
-        (response.requestOptions.extra['publicReadRequest']
-                as PublicReadRequest)
-            .adapt(response.data);
+    if (response.requestOptions.extra['publicReadRequest']
+        case final PublicReadRequest request) {
+      response.data = request.adapt(response.data);
+    }
     handler.next(response);
   }
 }

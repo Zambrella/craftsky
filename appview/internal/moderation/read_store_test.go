@@ -16,10 +16,19 @@ import (
 )
 
 func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T) {
+	for _, guest := range []bool{false, true} {
+		t.Run(map[bool]string{false: "member", true: "visitor"}[guest], func(t *testing.T) {
+			testModerationReadStorePrivacy(t, guest)
+		})
+	}
+}
+
+func testModerationReadStorePrivacy(t *testing.T, guest bool) {
 	pool := testdb.WithSchema(t, adjudicationTestDDL+`
-		ALTER TABLE moderation_reports ADD COLUMN reporter_did TEXT NOT NULL DEFAULT 'did:plc:reporter-sensitive';
+		ALTER TABLE moderation_reports ADD COLUMN reporter_did TEXT DEFAULT 'did:plc:reporter-sensitive';
 		ALTER TABLE moderation_reports ADD COLUMN reason_type TEXT NOT NULL DEFAULT 'spam';
 		ALTER TABLE moderation_reports ADD COLUMN details TEXT;
+		ALTER TABLE moderation_reports ADD COLUMN contact_email TEXT DEFAULT 'private-contact@example.test';
 	`)
 	ctx := context.Background()
 	store := NewStore(pool)
@@ -31,6 +40,11 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE moderation_reports SET details='private-report-sentinel' WHERE id='read-report'`); err != nil {
 		t.Fatal(err)
+	}
+	if guest {
+		if _, err := pool.Exec(ctx, `UPDATE moderation_reports SET reporter_did=NULL WHERE id='read-report'`); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `UPDATE moderation_cases SET safe_snapshot=safe_snapshot || '{"reportText":"raw-snapshot-private-sentinel"}'::jsonb WHERE id=$1`, caseRow.ID); err != nil {
 		t.Fatal(err)
@@ -52,6 +66,9 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	detail, err := store.AdminDetail(ctx, caseReference)
 	if err != nil || len(detail.Reports) != 1 || detail.Reports[0].Details != "private-report-sentinel" || len(detail.Events) != 1 {
 		t.Fatalf("admin detail = %+v, err=%v", detail, err)
+	}
+	if detail.Reports[0].ContactEmail != "private-contact@example.test" || (guest && detail.Reports[0].ReporterDID != "") {
+		t.Fatal("moderator report lost contact information or invented a guest identity")
 	}
 	if detail.SubjectType != SubjectAccount || detail.SubjectDID != owner || detail.SafeSnapshot.DID != owner {
 		t.Fatalf("canonical subject detail = %+v", detail)
@@ -80,7 +97,7 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"private-report-sentinel", "private-evidence-sentinel", "private-moderator-sentinel", "did:plc:reporter-sensitive", "raw-snapshot-private-sentinel", "legalClassification"} {
+	for _, secret := range []string{"private-contact@example.test", "private-report-sentinel", "private-evidence-sentinel", "private-moderator-sentinel", "did:plc:reporter-sensitive", "raw-snapshot-private-sentinel", "legalClassification"} {
 		if strings.Contains(string(wire), secret) {
 			t.Fatalf("owner history leaked %q: %s", secret, wire)
 		}

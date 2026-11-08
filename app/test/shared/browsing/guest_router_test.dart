@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
@@ -31,6 +32,32 @@ class _EmptyRegistry extends SessionRegistry {
 
 void main() {
   setUpAll(initializeMappers);
+  testWidgets('guest post opens the existing report form without signing in', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionRegistryProvider.overrideWith(_EmptyRegistry.new)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: PostCard(
+              post: postFixture(rkey: 'guest-report', text: 'Public post'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportSubjectSheet), findsOneWidget);
+    expect(find.byType(WelcomePage), findsNothing);
+  });
   for (final size in [
     const Size(320, 932),
     const Size(430, 932),

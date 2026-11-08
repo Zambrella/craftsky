@@ -33,7 +33,7 @@ final class ReportPostProvider
   ReportPost create() => ReportPost();
 }
 
-String _$reportPostHash() => r'ba50e0ae1673f5a0e6148704816994d65f2d86fa';
+String _$reportPostHash() => r'80141658589634a8dcf14e598fc1a0b1a901620c';
 
 abstract class _$ReportPost extends $AsyncNotifier<ReportResult?> {
   FutureOr<ReportResult?> build();

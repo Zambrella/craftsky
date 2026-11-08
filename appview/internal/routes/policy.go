@@ -300,6 +300,8 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
 		{Method: "GET", PathPattern: "/v1/public/stats", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "POST", PathPattern: "/v1/public/posts/{did}/{rkey}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
+		{Method: "POST", PathPattern: "/v1/public/profiles/{handleOrDid}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},

@@ -370,7 +370,8 @@ class _ProfileBody extends ConsumerWidget {
               onShare: () => context.showInfo(
                 AppLocalizations.of(context).profileShareComingSoon,
               ),
-              onReport: () => unawaited(showGuestSignIn(context, ref)),
+              onReport: () =>
+                  unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
               onBlockToggle: () => unawaited(showGuestSignIn(context, ref)),
               onSendViaChat: () => showGuestSignIn(context, ref),

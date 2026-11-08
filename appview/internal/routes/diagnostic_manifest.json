@@ -1600,5 +1600,17 @@
     "path": "/v1/blobs/videos/{jobId}/cancel",
     "category": "appview.blobs.videos.cancel",
     "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/public/posts/{did}/{rkey}/reports",
+    "category": "appview.public.posts.reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/public/profiles/{handleOrDid}/reports",
+    "category": "appview.public.profiles.reports",
+    "public": false
   }
 ]

@@ -82,8 +82,13 @@ class _GuestFrameState extends ConsumerState<GuestFrame> {
     }
     return GuestNavigationFrame(
       selectedIndex: uri.path.startsWith('/search') ? 1 : 0,
-      onDestinationSelected: (index) =>
-          context.go(index == 0 ? '/feed' : '/search'),
+      onDestinationSelected: (index) {
+        if (index == 0) {
+          const FeedRoute().go(context);
+        } else {
+          const SearchRoute().go(context);
+        }
+      },
       child: Scaffold(
         body: Column(
           children: [

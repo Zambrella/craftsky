@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"golang.org/x/time/rate"
 	"social.craftsky/appview/internal/api"
@@ -42,6 +43,19 @@ func registerPublicPageRoutes(mux Registrar, middleware v1Middleware, store api.
 	}
 	path := "/v1/public/posts/{did}/{rkey}/video-captions/{captionCid}"
 	mux.Handle("GET "+path, middleware.wrap(mustPolicy("GET", path), publicPageAdmission(limiter, slots, captions)))
+}
+
+func registerPublicReportRoutes(mux Registrar, middleware v1Middleware, store api.PublicPageReader, resolver api.HandleResolver, reports api.ReportCreator) {
+	// Shared process-wide admission cannot be bypassed by rotating caller-supplied
+	// device IDs, cookies or forwarded headers. Reports have a separate budget.
+	limiter := rate.NewLimiter(rate.Every(6*time.Second), 10)
+	slots := make(chan struct{}, 2)
+	for _, route := range []struct{ path, resource string }{
+		{"/v1/public/posts/{did}/{rkey}/reports", "post"},
+		{"/v1/public/profiles/{handleOrDid}/reports", "profile"},
+	} {
+		mux.Handle("POST "+route.path, middleware.wrap(mustPolicy("POST", route.path), publicPageAdmission(limiter, slots, api.PublicReportHandler(store, resolver, reports, route.resource))))
+	}
 }
 
 func publicPageAdmission(limiter *rate.Limiter, slots chan struct{}, next http.Handler) http.Handler {

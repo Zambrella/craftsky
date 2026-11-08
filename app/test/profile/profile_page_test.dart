@@ -129,6 +129,20 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Join CraftSky'), findsOneWidget);
         expect(follows, 0);
+        await tester.ensureVisible(find.text('Explore CraftSky'));
+        await tester.tap(find.text('Explore CraftSky'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byTooltip('More profile actions').hitTestable().last,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Report profile'));
+        await tester.pumpAndSettle();
+        expect(find.text('Report profile'), findsOneWidget);
+        expect(find.text('Join CraftSky'), findsNothing);
+        await tester.tap(find.text('Spam, misleading or off-topic content'));
+        await tester.pump();
+        expect(find.text('Contact email (optional)'), findsOneWidget);
       },
     );
 

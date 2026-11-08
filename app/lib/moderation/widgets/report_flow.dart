@@ -12,6 +12,7 @@ import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -19,8 +20,9 @@ import 'package:material_ui/material_ui.dart';
 Future<void> showPostReportSheet(
   BuildContext context,
   WidgetRef ref,
-  Post post,
-) {
+  Post post, {
+  ReportSubjectType? subjectType,
+}) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportPostProvider.notifier).reset();
   return responsiveModalNavigator(context).push<void>(
@@ -29,6 +31,7 @@ Future<void> showPostReportSheet(
         parentContext: context,
         successMessage: successMessage,
         post: post,
+        subjectType: subjectType,
       ),
     ),
   );
@@ -137,11 +140,13 @@ class _PostReportRouteBody extends ConsumerWidget {
     required this.parentContext,
     required this.successMessage,
     required this.post,
+    this.subjectType,
   });
 
   final BuildContext parentContext;
   final String successMessage;
   final Post post;
+  final ReportSubjectType? subjectType;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -157,12 +162,15 @@ class _PostReportRouteBody extends ConsumerWidget {
     });
 
     return ReportSubjectSheet(
-      subjectType: switch (post.reply) {
-        null => ReportSubjectType.post,
-        final reply when reply.parent.uri == reply.root.uri =>
-          ReportSubjectType.comment,
-        _ => ReportSubjectType.reply,
-      },
+      showContactEmail: ref.watch(isGuestBrowsingProvider),
+      subjectType:
+          subjectType ??
+          switch (post.reply) {
+            null => ReportSubjectType.post,
+            final reply when reply.parent.uri == reply.root.uri =>
+              ReportSubjectType.comment,
+            _ => ReportSubjectType.reply,
+          },
       isSubmitting: submitState.isLoading,
       submitError: submitState.hasError
           ? AppLocalizations.of(context).reportSubmitError
@@ -212,6 +220,7 @@ class _ProfileReportRouteBody extends ConsumerWidget {
 
     return ReportSubjectSheet(
       subjectType: ReportSubjectType.profile,
+      showContactEmail: ref.watch(isGuestBrowsingProvider),
       isSubmitting: submitState.isLoading,
       submitError: submitState.hasError
           ? AppLocalizations.of(context).reportSubmitError

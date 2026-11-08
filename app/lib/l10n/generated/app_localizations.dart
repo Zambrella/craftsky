@@ -9254,6 +9254,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.'**
   String get chatConversationReportDisclosure;
+
+  /// No description provided for @reportContactEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact email (optional)'**
+  String get reportContactEmailLabel;
+
+  /// No description provided for @reportContactEmailHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Only CraftSky moderators can see this. Add it if you would like us to contact you about your report.'**
+  String get reportContactEmailHelp;
+
+  /// No description provided for @reportContactEmailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid email address.'**
+  String get reportContactEmailInvalid;
 }
 
 class _AppLocalizationsDelegate

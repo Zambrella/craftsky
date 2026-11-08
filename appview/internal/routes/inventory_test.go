@@ -248,6 +248,8 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/public/profiles/{handleOrDid}/reposts",
 		"GET /v1/public/posts/{did}/{rkey}/thread",
 		"GET /v1/public/posts/{did}/{rkey}/video-captions/{captionCid}",
+		"POST /v1/public/posts/{did}/{rkey}/reports",
+		"POST /v1/public/profiles/{handleOrDid}/reports",
 		"GET /v1/preferences/logged-out-visibility",
 		"PUT /v1/preferences/logged-out-visibility",
 		"GET /v1/feed/timeline",

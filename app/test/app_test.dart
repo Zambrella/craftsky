@@ -12,6 +12,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
@@ -359,6 +360,11 @@ void main() {
         );
         expect(find.byType(WelcomePage), findsOneWidget);
 
+        await tester.ensureVisible(find.text('Explore CraftSky'));
+        await tester.tap(find.text('Explore CraftSky'));
+        await tester.pumpAndSettle();
+        expect(find.byType(HomePage), findsOneWidget);
+
         tester
             .container()
             .read(_accountInitializationGenerationProvider.notifier)
@@ -385,7 +391,9 @@ void main() {
         laterInitialization.complete(null);
         await tester.pumpAndSettle();
 
-        expect(find.byType(WelcomePage), findsOneWidget);
+        expect(find.byType(HomePage), findsOneWidget);
+        expect(find.byType(WelcomePage), findsNothing);
+        expect(find.text('Your craft. Your community.'), findsOneWidget);
         expect(
           tester.element(find.byType(MaterialApp)),
           same(readyMaterialApp),

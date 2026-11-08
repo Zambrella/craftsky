@@ -24,6 +24,8 @@ import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
@@ -736,7 +738,20 @@ class PostCard extends ConsumerWidget {
                                 )
                               : null,
                           onDelete: guest ? null : onDelete,
-                          onReport: guest ? requireAccount : onReport,
+                          onReport: guest
+                              ? () => showPostReportSheet(
+                                  context,
+                                  ref,
+                                  post,
+                                  subjectType: switch (contentKind) {
+                                    PostCardContentKind.comment =>
+                                      ReportSubjectType.comment,
+                                    PostCardContentKind.reply =>
+                                      ReportSubjectType.reply,
+                                    _ => null,
+                                  },
+                                )
+                              : onReport,
                           tooltip: deleteTooltip,
                           label: deleteLabel,
                           reportLabel: effectiveReportLabel,

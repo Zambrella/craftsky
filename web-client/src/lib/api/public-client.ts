@@ -1,5 +1,6 @@
 import { CraftskyAPI } from './client';
 import { publicReadPath } from './public-path';
+import { publicReportPath } from './public-report-path';
 import type { Fetcher } from './transport';
 import type {
 	Profile as PublicProfile,
@@ -80,12 +81,32 @@ export function publicProfileForDisplay(value: PublicProfile): Profile {
 
 function publicFetcher(fetcher: Fetcher): Fetcher {
 	return async (input, init) => {
-		if ((init?.method || 'GET') !== 'GET') return denied();
 		const raw = String(input);
 		if (!raw.startsWith('/api/public/v1/')) return denied();
 		const url = new URL(raw, 'https://app.craftsky.social');
 		let path = url.pathname.slice('/api/public/v1/'.length);
 		const query = new URLSearchParams(url.searchParams);
+		if (init?.method === 'POST') {
+			let canonical: string;
+			try {
+				canonical = publicReportPath(path, query);
+			} catch {
+				return denied();
+			}
+			return fetcher('/api/public/' + canonical, {
+				method: 'POST',
+				body: init.body,
+				headers: {
+					accept: 'application/json',
+					'content-type': 'application/json'
+				},
+				credentials: 'omit',
+				redirect: 'manual',
+				cache: 'no-store',
+				signal: init.signal
+			});
+		}
+		if ((init?.method || 'GET') !== 'GET') return denied();
 		let section: 'comments' | 'replies' | undefined;
 		if (/^posts\/[^/]+\/[^/]+\/(comments|replies)$/.test(path)) {
 			section = path.endsWith('/comments') ? 'comments' : 'replies';
@@ -155,7 +176,7 @@ function publicFetcher(fetcher: Fetcher): Fetcher {
 }
 
 /** Reuses the existing client interface for shared UI. Its transport is a
- * closed GET map; inherited private/mutation methods fail locally before IO. */
+ * closed read/report map; other private/mutation methods fail before IO. */
 export class PublicCraftskyAPI extends CraftskyAPI {
 	override readonly audience = 'guest' as const;
 	constructor(fetcher: Fetcher = fetch) {

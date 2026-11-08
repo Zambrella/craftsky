@@ -349,6 +349,7 @@ export interface ProfilePins {
 export interface ReportSubmission {
 	reasonType: string;
 	details?: string;
+	contactEmail?: string;
 }
 export interface ReportResult {
 	id?: string;
