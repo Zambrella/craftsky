@@ -6,12 +6,14 @@
 		active,
 		onSelect,
 		badge,
+		icon,
 		trailing
 	}: {
 		nav: string[][];
 		active: (key: string) => boolean;
 		onSelect: (event: MouseEvent, key: string) => void;
 		badge?: Snippet<[string]>;
+		icon?: Snippet<[string]>;
 		trailing?: Snippet<[string]>;
 	} = $props();
 </script>
@@ -22,7 +24,11 @@
 				{href}
 				aria-current={active(key) ? 'page' : undefined}
 				onclick={(event) => onSelect(event, key)}
-				><span class="rail-icon"><Icon name={key} filled={active(key)} /></span
+				><span class="rail-icon"
+					>{#if icon}{@render icon(key)}{:else}<Icon
+							name={key}
+							filled={active(key)}
+						/>{/if}</span
 				><span>{label === 'Activity' ? 'Notifications' : label}</span
 				>{#if badge}{@render badge(key)}{/if}</a
 			>
