@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('REG-002 interaction navigation stays scoped to thread details', () {
+  test('REG-002 interaction navigation stays scoped to approved surfaces', () {
     const threadPath = 'lib/feed/pages/post_thread_page.dart';
     const cardDefinitionPath = 'lib/feed/widgets/post_card.dart';
     const summaryDefinitionPath =
@@ -48,7 +48,10 @@ void main() {
           key,
     };
     expect(summaryOwners, {threadPath});
-    expect(responseListOwners, {threadPath});
+    expect(responseListOwners, {
+      threadPath,
+      'lib/profile/widgets/profile_tabs/profile_comments_tab.dart',
+    });
 
     final threadSource = sources[threadPath]!;
     expect(_occurrences(threadSource, 'PostInteractionSummary('), 1);

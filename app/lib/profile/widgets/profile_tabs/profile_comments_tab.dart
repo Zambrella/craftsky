@@ -193,6 +193,12 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
                     .toggle(post: post),
+                onViewLikes: post.likeCount > 0
+                    ? () => PostLikesRoute(
+                        did: post.author.did.toString(),
+                        rkey: post.rkey.toString(),
+                      ).push<void>(context)
+                    : null,
                 onDelete: isOwnProfile
                     ? () => _confirmDelete(context, ref, post, isReply: isReply)
                     : null,

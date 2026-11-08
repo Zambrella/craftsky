@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../feed/fakes/fake_post_repository.dart';
@@ -47,6 +48,54 @@ Future<void> _pump(WidgetTester tester, {required FakePostRepository repo}) {
 
 void main() {
   group('ProfileCommentsTab', () {
+    for (final isReply in [false, true]) {
+      for (final likeCount in [0, 2]) {
+        testWidgets(
+          '${isReply ? 'reply' : 'comment'} menu with $likeCount likes',
+          (tester) async {
+            final root = PostRef(
+              uri: 'at://did:plc:bob/social.craftsky.feed.post/root',
+              cid: 'bafyroot',
+            );
+            final post = _comment('response').copyWith(
+              likeCount: likeCount,
+              reply: PostReply(
+                root: root,
+                parent: isReply
+                    ? PostRef(
+                        uri:
+                            'at://did:plc:bob/social.craftsky.feed.post/parent',
+                        cid: 'bafyparent',
+                      )
+                    : root,
+              ),
+            );
+            await _pump(
+              tester,
+              repo: FakePostRepository(
+                onListCommentsByAuthor: (_, {cursor, limit}) async =>
+                    PostPage(items: [post]),
+              ),
+            );
+            await tester.pumpAndSettle();
+            final menu = tester.widget<CraftskyContextMenuButton>(
+              find.byType(CraftskyContextMenuButton).first,
+            );
+            final items = menu.groups.expand((group) => group.items);
+            if (likeCount > 0) {
+              expect(menu.groups.first.items.single.text, 'View likes');
+              expect(menu.groups.first.items.single.onPressed, isNotNull);
+            } else {
+              expect(
+                items.map((item) => item.text),
+                isNot(contains('View likes')),
+              );
+            }
+          },
+        );
+      }
+    }
+
     testWidgets('shows comment skeletons during the initial load', (
       tester,
     ) async {
