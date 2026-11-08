@@ -71,6 +71,10 @@
 	let loadedTab: string | undefined = snapshot?.tab;
 	let hydrated = $state(false);
 	let profile = $state<Profile | undefined>(snapshot?.profile);
+	if (snapshot) publications?.observeProfile(snapshot.profile);
+	const displayedStats = $derived(
+		profile ? publications?.profileStats(profile) || profile : undefined
+	);
 	let identityElement = $state<HTMLElement>();
 	let headerCollapsed = $state(false);
 	function updateHeader() {
@@ -137,6 +141,7 @@
 			() => api.profiles.get(id),
 			(value) => {
 				profile = value;
+				publications?.observeProfile(value);
 			},
 			undefined,
 			'social.Profile.profiles.get'
@@ -233,6 +238,7 @@
 					: api.profiles.follow(id, key),
 			(value) => {
 				profile = value;
+				publications?.observeProfile(value);
 			},
 			undefined,
 			'social.Profile.follow'
@@ -259,6 +265,7 @@
 			},
 			(value) => {
 				profile = value;
+				publications?.observeProfile(value);
 				confirmBlock = false;
 			},
 			action === 'mute'
@@ -371,14 +378,14 @@
 									>{joinedAge(profile.createdAt)}</strong
 								><span>Joined</span>
 							</div>{/if}
-						{#if profile.postsLast7Days !== undefined}<div>
+						{#if displayedStats?.postsLast7Days !== undefined}<div>
 								<Icon name="edit" size={20} /><strong
-									>{profile.postsLast7Days} posts</strong
+									>{displayedStats?.postsLast7Days} posts</strong
 								><span>Last 7 days</span>
 							</div>{/if}
-						{#if profile.projectCount !== undefined}<div>
+						{#if displayedStats?.projectCount !== undefined}<div>
 								<Icon name="drafts" size={20} /><strong
-									>{profile.projectCount}</strong
+									>{displayedStats?.projectCount}</strong
 								><span>Projects</span>
 							</div>{/if}
 					</div>{/if}{/if}

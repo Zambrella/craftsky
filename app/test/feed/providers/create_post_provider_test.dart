@@ -19,6 +19,9 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -32,6 +35,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
+import '../../profile/fakes/fake_profile_repository.dart';
 import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
@@ -100,6 +104,99 @@ void main() {
   setUpAll(initializeMappers);
 
   group('CreatePost', () {
+    for (final kind in ['standard', 'project', 'reply', 'failure']) {
+      test('$kind publication updates only eligible profile stats', () async {
+        final baseline = Profile(
+          did: _aliceDid.value,
+          handle: 'alice.test',
+          crafts: const [],
+          postCount: 4,
+          postsLast7Days: 2,
+          projectCount: 3,
+        );
+        var serverProfile = baseline;
+        Completer<Profile>? delayedRead;
+        final registry = _RegistryStorage(
+          SessionRegistry.empty().upsertAndActivate(
+            token: 'token-alice',
+            did: _aliceDid,
+            handle: 'alice.test',
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(registry),
+            profileRepositoryProvider.overrideWithValue(
+              FakeProfileRepository(
+                onFetchMe: () =>
+                    delayedRead?.future ?? Future.value(serverProfile),
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onCreate: ({required text, reply, images}) async {
+                  if (kind == 'failure') throw const ApiServerError('failed');
+                  return _post(rkey: text);
+                },
+              ),
+            ),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final audience = container.read(browsingContextProvider);
+        final provider = userProfileProvider(_aliceDid, audience: audience);
+        container
+          ..listen(provider, (_, _) {})
+          ..listen(createPostProvider, (_, _) {});
+        await container.read(provider.future);
+
+        // An already-running read must not overwrite the accepted counts.
+        delayedRead = Completer<Profile>();
+        container.invalidate(provider);
+        final refresh = container.read(provider.future);
+        await Future<void>.delayed(Duration.zero);
+        await container
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'new',
+              langs: _langs,
+              sponsored: false,
+              project: kind == 'project' ? _project : null,
+              reply: kind == 'reply'
+                  ? PostReply(
+                      root: PostRef(
+                        uri:
+                            'at://did:plc:alice/social.craftsky.feed.post/root',
+                        cid: 'bafy_root',
+                      ),
+                      parent: PostRef(
+                        uri:
+                            'at://did:plc:alice/social.craftsky.feed.post/root',
+                        cid: 'bafy_root',
+                      ),
+                    )
+                  : null,
+            );
+        final eligible = kind == 'standard' || kind == 'project';
+        void expectCounts(Profile profile) {
+          expect(profile.postCount, kind == 'standard' ? 5 : 4);
+          expect(profile.postsLast7Days, eligible ? 3 : 2);
+          expect(profile.projectCount, kind == 'project' ? 4 : 3);
+        }
+
+        expectCounts(container.read(provider).requireValue);
+        delayedRead.complete(baseline);
+        await refresh;
+        expectCounts(container.read(provider).requireValue);
+        delayedRead = null;
+
+        // Once indexing catches up, reloading must not count it twice.
+        serverProfile = container.read(provider).requireValue;
+        container.invalidate(provider);
+        expectCounts(await container.read(provider.future));
+      });
+    }
+
     test('retries ambiguity with one immutable operation key', () async {
       var calls = 0;
       final fake = FakePostRepository(

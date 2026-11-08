@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Post } from '#lib/api/types.ts';
+import type { Post, Profile } from '#lib/api/types.ts';
 import { Publications, matchesProject } from './publications.svelte.ts';
 const owner = 'did:plc:alice';
 const post = (id = 'new', extra: Partial<Post> = {}): Post => ({
@@ -24,6 +24,70 @@ const post = (id = 'new', extra: Partial<Post> = {}): Post => ({
 	...extra
 });
 describe('confirmed publications', () => {
+	it('updates profile stats for standard and project publications without double counting indexed reads', () => {
+		const state = new Publications(owner);
+		const baseline: Profile = {
+			did: owner,
+			handle: 'alice.test',
+			crafts: [],
+			links: [],
+			viewerIsFollowing: false,
+			isCraftskyProfile: true,
+			postCount: 4,
+			projectCount: 3,
+			postsLast7Days: 2
+		};
+		state.observeProfile(baseline);
+		const standard = post();
+		state.accept(standard);
+		state.accept(standard);
+		expect(state.profileStats(baseline)).toMatchObject({
+			postCount: 5,
+			projectCount: 3,
+			postsLast7Days: 3
+		});
+		const indexed = state.profileStats(baseline);
+		state.observeProfile(indexed);
+		expect(state.profileStats(indexed)).toEqual(indexed);
+		state.accept(
+			post('project', {
+				project: { common: { craftType: 'social.craftsky.feed.defs#sewing' } }
+			})
+		);
+		expect(state.profileStats(baseline)).toMatchObject({
+			postCount: 5,
+			projectCount: 4,
+			postsLast7Days: 4
+		});
+		state.observeProfile(baseline); // An older concurrent response cannot undo the floor.
+		state.accept(post('another'));
+		expect(state.profileStats(baseline)).toMatchObject({
+			postCount: 6,
+			projectCount: 4,
+			postsLast7Days: 5
+		});
+		state.accept(
+			post('reply', { reply: { root: standard, parent: standard } })
+		);
+		state.accept(
+			post('other-account', {
+				author: { did: 'did:plc:bob', handle: 'bob.test' }
+			})
+		);
+		expect(state.profileStats(baseline).postsLast7Days).toBe(5);
+		expect(
+			state.profileStats({ ...baseline, did: 'did:plc:bob' }).postsLast7Days
+		).toBe(2);
+		expect(
+			state.profileStats({ ...baseline, postCount: undefined }).postCount
+		).toBeUndefined();
+		vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_001);
+		try {
+			expect(state.profileStats(baseline)).toEqual(baseline);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
 	it('bridges stale list reads without duplicate insertion after indexing', () => {
 		const state = new Publications(owner),
 			accepted = post();

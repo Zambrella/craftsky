@@ -2,7 +2,8 @@ import type {
 	Post,
 	PostPresentation,
 	CommentItem,
-	PostEditResult
+	PostEditResult,
+	Profile
 } from '#lib/api/types.ts';
 import { visible } from './model';
 import { craftKey } from './craft-feeds';
@@ -16,6 +17,52 @@ export class Publications {
 	private counters = $state<
 		Record<string, { replyCount: number; quoteCount: number }>
 	>({});
+	private profileBaseline?: Profile;
+	private profileFloor = $state<
+		{ value: Profile; expiresAt: number } | undefined
+	>();
+
+	/** Only authoritative profile reads establish a baseline for later writes. */
+	observeProfile(profile: Profile) {
+		if (profile.did === this.did) this.profileBaseline = profile;
+	}
+	profileStats(profile: Profile): Profile {
+		const floor = this.profileFloor;
+		if (profile.did !== this.did || !floor || Date.now() >= floor.expiresAt)
+			return profile;
+		const maximum = (value: number | undefined, minimum: number | undefined) =>
+			value === undefined || minimum === undefined
+				? value
+				: Math.max(value, minimum);
+		return {
+			...profile,
+			postCount: maximum(profile.postCount, floor.value.postCount),
+			postsLast7Days: maximum(
+				profile.postsLast7Days,
+				floor.value.postsLast7Days
+			),
+			projectCount: maximum(profile.projectCount, floor.value.projectCount)
+		};
+	}
+	private acceptProfileStats(post: Post) {
+		if (post.reply || !this.profileBaseline) return;
+		const current = this.profileStats(this.profileBaseline);
+		const increment = (value: number | undefined) =>
+			value === undefined ? undefined : value + 1;
+		this.profileFloor = {
+			value: {
+				...current,
+				postCount: post.project
+					? current.postCount
+					: increment(current.postCount),
+				postsLast7Days: increment(current.postsLast7Days),
+				projectCount: post.project
+					? increment(current.projectCount)
+					: current.projectCount
+			},
+			expiresAt: Date.now() + 30_000
+		};
+	}
 	private acceptedAt = new Map<string, number>();
 	private edits = $state<Record<string, Post>>({});
 	private editChecks = new Map<string, () => void>();
@@ -115,6 +162,7 @@ export class Publications {
 			this.posts.some((item) => item.uri === post.uri)
 		)
 			return;
+		this.acceptProfileStats(post);
 		this.acceptedAt.set(post.uri, Date.now());
 		this.posts = [post, ...this.posts].slice(0, 50);
 		for (const uri of this.acceptedAt.keys())

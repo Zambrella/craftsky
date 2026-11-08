@@ -8,6 +8,7 @@ import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
+import 'package:craftsky_app/profile/providers/profile_post_stats_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -43,6 +44,16 @@ class UserProfile extends _$UserProfile {
       read.requireCurrent();
       return profile;
     }
+    listenForProfilePostStats(ref, did, ({required pending}) {
+      final previous = state.value;
+      if (pending && previous != null) {
+        state = AsyncData(
+          ref.read(profilePostStatsOverlayProvider).apply(previous),
+        );
+      } else {
+        ref.invalidateSelf();
+      }
+    });
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
     final lease = ownership?.session;
@@ -79,6 +90,9 @@ class UserProfile extends _$UserProfile {
         return state.value!;
       }
     }
+    reconciledProfile = ref
+        .read(profilePostStatsOverlayProvider)
+        .apply(reconciledProfile);
     return applyBlockProfileOverlay(
       ref.read,
       applyFollowProfileOverlay(ref, reconciledProfile),
