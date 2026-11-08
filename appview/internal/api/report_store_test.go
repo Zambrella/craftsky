@@ -251,6 +251,72 @@ func TestReportStore_CreateReport_PersistsPrivatePostAndProfileReports(t *testin
 	}
 }
 
+// Exercise the production constraint, not the focused intake fixture: accepting
+// an allegation at the API boundary must also allow saving it and its case.
+func TestReportStore_AllApprovedReasonsPersistWithProductionMigrations(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithMigratedSchema(t)
+	ctx := ownerlifecycle.WithExpectedGeneration(t.Context(), 1)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES($1,'active',1,1,'test',now())`, did); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := api.NewReportStore(pool, moderation.NewStore(pool))
+	// Verify an upgrade with an existing report using the previous vocabulary.
+	for _, direction := range []string{"down", "up"} {
+		ddl, err := testdb.ReadMigration("000120_report_reason_alignment." + direction + ".sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, string(ddl)); err != nil {
+			t.Fatalf("apply reason alignment %s: %v", direction, err)
+		}
+		if direction == "down" {
+			if _, err := store.CreateReport(ctx, api.CreateReportInput{
+				ReporterDID: "did:plc:alice", SubjectType: api.ReportSubjectAccount,
+				SubjectDID: "did:plc:bob", ReasonType: "childSexualAbuse",
+				ForwardingStatus: "prepared_not_submitted", ForwardingPreparedAt: time.Now(),
+			}); err != nil {
+				t.Fatalf("seed existing report: %v", err)
+			}
+		}
+	}
+	var legacyCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_reports WHERE reason_type='childSexualAbuse'`).Scan(&legacyCount); err != nil {
+		t.Fatal(err)
+	}
+	if legacyCount != 1 {
+		t.Fatalf("existing reports after migration = %d, want 1", legacyCount)
+	}
+	for allegation, mapping := range moderation.ApprovedAllegationMappings() {
+		if mapping.Destination != moderation.DestinationInApp {
+			continue
+		}
+		t.Run(string(allegation), func(t *testing.T) {
+			reason := string(allegation)
+			if err := api.ValidateReportRequest(api.ReportRequest{ReasonType: reason}); err != nil {
+				t.Fatal(err)
+			}
+			row, err := store.CreateReport(ctx, api.CreateReportInput{
+				ReporterDID: "did:plc:alice", SubjectType: api.ReportSubjectAccount,
+				SubjectDID: "did:plc:bob", ReasonType: reason,
+				ForwardingStatus: "prepared_not_submitted", ForwardingPreparedAt: time.Now(),
+			})
+			if err != nil {
+				t.Fatalf("persist approved reason %q: %v", reason, err)
+			}
+			var savedReason string
+			if err := pool.QueryRow(ctx, `SELECT r.reason_type FROM moderation_reports r JOIN moderation_case_reports cr ON cr.report_id=r.id WHERE r.id=$1`, row.ID).Scan(&savedReason); err != nil {
+				t.Fatal(err)
+			}
+			if savedReason != reason {
+				t.Fatalf("saved reason = %q, want %q", savedReason, reason)
+			}
+		})
+	}
+}
+
 func TestReportStore_CreateReport_RejectsTerminalSubject(t *testing.T) {
 	pool := testdb.WithSchema(t, reportStoreBaseDDL+moderationFlowMigrationDDL(t))
 	ctx := context.Background()
