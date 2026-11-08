@@ -67,6 +67,7 @@ class PostSearch extends _$PostSearch {
             limit: searchResultsPageLimit,
             cursor: current.cursor,
           );
+      accountOperation.requireCurrent();
       return SearchPostResultsState(
         items: appendUniquePosts(
           current.items,

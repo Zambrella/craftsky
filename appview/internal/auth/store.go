@@ -157,7 +157,7 @@ func (s *PostgresAuthStore) quarantineCallbackCredential(
 	purpose OAuthPurpose,
 ) error {
 	if state == "" || attemptID == uuid.Nil || session.SessionID != state || eligibleAt.IsZero() {
-		return ErrCallbackAttemptInvalid
+		return callbackDiagnostic("quarantine_invalid_input", ErrCallbackAttemptInvalid)
 	}
 	data, err := json.Marshal(session)
 	if err != nil {
@@ -179,16 +179,22 @@ func (s *PostgresAuthStore) quarantineCallbackCredential(
 		); err != nil {
 			return err
 		}
-		if requestPurpose != purpose || requestState != AuthRequestExchangeStarted || requestAttempt != attemptID {
-			return ErrCallbackAttemptInvalid
+		if requestPurpose != purpose {
+			return callbackDiagnostic("quarantine_purpose_changed", ErrCallbackAttemptInvalid)
+		}
+		if requestState != AuthRequestExchangeStarted {
+			return callbackDiagnostic("quarantine_exchange_state_changed", ErrCallbackAttemptInvalid)
+		}
+		if requestAttempt != attemptID {
+			return callbackDiagnostic("quarantine_attempt_changed", ErrCallbackAttemptInvalid)
 		}
 		if purpose == RegistrationOAuthPurpose {
 			if registrationIssuer == nil || *registrationIssuer != session.AuthServerURL {
-				return ErrCallbackAttemptInvalid
+				return callbackDiagnostic("quarantine_issuer_mismatch", ErrCallbackAttemptInvalid)
 			}
 		} else if resourceOrigin == nil || issuer == nil ||
 			*resourceOrigin != session.HostURL || *issuer != session.AuthServerURL {
-			return ErrCallbackAttemptInvalid
+			return callbackDiagnostic("quarantine_provider_metadata_mismatch", ErrCallbackAttemptInvalid)
 		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO oauth_unverified_credentials(request_state,data,status,eligible_at,expires_at)

@@ -34,8 +34,13 @@ func TestPollSelectorFailureUsesClaimedBackoff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := worker.Poll(t.Context(), info.DID); !errors.Is(err, cause) {
+		pollErr := worker.Poll(t.Context(), info.DID)
+		if !errors.Is(pollErr, cause) {
 			t.Fatal("selection cause lost")
+		}
+		var diagnostic *syncFailure
+		if !errors.As(pollErr, &diagnostic) || diagnostic.stage != "select_session" || diagnostic.attempt != 3 {
+			t.Fatal("claimed attempt or selector diagnostic stage lost")
 		}
 		var due time.Time
 		var cursor string
@@ -79,6 +84,10 @@ func TestPollRateLimitKeepsCursorAndHonorsLongRetryAfter(t *testing.T) {
 	}
 	err = worker.Poll(t.Context(), info.DID)
 	var limited *auth.RateLimitError
+	var diagnostic *syncFailure
+	if !errors.As(err, &diagnostic) || diagnostic.stage != "get_log" || diagnostic.attempt != 1 {
+		t.Fatal("upstream method/attempt diagnostics lost")
+	}
 	if !errors.As(err, &limited) || limited.RetryAfter != 120*time.Second || calls != 1 {
 		t.Fatalf("rate limit calls=%d err=%v", calls, err)
 	}

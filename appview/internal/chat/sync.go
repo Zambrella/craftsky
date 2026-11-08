@@ -84,7 +84,27 @@ type syncObservation struct {
 	eligible     bool
 }
 
+// Only fixed operation stages and the existing durable failure count are
+// selected. Cursors, session IDs, conversations and message data stay private.
+type syncFailure struct {
+	cause   error
+	stage   string
+	attempt int
+}
+
+func (failure *syncFailure) Error() string { return failure.cause.Error() }
+func (failure *syncFailure) Unwrap() error { return failure.cause }
+
 func (worker *Synchronizer) Poll(ctx context.Context, owner syntax.DID) (pollErr error) {
+	stage, attempt := "claim", 1
+	defer func() {
+		if pollErr != nil {
+			var selected *syncFailure
+			if !errors.As(pollErr, &selected) {
+				pollErr = &syncFailure{cause: pollErr, stage: stage, attempt: attempt}
+			}
+		}
+	}()
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	now := worker.now()
@@ -117,6 +137,7 @@ func (worker *Synchronizer) Poll(ctx context.Context, owner syntax.DID) (pollErr
 	if err != nil {
 		return err
 	}
+	attempt = int(state.FailureCount) + 1
 	defer func() {
 		if pollErr == nil {
 			return
@@ -143,14 +164,19 @@ func (worker *Synchronizer) Poll(ctx context.Context, owner syntax.DID) (pollErr
 			// Claim-token CAS cannot clear a replacement/disconnect claim.
 			return q.FailChatSync(ctx, chatdb.FailChatSyncParams{OwnerDid: owner.String(), ClaimToken: token, NextDueAt: dbTime(worker.now().Add(delay)), SafeState: safeState})
 		})
-		pollErr = errors.Join(pollErr, finishErr)
+		if finishErr != nil {
+			pollErr = errors.Join(pollErr, &syncFailure{cause: finishErr, stage: "finalize_failure", attempt: attempt})
+		}
 	}()
 	required := rpcScopes("chat.bsky.actor.getStatus", "chat.bsky.convo.getLog", "chat.bsky.convo.getConvo", "chat.bsky.convo.listConvos", "chat.bsky.convo.listConvoRequests")
+	stage = "select_session"
 	parent, err := worker.selector.SelectForCapability(ctx, owner, required)
 	if err != nil {
 		return err
 	}
+	stage = "session_discovery"
 	return worker.service.sessions.WithCapability(ctx, owner, parent, required, func(ctx context.Context, session *oauth.ClientSession) error {
+		stage = "connection"
 		current, err := worker.service.backgroundConnection(ctx, owner, parent)
 		if err != nil {
 			return err
@@ -162,7 +188,13 @@ func (worker *Synchronizer) Poll(ctx context.Context, owner syntax.DID) (pollErr
 	})
 }
 
-func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, connection Connection, state chatdb.ChatSyncState, session *oauth.ClientSession) error {
+func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, connection Connection, state chatdb.ChatSyncState, session *oauth.ClientSession) (pollErr error) {
+	stage := "transport"
+	defer func() {
+		if pollErr != nil {
+			pollErr = &syncFailure{cause: pollErr, stage: stage, attempt: int(state.FailureCount) + 1}
+		}
+	}()
 	transport, err := worker.service.transport(session)
 	if err != nil {
 		return err
@@ -170,6 +202,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 	var eligibility struct {
 		ChatDisabled *bool `json:"chatDisabled"`
 	}
+	stage = "get_status"
 	if err := transport.Query(ctx, "chat.bsky.actor.getStatus", nil, &eligibility); err != nil {
 		return err
 	}
@@ -185,10 +218,12 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 	baseline := strings.HasPrefix(phase, "baseline")
 	switch phase {
 	case "baselineHead", "recoveryHead":
+		stage = "get_log"
 		var raw json.RawMessage
 		if err := transport.Query(ctx, "chat.bsky.convo.getLog", nil, &raw); err != nil {
 			return err
 		}
+		stage = "decode_log"
 		page, err := decodeLogPage(raw)
 		if err != nil {
 			return err
@@ -207,6 +242,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 		if strings.HasSuffix(phase, "Requests") {
 			bucket = "request"
 		}
+		stage = "list_conversations"
 		views, next, err := syncListPage(ctx, transport, bucket, pageCursor)
 		if err != nil {
 			return err
@@ -216,6 +252,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 		// joining CraftSky later could replay pre-enable history as new push.
 		// No profile identity or message body is stored or exposed here.
 		if !baseline {
+			stage = "profile_conversations"
 			views, err = worker.service.profileConversations(ctx, owner, views)
 			if err != nil {
 				return err
@@ -233,6 +270,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			if !baseline && view.LastMessage != nil {
 				message := messageFromView(view.LastMessage.ConvoDefs_MessageView, view.LastMessage.ConvoDefs_DeletedMessageView, view.LastMessage.ConvoDefs_SystemMessageView)
 				if message.Kind == "text" && message.ID != "" {
+					stage = "check_block"
 					blocked, err := worker.service.blocked(ctx, owner, peer)
 					if err != nil {
 						return err
@@ -260,6 +298,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			}
 		}
 	case "ready":
+		stage = "get_log"
 		var raw json.RawMessage
 		if err := transport.Query(ctx, "chat.bsky.convo.getLog", map[string]any{"cursor": cursor}, &raw); err != nil {
 			var apiError *atclient.APIError
@@ -273,6 +312,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			}
 			return err
 		}
+		stage = "decode_log"
 		page, err := decodeLogPage(raw)
 		if err != nil {
 			return err
@@ -288,6 +328,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			processed++
 			observation := syncObservation{event: event}
 			if event.Kind != "unknown" && event.Kind != "leave" {
+				stage = "get_conversation"
 				view, err := worker.service.supportedConversation(ctx, transport, owner, event.ConversationID)
 				var apiError *atclient.APIError
 				switch {
@@ -296,6 +337,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 					return err
 				default:
 					peer, _ := directPeer(owner, view)
+					stage = "check_block"
 					blocked, err := worker.service.blocked(ctx, owner, peer)
 					if err != nil {
 						return err
@@ -313,6 +355,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 	default:
 		return ErrProviderResponse
 	}
+	stage = "persist"
 	return worker.service.store.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
 		q := chatdb.New(tx)
 		current, err := q.ChatConnection(ctx, owner.String())

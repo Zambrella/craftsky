@@ -169,7 +169,9 @@ class _VisiblePostReactionDelegate extends FlowDelegate {
 
   @override
   void paintChildren(FlowPaintingContext paintingContext) {
-    final box = context.findRenderObject()! as RenderBox;
+    if (!context.mounted) return;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
     var visible = Offset.zero & paintingContext.size;
     RenderObject child = box;
     for (
@@ -179,16 +181,15 @@ class _VisiblePostReactionDelegate extends FlowDelegate {
     ) {
       final clip = ancestor.describeApproximatePaintClip(child);
       if (clip != null) {
-        visible = visible.intersect(
-          MatrixUtils.transformRect(
-            Matrix4.inverted(box.getTransformTo(ancestor)),
-            clip,
-          ),
-        );
+        final inverse = Matrix4.tryInvert(box.getTransformTo(ancestor));
+        // A route/scale transition can temporarily collapse the card. There
+        // is no visible feedback to place until its transform is invertible.
+        if (inverse == null) return;
+        visible = visible.intersect(MatrixUtils.transformRect(inverse, clip));
       }
       child = ancestor;
     }
-    if (visible.isEmpty) return;
+    if (visible.isEmpty || !visible.isFinite) return;
 
     final size = paintingContext.getChildSize(0)!;
     final double scale = math.min(

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/ctxkeys"
 )
@@ -43,6 +45,7 @@ func TestCallbackExpiryIsValidationButStorageFailureIsActionable(t *testing.T) {
 		cause    error
 		category string
 	}{
+		{"owner generation changed", callbackDiagnostic("callback_owner_generation_changed", ErrOAuthFlowInvalid), "validation"},
 		{"expired", callbackDiagnostic("callback_request_unavailable", ErrOAuthFlowInvalid), "validation"},
 		{"missing", callbackDiagnostic("callback_request_unavailable", errors.Join(ErrOAuthFlowInvalid, ErrOAuthSessionNotFound)), "validation"},
 		{"storage", callbackDiagnostic("callback_request_load_failed", errors.New("private-storage-canary")), "finalization"},
@@ -62,5 +65,14 @@ func TestCallbackExpiryIsValidationButStorageFailureIsActionable(t *testing.T) {
 				t.Fatal("failure did not reach diagnostic boundary")
 			}
 		})
+	}
+}
+
+func TestQuarantineInvalidInputKeepsReasonAndSentinel(t *testing.T) {
+	store := &PostgresAuthStore{}
+	err := store.quarantineCallbackCredential(t.Context(), "", uuid.Nil, oauth.ClientSessionData{}, time.Time{}, "")
+	var diagnostic *OAuthCallbackDiagnostic
+	if !errors.Is(err, ErrCallbackAttemptInvalid) || !errors.As(err, &diagnostic) || diagnostic.Reason() != "quarantine_invalid_input" {
+		t.Fatal("quarantine reason or original sentinel lost")
 	}
 }

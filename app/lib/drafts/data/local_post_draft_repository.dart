@@ -11,10 +11,18 @@ enum DraftRepositoryFailureReason {
   quotaExceeded,
 }
 
+enum DraftValidationFailure {
+  imageLimit,
+  duplicateMedia,
+  staleMedia,
+  mediaType,
+}
+
 final class DraftRepositoryException implements Exception {
-  const new(this.reason);
+  const new(this.reason, {this.validationFailure});
 
   final DraftRepositoryFailureReason reason;
+  final DraftValidationFailure? validationFailure;
 
   @override
   String toString() => 'DraftRepositoryException(${reason.name})';

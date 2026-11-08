@@ -21,6 +21,7 @@ func TestOAuthFailureFactsSurviveLocalAndSDKSinks(t *testing.T) {
 		name, message, stage, status, code string
 	}{
 		{"client metadata", "PAR request failed (HTTP 400): invalid_client_metadata", "authorization_request", "400", "oauth.invalid_client_metadata"},
+		{"initial token", "initial OAuth token request: initial token request failed (HTTP 503): temporarily_unavailable", "finalization", "503", "oauth.temporarily_unavailable"},
 		{"invalid client", "PAR request failed (HTTP 401): invalid_client", "authorization_request", "401", "oauth.invalid_client"},
 		{"discovery", "HTTP error fetching protected resource document: 502", "provider_discovery", "502", ""},
 		{"metadata", "HTTP error fetching auth server metadata: 503", "provider_metadata", "503", ""},

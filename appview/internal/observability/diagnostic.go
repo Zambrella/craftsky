@@ -55,6 +55,11 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 			}
 		case *auth.OAuthCallbackDiagnostic:
 			cause.Message = current.DiagnosticMessage()
+			if provider, ok := OAuthRequestFailure(current.Unwrap()).(*oauthRequestDiagnostic); ok {
+				selected := provider.diagnosticCause()
+				cause.Code, cause.ProviderCode = selected.Code, selected.ProviderCode
+				cause.Message += "; " + selected.Message
+			}
 		case *lexiconschema.ValidationError:
 			cause.Message = current.DiagnosticMessage()
 		case *DiagnosticError:

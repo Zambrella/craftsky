@@ -1,3 +1,4 @@
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -5,6 +6,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 
 Map<String, Object?> selectedCause(Object error) {
   final causes = selectedCauses(error);
@@ -26,6 +28,9 @@ List<Map<String, Object?>> selectedCauses(Object error) {
         DiagnosticFormatException(
           :final message,
         ) => boundDiagnosticText(message, 512),
+        DraftRepositoryException(:final reason, :final validationFailure) =>
+          'Draft operation failed (${reason.name}'
+              '; validation=${validationFailure?.name ?? 'unspecified'})',
         StateError(:final message)
             when message ==
                 "Can't establish connection after the adapter was closed." =>
@@ -57,6 +62,15 @@ List<Map<String, Object?>> selectedCauses(Object error) {
           'Missing Parameter',
           'Unexpected security result code',
           'Exception encountered',
+          'invalid_image',
+          'invalid_source',
+          'invalid_result',
+          'multiple_request',
+          'already_active',
+          'create_error',
+          'no_available_camera',
+          'camera_access_denied',
+          'photo_access_denied',
         }.contains(current.code)) {
       causes.last['code'] = current.code;
       final status =
@@ -76,6 +90,7 @@ List<Map<String, Object?>> selectedCauses(Object error) {
       PdsMutationUnresolvedException(:final diagnosticCause) => diagnosticCause,
       ApiException(:final details) => details.cause,
       DioException(:final error) => error,
+      ProviderException(:final exception) => exception,
       _ => null,
     };
   }

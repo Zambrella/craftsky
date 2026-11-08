@@ -8,7 +8,7 @@ import (
 // Indigo exposes these failures as formatted errors rather than typed HTTP
 // errors. Match only its complete, fixed formats at the OAuth call boundary;
 // never admit arbitrary provider prose, URLs or error descriptions.
-var oauthPARFailure = regexp.MustCompile(`^PAR request failed \(HTTP ([1-5][0-9]{2})\): ([a-z_]+)$`)
+var oauthPARFailure = regexp.MustCompile(`^(?:PAR request failed|(?:initial OAuth token request: )?initial token request failed) \(HTTP ([1-5][0-9]{2})\): ([a-z_]+)$`)
 var oauthDiscoveryFailure = regexp.MustCompile(`^HTTP error fetching (?:protected resource document|auth server metadata): ([1-5][0-9]{2})$`)
 
 type oauthRequestDiagnostic struct {
