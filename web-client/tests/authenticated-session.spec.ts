@@ -273,59 +273,67 @@ for (const status of [503, 401]) {
 	});
 }
 
-test('onboarding requires the16-year age and policy declaration independently of diagnostics configuration', async ({
-	page,
-	context
-}) => {
-	await seed(context);
-	await configure({ owners: { alice: { completed: false } } });
-	await page.goto('/feed');
-	await expect(
-		page.getByRole('heading', { name: 'Make it yours', exact: true })
-	).toBeVisible();
-	await page.getByRole('button', { name: 'Next', exact: true }).click();
-	await expect(
-		page.getByRole('heading', { name: 'What do you make?', exact: true })
-	).toBeVisible();
-	await page.getByRole('button', { name: 'Next', exact: true }).click();
-	await expect(
-		page.getByRole('heading', { name: 'Our community guidelines' })
-	).toBeVisible();
-	const declaration = page.getByRole('checkbox', { name: /16 years old/ }),
-		join = page.getByRole('button', {
-			name: 'Finish',
-			exact: true
+for (const optedIn of [false, true]) {
+	test(`onboarding saves error reporting opt-in ${optedIn} independently of the age and policy declaration`, async ({
+		page,
+		context
+	}) => {
+		await seed(context);
+		await configure({ owners: { alice: { completed: false } } });
+		await page.goto('/feed');
+		await expect(
+			page.getByRole('heading', { name: 'Make it yours', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Next', exact: true }).click();
+		await expect(
+			page.getByRole('heading', { name: 'What do you make?', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Next', exact: true }).click();
+		await expect(
+			page.getByRole('heading', { name: 'Our community guidelines' })
+		).toBeVisible();
+		const declaration = page.getByRole('checkbox', { name: /16 years old/ }),
+			join = page.getByRole('button', {
+				name: 'Finish',
+				exact: true
+			});
+		await expect(declaration).toBeVisible();
+		await expect(join).toBeDisabled();
+		const diagnostics = page.getByRole('checkbox', {
+			name: /Enable error reporting/
 		});
-	await expect(declaration).toBeVisible();
-	await expect(join).toBeDisabled();
-	const diagnostics = page.getByRole('checkbox', {
-		name: /Enable error reporting/
-	});
-	if (await diagnostics.count()) {
+		await expect(diagnostics).toBeVisible();
+		await expect(diagnostics).not.toBeChecked();
 		await diagnostics.check();
 		await expect(join).toBeDisabled();
-		await diagnostics.uncheck();
-	}
-	await declaration.check();
-	await expect(join).toBeEnabled();
-	await join.click();
-	await expect(
-		page.getByRole('heading', { name: 'Home', exact: true })
-	).toBeVisible();
-	const completion = (await authState()).events.find(
-		(event) => event.stage === 'onboarding'
-	);
-	expect(completion).toMatchObject({
-		name: 'alice',
-		meetsMinimumAge: true,
-		policyVersion: 'v1'
+		await diagnostics.setChecked(optedIn);
+		await declaration.check();
+		await expect(join).toBeEnabled();
+		await join.click();
+		await expect(
+			page.getByRole('heading', { name: 'Home', exact: true })
+		).toBeVisible();
+		const completion = (await authState()).events.find(
+			(event) => event.stage === 'onboarding'
+		);
+		expect(completion).toMatchObject({
+			name: 'alice',
+			meetsMinimumAge: true,
+			policyVersion: 'v1'
+		});
+		expect(
+			await page.evaluate(() =>
+				localStorage.getItem('craftsky.diagnostics-consent')
+			)
+		).toBe(String(optedIn));
+		await page.reload();
+		expect(
+			await page.evaluate(() =>
+				localStorage.getItem('craftsky.diagnostics-consent')
+			)
+		).toBe(String(optedIn));
 	});
-	expect(
-		await page.evaluate(() =>
-			localStorage.getItem('craftsky.diagnostics-consent')
-		)
-	).not.toBe('true');
-});
+}
 
 test('restricted accounts retain settings and complete owner-bound reauthentication and empty202 deletion', async ({
 	page,

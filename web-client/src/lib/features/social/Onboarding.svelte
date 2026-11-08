@@ -4,11 +4,7 @@
 	import { CraftskyAPI, type OnboardingStatus } from '#lib/api/client.ts';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
-	import {
-		configured as diagnosticsConfigured,
-		setConsent,
-		consent
-	} from '../diagnostics/client.ts';
+	import { setConsent, consent } from '../diagnostics/client.ts';
 	let {
 		api,
 		session,
@@ -41,7 +37,7 @@
 			() => api.account.completeOnboarding(age, status.requiredPolicyVersion),
 			() => {
 				try {
-					if (diagnosticsConfigured()) setConsent(diagnostics);
+					setConsent(diagnostics);
 				} catch {}
 				onComplete();
 			},
@@ -129,14 +125,13 @@
 				><label class="check"
 					><input type="checkbox" bind:checked={age} />I confirm that I am at
 					least 16 years old and accept the current CraftSky policies.</label
-				>{#if diagnosticsConfigured()}<label class="check"
-						><input type="checkbox" bind:checked={diagnostics} />Enable error
-						reporting (optional).</label
-					>
-					<p class="muted">
-						Send crash reports and diagnostic logs to help improve CraftSky.
-					</p>
-				{/if}
+				><label class="check"
+					><input type="checkbox" bind:checked={diagnostics} />Enable error
+					reporting (optional)</label
+				>
+				<p class="muted">
+					Send crash reports and diagnostic logs to help improve CraftSky.
+				</p>
 				<Status {work} />
 				<div class="onboarding-action">
 					<button class="button" disabled={!age || work.busy} onclick={finish}
