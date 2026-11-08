@@ -1892,6 +1892,15 @@ dialog > button {
 	display: block;
 	color: var(--ink-2);
 }
+.people-row {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	padding: 4px 16px;
+	min-height: 56px;
+	color: var(--ink);
+	text-decoration: none;
+}
 .section-heading {
 	padding: 12px 16px;
 }
@@ -1999,7 +2008,7 @@ dialog > button {
 			.tag-chips a,
 			.account-row,
 			.person-row:not(:disabled),
-			.thread-person,
+			.people-row,
 			.thread-interactions a,
 			.tabs a,
 			.profile-tabs a,

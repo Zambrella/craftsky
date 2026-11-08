@@ -43,13 +43,10 @@
 	>
 	<h1>Mutual followers</h1>
 </header>
-<Status {work} reload={() => load()} />
-<section aria-label="Mutual followers" class="panel mutual-followers">
+<Status {work} skeleton="people" reload={() => load()} />
+<section aria-label="Mutual followers">
 	{#each items as author (author.did)}
-		<a
-			class="mutual-person"
-			href={'/profiles/' + encodeURIComponent(author.did)}
-		>
+		<a class="people-row" href={'/profiles/' + encodeURIComponent(author.did)}>
 			<Avatar {author} /><CompactIdentity {author} />
 		</a>
 	{:else}{#if !work.busy && !work.error}
@@ -60,6 +57,7 @@
 			/>{/if}
 	{/each}
 	{#if cursor}<button
+			class="button next"
 			disabled={work.busy || !!work.retry}
 			onclick={() => load(true)}>Load more mutual followers</button
 		>{/if}
@@ -70,17 +68,6 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-start;
-		gap: 12px;
-	}
-	.mutual-person {
-		display: flex;
-		flex-direction: row;
-		justify-content: flex-start;
-		text-align: left;
-		min-height: 60px;
-		padding: 12px;
-		text-decoration: none;
-		align-items: center;
 		gap: 12px;
 	}
 </style>
