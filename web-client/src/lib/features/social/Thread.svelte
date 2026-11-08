@@ -273,7 +273,7 @@
 		class="thread-people"
 	>
 		{#each people as author}<a
-				class="thread-person"
+				class="thread-person people-row"
 				href={'/profiles/' + encodeURIComponent(author.did)}
 				><Avatar
 					author={{
@@ -438,16 +438,6 @@
 		background: var(--primary-hover);
 		color: var(--on-primary);
 	}
-	.thread-person {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		padding: 4px 16px;
-		min-height: 56px;
-		color: var(--ink);
-		text-decoration: none;
-	}
-
 	.comment {
 		padding: 0 16px;
 	}
