@@ -122,7 +122,7 @@ test('autocomplete matches native grouping, counts, result limits and discovery 
 	await expect(profiles.getByText('Carol Maker')).toBeVisible();
 	await expect(hashtags.getByText('2 posts', { exact: true })).toBeVisible();
 	await expect(hashtags.getByText('1 post', { exact: true })).toBeVisible();
-	await expect(hashtags.locator('.hashtag-icon')).toHaveCount(2);
+	await expect(hashtags.locator('.search-result-icon')).toHaveText(['#', '#']);
 	await expect(page.getByText('Recent searches', { exact: true })).toHaveCount(
 		0
 	);
