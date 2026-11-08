@@ -599,15 +599,12 @@ void main() {
 
       final drawerProfileIcon = find.descendant(
         of: find.byType(Drawer),
-        matching: find.byIcon(CraftskyIcons.profile),
+        matching: find.byType(AccountAvatar),
       );
       expect(drawerProfileIcon, findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byType(Drawer),
-          matching: find.byType(AccountAvatar),
-        ),
-        findsNothing,
+        tester.widget<AccountAvatar>(drawerProfileIcon).avatarUrl,
+        'https://example.test/alice.jpg',
       );
       expect(
         tester
@@ -674,8 +671,12 @@ void main() {
     );
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(AccountAvatar), findsNothing);
-    final profileIcon = find.byIcon(CraftskyIcons.profile);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    final profileIcon = find.byType(AccountAvatar);
+    expect(
+      tester.widget<AccountAvatar>(profileIcon).avatarUrl,
+      'https://example.test/alice.jpg',
+    );
     expect(profileIcon, findsOneWidget);
     final semantics = tester.getSemantics(profileIcon);
     expect(
@@ -751,7 +752,10 @@ void main() {
       4,
     );
     expect(find.byType(AccountSwitcherContent), findsNothing);
-    expect(find.byIcon(CraftskyIcons.profileSelected), findsOneWidget);
+    expect(
+      tester.widget<AccountAvatar>(find.byType(AccountAvatar)).selected,
+      isTrue,
+    );
 
     tester
         .widget<IconButton>(
@@ -777,7 +781,7 @@ void main() {
     );
   });
 
-  testWidgets('UIP-002 large Profile stays icon-only when selected', (
+  testWidgets('UIP-002 large Profile keeps its fallback avatar when selected', (
     tester,
   ) async {
     final registry = SessionRegistry.empty().upsertAndActivate(
@@ -791,10 +795,13 @@ void main() {
       size: const Size(1000, 800),
     );
 
-    expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(
+      tester.widget<AccountAvatar>(find.byType(AccountAvatar)).avatarUrl,
+      isNull,
+    );
 
-    await tester.tap(find.byIcon(CraftskyIcons.profile));
+    await tester.tap(find.byType(AccountAvatar));
     await tester.pumpAndSettle();
 
     expect(
@@ -802,7 +809,10 @@ void main() {
       4,
     );
     expect(find.byType(AccountSwitcherContent), findsNothing);
-    expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(CraftskyIcons.profileSelected), findsOneWidget);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(
+      tester.widget<AccountAvatar>(find.byType(AccountAvatar)).selected,
+      isTrue,
+    );
   });
 }

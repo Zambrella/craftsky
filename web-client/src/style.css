@@ -1395,12 +1395,18 @@ dialog > button {
 	align-items: center;
 }
 .rail-icon {
-	display: grid;
-	place-items: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 56px;
 	height: 32px;
 	border-radius: 999px;
 	flex-shrink: 0;
+}
+.rail-icon .avatar {
+	width: 32px;
+	height: 32px;
+	font-size: 0.875rem;
 }
 .app-sidebar a[aria-current] .rail-icon {
 	background: var(--primary);

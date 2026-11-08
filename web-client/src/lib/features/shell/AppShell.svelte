@@ -637,6 +637,12 @@
 	hidden={gated}
 >
 	<RailNavigation {nav} {active} onSelect={reselect}>
+		{#snippet icon(key)}
+			{#if key === 'profile'}<Avatar author={identity || session} />{:else}<Icon
+					name={key}
+					filled={active(key)}
+				/>{/if}
+		{/snippet}
 		{#snippet badge(key)}
 			{#if key === 'activity' && activityBadge.count}<span class="count-badge"
 					>{activityBadge.count > 99 ? '99+' : activityBadge.count}</span

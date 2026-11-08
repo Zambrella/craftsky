@@ -975,7 +975,8 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                                   icon: selectedIndex == index
                                       ? destination.selectedIcon
                                       : destination.icon,
-                                  profileIconOnly: true,
+                                  profileMenuItem: true,
+                                  profileSelected: selectedIndex == index,
                                   onTapDestination: () =>
                                       _selectAndClose(context, index),
                                   onOpenAccountSwitcher:
@@ -1298,7 +1299,8 @@ class _ShellNavigationRail extends StatelessWidget {
                           icon: d.icon,
                           messaging: index == 2,
                           badge: index == 3 ? notificationBadge : null,
-                          profileIconOnly: index == 4,
+                          profileMenuItem: index == 4,
+                          profileSelected: index == 4 && selectedIndex == index,
                           onTapDestination: index == 4
                               ? () => onDestinationSelected(index)
                               : null,
@@ -1310,7 +1312,8 @@ class _ShellNavigationRail extends StatelessWidget {
                           icon: d.selectedIcon,
                           messaging: index == 2,
                           badge: index == 3 ? notificationBadge : null,
-                          profileIconOnly: index == 4,
+                          profileMenuItem: index == 4,
+                          profileSelected: index == 4 && selectedIndex == index,
                           onTapDestination: index == 4
                               ? () => onDestinationSelected(index)
                               : null,
@@ -1512,6 +1515,51 @@ String _destinationSemanticsLabel(
   return '$label, $countLabel';
 }
 
+/// Uses the same active, lease-fenced identity as the bottom navigation.
+class _ActiveAccountAvatar extends ConsumerWidget {
+  const new({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(sessionRegistryProvider).value;
+    final lease = registry?.activeLease?.session;
+    final identity = ref.watch(activeAccountIdentityProvider).value;
+    final profile = identity?.lease == lease ? identity?.profile : null;
+    final cached = lease == null ? null : registry?.sessions[lease.account.did];
+    final access = lease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(lease)).value;
+    return SizedBox.square(
+      dimension: 24,
+      child: OverflowBox(
+        minWidth: 32,
+        maxWidth: 32,
+        minHeight: 32,
+        maxHeight: 32,
+        child: FittedBox(
+          child: AccountAvatar(
+            avatarUrl: profile?.avatar ?? cached?.cachedAvatarUrl,
+            seed:
+                profile?.displayName ??
+                profile?.handle ??
+                cached?.cachedDisplayName ??
+                cached?.handle.value ??
+                '',
+            customisation: access?.allowsPlus == true
+                ? profile?.customisation ??
+                      cached?.cachedCustomisation ??
+                      ProfileCustomisation.defaults
+                : ProfileCustomisation.defaults,
+            selected: selected,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DestinationIcon extends StatelessWidget {
   const new({
     required this.icon,
@@ -1521,7 +1569,7 @@ class _DestinationIcon extends StatelessWidget {
     this.profileSeed = '',
     this.profileCustomisation = ProfileCustomisation.defaults,
     this.profileSelected = false,
-    this.profileIconOnly = false,
+    this.profileMenuItem = false,
     this.onTapDestination,
     this.profileFocusNode,
     this.onOpenAccountSwitcher,
@@ -1534,7 +1582,7 @@ class _DestinationIcon extends StatelessWidget {
   final String profileSeed;
   final ProfileCustomisation profileCustomisation;
   final bool profileSelected;
-  final bool profileIconOnly;
+  final bool profileMenuItem;
   final VoidCallback? onTapDestination;
   final FocusNode? profileFocusNode;
   final VoidCallback? onOpenAccountSwitcher;
@@ -1543,7 +1591,9 @@ class _DestinationIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     if (messaging) return ChatUnreadIcon(icon: icon);
     final value = badge;
-    Widget child = onOpenAccountSwitcher == null || profileIconOnly
+    var child = profileMenuItem
+        ? _ActiveAccountAvatar(selected: profileSelected)
+        : onOpenAccountSwitcher == null
         ? Icon(icon)
         : AccountAvatar(
             avatarUrl: profileAvatarUrl,
@@ -1584,7 +1634,7 @@ class _DestinationIcon extends StatelessWidget {
         ),
       ),
     );
-    if (profileIconOnly) return detector;
+    if (profileMenuItem) return detector;
     return Tooltip(
       message: AppLocalizations.of(context).accountSwitcherTooltip,
       child: detector,

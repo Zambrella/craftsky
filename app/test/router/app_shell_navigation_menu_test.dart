@@ -380,43 +380,49 @@ void main() {
     expect(scaffold.drawerEdgeDragWidth, isNull);
   });
 
-  testWidgets('UIP-001 drawer is outlined, divider-free, and icon-only', (
-    tester,
-  ) async {
-    await _pumpShell(tester, const Size(500, 800));
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'UIP-001 drawer is outlined, divider-free, and shows the profile avatar',
+    (
+      tester,
+    ) async {
+      await _pumpShell(tester, const Size(500, 800));
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
 
-    final drawerFinder = find.byType(Drawer);
-    final drawer = tester.widget<Drawer>(drawerFinder);
-    final shape = drawer.shape! as RoundedRectangleBorder;
-    expect(shape.side.width, 1.5);
-    expect(
-      shape.side.color,
-      Theme.of(tester.element(drawerFinder)).colorScheme.onSurface,
-    );
-    expect(
-      shape.borderRadius.resolve(TextDirection.ltr).topRight.x,
-      greaterThan(0),
-    );
-    expect(
-      find.descendant(of: drawerFinder, matching: find.byType(CraftskyDivider)),
-      findsNothing,
-    );
+      final drawerFinder = find.byType(Drawer);
+      final drawer = tester.widget<Drawer>(drawerFinder);
+      final shape = drawer.shape! as RoundedRectangleBorder;
+      expect(shape.side.width, 1.5);
+      expect(
+        shape.side.color,
+        Theme.of(tester.element(drawerFinder)).colorScheme.onSurface,
+      );
+      expect(
+        shape.borderRadius.resolve(TextDirection.ltr).topRight.x,
+        greaterThan(0),
+      );
+      expect(
+        find.descendant(
+          of: drawerFinder,
+          matching: find.byType(CraftskyDivider),
+        ),
+        findsNothing,
+      );
 
-    final profileTile = find.widgetWithText(ListTile, 'Profile');
-    expect(
-      find.descendant(of: profileTile, matching: find.byType(AccountAvatar)),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: profileTile,
-        matching: find.byIcon(CraftskyIcons.profile),
-      ),
-      findsOneWidget,
-    );
-  });
+      final profileTile = find.widgetWithText(ListTile, 'Profile');
+      expect(
+        find.descendant(of: profileTile, matching: find.byType(AccountAvatar)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: profileTile,
+          matching: find.byIcon(CraftskyIcons.profile),
+        ),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('dark compact drawer has no outer border', (tester) async {
     await _pumpShell(tester, const Size(500, 800), themeMode: ThemeMode.dark);
@@ -429,15 +435,15 @@ void main() {
     expect(shape.side, BorderSide.none);
   });
 
-  testWidgets('UIP-002 rail is divider-free and uses a profile icon', (
+  testWidgets('UIP-002 rail is divider-free and uses the profile avatar', (
     tester,
   ) async {
     await _pumpShell(tester, const Size(1200, 800));
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(CraftskyDivider), findsNothing);
-    expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.profile), findsNothing);
   });
 
   testWidgets(
