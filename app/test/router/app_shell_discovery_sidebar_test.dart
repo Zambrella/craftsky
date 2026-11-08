@@ -1134,7 +1134,13 @@ void main() {
             .map((tile) => tile.account.did),
         rows.map((row) => row.did),
       );
-      expect(find.byType(ProfileAvatar), findsNWidgets(count));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('discovery-members-section')),
+          matching: find.byType(ProfileAvatar),
+        ),
+        findsNWidgets(count),
+      );
       for (final row in rows) {
         await tester.tap(
           find.byType(ProfileAccountListTile).at(rows.indexOf(row)),
