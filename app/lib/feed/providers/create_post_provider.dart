@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_post_stats_overlay.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -249,6 +250,7 @@ class CreatePost extends _$CreatePost {
       if (!accepted) {
         return null;
       }
+      publishProfilePostStats(ref, post);
       state = AsyncData<Post?>(post);
       return post;
     }
