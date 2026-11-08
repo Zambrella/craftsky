@@ -335,9 +335,30 @@
 			box-shadow: 3px 3px var(--shadow);
 			background: var(--primary);
 			color: var(--on-primary);
+			transition:
+				transform 120ms ease,
+				box-shadow 120ms ease,
+				background 120ms ease;
+		}
+		:global(.app-main) .filter-trigger:hover {
+			background: var(--primary-hover);
+			color: var(--on-primary);
+			transform: translate(-1px, -1px);
+			box-shadow: 4px 4px 0 var(--shadow);
+		}
+		:global(.app-main) .filter-trigger:active {
+			background: var(--primary-pressed);
+			transform: translate(3px, 3px);
+			box-shadow: none;
 		}
 		.filter-dot {
 			background: var(--on-primary);
+		}
+	}
+	@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+		:global(.app-main) .filter-trigger:hover,
+		:global(.app-main) .filter-trigger:active {
+			transform: none;
 		}
 	}
 </style>
