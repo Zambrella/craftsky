@@ -12,13 +12,14 @@ void main() {
 
     expect(pubspec, contains('sentry_dart_plugin:'));
     expect(pubspec, contains('upload_debug_symbols: true'));
-    expect(pubspec, contains('upload_source_maps: true'));
+    expect(pubspec, isNot(contains('upload_source_maps: true')));
     expect(pubspec, contains('upload_sources: true'));
     expect(pubspec, isNot(contains('auth_token:')));
 
     expect(justfile, contains('SENTRY_DSN must be set'));
     expect(justfile, contains('SENTRY_AUTH_TOKEN'));
     expect(justfile, contains('--split-debug-info'));
+    expect(justfile, contains('--sentry-define=upload_source_maps=false'));
     expect(justfile, contains('dart run sentry_dart_plugin'));
 
     expect(docs.existsSync(), isTrue);
