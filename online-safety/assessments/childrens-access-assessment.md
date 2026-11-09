@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | Assessment owner | Douglas Todd, Founder |
-| Approved by | Not approved |
-| Version | 0.1 |
-| Status | Ready for owner approval |
-| Assessment date | 11 September 2026 |
+| Approved by | Douglas Todd, 9 November 2026 |
+| Version | 0.3 |
+| Status | Approved likely-access conclusion |
+| Assessment date | 11 September 2026; conclusion reviewed 9 November 2026 |
 | Internal review target | Within 12 months, and earlier on a trigger |
 | Publication | Internal regulatory record |
 
@@ -30,13 +30,31 @@ Ofcom's process has two stages:
 | Factor | Evidence | Finding |
 |---|---|---|
 | Age assurance | CraftSky has no age-verification or age-estimation control. | Children can normally access the service. |
-| Contractual age | CraftSky has decided to launch for people aged 16 and over. The April 2026 public Terms and July 2026 Community Guidelines still say 13+ and must be replaced. | Terms alone are not highly effective age assurance. The approved position intentionally permits some under-18s. |
+| Contractual age | CraftSky has decided to launch for people aged 16 and over. Current Flutter and web onboarding include a 16+ self-declaration. Public policy publication and consistency remain a separate control (CHILD-03). | Terms alone are not highly effective age assurance. The approved position intentionally permits some under-18s. |
 | Registration | Registration uses an external AT Protocol identity and CraftSky does not collect date of birth. | CraftSky cannot reliably identify child users. |
 | Subject matter | Textile and fibre crafts, tutorials, projects, creativity, and social connection appeal to adults and some children. | The service provides plausible benefits and attractive content to children. |
 | Design | Profiles, visual media, likes, follows, comments, search, and notifications are familiar social features. | The design is likely to attract some children. |
 | Commercial strategy | No evidence was found of child-directed marketing. | Reduces attraction but does not outweigh access and product characteristics. |
 | Telemetry | The website uses limited PostHog analytics; Flutter and AppView can use sanitized Sentry diagnostics when configured. No evidence shows that either is used to infer age or interests. | Child-specific telemetry controls and transparency still require Children's Code/DPIA review. |
-| Current users | The service is pre-production with no active users. | No reliable user-age evidence is available. Absence of current users is not evidence that children will not access it after launch. |
+| Current users | The repository describes a pre-launch service with deployed infrastructure and no active users; this review has not independently measured production users. | No reliable user-age evidence is available. Absence of current users is not evidence that children will not access it after launch. |
+
+## Conclusion Review — 9 November 2026
+
+Douglas Todd approved the likely-access conclusion on 9 November 2026. Flutter's
+`app/lib/onboarding/widgets/onboarding_guidelines_step.dart` and the English
+onboarding declaration in `app/lib/l10n/app_en.arb`, together with
+`web-client/src/lib/features/social/Onboarding.svelte`, show a contractual 16+
+self-declaration. This is not age verification. The service deliberately admits
+16- and 17-year-olds, and textile crafts/social interaction can also attract
+under-16s. The current
+[Ofcom assessment toolkit](https://www.ofcom.org.uk/os-toolkit/child-access-assessment/childrens-access-assessment-tool)
+explicitly includes services likely to attract older children aged 15–17.
+
+Current source includes direct messaging through Bluesky chat. Include that in
+the separate children's risk assessment rather than relying on the historical
+no-DM assumption in the service-scope draft. This conclusion review does not
+approve the safety measures, establish their effectiveness, or complete CHILD-02.
+Owner approval covers this access conclusion; the separate children's risk assessment and safeguards remain outstanding.
 
 ## Stage 1 Finding
 
@@ -108,10 +126,12 @@ compliance measures up to date.
 | Decision | Name | Date | Notes |
 |---|---|---|---|
 | Prepared | Repository review | 11 September 2026 | Based on product design and current official guidance. |
-| Accountable owner approval | Pending | Pending | Owner must accept the conclusion and commission the children's risk assessment. |
+| Accountable owner approval | Douglas Todd | 9 November 2026 | Explicitly approved the likely-access conclusion during launch-readiness review. Children's risk assessment and safeguards remain separate open controls. |
 
 ## Change History
 
 | Version | Date | Change | Author/approver |
 |---|---|---|---|
 | 0.1 | 11 September 2026 | Initial assessment and likely-access conclusion. | Working draft / not approved |
+| 0.2 | 9 November 2026 | Rechecks likely-access conclusion against current 16+ declarations and Ofcom guidance; records messaging as a risk-assessment dependency. | Owner approval pending |
+| 0.3 | 9 November 2026 | Records explicit owner approval of the likely-access conclusion; CHILD-02 and other safeguards remain open. | Douglas Todd / approved |

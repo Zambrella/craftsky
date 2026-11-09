@@ -6,6 +6,7 @@ export type Toast = {
 	warning: boolean;
 	onDismiss: () => void;
 	children?: Snippet;
+	support?: boolean;
 };
 export class ToastHub {
 	items = $state<Toast[]>([]);
@@ -50,9 +51,11 @@ export class ToastHub {
 	}
 }
 /** For accepted actions whose originating screen is about to navigate away. */
-export function notify(message: string, warning = false) {
+export function notify(message: string, warning = false, support = false) {
 	if (typeof window !== 'undefined')
 		window.dispatchEvent(
-			new CustomEvent('craftsky-toast', { detail: { message, warning } })
+			new CustomEvent('craftsky-toast', {
+				detail: { message, warning, support }
+			})
 		);
 }

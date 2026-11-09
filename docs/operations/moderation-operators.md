@@ -190,6 +190,8 @@ approval does not transmit a report or data to an external party.
 
 ## Case review in the console
 
+For the end-to-end decision trees, use the [Mermaid moderation reference](moderation-reference.md).
+
 Admins and mods can use the case queue at `/admin/`, filter open/resolved cases,
 and share a direct case link using `/admin/#/cases/MOD-…`. The content preview shows indexed account cards (bio, avatar, banner and crafts),
 posts (author, text, photos, project/link cards and on-demand video), and events
@@ -210,6 +212,14 @@ offerings, tagline, hours, service area, location, primary action and product
 cards/prices/images. Business records are visible for moderation independently of
 subscription eligibility; their own image-safety projection must be clear.
 Reports are allegations, and account standing counts cases rather than reports.
+
+A pending changed appeal can reverse any selected active consequence, including
+severe suspension, through the existing confirmed appeal-resolution command.
+This resolves the appeal and reverses only those selected case effects in one
+transaction. Other cases and strike-threshold restrictions still apply. Use the
+standalone severe-restoration command for restoration outside appeal resolution;
+it does not itself resolve a pending appeal. The severe-only selection fix is
+local until released; see `docs/changes/2026-11-09-severe-only-appeal/validation.md`.
 
 Review the decision summary before confirming it. Internal evidence notes and
 owner-visible explanations are separate. Appeal reversal, effect changes and
@@ -261,13 +271,28 @@ reports, responses or disclosed data to third parties. Use the separate restrict
 and legal holds.
 
 Intimate image workflows require an explicitly approved response target:
-`SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN`, expressed as a positive Go duration
-such as `24h`. The example is a synthetic test value, not a legal or production
-policy. There is no default. An unset/zero target rejects creation with HTTP 422
+`SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN`, expressed as a positive Go duration.
+Douglas Todd approved **24 hours** on 9 November 2026. The checked-in production
+Blueprint and production environment example now set `24h`; applying that
+configuration is still a separate production operation. There is no implicit
+code default. An unset/zero target rejects creation with HTTP 422
 `deadline_target_not_configured` before committing. Configure a reviewed target
 through the normal production configuration controls before enabling that work.
-For local synthetic walkthroughs only, set the variable in gitignored `.env.local`
+For local synthetic walkthroughs, set the variable in gitignored `.env.local`
 and rebuild the worktree stack. Production configuration was not changed.
+
+The target runs from **original report receipt**, not when a moderator opens the
+review. A review linked to external intake reads that intake's saved receipt
+server-side; a later form timestamp cannot extend the deadline. The console
+prefills the intake receipt. An unlinked review requires the operator to enter
+the original receipt explicitly. Older reports may be overdue immediately.
+Take action as soon as practicable; the internal target is not permission to
+wait. Missing or late intake entry does not restart the legal clock.
+
+The generic Brevo alert covers a newly discovered intimate-image workflow when
+enabled. It does not currently provide recurring countdown or deadline-reminder
+emails. Check the specialist workflow queue/deadline as part of monitoring;
+production email activation and receipt remain separate outstanding checks.
 
 Admins can list/add DIDs, change preset permission sets, disable access and revoke
 browser sessions in **Operators**. These commands use the existing audited
@@ -421,3 +446,174 @@ Migrations 98/99 protect retained case provenance/rationale, so do not use schem
 down as a routine rollback. Preserve operator and command audits, holds and
 private evidence. If storage access fails, repair configuration/provider access
 and verify retention convergence rather than removing holds or evidence rows.
+
+
+## Urgent safety email alerts (Brevo)
+
+AppView can send operator alerts **from and to `moderation@craftsky.social`**
+through Brevo's transactional API. The alert contains static text and the
+`OAUTH_PUBLIC_ORIGIN` plus `/admin/` sign-in link. It contains no report text,
+category, case/incident reference, identities, images, or restricted evidence.
+An alert requests review; it is not a finding that a report is correct.
+
+### Activation
+
+1. Verify `moderation@craftsky.social` and the sending domain in Brevo, enable
+   transactional sending, and confirm this mailbox generates phone alerts.
+2. Supply `BREVO_API_KEY` as a server-side secret on the AppView service. Do not
+   put the key in source control, client configuration, commands in shell history,
+   or diagnostic output. A Brevo **API key**, rather than SMTP key, is required.
+3. Set `SAFETY_EMAIL_ENABLED=true`. It defaults to false and requires
+   `MODERATION_ADMIN_ENABLED=true` and an HTTPS `OAUTH_PUBLIC_ORIGIN`.
+4. Release/deploy through the normal exact-tag AppView workflow. Migration
+   `000121_safety_email_alerts` creates the persistent delivery queue. Environment
+   updates and deployment are separate production actions.
+5. Verify delivery using an authorized benign urgent report on a disposable test
+   account. Check Brevo acceptance, mailbox receipt, phone notification and console
+   access. Resolve the synthetic report afterward. Local tests and an HTTP 201
+   response establish neither inbox receipt nor phone notification.
+
+Never point local development at production Brevo credentials unless explicitly
+performing the authorized delivery check. Disabling the feature stops polling
+and delivery; it does not delete pending deliveries. Re-enabling resumes them
+and scans existing eligible work.
+
+### Coverage and delivery behavior
+
+- Every 30 seconds while enabled, discover open moderation cases with a report
+  reason of child sexual exploitation/abuse material, grooming or endangerment;
+  intimate-image abuse or sexual exploitation; immediate danger, credible threat,
+  terrorism, violence, self-harm, stalking or doxxing. Both current client names
+  and supported legacy allegation names are covered. Signed-in and guest reports
+  share the same persisted report/case path.
+- Also discover active image-match incidents, external intakes marked priority,
+  urgent or immediate, and open/in-progress intimate-image and credible-threat
+  workflows. External intake must already have reached AppView; this feature
+  does not read the moderation mailbox or ingest incoming messages itself.
+- Remember one alert per source case, incident, intake or workflow. Multiple
+  reports attached to the same case do not repeatedly alert. A new case can
+  alert again; related work in different queues can produce separate alerts.
+- Combine up to 500 fresh sources into one generic digest and send at most one
+  successful digest per minute. Large backlogs are sent in subsequent digests.
+  The console contains the complete work queues, not just the current digest.
+- Persist retries across restarts, back off from one minute to a maximum of one
+  hour, and recover abandoned one-minute leases. Failed requests are retried
+  without an attempt limit. One outstanding digest serializes delivery; provider
+  failure can delay new-work alerts too.
+- Reuse each persisted delivery UUID with Brevo's `idempotencyKey`; its
+  `duplicate_parameter` response is treated as an already accepted request.
+  Brevo documents a 30-minute deduplication window, so a crash or ambiguous
+  response outside that window can still cause a duplicate. Delivery is not
+  claimed to be exactly once.
+- Store source UUIDs and delivery timing/attempt metadata only. Source references
+  remain for deduplication while their source exists; polling removes references
+  after the source is deleted. Completed, unreferenced delivery rows are removed
+  after 30 days. Pending delivery records remain until resolved.
+
+Delivery errors use the private worker diagnostic path with an opaque delivery
+UUID. API keys, recipient routing and provider response prose are excluded.
+Inspect counts and oldest pending age without exporting source references:
+
+```sql
+SELECT count(*) FILTER (WHERE sent_at IS NULL) AS pending,
+       min(created_at) FILTER (WHERE sent_at IS NULL) AS oldest_pending,
+       max(attempts) FILTER (WHERE sent_at IS NULL) AS max_attempts,
+       max(sent_at) AS last_provider_acceptance
+FROM safety_email_deliveries;
+```
+
+Douglas Todd intends to monitor reports throughout the day and outside UK
+business hours. This is not staffed 24-hour cover; sleep, absence, provider
+outages and lack of backup remain in the operational assessment. Email alerts
+support that monitoring but do not resolve those gaps.
+
+Provider references: [Brevo transactional API](https://developers.brevo.com/reference/send-transac-email)
+and [idempotency behavior](https://developers.brevo.com/docs/heterogenous-versions-batch-emails).
+
+
+## Reviewed illegal-content and severe-sanction decisions
+
+Owner-approved 9 November 2026; source implementation requires migration
+`000122_moderation_illegal_content` and the corresponding application release.
+Local verification is recorded in
+`docs/changes/2026-11-09-moderation-sanction-coverage/validation.md`.
+
+Use a specific accurate reason first. **Other illegal content** (`illegal_content`)
+is the reviewed route where no specific reason fits. Before confirming it:
+
+1. Record factual evidence in internal evidence notes.
+2. Make the legal judgment and select `otherIllegalContent`; a reporter's
+   allegation, report count or scanner match does not establish illegality.
+3. Record the offence or legal basis, supporting facts and reasoning in the
+   separate private illegal-content rationale.
+4. Write a safe explanation for the owner, excluding reporter identities,
+   confidential evidence, internal reasoning and authority-routing information.
+5. Choose proportionate consequences. Severe suspension additionally requires a
+   separate severity rationale explaining serious harm, intent/facilitation and
+   why immediate restriction is proportionate. Review the exact command before
+   confirming. Preserve the existing revision, replay, permission and appeal flow.
+
+The same severe-suspension option is available for `fraud_or_scam` and
+`self_harm` after supported human review and a severity rationale. Use it for
+serious deliberate fraud or harmful encouragement/assistance, not an ordinary
+transaction dispute, an accusation alone, distress, recovery or help-seeking.
+The generic `other` reason still cannot issue a strike or severe suspension.
+There is no automatic conversion of an Other report into an illegal finding.
+These decisions affect CraftSky participation/visibility and do not delete PDS
+records. Private legal rationales appear only in authorized console history.
+
+## Approved harmful-to-children content boundary
+
+Douglas Todd approved the full content boundary on 9 November 2026. Draft
+Guidelines v0.4, Terms v0.5 and Reporting v0.3 reflect it; final publication,
+deployment and effective safeguards remain separate. The current rule applies
+to every user of child-accessible CraftSky parts, including adults. Read the
+full draft Guidelines and
+`docs/changes/2026-11-09-childrens-content-boundary/proposal.md` for the categories.
+
+Review the actual content, context and relevant harm definition. The rule
+includes deliberate self-injury and eating-disorder encouragement, not only
+conduct that meets a criminal serious-harm threshold; protected-group abuse and
+hateful incitement; bullying; serious-violence encouragement and covered
+violence/graphic injuries; dangerous challenges and harmful self-administration;
+body stigma; and promotion of depression, hopelessness or despair.
+
+A claimed educational, medical, artistic or historical purpose is not a blanket
+exception where the harmful-content definition is still met. Supportive,
+non-promotional accounts of grief, illness, recovery or help-seeking, neutral
+fit/size information and safe craft instruction remain welcome. No inference
+about a person's health, age or intent follows from the topic alone.
+
+1. Identify the potentially harmful content and applicable policy test, using
+   current Ofcom content guidance alongside the Guidelines. Record facts and
+   contextual reasons without copying restricted material into ordinary notes.
+2. Distinguish a policy finding from a criminal classification. Use an accurate
+   specific policy reason. Only use `illegal_content` where its separate offence
+   assessment and required rationale are supported. Generic Other can support
+   removal, but does not authorize a strike or severe suspension. Do not relabel
+   lawful harmful content to obtain a stronger sanction.
+3. Where content meets a prohibited harmful-content definition, use the actual
+   supported hide/takedown mechanism to remove CraftSky presentation promptly;
+   a warning or an outcome field alone does not establish protection. Verify the
+   relevant public/guest/preview/discovery surfaces and record limitations.
+4. Apply any additional consequence proportionately with the existing evidence,
+   permission, review, rationale, replay, appeal and restoration safeguards.
+   Reports, counts, keywords, proxies and risk ratings are not findings of guilt.
+5. Keep Bluesky-only DM reports on their approved route. Do not copy private
+   transcripts into local cases or claim provider removal powers. An unresolved
+   provider/control dependency must remain explicit in the assessment.
+
+Use benign descriptions, not harmful uploads, when checking comprehension:
+
+| Benign review scenario | Expected reasoning |
+|---|---|
+| A factual garment measurement or respectful fit suggestion | No violation from body/size facts alone; distinguish from body stigma or targeted bullying. |
+| A person describing sadness, grief or recovery and asking for help | Do not punish disclosure or help-seeking. Assess any actual harmful encouragement separately. |
+| A safe tool tutorial with proportionate warnings | Ordinary manageable craft risk is not a dangerous challenge; assess deliberate self-injury or serious-injury encouragement if present. |
+| A claimed medical/educational item that still meets a graphic-serious-injury definition | Context does not automatically exempt it; use a non-graphic alternative and the correct policy action. Do not create harmful material for this exercise. |
+| An unfinished toy or ordinary fictional craft character | Not automatically realistic serious violence/injury; assess what is actually depicted. |
+
+This instruction does not establish completed training, production effectiveness,
+a universal scanner or age assurance. Record real competence/exercise results
+separately. The 14 proposed children's content ratings and whole assessment are
+not approved by the content-boundary decision.

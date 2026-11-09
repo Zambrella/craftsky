@@ -26,7 +26,7 @@ describe('native settings navigation policy', () => {
 			groups
 				.find((group) => group.title === 'General')
 				?.items.map(([slug]) => slug)
-		).toEqual(['moderation', 'account', 'about', 'feedback']);
+		).toEqual(['safety', 'moderation', 'account', 'about', 'feedback']);
 	});
 	it('does not advertise business management without authoritative Business access', () => {
 		expect(
@@ -42,6 +42,7 @@ describe('native settings navigation policy', () => {
 		expect(slugs).toEqual([
 			'muted',
 			'blocked',
+			'safety',
 			'moderation',
 			'account',
 			'about',

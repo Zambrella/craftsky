@@ -11,6 +11,7 @@ import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/search_support_notice.dart';
 import 'package:craftsky_app/search/models/blank_search_data.dart';
 import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
@@ -237,6 +238,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           initialTab: widget.tab ?? SearchResultsTab.posts,
           onOpenHashtag: _openHashtag,
           headerSlivers: [
+            // Informational only: no changes to the search request/results.
             SliverAppBar(
               leading: AppShellDrawerScope.maybeOf(context) == null
                   ? null
@@ -259,6 +261,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onCancel: _cancelSearch,
                 ),
               ),
+            ),
+            SliverToBoxAdapter(
+              child: SearchSupportNotice(query: widget.q!.trim()),
             ),
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -58,6 +59,14 @@ class OnboardingGuidelinesStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            onPressed: () => const SafetyRoute().push<void>(context),
+            icon: const Icon(Icons.shield_outlined),
+            label: Text(l10n.safetyTitle),
+          ),
+        ),
         CheckboxListTile(
           key: keys.onboarding.minimumAge,
           contentPadding: EdgeInsets.zero,

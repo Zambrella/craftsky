@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/search_support_notice.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
@@ -54,28 +55,35 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
             ),
         ],
       ),
-      body: switch (tagResultsAsync) {
-        AsyncValue(:final value?) => _TagPostList(
-          posts: value.items,
-          isLoadingMore: tagResultsAsync.isLoading,
-          hasLoadMoreError: tagResultsAsync.hasError,
-          onNearEnd: () => ref.read(provider.notifier).loadMore(),
-          onRefresh: () => ref.refresh(provider.future),
-        ),
-        _ when tagResultsAsync.hasError => Center(
-          child: TextButton.icon(
-            onPressed: () => ref.invalidate(provider),
-            icon: const Icon(CraftskyIconsBold.refresh),
-            label: Text(l10n.searchLoadError),
+      body: Column(
+        children: [
+          SearchSupportNotice(query: widget.tag),
+          Expanded(
+            child: switch (tagResultsAsync) {
+              AsyncValue(:final value?) => _TagPostList(
+                posts: value.items,
+                isLoadingMore: tagResultsAsync.isLoading,
+                hasLoadMoreError: tagResultsAsync.hasError,
+                onNearEnd: () => ref.read(provider.notifier).loadMore(),
+                onRefresh: () => ref.refresh(provider.future),
+              ),
+              _ when tagResultsAsync.hasError => Center(
+                child: TextButton.icon(
+                  onPressed: () => ref.invalidate(provider),
+                  icon: const Icon(CraftskyIconsBold.refresh),
+                  label: Text(l10n.searchLoadError),
+                ),
+              ),
+              _ => CraftskySkeletonList(
+                itemCount: 3,
+                itemBuilder: (context, index) => PostCardSkeleton(
+                  showMedia: index == 0,
+                ),
+              ),
+            },
           ),
-        ),
-        _ => CraftskySkeletonList(
-          itemCount: 3,
-          itemBuilder: (context, index) => PostCardSkeleton(
-            showMedia: index == 0,
-          ),
-        ),
-      },
+        ],
+      ),
     );
   }
 

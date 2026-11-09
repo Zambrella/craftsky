@@ -27,6 +27,7 @@ const (
 	ReasonOffTopic             Reason = "off_topic"
 	ReasonIntellectualProperty Reason = "intellectual_property"
 	ReasonOther                Reason = "other"
+	ReasonIllegalContent       Reason = "illegal_content"
 	ReasonChildSafety          Reason = "child_safety"
 	ReasonSexualViolation      Reason = "sexual_violation"
 	ReasonThreatOrViolence     Reason = "threat_or_violence"
@@ -47,6 +48,7 @@ var approvedReasons = []Reason{
 	ReasonOffTopic,
 	ReasonIntellectualProperty,
 	ReasonOther,
+	ReasonIllegalContent,
 	ReasonChildSafety,
 	ReasonSexualViolation,
 	ReasonThreatOrViolence,
@@ -68,13 +70,14 @@ const (
 )
 
 type Decision struct {
-	Disposition         Disposition
-	Reason              Reason
-	Evidence            string
-	UserSafeDetail      string
-	SeverityRationale   string
-	LegalClassification LegalClassification
-	Consequences        []EffectType
+	Disposition             Disposition
+	Reason                  Reason
+	Evidence                string
+	UserSafeDetail          string
+	SeverityRationale       string
+	LegalClassification     LegalClassification
+	IllegalContentRationale string
+	Consequences            []EffectType
 }
 
 func ApprovedReasons() []Reason {
@@ -84,7 +87,7 @@ func ApprovedReasons() []Reason {
 func ValidateDecision(decision Decision) error {
 	if decision.Disposition == DispositionNoAction {
 		if decision.Reason != "" || decision.UserSafeDetail != "" ||
-			decision.SeverityRationale != "" || decision.LegalClassification != "" || len(decision.Consequences) != 0 {
+			decision.SeverityRationale != "" || decision.LegalClassification != "" || decision.IllegalContentRationale != "" || len(decision.Consequences) != 0 {
 			return ErrInvalidDecision
 		}
 		return nil
@@ -95,6 +98,15 @@ func ValidateDecision(decision Decision) error {
 		return ErrInvalidDecision
 	}
 
+	if decision.Reason == ReasonIllegalContent {
+		if decision.LegalClassification != LegalOtherIllegalContent ||
+			strings.TrimSpace(decision.IllegalContentRationale) == "" ||
+			strings.TrimSpace(decision.UserSafeDetail) == "" {
+			return ErrInvalidDecision
+		}
+	} else if decision.IllegalContentRationale != "" {
+		return ErrInvalidDecision
+	}
 	seen := make(map[EffectType]struct{}, len(decision.Consequences))
 	visibilityEffects := 0
 	hasSevere := false
@@ -153,7 +165,8 @@ func severeReason(reason Reason) bool {
 	return reason == ReasonHarassment || reason == ReasonHate ||
 		reason == ReasonAdultOrGraphic || reason == ReasonImpersonation ||
 		reason == ReasonChildSafety || reason == ReasonSexualViolation ||
-		reason == ReasonThreatOrViolence || reason == ReasonStalkingOrPrivacy
+		reason == ReasonThreatOrViolence || reason == ReasonStalkingOrPrivacy ||
+		reason == ReasonIllegalContent || reason == ReasonFraudOrScam || reason == ReasonSelfHarm
 }
 
 type SignalKind string

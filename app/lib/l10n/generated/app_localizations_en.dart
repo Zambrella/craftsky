@@ -1821,7 +1821,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportSubmitting => 'Submitting…';
 
   @override
-  String get reportSubmitSuccess => 'Thanks — your report was submitted.';
+  String get safetyTitle => 'Safety and support';
+
+  @override
+  String get safetyFindSupport => 'Find support';
+
+  @override
+  String safetyResourcesReviewed(String date) {
+    return 'Resources reviewed: $date';
+  }
+
+  @override
+  String get reportSubmitSuccess =>
+      'Report received. We’ll review it and take action if needed. We aim to decide routine reports within ten UK business days. Urgent safety concerns take priority.';
 
   @override
   String get reportSubmitError => 'Couldn\'t submit report. Please try again.';
@@ -4661,6 +4673,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moderationReasonIntellectualProperty => 'Intellectual property';
+
+  @override
+  String get moderationReasonIllegalContent => 'Other illegal content';
+
+  @override
+  String get moderationReasonFraudOrScam => 'Fraud or scam';
+
+  @override
+  String get moderationReasonSelfHarm => 'Self-harm policy violation';
 
   @override
   String get moderationReasonOther => 'Other policy issue';

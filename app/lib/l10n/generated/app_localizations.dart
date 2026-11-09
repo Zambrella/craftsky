@@ -3220,10 +3220,28 @@ abstract class AppLocalizations {
   /// **'Submitting…'**
   String get reportSubmitting;
 
-  /// Snackbar shown after a report submission succeeds.
+  /// Safety and support guide navigation or resource information.
   ///
   /// In en, this message translates to:
-  /// **'Thanks — your report was submitted.'**
+  /// **'Safety and support'**
+  String get safetyTitle;
+
+  /// Safety and support guide navigation or resource information.
+  ///
+  /// In en, this message translates to:
+  /// **'Find support'**
+  String get safetyFindSupport;
+
+  /// Safety and support guide navigation or resource information.
+  ///
+  /// In en, this message translates to:
+  /// **'Resources reviewed: {date}'**
+  String safetyResourcesReviewed(String date);
+
+  /// Confirmation after a CraftSky report succeeds; explains review, routine decision estimate and urgent prioritisation. Not used for Bluesky DM reports.
+  ///
+  /// In en, this message translates to:
+  /// **'Report received. We’ll review it and take action if needed. We aim to decide routine reports within ten UK business days. Urgent safety concerns take priority.'**
   String get reportSubmitSuccess;
 
   /// Inline error shown when a report submission fails and can be retried.
@@ -8192,6 +8210,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Intellectual property'**
   String get moderationReasonIntellectualProperty;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Other illegal content'**
+  String get moderationReasonIllegalContent;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Fraud or scam'**
+  String get moderationReasonFraudOrScam;
+
+  /// Controlled moderation reason; not ordinary distress or help-seeking.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-harm policy violation'**
+  String get moderationReasonSelfHarm;
 
   /// Controlled moderation reason.
   ///

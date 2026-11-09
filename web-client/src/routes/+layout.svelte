@@ -62,6 +62,7 @@
 		<footer>
 			<p>A home for textile crafters. Your craft, your community, your data.</p>
 			<nav aria-label="Information">
+				<a href="/safety">Safety and support</a>
 				<a href="https://craftsky.social/privacy">Privacy</a><a
 					href="https://craftsky.social/terms">Terms</a
 				><a href="https://craftsky.social/reporting">Report a concern</a>

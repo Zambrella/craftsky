@@ -45,6 +45,39 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('shows specific owner labels for the approved sanction reasons', (
+    tester,
+  ) async {
+    for (final item in [
+      (ModerationReason.illegalContent, 'Other illegal content'),
+      (ModerationReason.fraudOrScam, 'Fraud or scam'),
+      (ModerationReason.selfHarm, 'Self-harm policy violation'),
+    ]) {
+      await _pumpPage(
+        tester,
+        account: account,
+        repository: _FakeModerationRepository(
+          entries: [
+            ModerationHistoryEntry(
+              caseReference: 'MOD-550e8400-e29b-41d4-a716-446655440000',
+              eventType: 'decision',
+              reason: item.$1,
+              userSafeDetail: 'Safe explanation.',
+              effects: const [],
+              safeSnapshot: const ModerationSafeSnapshot(
+                type: 'account',
+                did: 'did:plc:owner',
+              ),
+              occurredAt: DateTime.utc(2026, 11, 9),
+            ),
+          ],
+        ),
+      );
+      expect(find.text(item.$2), findsOneWidget);
+      expect(find.text('Safe explanation.'), findsOneWidget);
+    }
+  });
+
   testWidgets('uses CraftSky card and state-specific paper colour', (
     tester,
   ) async {

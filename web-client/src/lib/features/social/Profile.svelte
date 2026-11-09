@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
 		protectAccountAction,
@@ -288,7 +289,7 @@
 			() => {
 				reportOpen = false;
 				reportLink = undefined;
-				notify('Report submitted.');
+				notify(reportConfirmation, false, true);
 			},
 			undefined,
 			'social.Profile.report'

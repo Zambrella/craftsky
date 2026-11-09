@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"social.craftsky/appview/internal/safetyincident"
+	"social.craftsky/appview/internal/safetyintake"
 	"strings"
 	"time"
 )
@@ -41,6 +42,13 @@ func (s *Store) OpenOperatorCase(ctx context.Context, c OperatorCaseCommand) (Ca
 			if err := tx.QueryRow(ctx, `SELECT canonical_subject FROM external_safety_intakes WHERE id=$1 FOR UPDATE`, c.IntakeID).Scan(&subject); err != nil {
 				return err
 			}
+			// Older intakes may retain a shared HTTPS link. Normalize it with
+			// the same boundary rules before comparing the exact case target.
+			normalized, err := safetyintake.CanonicalSubject(subject, safetyintake.KindAllegation)
+			if err != nil {
+				return ErrInvalidCommand
+			}
+			subject = normalized
 			if subject != c.URI.String() && !(c.SubjectType == SubjectAccount && (subject == "at://"+c.DID.String()+"/app.bsky.actor.profile/self" || subject == "at://"+c.DID.String()+"/social.craftsky.business.profile/self")) {
 				return ErrInvalidCommand
 			}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportConfirmation } from '../moderation/report-confirmation';
 	import { notify } from './toasts.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
@@ -161,7 +162,7 @@
 							() => api.business.reportEvent(did, rkey, submission),
 							() => {
 								reporting = false;
-								notify('Report submitted.');
+								notify(reportConfirmation, false, true);
 							}
 						)}
 					onCancel={() => (reporting = false)}

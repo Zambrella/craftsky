@@ -196,9 +196,11 @@
 									}}
 									href={external
 										? 'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en'
-										: slug === 'notifications'
-											? '/notifications/settings'
-											: `/settings/${slug}`}
+										: slug === 'safety'
+											? '/safety'
+											: slug === 'notifications'
+												? '/notifications/settings'
+												: `/settings/${slug}`}
 									target={external ? '_blank' : undefined}
 									rel={external ? 'noopener noreferrer' : undefined}
 									><span class="tile-leading"

@@ -212,6 +212,9 @@ describe('native settings catalogues and future values', () => {
 			'Content removed from CraftSky'
 		);
 		expect(moderationLabel('action', 'restore')).toBe('Access restored');
+		expect(moderationLabel('reason', 'illegal_content')).toBe('Other illegal content');
+		expect(moderationLabel('reason', 'fraud_or_scam')).toBe('Fraud or scam');
+		expect(moderationLabel('reason', 'self_harm')).toBe('Self-harm policy violation');
 		expect(moderationLabel('reason', 'future-policy')).toBe('Policy decision');
 		expect(moderationLabel('effect', null)).toBe('Policy action');
 	});

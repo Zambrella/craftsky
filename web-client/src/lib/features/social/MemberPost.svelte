@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
 		protectAccountAction,
@@ -385,7 +386,7 @@
 			() => api.posts.report(p.author.did, p.rkey, submission),
 			() => {
 				reportOpen = false;
-				message = 'Report submitted.';
+				message = reportConfirmation;
 			}
 		);
 	}
@@ -761,6 +762,7 @@
 		{#if message}<Snackbar
 				{message}
 				warning={messageError}
+				support={message === reportConfirmation && !messageError}
 				onDismiss={() => {
 					message = '';
 					messageError = false;

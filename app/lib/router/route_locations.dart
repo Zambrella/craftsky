@@ -3,6 +3,7 @@
 class RouteLocations {
   new _();
 
+  static const safety = '/safety';
   static const welcome = '/welcome';
   static const signIn = '/sign-in';
   static const addAccount = '/add-account';

@@ -177,11 +177,11 @@ func (s *Service) ResolveCase(ctx context.Context, command TrustedCommand) (resu
 	decisionID := uuid.New()
 	if _, err := tx.Exec(ctx, `INSERT INTO moderation_decisions(
 		id,case_id,case_event_id,disposition,reason,internal_evidence_notes,
-		user_safe_detail,severity_rationale,legal_classification,created_at
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, decisionID, command.CaseID, eventID,
+		user_safe_detail,severity_rationale,legal_classification,illegal_content_rationale,created_at
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, decisionID, command.CaseID, eventID,
 		command.Decision.Disposition, nullIfEmpty(string(command.Decision.Reason)),
 		nullIfEmpty(command.Decision.Evidence), nullIfEmpty(command.Decision.UserSafeDetail),
-		nullIfEmpty(command.Decision.SeverityRationale), nullIfEmpty(string(command.Decision.LegalClassification)), now); err != nil {
+		nullIfEmpty(command.Decision.SeverityRationale), nullIfEmpty(string(command.Decision.LegalClassification)), nullIfEmpty(command.Decision.IllegalContentRationale), now); err != nil {
 		return CommandResult{}, fmt.Errorf("insert moderation decision: %w", err)
 	}
 
@@ -345,10 +345,11 @@ func commandFingerprint(command TrustedCommand) ([sha256.Size]byte, error) {
 		UserSafeDetail   string              `json:"userSafeDetail"`
 		Severity         string              `json:"severityRationale"`
 		Legal            LegalClassification `json:"legalClassification"`
+		IllegalRationale string              `json:"illegalContentRationale,omitempty"`
 		Effects          []EffectType        `json:"effects"`
 	}{command.CaseID.String(), command.ExpectedRevision, command.SourceDID, command.Decision.Disposition,
 		command.Decision.Reason, command.Decision.Evidence, command.Decision.UserSafeDetail,
-		command.Decision.SeverityRationale, command.Decision.LegalClassification, effects}
+		command.Decision.SeverityRationale, command.Decision.LegalClassification, command.Decision.IllegalContentRationale, effects}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return [sha256.Size]byte{}, fmt.Errorf("fingerprint moderation command: %w", err)

@@ -32,6 +32,7 @@ export const settingsGroups = [
 	{
 		title: 'General',
 		items: [
+			['safety', 'Safety and support'],
 			['moderation', 'Account standing'],
 			['account', 'Account'],
 			['about', 'About'],
@@ -84,6 +85,7 @@ export function visibleSettingsGroups(restricted: boolean, business: boolean) {
 				([slug]) =>
 					(!restricted ||
 						[
+							'safety',
 							'moderation',
 							'account',
 							'muted',

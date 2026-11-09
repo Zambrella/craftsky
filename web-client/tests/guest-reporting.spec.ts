@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { reportConfirmation } from '../src/lib/features/moderation/report-confirmation';
 
 for (const subject of ['post', 'profile']) {
 	test(`guest submits a ${subject} report through the shared form`, async ({
@@ -50,8 +51,13 @@ for (const subject of ['post', 'profile']) {
 		await dialog.getByRole('button', { name: 'Submit report' }).click();
 		await expect(dialog).toHaveCount(0);
 		await expect(
-			page.locator('.snackbar').getByText('Report submitted.', { exact: true })
+			page.locator('.snackbar').getByText(reportConfirmation, { exact: true })
 		).toBeVisible();
+		await expect(
+			page
+				.locator('.snackbar')
+				.getByRole('link', { name: 'Find support', exact: true })
+		).toHaveAttribute('href', '/safety');
 		expect(writes).toHaveLength(1);
 		expect(writes[0].path).toMatch(
 			subject === 'post'

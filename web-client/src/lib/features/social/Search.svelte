@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -382,6 +383,7 @@
 		</div>
 	{/if}
 </form>
+{#key q}<SearchSupportNotice query={q} />{/key}
 {#if !showSuggestions}
 	{#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
 			{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a

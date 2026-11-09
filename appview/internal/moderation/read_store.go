@@ -134,13 +134,14 @@ type AdminEvent struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 type AdminDecision struct {
-	LegalClassification LegalClassification `json:"legalClassification,omitempty"`
-	Disposition         Disposition         `json:"disposition"`
-	Reason              Reason              `json:"reason,omitempty"`
-	EvidenceNotes       string              `json:"evidenceNotes,omitempty"`
-	UserSafeDetail      string              `json:"userSafeDetail,omitempty"`
-	SeverityRationale   string              `json:"severityRationale,omitempty"`
-	CreatedAt           time.Time           `json:"createdAt"`
+	IllegalContentRationale string              `json:"illegalContentRationale,omitempty"`
+	LegalClassification     LegalClassification `json:"legalClassification,omitempty"`
+	Disposition             Disposition         `json:"disposition"`
+	Reason                  Reason              `json:"reason,omitempty"`
+	EvidenceNotes           string              `json:"evidenceNotes,omitempty"`
+	UserSafeDetail          string              `json:"userSafeDetail,omitempty"`
+	SeverityRationale       string              `json:"severityRationale,omitempty"`
+	CreatedAt               time.Time           `json:"createdAt"`
 }
 type AdminEffect struct {
 	EffectID  string     `json:"effectId"`
@@ -228,7 +229,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 		}
 		detail.Events = append(detail.Events, event)
 	}
-	decisions, err := s.pool.Query(ctx, `SELECT disposition,COALESCE(reason,''),COALESCE(internal_evidence_notes,''),COALESCE(user_safe_detail,''),COALESCE(severity_rationale,''),COALESCE(legal_classification,''),created_at FROM moderation_decisions WHERE case_id=$1 ORDER BY created_at,id`, id)
+	decisions, err := s.pool.Query(ctx, `SELECT disposition,COALESCE(reason,''),COALESCE(internal_evidence_notes,''),COALESCE(user_safe_detail,''),COALESCE(severity_rationale,''),COALESCE(legal_classification,''),COALESCE(illegal_content_rationale,''),created_at FROM moderation_decisions WHERE case_id=$1 ORDER BY created_at,id`, id)
 	if err != nil {
 		return AdminDetail{}, err
 	}
@@ -236,7 +237,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 	detail.Decisions = []AdminDecision{}
 	for decisions.Next() {
 		var decision AdminDecision
-		if err := decisions.Scan(&decision.Disposition, &decision.Reason, &decision.EvidenceNotes, &decision.UserSafeDetail, &decision.SeverityRationale, &decision.LegalClassification, &decision.CreatedAt); err != nil {
+		if err := decisions.Scan(&decision.Disposition, &decision.Reason, &decision.EvidenceNotes, &decision.UserSafeDetail, &decision.SeverityRationale, &decision.LegalClassification, &decision.IllegalContentRationale, &decision.CreatedAt); err != nil {
 			return AdminDetail{}, err
 		}
 		detail.Decisions = append(detail.Decisions, decision)

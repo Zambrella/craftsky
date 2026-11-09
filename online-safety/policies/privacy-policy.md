@@ -4,10 +4,10 @@
 |---|---|
 | Privacy owner | Douglas Todd, Founder |
 | Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.3 |
+| Version | 0.4 |
 | Status | Draft; not effective |
 | Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 14 September 2026 |
+| Last reviewed | 9 November 2026 |
 | Next review | Before publication, then at least annually |
 | Publication | Public after factual, DPIA, and legal approval |
 
@@ -16,12 +16,11 @@
 
 ## 1. Who We Are
 
-The company being established under the assumed name **CraftSky** is the
-controller of personal data it processes to operate the CraftSky website, apps,
-safety systems, and private features. Company number: **[TO BE CONFIRMED]**.
-Country of registration: **[TO BE CONFIRMED]**.
+**CRAFTSKY LTD**, trading as **CraftSky**, is the controller of personal data it
+processes to operate the CraftSky website, apps, safety systems, and private
+features. Company number: **17482696**. Country of registration: **United Kingdom**.
 
-Registered postal address: **[TO BE CONFIRMED]**
+Registered postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, United Kingdom, PO15 5TD**
 
 Privacy, rights-request, and security contact: `support@craftsky.social`. Douglas
 Todd initially owns this inbox and checks it on UK business days. It is not an
@@ -161,7 +160,7 @@ The known inventory includes:
 
 | Recipient/category | How they are involved |
 |---|---|
-| Brevo | Waiting-list form and email delivery |
+| Brevo | Waiting-list form and email delivery; generic urgent-safety alerts to the operator when enabled (no report content or identities in alert messages) |
 | PostHog | Consent-based, limited public-website analytics in the EU |
 | Sentry | App and service errors, logs, and sampled traces in the EU |
 | Cloudflare | Website delivery, bot protection, security, and network infrastructure |
@@ -362,3 +361,4 @@ requires it.
 | 0.1 | 11 September 2026 | Initial repository draft; records the contractual 16+ eligibility rule, CraftSky controller name, and `craftsky.social` contact domain. Age is not currently verified. | Prepared with repository review; not approved |
 | 0.2 | 14 September 2026 | Records decisions on contacts, analytics consent, providers, retention, rights requests, legal holds, and publication naming. | Douglas Todd / approval pending |
 | 0.3 | 14 September 2026 | Records CraftSky as the assumed company name, adds registration-detail placeholders, and identifies Amazon S3 in AWS Frankfurt for scheduled-media storage. | Douglas Todd / approval pending |
+| 0.4 | 9 November 2026 | Records CRAFTSKY LTD, company number 17482696, and registered office from Companies House; policy approval remains pending. | Repository update / approval pending |

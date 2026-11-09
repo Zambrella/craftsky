@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SafetyWorkspace } from '../src/workspaces/SafetyWorkspace'
 
@@ -55,7 +55,7 @@ test('admin creates a credible-threat review with a consequence-aware confirmati
  await user.click(within(form).getByRole('button',{name:'Review credible threat review'}))
  expect(writes).toHaveLength(0)
  await user.click(screen.getByRole('button',{name:'Confirm credible threat review'}))
- await screen.findByText('Command committed. Workflow data refreshed.')
+ await screen.findByText(/Command committed\./)
  expect(JSON.parse(String(writes[0].body))).toMatchObject({preservationCode:'Relevant records retained in approved storage.'})
  expect(JSON.parse(String(writes[0].body))).not.toHaveProperty('expectedRevision')
 })
@@ -172,6 +172,7 @@ test('unconfigured workflow target is a definite rejection and leaves the operat
  const user=userEvent.setup();render(<SafetyWorkspace area="workflows" operator={{...operator,permissions:{...operator.permissions,'workflow.manage':true}}} onSessionExpired={()=>{}} onLocked={()=>{}}/>)
  await user.click(screen.getByText('Start intimate image review'))
  const form=screen.getByRole('form',{name:'Intimate image review'})
+ fireEvent.change(within(form).getByLabelText('Received at'),{target:{value:'2026-11-09T09:00'}})
  await user.type(within(form).getByLabelText('Standing assessment'),'Synthetic standing');await user.type(within(form).getByLabelText('Declarations assessment'),'Synthetic declaration')
  await user.click(within(form).getByRole('button',{name:'Review intimate image review'}));await user.click(screen.getByRole('button',{name:'Confirm intimate image review'}))
  expect(await screen.findByText('An approved response target must be configured before this workflow can start. Ask a maintainer to configure it.')).toBeTruthy()
@@ -198,4 +199,45 @@ test('verified appeal linking displays the correspondence reference needed for c
  await user.click(screen.getByRole('button',{name:'Review appeal link'}));await user.click(screen.getByRole('button',{name:'Confirm appeal link'}))
  expect(await screen.findByText('Recorded reference: 64000000-0000-4000-8000-000000000099')).toBeTruthy()
  expect(screen.getByRole('link',{name:'Open recorded item'}).getAttribute('href')).toBe('#/cases/MOD-'+id)
+})
+
+test('invalid external intake subject explains the accepted links and retains the draft',async()=>{
+ fixture((path,init)=>{if(init?.method==='POST')return reply({error:'invalid_external_intake_subject',requestId:'fixture-request'},422);if(path.includes('/external-intakes?'))return reply({items:[]})})
+ const user=userEvent.setup()
+ render(<SafetyWorkspace area="intakes" operator={{...operator,permissions:{'intake.manage':true}}} onSessionExpired={()=>{}} onLocked={()=>{}}/>)
+ await user.click(screen.getByText('Record external intake'))
+ const form=screen.getByRole('form',{name:'External intake'})
+ await user.type(within(form).getByLabelText('Message reference'),'synthetic-message-001')
+ await user.type(within(form).getByLabelText('Reported subject'),'https://invalid.example/post/one')
+ await user.click(within(form).getByRole('button',{name:'Review external intake'}))
+ await user.click(screen.getByRole('button',{name:'Confirm external intake'}))
+ expect(await screen.findByText(/The reported subject is not a supported CraftSky link/)).toBeTruthy()
+ expect((within(form).getByLabelText('Reported subject') as HTMLInputElement).value).toBe('https://invalid.example/post/one')
+ expect(screen.queryByRole('button',{name:'Retry exact command'})).toBeNull()
+})
+
+
+test('linked intimate review uses the intake original receipt rather than current time',async()=>{
+ window.location.hash='#/intakes/'+id
+ const received='2026-11-01T09:30:00Z'
+ const writes:RequestInit[]=[]
+ fixture((path,init)=>{
+  if(init?.method==='POST'){writes.push(init);return reply({id,deadlineAt:'2026-11-02T09:30:00Z'})}
+  if(path.includes('/external-intakes?'))return reply({items:[]})
+  if(path.endsWith('/external-intakes/'+id))return reply({id,revision:0,kind:'complaint',receivedAt:received})
+  if(path.includes('/correspondence'))return reply({items:[]})
+ })
+ const user=userEvent.setup()
+ render(<SafetyWorkspace area="intakes" operator={{...operator,permissions:{'intake.manage':true,'workflow.manage':true}}} onSessionExpired={()=>{}} onLocked={()=>{}}/>)
+ await user.click(await screen.findByText('Start intimate image review'))
+ const form=screen.getByRole('form',{name:'Intimate image review'})
+ const field=within(form).getByLabelText('Received at') as HTMLInputElement
+ expect(new Date(field.value).toISOString()).toBe(received.replace('Z','.000Z'))
+ expect(field.readOnly).toBe(true)
+ await user.type(within(form).getByLabelText('Standing assessment'),'Synthetic standing')
+ await user.type(within(form).getByLabelText('Declarations assessment'),'Synthetic declarations')
+ await user.click(within(form).getByRole('button',{name:'Review intimate image review'}))
+ await user.click(screen.getByRole('button',{name:'Confirm intimate image review'}))
+ await screen.findByText(/Command committed\./)
+ expect(JSON.parse(String(writes[0].body))).toMatchObject({intakeId:id,receivedAt:received.replace('Z','.000Z')})
 })

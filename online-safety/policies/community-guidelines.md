@@ -3,13 +3,14 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.2 |
+| Approved by | Pending final policy approval by Douglas Todd |
+| Version | 0.4 |
 | Status | Draft; not effective |
 | Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 14 September 2026 |
+| Last reviewed | 9 November 2026 (approved harmful-content boundary; full policy review pending) |
 | Next review | Before publication, then at least annually |
 | Publication | Public after approval |
+| Content-boundary decision | Douglas Todd approved the full all-user harmful-to-children content boundary and context safeguards on 9 November 2026; full policy/publication approval remains pending |
 
 CraftSky is a social network for textile and fibre crafters. We want it to be a
 place where people can share projects, ask questions, learn, and celebrate each
@@ -32,6 +33,40 @@ Terms of Service and Privacy Policy.
 
 ## Safety
 
+### Content harmful to children
+
+CraftSky does not allow:
+
+- pornography;
+- content encouraging, promoting or giving instructions for suicide,
+  deliberate self-injury or eating-disorder behaviour;
+- bullying, abusive content targeting protected characteristics, or content
+  inciting hatred against protected groups;
+- encouragement, promotion or instructions for serious violence against a person;
+- depictions of real or realistic serious violence against people, or graphic
+  depictions of their real or realistic serious injuries;
+- depictions of real or realistic serious violence against animals, graphic
+  depictions of their real or realistic serious injuries, or realistic depictions
+  of serious violence or graphic serious injury involving fictional creatures;
+- challenges or stunts highly likely to cause serious injury, or encouragement
+  to ingest, inhale, inject or otherwise self-administer harmful substances or
+  harmful quantities of a substance;
+- content shaming or stigmatizing body types or physical features; or
+- content promoting depression, hopelessness or despair.
+
+These restrictions apply to everyone using child-accessible parts of CraftSky,
+including adults. Educational, medical, artistic or historical context matters
+when deciding what content actually shows or promotes. It is not a blanket
+exception where content still meets a harmful-content definition above.
+
+Ordinary garment and fit discussion, inclusive size information, safe craft
+instruction, fibre sourcing and welfare discussion, legitimate non-graphic
+health or educational material, and supportive accounts of grief, illness,
+recovery or seeking help remain welcome when they do not meet those definitions.
+Ordinary unfinished craft objects, fictional characters, manageable everyday
+tool risks and neutral body or size facts are not automatically harmful content.
+
+
 ### Violence, threats, and criminal activity
 
 Do not threaten, praise, encourage, or help carry out violence, terrorism,
@@ -41,7 +76,8 @@ property.
 
 Journalism, counterspeech, victim testimony, academic or documentary discussion,
 news, history, fiction, prevention, recovery, and safety information may be
-allowed when they do not promote harm and have appropriate context.
+allowed when they do not promote harm, have appropriate context and do not
+otherwise meet the harmful-content definitions above.
 
 ### Child safety
 
@@ -65,25 +101,46 @@ person without their consent.
 Craft projects and links involving sexual health, breastfeeding, swimwear,
 underwear, lingerie, life drawing, medical or post-surgery garments, gender-
 affirming garments, abuse prevention, support resources, or historical material
-may be allowed when the context is legitimate and not sexually exploitative.
+may be allowed when the context is legitimate, not sexually exploitative and
+does not otherwise meet a harmful-content definition above.
 
-### Suicide and serious self-harm
+### Suicide, self-injury and eating disorders
 
-Do not encourage, assist, instruct, or target someone with content promoting
-suicide, serious self-harm, or dangerous eating-disorder behaviour. Supportive
-discussion of recovery, personal experience, and seeking help is welcome when it
-does not provide harmful instruction or encouragement.
+Do not encourage, promote, assist or give instructions for suicide, deliberate
+self-injury or eating-disorder behaviour. Do not target someone with content
+promoting those harms. This rule is not limited to criminal conduct or injury
+classified as serious. Supportive discussion of recovery, personal experience,
+and seeking help is welcome when it does not provide harmful instruction or
+encouragement.
+
+### Depression, hopelessness and despair
+
+Do not promote depression, hopelessness or despair, including by encouraging
+someone to give up seeking help. Sharing that you feel depressed, grieving or
+overwhelmed is different from promoting those harms. Honest accounts of illness,
+difficult feelings, recovery and seeking support remain welcome.
+
+### Dangerous challenges and harmful substances
+
+Do not encourage, promote or give instructions for challenges or stunts highly
+likely to seriously injure someone. Do not encourage people to ingest, inhale,
+inject or otherwise self-administer a harmful substance or a harmful quantity
+of one. Ordinary safe use of craft tools, dyes and other materials, proportionate
+safety warnings and legitimate non-harmful instruction remain welcome.
 
 ### Graphic or distressing material
 
-Do not post graphic violence, injury, abuse, or cruelty to shock or intimidate.
-Some distressing craft-related material may be allowed where it has a clear
-educational, historical, medical, protest, grief, or recovery context.
+Do not post material that meets the serious-violence or graphic-serious-injury
+prohibitions above, including to shock or intimidate. Educational, medical,
+historical, protest or recovery context does not automatically exempt it. Some
+less graphic or distressing craft-related material may be allowed where it has
+legitimate context and does not meet a harmful-content definition.
 
 CraftSky does not currently provide a poster-controlled sensitive-content label.
-Until that control exists, consider whether a less graphic image or a clear text
-description can communicate the same point. Moderators may warn, hide, or remove
-material depending on its context and risk.
+Use a non-graphic image or a clear text explanation where it communicates the
+craft point safely. A content warning does not make otherwise prohibited
+material acceptable. Moderators assess the actual content and context before
+applying proportionate action.
 
 ## Respect Other People
 
@@ -112,7 +169,8 @@ communications, or other sensitive identifying information without permission.
 
 ### Bodies and fit feedback
 
-Do not degrade, sexualize, or shame another person's body or appearance. Keep fit
+Do not degrade, sexualize, shame or stigmatize bodies or physical features,
+whether or not a particular person is targeted. Keep fit
 feedback respectful, focused on the garment, and responsive to what the poster
 asked for.
 
@@ -218,6 +276,17 @@ violation, severity, intent, context, history, and risk, CraftSky may:
   immediately for a severe violation or after
   three active strikes.
 
+Other illegal content can lead to a strike or, for a severe violation, immediate
+suspension after a supported human review. We record the factual and legal basis
+and provide the account owner with a safe explanation. We use a specific policy
+category where it fits. An unspecified “Other” report alone does not justify a
+strike or immediate suspension.
+
+Severe fraud and deliberate encouragement or assistance of serious self-harm
+can justify immediate suspension. Ordinary transaction disputes, distress,
+recovery and help-seeking are not grounds by themselves. Reports, report counts
+and automated signals are not findings of wrongdoing.
+
 Strikes remain active for 12 calendar months unless reversed. An account is
 suspended while at least three strikes remain active. A severe suspension remains
 in place until CraftSky restores the account or reverses the decision. Enforcement
@@ -261,3 +330,6 @@ accessed by children and applies the safeguards required by law.
 |---|---|---|---|
 | 0.1 | 11 September 2026 | Public draft created from the July 2026 community draft and current moderation model. | Working draft / not approved |
 | 0.2 | 14 September 2026 | Records decisions on content boundaries, commercial disclosures, enforcement, reporting, age, and publication control. | Douglas Todd / approval pending |
+| 0.3 | 9 November 2026 | Records owner approval of the public-content approach: prohibit pornography, sexual exploitation and harmful suicide/self-harm/eating-disorder encouragement or instruction for all users, retaining legitimate non-promotional context exceptions. Full policy approval remains pending. | Douglas Todd / content approach approved only |
+
+| 0.4 | 9 November 2026 | Aligns all-user harmful-content prohibitions and context safeguards with the owner-approved children's content boundary; full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |
