@@ -604,6 +604,7 @@
 					>
 					{#if !post.reply}<details class="post-share" use:contextMenu>
 							<summary
+								class:reposted={post.viewerHasReposted}
 								aria-label="Share post"
 								onclick={() => (useCurrentImage = false)}
 								><Icon name="repost" size={22} /><span
@@ -916,6 +917,9 @@
 	.post-actions .liked {
 		color: var(--red-ink);
 		background: transparent;
+	}
+	.post-share summary.reposted {
+		color: var(--success-ink);
 	}
 	.post-actions .bookmark[aria-pressed='true'] {
 		color: var(--primary);
