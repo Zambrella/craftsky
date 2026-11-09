@@ -1,7 +1,8 @@
 # Bunny video development and manual acceptance
 
-Bunny is configured only for this checkout. No production resources or deployment
-configuration were changed. See [ADR 024](../../adr/024-bunny-video-development-integration.md).
+Bunny is the default video provider. Local credentials belong in `.env.local`;
+production settings are declared in `render.yaml` and must be supplied before a
+reviewed manual sync and deployment. See [ADR 024](../../adr/024-bunny-video-development-integration.md).
 
 ## Run locally
 
@@ -31,7 +32,8 @@ version or roll back/drop the existing Bunny tables. Fresh databases apply all
 four migrations in order. Production databases must use the normal reviewed
 migration process.
 
-The ignored `.env.local` selects `VIDEO_PROVIDER=bunny` and contains the development
+Video defaults to enabled (`VIDEO_ENABLED=true`) with `VIDEO_PROVIDER=bunny`.
+The ignored `.env.local` contains the development
 library credentials. Do not print that file or copy keys into Dart defines.
 `BUNNY_CDN_PURGE_API_KEY` supplies the separate Bunny account API credential for
 CDN purges. It is server-only; the Stream library key cannot authorize purges.
@@ -82,8 +84,23 @@ The library uses Premium H.264 encoding (enabled with maintainer approval on
 2026-11-05), 360p/720p/1080p, MP4 fallback and retained
 originals, stored in Frankfurt without extra replicas. Native direct playback is
 allowed. New uploads have a rolling 20-authorizations-per-owner daily allowance.
-The canonical PDS MP4 prefers Bunny's 720p fallback, falling back to available
-resolutions for smaller inputs. It is limited to 300 MB and ten minutes.
+The canonical PDS MP4 retains its preference for Bunny's 720p fallback
+(1080p, 360p, 480p, then 240p when unavailable). If oversized, it tries
+available lower resolutions from largest to smallest. It is limited to 300 MB and ten minutes.
+Before allocating an upload, AppView queries the session-authoritative PDS's
+public `com.atproto.server.describeServer` endpoint for `blobUploadLimit`.
+Capabilities are cached per PDS origin for five minutes (30 seconds for unknown
+limits), with a three-second discovery timeout and a bounded cache. Missing,
+invalid or unavailable capabilities retain the existing 300 MB ceiling.
+
+After encoding, AppView refreshes discovery if needed and checks each MP4 against
+the lower of the PDS limit and 300 MB, using both Content-Length and a bounded
+stream read. Oversized renditions fall back to the next available resolution;
+no oversized MP4 is sent to the PDS. Source upload size is not compared against
+the PDS limit, because encoding changes the size. If none fits, the job persists
+`pds_blob_too_large` (or `video_too_large` for the app ceiling), and both clients
+show recovery guidance. Migration 000121 adds these durable failure codes.
+The Bluesky-managed video processing path retains its existing behavior.
 
 The Bunny client upload path accepts MP4 and QuickTime-branded MOV sources,
 including MOV files containing H.264 or HEVC video. Selection checks the file

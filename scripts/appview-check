@@ -456,12 +456,15 @@ if [[ -z "$oauth_client_secret_key" ]]; then
   echo "appview-check: release CLI did not generate an OAuth client key" >&2
   exit 1
 fi
+# Dependency/migration/smoke fixtures exercise local services, not vendor video.
+# Select the credential-free provider explicitly rather than inheriting defaults.
 run_release_cli() {
   docker run --rm \
     --network "$gate_network" \
     --entrypoint /app/cli \
     --env DATABASE_URL="$container_database_url" \
     --env ALLOWED_ORIGINS="*" \
+    --env VIDEO_PROVIDER="bluesky" \
     --env CRAFTSKY_DEV_DID="did:plc:jt3cxdyrhjhrkpwzdvonheax" \
     --env TAP_WS_URL="ws://tap:2480/channel" \
     --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
@@ -507,6 +510,7 @@ production_ping_output=$(docker run --rm \
   --entrypoint /app/cli \
   --env DATABASE_URL="$container_database_url" \
   --env ALLOWED_ORIGINS="https://craftsky.social" \
+  --env VIDEO_PROVIDER="bluesky" \
   --env TAP_WS_URL="ws://tap:2480/channel" \
   --env OAUTH_PUBLIC_ORIGIN="https://appview.craftsky.social" \
   --env OAUTH_CLIENT_SECRET_KEY="$oauth_client_secret_key" \
@@ -536,6 +540,7 @@ production_status=$(docker run --rm \
   --entrypoint /app/cli \
   --env DATABASE_URL="$container_database_url" \
   --env ALLOWED_ORIGINS="https://craftsky.social" \
+  --env VIDEO_PROVIDER="bluesky" \
   --env TAP_WS_URL="ws://tap:2480/channel" \
   --env OAUTH_PUBLIC_ORIGIN="https://appview.craftsky.social" \
   --env OAUTH_CLIENT_SECRET_KEY="$oauth_client_secret_key" \
@@ -561,6 +566,7 @@ docker run -d \
   --publish 127.0.0.1::8080 \
   --env DATABASE_URL="$container_database_url" \
   --env ALLOWED_ORIGINS="*" \
+  --env VIDEO_PROVIDER="bluesky" \
   --env CRAFTSKY_DEV_DID="did:plc:jt3cxdyrhjhrkpwzdvonheax" \
   --env MODERATION_ADMIN_ENABLED="true" \
   --env MODERATION_SOURCE_DID="did:example:release-console" \

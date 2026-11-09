@@ -12,6 +12,7 @@
 	import { GuestSession } from './guest-session.svelte';
 	import { guestRoute } from '#lib/routes.ts';
 	import BrowsingShell from './BrowsingShell.svelte';
+	import Startup from '../shell/Startup.svelte';
 	import SignInContent from './SignInContent.svelte';
 	import { signInContext, type RequestSignIn } from './account-action';
 	let { children }: { children: Snippet } = $props();
@@ -229,6 +230,9 @@
 	});
 </script>
 
+{#if !ready && ['/feed', '/search'].includes(page.url.pathname)}
+	<div class="guest-startup"><Startup /></div>
+{/if}
 <div
 	inert={guest.promptOpen}
 	aria-hidden={guest.promptOpen}
@@ -283,6 +287,12 @@
 </dialog>
 
 <style>
+	.guest-startup {
+		position: fixed;
+		inset: 0;
+		z-index: 30;
+		background: var(--paper);
+	}
 	.guest-runtime {
 		--guest-rail-width: 256px;
 		--guest-navigation-height: 0px;

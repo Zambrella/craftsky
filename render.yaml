@@ -259,6 +259,10 @@ projects:
                 value: eu-central-1
               - key: LINK_PREVIEWS_ENABLED
                 value: "true"
+              - key: VIDEO_ENABLED
+                value: "true"
+              - key: VIDEO_PROVIDER
+                value: bunny
               - key: VIDEO_SERVICE_URL
                 value: https://video.bsky.app
               - key: VIDEO_PLAYLIST_URL_TEMPLATE
@@ -366,6 +370,15 @@ projects:
                   type: pserv
                   name: craftsky-tap
                   envVarKey: CRAFTSKY_TAP_WS_URL
+              # Supply library settings and credentials manually in Render.
+              - key: BUNNY_STREAM_LIBRARY_ID
+                sync: false
+              - key: BUNNY_STREAM_CDN_HOSTNAME
+                sync: false
+              - key: BUNNY_STREAM_API_KEY
+                sync: false
+              - key: BUNNY_CDN_PURGE_API_KEY
+                sync: false
               - key: OAUTH_CLIENT_SECRET_KEY
                 sync: false
               - key: OAUTH_HANDOFF_RECEIPT_KEY

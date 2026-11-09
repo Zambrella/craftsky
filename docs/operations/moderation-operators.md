@@ -466,7 +466,7 @@ An alert requests review; it is not a finding that a report is correct.
 3. Set `SAFETY_EMAIL_ENABLED=true`. It defaults to false and requires
    `MODERATION_ADMIN_ENABLED=true` and an HTTPS `OAUTH_PUBLIC_ORIGIN`.
 4. Release/deploy through the normal exact-tag AppView workflow. Migration
-   `000121_safety_email_alerts` creates the persistent delivery queue. Environment
+   `000123_safety_email_alerts` creates the persistent delivery queue. Environment
    updates and deployment are separate production actions.
 5. Verify delivery using an authorized benign urgent report on a disposable test
    account. Check Brevo acceptance, mailbox receipt, phone notification and console

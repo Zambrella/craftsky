@@ -39,7 +39,7 @@ describe the announced policy as current law.
 | [Illegal Content Risk Assessment](assessments/illegal-content-risk-assessment.md) | Internal regulatory record | Incomplete draft |
 | [Community Guidelines](policies/community-guidelines.md) | Public | Draft for review |
 | [Terms of Service](policies/terms-of-service.md) | Public | Draft for legal review |
-| [Launch DPIA](assessments/data-protection-impact-assessment.md) and [evidence register](assessments/dpia-evidence.md) | Internal | Code-based v0.1 prepared 9 November 2026; actions, residual-risk decision and approval pending |
+| [Launch DPIA](assessments/data-protection-impact-assessment.md) and [evidence register](assessments/dpia-evidence.md) | Internal | Code-based v0.2; provider scope reconciled with main on 9 November 2026; actions, residual-risk decision and approval pending |
 | [Privacy Policy](policies/privacy-policy.md) | Public | Incomplete draft |
 | [Reporting, Complaints, and Appeals](policies/reporting-complaints-and-appeals.md) | Public | Draft; implementation gaps remain |
 | [Copyright and Trade Mark Policy](policies/copyright-and-trade-marks.md) | Public | Draft for specialist review |

@@ -10,7 +10,7 @@ identities, categories, case references, attachments or restricted evidence.
 
 ## Implementation
 
-- New private delivery/source tables in migration 000121 persist discovery,
+- New private delivery/source tables in migration 000123 persist discovery,
   attempts, leases, acceptance and source deduplication across restarts.
 - Poll committed urgent signed-in/guest cases, active scanner incidents,
   priority/urgent external intake and urgent safety workflows. No moderation
@@ -72,3 +72,8 @@ Brevo acceptance is not evidence of inbox/phone receipt. Its documented
 idempotency window is 30 minutes; ambiguous delivery outside that window may
 produce a duplicate. Provider failure can delay later digests. These alerts do
 not provide staffed 24-hour coverage or backup for sleep, illness or absence.
+
+Main-merge reconciliation, 9 November 2026: the unshipped safety-email migration
+was renumbered from 000121 to **000123** because main uses 000121 for video blob
+limits. The migration SQL is unchanged; tests and operator references now use
+the unique version. No database migration was performed in production.

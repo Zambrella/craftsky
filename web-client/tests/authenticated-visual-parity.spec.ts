@@ -134,7 +134,7 @@ async function settleAccountView(page: Page, route: string) {
 	await page.goto(route);
 	await expect(page.locator('main h1:visible').first()).toBeVisible();
 	await expect(
-		page.getByText('Loading your CraftSky…', { exact: true })
+		page.getByRole('status', { name: 'Loading your CraftSky', exact: true })
 	).toHaveCount(0);
 	await expect.poll(() => requests.size).toBe(0);
 	await expect(page.locator('.app-main [aria-busy="true"]')).toHaveCount(0);

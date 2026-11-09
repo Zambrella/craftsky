@@ -102,7 +102,7 @@ func TestReportAlertDurableRetriesGuestCoverageAndDeduplication(t *testing.T) {
 		t.Fatalf("duplicate case alert: %d %v", n, err)
 	}
 	// Exact production migration round-trip; no unrelated schema fixtures.
-	if err := testdb.ApplyMigrations(ctx, pool, "000121_safety_email_alerts.down.sql", "000121_safety_email_alerts.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(ctx, pool, "000123_safety_email_alerts.down.sql", "000123_safety_email_alerts.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 }

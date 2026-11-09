@@ -67,6 +67,8 @@ func TestSessionsRevokeInvalidatesOnlyRequestedUsersBearers(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "http://localhost:8080")
 	t.Setenv("TAP_WS_URL", "ws://localhost:2480/channel")
 	t.Setenv("CRAFTSKY_DEV_DID", "did:plc:cli-revoke")
+	// Session revocation does not use video or require vendor credentials.
+	t.Setenv("VIDEO_PROVIDER", "bluesky")
 	previousEnv := envFlag
 	envFlag = "dev"
 	t.Cleanup(func() { envFlag = previousEnv })

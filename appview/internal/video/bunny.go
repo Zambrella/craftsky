@@ -46,6 +46,7 @@ type activeBunnyJob struct {
 type Bunny struct {
 	active               sync.Map
 	sessions             auth.OAuthSessionRunner
+	pdsLimits            *PDSBlobLimits
 	pool                 *pgxpool.Pool
 	library, apiKey, cdn string
 	client               *http.Client
@@ -113,7 +114,12 @@ func (b *Bunny) libraryAPI(ctx context.Context, method, path string, input, outp
 // Allocation and per-owner quota are serialized before the billable vendor call.
 func (b *Bunny) IssueUpload(ctx context.Context, owner syntax.DID, session string) (UploadAuthorization, error) {
 	if b.sessions != nil {
-		err := b.sessions.WithActiveSession(ctx, owner, session, func(context.Context, *oauth.ClientSession) error { return nil })
+		err := b.sessions.WithActiveSession(ctx, owner, session, func(ctx context.Context, session *oauth.ClientSession) error {
+			if b.pdsLimits != nil && session != nil && session.Data != nil {
+				b.pdsLimits.Get(ctx, session.Data.HostURL)
+			}
+			return nil
+		})
 		if err != nil {
 			return UploadAuthorization{}, err
 		}
@@ -283,33 +289,36 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		defer cancel()
 		b.pool.Exec(release, "UPDATE bunny_video_jobs SET lease_until='-infinity' WHERE id=$1", id)
 	}()
-	resolution := ""
-	for _, wanted := range []string{"720p", "1080p", "360p", "480p", "240p"} {
-		for _, r := range strings.Split(remote.Resolutions, ",") {
-			if strings.TrimSpace(r) == wanted {
-				resolution = wanted
-				break
+	limit := maxVideoBlobBytes
+	if b.pdsLimits != nil && b.sessions != nil {
+		err = b.sessions.WithActiveSession(ctx, owner, session, func(ctx context.Context, active *oauth.ClientSession) error {
+			if active == nil || active.Data == nil {
+				return ErrBunnyUnavailable
 			}
-		}
-		if resolution != "" {
-			break
+			limit = b.pdsLimits.Get(ctx, active.Data.HostURL)
+			return nil
+		})
+		if err != nil {
+			return pending, err
 		}
 	}
-	if resolution == "" {
-		return pending, ErrBunnyUnavailable
-	}
-	file, err := b.download(ctx, j.video, resolution)
-	if errors.Is(err, ErrInvalidVideo) {
-		b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',updated_at=now() WHERE id=$1", id)
+	file, err := b.downloadFittingRendition(ctx, j.video, remote.Resolutions, limit)
+	if errors.Is(err, errVideoBlobTooLarge) {
+		code := "video_too_large"
+		if limit < maxVideoBlobBytes {
+			code = "pds_blob_too_large"
+		}
+		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1 AND state='created'", id, code)
 		pending.State = "JOB_STATE_FAILED"
-		pending.Error = "invalid_video"
-		return pending, nil
+		pending.Error = code
+		return pending, err
 	}
 	if err != nil {
 		return pending, err
 	}
 	defer os.Remove(file.Name())
 	defer file.Close()
+
 	effects, err := b.effects(ctx, owner, session)
 	if err != nil {
 		return pending, err
@@ -354,7 +363,43 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	return completedBunnyJob(id, j), nil
 }
 
-func (b *Bunny) download(ctx context.Context, video, resolution string) (*os.File, error) {
+var errVideoBlobTooLarge = errors.New("encoded video exceeds blob limit")
+
+func (b *Bunny) downloadFittingRendition(ctx context.Context, video, resolutions string, limit int64) (*os.File, error) {
+	available := make(map[string]bool)
+	for _, resolution := range strings.Split(resolutions, ",") {
+		available[strings.TrimSpace(resolution)] = true
+	}
+	preferred := ""
+	// Retain the existing preferred rendition when it fits.
+	for _, resolution := range []string{"720p", "1080p", "360p", "480p", "240p"} {
+		if available[resolution] {
+			preferred = resolution
+			break
+		}
+	}
+	if preferred == "" {
+		return nil, ErrBunnyUnavailable
+	}
+	file, err := b.download(ctx, video, preferred, limit)
+	if !errors.Is(err, errVideoBlobTooLarge) {
+		return file, err
+	}
+	height, _ := strconv.Atoi(strings.TrimSuffix(preferred, "p"))
+	for _, resolution := range []string{"720p", "480p", "360p", "240p"} {
+		candidateHeight, _ := strconv.Atoi(strings.TrimSuffix(resolution, "p"))
+		if !available[resolution] || candidateHeight >= height {
+			continue
+		}
+		file, err = b.download(ctx, video, resolution, limit)
+		if !errors.Is(err, errVideoBlobTooLarge) {
+			return file, err
+		}
+	}
+	return nil, errVideoBlobTooLarge
+}
+
+func (b *Bunny) download(ctx context.Context, video, resolution string, limit int64) (*os.File, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://"+b.cdn+"/"+video+"/play_"+resolution+".mp4", nil)
 	if err != nil {
 		return nil, ErrBunnyUnavailable
@@ -364,11 +409,11 @@ func (b *Bunny) download(ctx context.Context, video, resolution string) (*os.Fil
 		return nil, ErrBunnyUnavailable
 	}
 	defer resp.Body.Close()
-	if resp.ContentLength > maxVideoBlobBytes {
-		return nil, ErrInvalidVideo
-	}
 	if resp.StatusCode != 200 {
 		return nil, ErrBunnyUnavailable
+	}
+	if resp.ContentLength > limit {
+		return nil, errVideoBlobTooLarge
 	}
 	file, err := os.CreateTemp("", "craftsky-video-*.mp4")
 	if err != nil {
@@ -381,8 +426,11 @@ func (b *Bunny) download(ctx context.Context, video, resolution string) (*os.Fil
 			os.Remove(file.Name())
 		}
 	}()
-	n, err := io.Copy(file, io.LimitReader(resp.Body, maxVideoBlobBytes+1))
-	if err != nil || n < 12 || n > maxVideoBlobBytes || (resp.ContentLength >= 0 && n != resp.ContentLength) {
+	n, err := io.Copy(file, io.LimitReader(resp.Body, limit+1))
+	if n > limit {
+		return nil, errVideoBlobTooLarge
+	}
+	if err != nil || n < 12 || (resp.ContentLength >= 0 && n != resp.ContentLength) {
 		return nil, ErrBunnyUnavailable
 	}
 	var header [12]byte
@@ -443,3 +491,6 @@ func (b *Bunny) String() string { return "Bunny(<configured>)" }
 func (b *Bunny) PlaybackOrigin() string { return "https://" + b.cdn }
 
 func (b *Bunny) GoString() string { return "Bunny(<configured>)" }
+
+// SetPDSBlobLimits installs capability discovery before serving requests.
+func (b *Bunny) SetPDSBlobLimits(limits *PDSBlobLimits) { b.pdsLimits = limits }

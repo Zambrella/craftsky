@@ -334,6 +334,7 @@ final class VideoPublicationCoordinator {
                   VideoServiceOutcome.quotaExhausted,
                   VideoServiceOutcome.providerUnsupported,
                   VideoServiceOutcome.validationFailed,
+                  VideoServiceOutcome.providerSizeLimit,
                 }.contains(error.outcome)));
     final appError = error == null
         ? null

@@ -1,5 +1,48 @@
 import { test, expect } from '@playwright/test';
 
+test('guest startup shows the logo before hydration and removes it for browsing', async ({
+	page
+}) => {
+	let releaseScripts!: () => void;
+	const scripts = new Promise<void>((resolve) => (releaseScripts = resolve));
+	await page.route('**/_app/immutable/**/*.js', async (route) => {
+		await scripts;
+		await route.continue();
+	});
+	await page.goto('/feed', { waitUntil: 'commit' });
+	const startup = page.getByRole('status', {
+		name: 'Loading your CraftSky',
+		exact: true
+	});
+	await expect(startup).toBeVisible();
+	await expect(startup.locator('img')).toHaveAttribute(
+		'src',
+		'/startup-logo.png'
+	);
+	await expect(startup.locator('img')).toHaveCSS('animation-duration', '2.8s');
+	await expect(startup.locator('img')).toHaveCSS(
+		'animation-iteration-count',
+		'infinite'
+	);
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await expect(startup.locator('img')).toHaveCSS('animation-name', 'none');
+	await expect
+		.poll(() =>
+			startup
+				.locator('img')
+				.evaluate((img) => (img as HTMLImageElement).naturalWidth)
+		)
+		.toBeGreaterThan(0);
+	releaseScripts();
+	await expect(startup).toHaveCount(0);
+	await page.getByRole('button', { name: 'Explore CraftSky' }).click();
+	await expect(
+		page.getByText('Guest knitting project', { exact: true })
+	).toBeVisible();
+	await page.locator('a[href="/search"]:visible').first().click();
+	await expect(startup).toHaveCount(0);
+});
+
 // AT-002 / FR-004, FR-005 / AC-002, AC-015.
 test('welcomes guests over the home feed and keeps a sign-in banner after Explore', async ({
 	page

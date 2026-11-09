@@ -4,7 +4,7 @@
 |---|---|
 | Controller | CRAFTSKY LTD, company number 17482696, trading as CraftSky |
 | Accountable owner and privacy lead | Douglas Todd; `support@craftsky.social` |
-| Version / prepared | 0.1 / 9 November 2026 |
+| Version / prepared | 0.2 / 9 November 2026; provider scope reconciled with incoming main `7bd29193` |
 | Status | Code-based working assessment; actions and residual-risk decision pending; not approved |
 | Scope | Launch native iOS/Android app, Svelte web client, public website and associated AppView/operational processing |
 | Evidence snapshot | Worktree `t3-6e17dab3`, based on commit `7848c49c2967661530a0c6a70364416093e44a68`, including uncommitted launch-readiness changes on 9 November 2026 |
@@ -88,14 +88,19 @@ an anonymity or lawful-basis exemption.
 | F09 Operator alerts and correspondence | Urgent-work signal, opaque delivery UUID; support/reporting/rights emails; waiting-list email/preferences | New safety-alert code sends only fixed text, moderation mailbox address and authenticated console origin via Brevo. Mailbox correspondence and Brevo waiting-list submissions have separate content and retention. | Alerts do not export report prose/images/subject IDs. Production alert delivery unverified. Waiting-list iframe has fixed `src`; loading behavior needs review. E12, E15. |
 | F10 Diagnostics, security and status | Selected technical errors/logs/traces, release/device context, request/correlation references, transport IP/user agent; service-status requests | Protected local logs, server/infrastructure logs, optional native/web Sentry, configured server Sentry, Cloudflare/Render transport. Website PostHog is a separate consent-gated source path. | Sanitization does not eliminate provider transport metadata. Client consent does not gate server operational logging. No diagnostic consent is implied by joining. E13–E15. |
 | F11 Instagram verification, import and matching | Instagram username/account identifiers, verification challenge/message/webhook fields, imported following handles/digests, account-link and private suggestion/import/rollback state | AppView private verification/import/matching stores; local import tool/browser progress; Meta/provider webhook boundary; eligible private suggestions. Some content import later results in public PDS writes. | Keyed challenge/hash handling reduces exposure but matching/linking is identifiable cross-source processing. No assumption that a friend consented because an uploader supplied their handle. E16. |
-| F12 Link previews and external media | Submitted URL, metadata/image; public image/video identifiers; viewer network information | AppView bounded/pinned server fetches; PDS/Bluesky video service and media delivery; client external resources/players. YouTube player asks permission or uses a previously saved choice; thumbnail loading is separate. | SSRF defenses do not establish tracking consent. Remote media can reveal viewer IP/timing. Direct image/video capabilities are short-lived and purpose-bound. E17–E18. |
+| F12 Link previews and external media | Submitted URL, metadata/image; public image/video identifiers; viewer network information | AppView bounded/pinned server fetches; PDS and configured video processing/delivery (Bunny by default after the main merge; legacy Bluesky path retained); client external resources/players. YouTube player asks permission or uses a previously saved choice; thumbnail loading is separate. | SSRF defenses do not establish tracking consent. Remote media can reveal viewer IP/timing. Direct image/video capabilities are short-lived and purpose-bound. E17–E18. |
 | F13 Conditional purchases | Random RevenueCat app-user ID linked to DID, entitlement/license, store transaction/subscription state and receipts | AppView/secure registry, RevenueCat and Apple/Google store flows if enabled. Web checked-in purchases flag is false; native defaults off. | No raw payment-card processing evidenced. Do not count conditional code as an enabled launch feature; re-assess actual release flags and provider terms before enablement. E19. |
 
-The separate Bunny video implementation is present, but ADR 024 limits the
-recorded acceptance to development and the default remains Bluesky. Do not
-silently include it as a verified production processor. Selecting Bunny requires
-its own production data-flow, original/rendition/CDN-retention, moderation and
-transfer evidence (E18). Production image-safety configuration defaults to manual format validation and
+Incoming main `7bd29193` now selects **Bunny** as the default video provider,
+with video enabled in checked-in production configuration. The legacy Bluesky
+path remains available. This updates the initial draft's Bluesky-default finding.
+Treat Bunny as intended launch processing in the provider/transfer and media-
+retention review, including original/rendition/CDN copies and independent asset
+URLs. ADR 024's development/manual-acceptance history does not prove actual
+production credentials, deployment, contractual safeguards or acceptance; those
+still require evidence (E18). No production setting was changed by this merge.
+
+Production image-safety configuration defaults to manual format validation and
 moderation, not a validated universal automated content scanner. Any new external
 scanner needs its own data/decision review (E18).
 
@@ -194,14 +199,15 @@ parties and avoid collecting extra identity documents by default (A10).
 | Render | AppView, Tap and PostgreSQL checked in for Frankfurt, private-network isolation and protected environment | Candidate processor for hosting; verify contracting entity, Article 28 terms, logs/backups, access/support/subprocessors and actual deployment. Region is not the complete transfer analysis. |
 | AWS S3 | Scheduled media configured for `eu-central-1`; separate restricted-evidence provisioning record | Candidate processor/object storage; verify separate least-privilege principals, encryption, non-public buckets and deletion behavior; complete evidence connection separately. |
 | Cloudflare | Public web Worker/assets, web app proxy, DNS/status infrastructure | Candidate processor for relevant hosting/proxy operations; global edge/support processing and logging settings need inventory. Do not assume German-only processing because AppView is Frankfurt. |
-| PDS operators, relay, Bluesky video and Bluesky messaging | User-selected PDS; configured Bluesky relay/video and shared inbox/provider reports | Independent or other roles must be assessed per operation/contract, not blanket “our processors”. Public federation differs from private DM provider processing. Map network access and provider retention/control. |
+| PDS operators, relay, legacy Bluesky video and Bluesky messaging | User-selected PDS; configured Bluesky relay/shared inbox/provider reports and retained legacy video path | Independent or other roles must be assessed per operation/contract, not blanket “our processors”. Public federation differs from private DM provider processing. Map network access and provider retention/control. |
 | Firebase/Apple/Google notification ecosystem | Firebase configured for push; native/browser delivery paths | Device tokens, routing, public names and generic alert text may be processed. Verify entities, platform-specific paths, retention and international access. |
 | Sentry | Opt-in clients and separately configured AppView operational reporting | Candidate processor for selected diagnostics; actual organization region, IP handling, retention, support access and DPA not verified. German ingestion endpoint is limited evidence. |
 | PostHog | Public-site loader only after saved grant, DNT guard, memory persistence, no autocapture/replay | Candidate processor for optional analytics. EU UI/configuration is not proof of all processing location or event retention. Verify payloads and any query/referrer capture, consent and withdrawal. |
 | Brevo and mailbox provider(s) | Embedded waiting list; optional new generic operator alerts; external support/moderation correspondence | Separate purposes/content. Verify contracts, actual mailbox operator, access, email storage, signup tracking, unsubscribe and retention. A Brevo alert integration does not identify the mailbox host. |
 | Meta/Instagram and import-tool boundary | Verification/webhook/migration/matching code | Assess roles and source legitimacy, permitted use and graph/linkage transparency; actual enabled integration/settings unknown. |
 | External sites/media/support services | Previews, images, video and optional YouTube player; fixed public-body support links | Distinguish server fetch from viewer requests/embeds and intentional off-site navigation. No support report/search context should be added to destinations. |
-| RevenueCat/store providers; Bunny | Conditional purchases; development-accepted Bunny code | Not established as active launch processing by this source audit. Include contracts/transfers before enabling; development personal data is not exempt. |
+| Bunny | Default video provider and enabled video in incoming main production configuration; source copies/processed PDS handoff and vendor delivery | Intended launch provider after the merge; verify actual credentials/deployment, original/rendition/CDN retention, moderation controls, contracts and transfers. Prior development acceptance is not live proof. |
+| RevenueCat/store providers | Conditional purchases | Not established as active launch processing by this source audit. Include contracts/transfers before enabling; development personal data is not exempt. |
 | Authorized authorities and operator | Case-specific operational disclosure; sole-owner console access | Record recipient/authority, purpose, minimum fields, authorization and retention. Human authority review is required; generic alerts are not authority disclosure. |
 
 A04 must establish contracting entities, roles, processing/support countries,
@@ -252,7 +258,7 @@ to conclude residual acceptability, not that the safeguards are absent.
 | R12 Notification/lock-screen or email exposure reveals relationships | P / serious / Medium | Generic chat/moderation bodies, limited routing, user preferences, static safety alert with console-only link | Pending public-name visibility, permission/default and device/mailbox access checks; minimize routing retention. A04–A06, A08, A11. |
 | R13 Operator error, overbroad access or absence delays containment/rights | P / severe / High | Single named accountable operator, permissions/assignments, audit history, approved disclosure procedure and queued alert design | Pending account hardening/backup response arrangements, competence evidence and personal-data breach/rights plan. Owner monitoring is not continuous staffed coverage. A06–A07, A09–A11. |
 | R14 People cannot discover indexing, obtain copies/correction or effective erasure | P / serious / Medium | Owner deletion flow, individual search removal, public policy drafts and contact address | Pending published accurate notices, non-member Article 14 analysis, cross-store rights/export workflow and retention exceptions. A01–A02, A05, A10–A11. |
-| R15 Optional purchase or alternative video processor expands scope unnoticed | P / serious / Medium | Purchases default off; checked-in web flag false; Bunny development acceptance is separate and Bluesky remains default | Pending exact release flag/provider inventory; repeat assessment before enablement, not retrospective approval through code presence. A01, A04, A11. |
+| R15 Optional purchases or changed video-provider scope expands processing unnoticed | P / serious / Medium | Purchases default off and checked-in web flag false; incoming main explicitly selects Bunny for enabled video, with legacy Bluesky retained | Pending exact release flag/provider inventory; repeat assessment before enablement, not retrospective approval through code presence. A01, A04, A11. |
 
 No final overall “Low/Medium/High CraftSky privacy risk” is assigned while these
 material verification and legal-route questions remain unresolved. The risk
@@ -327,3 +333,5 @@ that review notice as suspending existing duties.
 | Version | Date | Change | Approval |
 |---|---|---|---|
 | 0.1 | 9 November 2026 | Initial code-evidenced launch assessment: 13 flows, 15 risks, 12 assigned actions and conditional residual-risk/sign-off record. | Draft; not approved |
+
+| 0.2 | 9 November 2026 | Reconciles video-provider findings with incoming main `7bd29193`: Bunny selected/enabled in source configuration; production/provider evidence still pending. | Draft; not approved |
