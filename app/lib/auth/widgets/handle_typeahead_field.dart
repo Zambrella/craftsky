@@ -292,6 +292,31 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
         child: BrandTextField(
           key: _anchorKey,
           label: AppLocalizations.of(context).signInHandleLabel,
+          labelTrailing: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                for (final name in ['bluesky', 'mu', 'blacksky', 'witchsky'])
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: name == 'blacksky' ? Colors.white : null,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Image.asset(
+                        'assets/atmosphere/$name.png',
+                        width: 16,
+                        height: 16,
+                        excludeFromSemantics: true,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           hintText: widget.hintText,
           controller: widget.controller,
           focusNode: _focusNode,

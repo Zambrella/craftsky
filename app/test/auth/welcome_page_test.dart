@@ -417,6 +417,73 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'embedded welcome scrolls inside a fixed card above the keyboard',
+    (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = const Size(390, 700)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(_RecordingAuthController.new),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Dialog(
+                child: WelcomePage(embedded: true, onExplore: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final card = find
+          .ancestor(
+            of: find.text('Join CraftSky'),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Container &&
+                  widget.decoration is BoxDecoration &&
+                  (widget.decoration! as BoxDecoration).boxShadow != null,
+            ),
+          )
+          .first;
+      final initialBounds = tester.getRect(card);
+      expect(initialBounds.top, greaterThanOrEqualTo(0));
+      expect(initialBounds.bottom, lessThanOrEqualTo(700));
+      final titleTop = tester.getTopLeft(find.text('Join CraftSky')).dy;
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(card), initialBounds);
+      expect(
+        tester.getTopLeft(find.text('Join CraftSky')).dy,
+        lessThan(titleTop),
+      );
+      await tester.ensureVisible(find.text('Explore CraftSky'));
+      expect(find.text('Explore CraftSky').hitTestable(), findsOneWidget);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(card).bottom, lessThanOrEqualTo(400));
+      await tester.ensureVisible(find.byKey(const Key('legal-links')));
+      expect(tester.takeException(), isNull);
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      expect(tester.getRect(card), initialBounds);
+    },
+  );
+
   testWidgets('Welcome remains usable on a narrow screen', (tester) async {
     tester.view
       ..physicalSize = const Size(320, 568)

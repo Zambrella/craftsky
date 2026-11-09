@@ -20,6 +20,11 @@ build targets. Do not recreate their platform folders or
 add desktop build/run recipes. Desktop operating systems may still be used as
 development and CI hosts, including native libraries required by Flutter tests.
 
+Front-end feature requests and UI changes apply to **both** the Flutter mobile
+app in `app/` and the Svelte web app in `web-client/` unless the user explicitly
+limits the request to one client. Implement and verify the change in both clients,
+and report validation results or remaining limitations for each separately.
+
 ## Dev Workflow
 
 `just dev` (from the repo root) starts the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. The appview runs only inside Docker in dev; there is no `go run ./cmd/appview` path. Go tests run on the host with `just test` against the compose Postgres (the appview image has no Go toolchain). See `justfile` for the full recipe list.

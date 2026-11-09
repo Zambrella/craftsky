@@ -111,6 +111,7 @@ flutter:
   config:
     enable-swift-package-manager: true
   assets:
+    - assets/atmosphere/
     - assets/animations/
     - assets/design/icons/
     - assets/profile_backgrounds/
