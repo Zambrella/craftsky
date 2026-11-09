@@ -96,7 +96,20 @@
 </script>
 
 <div class="handle-field">
-	<label for={uid}>Your Atmosphere Handle</label>
+	<div class="handle-heading">
+		<label for={uid}>Your Atmosphere Handle</label>
+		<div class="atmosphere-logos">
+			{#each ['Bluesky', 'mu', 'Blacksky', 'Witchsky'] as name}
+				<span
+					class="atmosphere-logo"
+					role="img"
+					aria-label={name}
+					title={name}
+					style={'--logo: url(/atmosphere/' + name.toLowerCase() + '.svg)'}
+				></span>
+			{/each}
+		</div>
+	</div>
 	<input
 		id={uid}
 		required
@@ -180,6 +193,25 @@
 		position: relative;
 		display: grid;
 		gap: 10px;
+	}
+	.handle-heading {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px 12px;
+	}
+	.atmosphere-logos {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--ink-2);
+	}
+	.atmosphere-logo {
+		display: block;
+		width: 18px;
+		height: 18px;
+		background: currentColor;
+		mask: var(--logo) center / contain no-repeat;
 	}
 	input {
 		min-height: 56px;

@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Optional public identity suggestions; never resolves or authenticates users.
@@ -292,6 +293,27 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
         child: BrandTextField(
           key: _anchorKey,
           label: AppLocalizations.of(context).signInHandleLabel,
+          labelTrailing: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                for (final name in ['bluesky', 'mu', 'blacksky', 'witchsky'])
+                  SvgPicture.asset(
+                    'assets/atmosphere/$name.svg',
+                    width: 16,
+                    height: 16,
+                    colorFilter: ColorFilter.mode(
+                      Theme.of(context).colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.6),
+                      BlendMode.srcIn,
+                    ),
+                    excludeFromSemantics: true,
+                  ),
+              ],
+            ),
+          ),
           hintText: widget.hintText,
           controller: widget.controller,
           focusNode: _focusNode,
