@@ -96,7 +96,7 @@ test('canonical messaging settings show loading status without skeleton rows', a
 	try {
 		await page.goto('/settings/messaging/');
 		await expect(
-			page.getByRole('status').filter({ hasText: 'Loading' })
+			page.getByRole('main').getByRole('status').filter({ hasText: 'Loading' })
 		).toBeVisible();
 		await expect(page.locator('.inbox-skeleton,.history-skeleton')).toHaveCount(
 			0

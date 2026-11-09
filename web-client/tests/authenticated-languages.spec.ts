@@ -78,7 +78,7 @@ test('initializes missing language preferences before requesting Home and preser
 	try {
 		await expect.poll(() => initializationStarted).toBe(true);
 		await expect(
-			page.getByText('Loading your CraftSky…', { exact: true })
+			page.getByRole('status', { name: 'Loading your CraftSky', exact: true })
 		).toBeVisible();
 		expect(
 			(await calls()).some((call) =>
