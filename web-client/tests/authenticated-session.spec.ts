@@ -322,7 +322,7 @@ for (const status of [503, 401]) {
 			})
 		).toBeVisible();
 		await expect(
-			page.getByText('Loading your CraftSky…', { exact: true })
+			page.getByRole('status', { name: 'Loading your CraftSky', exact: true })
 		).toHaveCount(0);
 		await page
 			.getByRole('button', { name: 'Switch account', exact: true })
