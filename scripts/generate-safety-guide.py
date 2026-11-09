@@ -31,7 +31,7 @@ def artifacts():
         parts.append(f'<h2>{escape(data[name+"Title"])}</h2><p>{escape(data[name+"Body"])}</p>')
     parts.extend([f'<p>{escape(data["limits"])}</p>', f'<p>Resources reviewed: {escape(data["reviewed"])}</p>'])
     page = '<!doctype html>\n<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Safety and support — CraftSky</title><link rel="stylesheet" href="/styles.css"><link rel="canonical" href="https://craftsky.social/safety"><style>.safety-steps{display:grid;gap:1rem;list-style:none;padding:0}.safety-steps li{border:2px solid currentColor;border-radius:1rem;padding:1rem}.step-symbol{display:inline-grid;place-items:center;width:2.5rem;height:2.5rem;border:2px solid currentColor;border-radius:50%;font-size:1.5rem}.notice{font-weight:600}@media(min-width:700px){.safety-steps{grid-template-columns:repeat(3,1fr)}}</style></head><body><a class="skip-link" href="#main">Skip to main content</a><header class="page-header"><div class="container"><a href="/">CraftSky home</a></div></header><main id="main" class="legal"><article class="container container--narrow">' + '\n'.join(parts) + '</article></main><footer class="container"><nav aria-label="Information"><a href="/reporting">Reporting</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></nav></footer></body></html>\n'
-    return {'app/lib/safety/guide_data.dart': dart, 'web-client/src/lib/features/safety/guide-data.json': encoded, 'web/safety.html': page}
+    return {'app/lib/safety/guide_data.dart': dart, 'web-client/src/lib/features/safety/guide-data.json': json.dumps(data, ensure_ascii=False, indent='\t') + '\n', 'web/safety.html': page}
 
 
 def main():
