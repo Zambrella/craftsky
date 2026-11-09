@@ -17,6 +17,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/safety/guide_data.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -1105,10 +1106,14 @@ void main() {
     expect(submittedTarget, 'did:plc:bob/other');
     expect(submitted?.reasonType, 'spam');
     expect(find.text('Report post'), findsNothing);
+    final l10n = AppLocalizations.of(tester.element(find.byType(FeedPage)));
+    final acknowledgement = messenger.calls.single;
+    expect(acknowledgement.$1, 'info');
     expect(
-      messenger.calls,
-      contains(('info', 'Thanks — your report was submitted.', null)),
+      acknowledgement.$2,
+      '${l10n.reportSubmitSuccess} ${safetyGuide['reportSupport']}',
     );
+    expect(acknowledgement.$3?.label, l10n.safetyFindSupport);
   });
 
   testWidgets('FeedPage compose creates top-level post and prepends it', (

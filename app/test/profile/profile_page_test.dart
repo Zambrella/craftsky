@@ -32,6 +32,7 @@ import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/guide_data.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -1759,10 +1760,16 @@ void main() {
       expect(submittedTarget, 'did:plc:other');
       expect(submitted?.reasonType, 'spam');
       expect(find.text('Report profile'), findsNothing);
-      expect(
-        messenger.calls,
-        contains(('info', 'Thanks — your report was submitted.', null)),
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(ProfilePage)),
       );
+      final acknowledgement = messenger.calls.single;
+      expect(acknowledgement.$1, 'info');
+      expect(
+        acknowledgement.$2,
+        '${l10n.reportSubmitSuccess} ${safetyGuide['reportSupport']}',
+      );
+      expect(acknowledgement.$3?.label, l10n.safetyFindSupport);
     });
 
     testWidgets(
