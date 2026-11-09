@@ -100,13 +100,15 @@
 		<label for={uid}>Your Atmosphere Handle</label>
 		<div class="atmosphere-logos">
 			{#each ['Bluesky', 'mu', 'Blacksky', 'Witchsky'] as name}
-				<span
+				<img
 					class="atmosphere-logo"
-					role="img"
-					aria-label={name}
+					class:blacksky={name === 'Blacksky'}
+					src={'/atmosphere/' + name.toLowerCase() + '.png'}
+					alt={name}
 					title={name}
-					style={'--logo: url(/atmosphere/' + name.toLowerCase() + '.svg)'}
-				></span>
+					width="18"
+					height="18"
+				/>
 			{/each}
 		</div>
 	</div>
@@ -204,14 +206,16 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		color: var(--ink-2);
 	}
 	.atmosphere-logo {
 		display: block;
 		width: 18px;
 		height: 18px;
-		background: currentColor;
-		mask: var(--logo) center / contain no-repeat;
+		object-fit: contain;
+		border-radius: 3px;
+	}
+	.atmosphere-logo.blacksky {
+		background: white;
 	}
 	input {
 		min-height: 56px;

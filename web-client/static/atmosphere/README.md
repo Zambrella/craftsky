@@ -1,13 +1,14 @@
 # Atmosphere marks
 
-Local SVG assets used as monochrome CSS masks beside the sign-in handle label.
-Whitespace and comments are removed; source path geometry is preserved. Marks belong
-to their respective owners.
+Full-colour PNG app icons displayed beside the sign-in handle label. Official
+icons are resized to 64 x 64 pixels for sharp rendering at small display sizes.
+Marks belong to their respective owners. Blacksky is displayed on a white backing
+so its black mark remains visible in both themes.
 
-- Bluesky: https://raw.githubusercontent.com/bluesky-social/bsky-docs/main/static/img/logo.svg
-- mu: https://eurosky.tech/logos/mu-logo-3d-white.svg (front letter shapes only, with a tightly fitted viewBox; matches https://mu.social/ branding)
-- Blacksky: https://blacksky.community/static/safari-pinned-tab.svg
+- bluesky: https://bsky.app/static/apple-touch-icon.png
+- mu: https://mu.social/apple-touch-icon.png
+- blacksky: https://blacksky.community/static/apple-touch-icon.png
+- witchsky: https://witchsky.app/pwa/icon-180.png
 
-- Witchsky: https://tangled.org/hailey.at/witchsky.app/raw/main/src/view/icons/Logo.tsx (`LOGO_PATH`, default witch-hat mark)
-
-Retrieved 2026-11-09. Logos are served locally without third-party requests.
+Retrieved 2026-11-09. Icons are served locally without third-party requests.
+The older SVG files are unused and retained for existing debug asset manifests.

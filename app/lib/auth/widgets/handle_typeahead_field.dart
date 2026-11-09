@@ -11,7 +11,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Optional public identity suggestions; never resolves or authenticates users.
@@ -300,16 +299,20 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
               spacing: 8,
               children: [
                 for (final name in ['bluesky', 'mu', 'blacksky', 'witchsky'])
-                  SvgPicture.asset(
-                    'assets/atmosphere/$name.svg',
-                    width: 16,
-                    height: 16,
-                    colorFilter: ColorFilter.mode(
-                      Theme.of(context).colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.6),
-                      BlendMode.srcIn,
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: name == 'blacksky' ? Colors.white : null,
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                    excludeFromSemantics: true,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Image.asset(
+                        'assets/atmosphere/$name.png',
+                        width: 16,
+                        height: 16,
+                        excludeFromSemantics: true,
+                      ),
+                    ),
                   ),
               ],
             ),
