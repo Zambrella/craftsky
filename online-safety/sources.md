@@ -65,7 +65,11 @@ and implementation status must be checked again before approval or publication.
   `CraftSky`, Douglas Todd as initial owner, Amazon S3 in AWS Frankfurt for
   scheduled-media storage, public `craftsky.social` support and moderation
   contacts, and atomic policy publication. Company number, jurisdiction, postal
-  address, and final registered-name confirmation remain unresolved.
+  address, and final registered-name confirmation were unresolved at that review.
+  Updated on 9 November 2026: [Companies House](https://find-and-update.company-information.service.gov.uk/company/17482696)
+  confirms CRAFTSKY LTD (17482696), active, incorporated 26 September 2026, and
+  its registered office. See [operator details](governance/operator-details.md).
+  The DPO position remains unresolved.
 - Some ICO guidance is under review following the Data (Use and Access) Act 2025.
   Check amended legislation and current ICO notices at approval time.
 - Ofcom issued intimate-image hash-matching Code amendments on 9 September 2026
@@ -77,3 +81,29 @@ and implementation status must be checked again before approval or publication.
 - The announced under-16 restriction is not described as current law. The first
   section 214A regulations were expected by the end of 2026 and require
   parliamentary approval.
+
+
+Current Code mapping checked 9 November 2026:
+
+- [Issued U2U Illegal Content Code](https://www.ofcom.org.uk/siteassets/resources/documents/consultations/category-1-10-weeks/statement-protecting-children-from-harms-online/upcoming-codes-of-practice/issued-illegal-content-codes-of-practice-for-user-to-user-services.pdf?v=427438), amendments in force 2 November 2026; ICU application clauses and definitions used in `registers/ofcom-control-mapping.md`.
+- [Issued U2U Protection of Children Code](https://www.ofcom.org.uk/siteassets/resources/documents/consultations/category-1-10-weeks/statement-protecting-children-from-harms-online/upcoming-codes-of-practice/issued-protection-of-children-code-of-practice-for-user-to-user-services.pdf?v=427439), amendments in force 2 November 2026; separate PCU application conditions inventoried, not a completed child-risk/effectiveness review.
+
+
+Children's assessment review, checked 9 November 2026:
+
+- [Children's Risk Assessment Guidance and Children's Risk Profiles](https://www.ofcom.org.uk/siteassets/resources/documents/consultations/category-1-10-weeks/statement-protecting-children-from-harms-online/main-document/childrens-risk-assessment-guidance-and-childrens-risk-profiles.pdf?v=396653), currently linked by regulatory-document index (index: 9 May 2025; PDF cover: 24 April 2025). Uses all 14 identified content kinds, age groups, Table 10 and non-designated-content notification guidance; no incident frequency inferred.
+- [Guidance on content harmful to children](https://www.ofcom.org.uk/siteassets/resources/documents/consultations/category-1-10-weeks/statement-protecting-children-from-harms-online/main-document/guidance-on-content-harmful-to-children.pdf?v=395445), currently linked content definitions/context guidance.
+
+
+DPIA source review, 9 November 2026:
+
+- [ICO DPIA process](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/how-do-we-do-a-dpia/) and [thresholds](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/when-do-we-need-to-do-a-dpia/).
+- [ICO children's-service DPIA guidance](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/childrens-information/childrens-code-guidance-and-resources/age-appropriate-design-a-code-of-practice-for-online-services/2-data-protection-impact-assessments/).
+- [ICO special-category conditions](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/special-category-data/what-are-the-conditions-for-processing/), [criminal-offence data](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/criminal-offence-data/what-is-criminal-offence-data/) and [Article 10 conditions](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/criminal-offence-data/what-are-the-rules-on-criminal-offence-data/).
+- [ICO transparency](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/individual-rights/right-to-be-informed/) and [international transfers](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/international-transfers/a-guide-to-international-transfers/).
+
+Official search results were consulted where direct ICO requests returned 403;
+no restrictions were bypassed. Guidance/legal applicability must be rechecked
+at final sign-off. See the [DPIA evidence register](assessments/dpia-evidence.md)
+for the worktree scope and limits. No external advice, consultation or regulator
+approval is inferred from reading these sources.

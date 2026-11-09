@@ -1875,9 +1875,17 @@ test('YouTube embeds require consent, retain timestamps, remember permission and
 		await page.setViewportSize({ width, height: 900 });
 		const media = play.locator('.preview-media');
 		await expect(media).toHaveCSS('aspect-ratio', '16 / 9');
-		const bounds = await media.boundingBox();
+		// Read both boxes in one layout snapshot: the responsive shell can resize
+		// between separate Playwright calls after a viewport change.
+		const { bounds, image } = await media.evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			const image = element.querySelector('img')!.getBoundingClientRect();
+			return {
+				bounds: { width: bounds.width, height: bounds.height },
+				image: { width: image.width, height: image.height }
+			};
+		});
 		expect(bounds!.width / bounds!.height).toBeCloseTo(16 / 9, 2);
-		const image = await media.locator('img').boundingBox();
 		expect(image!.width).toBeCloseTo(bounds!.width, 1);
 		expect(image!.height).toBeCloseTo(bounds!.height, 1);
 		await expect(media.locator('img')).toHaveCSS('object-fit', 'cover');

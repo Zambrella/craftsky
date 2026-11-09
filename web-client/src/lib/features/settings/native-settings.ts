@@ -180,6 +180,9 @@ const moderationLabels: Record<string, Record<string, string>> = {
 		off_topic: 'Off-topic content',
 		intellectual_property: 'Intellectual property',
 		other: 'Other policy issue',
+		illegal_content: 'Other illegal content',
+		fraud_or_scam: 'Fraud or scam',
+		self_harm: 'Self-harm policy violation',
 		unknown: 'Policy decision'
 	},
 	effect: {

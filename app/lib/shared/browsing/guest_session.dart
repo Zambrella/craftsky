@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 bool isPublicReadingLocation(String path) =>
+    path == '/safety' ||
     path == '/feed' ||
     path == '/projects' ||
     path == '/search' ||

@@ -204,7 +204,7 @@ void main() {
           _regularSettingsRows,
           reason:
               'REG-003 preserves existing order with the '
-              'approved messaging and Business entries',
+              'approved messaging, safety and Business entries',
         );
 
         await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -571,6 +571,7 @@ const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.mutedAccounts,
   SettingsRowId.blockedAccounts,
   SettingsRowId.findPeopleFromInstagram,
+  SettingsRowId.safety,
   SettingsRowId.accountStanding,
   SettingsRowId.account,
   SettingsRowId.about,

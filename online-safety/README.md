@@ -34,10 +34,12 @@ describe the announced policy as current law.
 |---|---|---|
 | [Document Control](governance/document-control.md) | Internal | Working |
 | [Service Scope and Risk Profile](assessments/service-scope-and-risk-profile.md) | Internal | Draft |
-| [Children's Access Assessment](assessments/childrens-access-assessment.md) | Internal regulatory record | Ready for owner approval |
+| [Children's Access Assessment](assessments/childrens-access-assessment.md) | Internal regulatory record | Likely-access conclusion approved by Douglas Todd, 9 November 2026 |
+| [Children's Risk Assessment](assessments/childrens-risk-assessment.md) | Internal regulatory record | Incomplete working draft |
 | [Illegal Content Risk Assessment](assessments/illegal-content-risk-assessment.md) | Internal regulatory record | Incomplete draft |
 | [Community Guidelines](policies/community-guidelines.md) | Public | Draft for review |
 | [Terms of Service](policies/terms-of-service.md) | Public | Draft for legal review |
+| [Launch DPIA](assessments/data-protection-impact-assessment.md) and [evidence register](assessments/dpia-evidence.md) | Internal | Code-based v0.2; provider scope reconciled with main on 9 November 2026; actions, residual-risk decision and approval pending |
 | [Privacy Policy](policies/privacy-policy.md) | Public | Incomplete draft |
 | [Reporting, Complaints, and Appeals](policies/reporting-complaints-and-appeals.md) | Public | Draft; implementation gaps remain |
 | [Copyright and Trade Mark Policy](policies/copyright-and-trade-marks.md) | Public | Draft for specialist review |
@@ -75,9 +77,12 @@ describe the announced policy as current law.
 - CraftSky will launch worldwide for people aged 16 and over, subject to any
   higher local minimum age. This is currently a contractual rule, not an
   age-verification claim.
-- CraftSky will be operated by a registered company under the assumed name
-  `CraftSky`; its number, jurisdiction, postal address, and final registered-name
-  confirmation remain outstanding.
+- CraftSky is operated by CRAFTSKY LTD, company number 17482696, registered in
+  the United Kingdom. Its registered office is recorded in
+  [operator details](governance/operator-details.md), verified against Companies
+  House on 9 November 2026. Douglas Todd approved the
+  [launch DPO assessment](governance/dpo-assessment.md): no formal DPO initially,
+  Douglas as privacy lead/contact, and reassessment on the recorded triggers.
 - Private scheduled-post media will use Amazon S3 in the AWS Europe (Frankfurt)
   Region.
 - `support@craftsky.social` and `moderation@craftsky.social` will be checked on UK
@@ -91,9 +96,16 @@ describe the announced policy as current law.
 
 ## Immediate Decisions Needed
 
-- Confirm CraftSky's company details and postal address before publishing the Terms or Privacy Policy.
+- GOV-02 is closed: company details are verified and the launch DPO position is
+  owner-approved. Overall launch and policy approval remain separate decisions.
 - Complete AWS and other processor/subprocessor records, transfer records,
   lawful-basis and legitimate-interest assessments, and special-category and
   criminal-offence data records.
 - Obtain specialist review of the risk assessments, Terms, Privacy Policy,
   children's position, copyright process, and CSEA reporting workflow.
+
+
+Current applicability and implementation evidence is tracked in the internal
+[Ofcom control register](registers/ofcom-control-mapping.md). It separates the
+initial ICU mapping from remaining children's ratings/PCU work and records
+unresolved measures without treating source code as production proof.

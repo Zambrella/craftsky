@@ -37,6 +37,7 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/safety/safety_guide_page.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
@@ -143,6 +144,8 @@ GoRouter goRouter(Ref ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      // Public safety help remains reachable during onboarding and restriction.
+      if (loc == RouteLocations.safety) return null;
       const unauthenticatedRoutes = [
         RouteLocations.welcome,
         RouteLocations.signIn,
@@ -207,6 +210,7 @@ GoRouter goRouter(Ref ref) {
 
 @visibleForTesting
 bool isRestrictedAccountRetainedLocation(String location) =>
+    location == RouteLocations.safety ||
     location == RouteLocations.accountEligibility ||
     location == const AccountStandingRoute().location ||
     location == const AccountRoute().location ||
@@ -1224,4 +1228,14 @@ class ChatConversationRoute extends GoRouteData with $ChatConversationRoute {
     destination: MessagingDestination.conversation,
     conversationId: conversationId,
   );
+}
+
+@TypedGoRoute<SafetyRoute>(path: RouteLocations.safety, name: 'safety')
+class SafetyRoute extends GoRouteData with $SafetyRoute {
+  const new();
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SafetyGuidePage();
 }

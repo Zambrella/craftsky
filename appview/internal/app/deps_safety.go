@@ -7,7 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/retention"
+	"social.craftsky/appview/internal/safetyalerts"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
@@ -49,4 +51,15 @@ func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) 
 	result.evidence = safetyincident.NewEvidenceService(pool, objects, time.Now)
 	result.retention = retention.NewWorker(pool, objects, time.Now)
 	return result, nil
+}
+
+func newSafetyEmailDependencies(pool *pgxpool.Pool, cfg Config, observer *observability.Observer) (*safetyalerts.Worker, error) {
+	if !cfg.SafetyEmailEnabled {
+		return nil, nil
+	}
+	sender, err := safetyalerts.NewBrevo(cfg.BrevoAPIKey.Reveal(), cfg.OAuth.PublicOrigin.String())
+	if err != nil {
+		return nil, err
+	}
+	return safetyalerts.NewWorker(pool, sender, observer), nil
 }

@@ -14,6 +14,7 @@ import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_peer_profile.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -83,6 +84,11 @@ class MessagingInboxPage extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 actions: [
+                  IconButton(
+                    tooltip: l10n.safetyTitle,
+                    icon: const Icon(Icons.shield_outlined),
+                    onPressed: () => const SafetyRoute().push<void>(context),
+                  ),
                   if (bucket == ChatBucket.accepted)
                     IconButton(
                       tooltip: l10n.chatRequestsTab,

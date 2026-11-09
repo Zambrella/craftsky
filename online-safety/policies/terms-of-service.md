@@ -3,16 +3,16 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.3 |
+| Approved by | Pending final policy approval by Douglas Todd |
+| Version | 0.5 |
 | Status | Draft; not effective |
 | Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 14 September 2026 |
+| Last reviewed | 9 November 2026 |
 | Next review | Before publication, then at least annually |
 | Publication | Public after approval; replaces the April 2026 web Terms |
 
-> This draft is not effective and must not be published until CraftSky's company
-> details, postal address, and outstanding launch requirements are complete.
+> This draft is not effective and must not be published until the outstanding
+> launch requirements in the internal compliance register are complete.
 
 ## 1. About These Terms
 
@@ -20,9 +20,9 @@ These Terms govern your use of CraftSky's website, apps, and related services.
 CraftSky is a social platform for textile and fibre crafters built on the AT
 Protocol.
 
-The service is provided by a company being established under the assumed name
-**CraftSky**. Company number: **[TO BE CONFIRMED]**. Country of registration:
-**[TO BE CONFIRMED]**. Registered postal address: **[TO BE CONFIRMED]**. Contact
+The service is provided by **CRAFTSKY LTD**, trading as **CraftSky**. Company
+number: **17482696**. Country of registration: **United Kingdom**. Registered
+postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, United Kingdom, PO15 5TD**. Contact
 `support@craftsky.social`. Douglas Todd initially owns this inbox and checks it on
 UK business days. It is not an emergency-response service.
 
@@ -102,7 +102,8 @@ You must follow the Community Guidelines. In particular, do not:
 - threaten, harass, stalk, abuse, or promote hatred against people;
 - groom, sexualize, exploit, or abuse children, or post or link to child sexual
   abuse material;
-- post terrorism content or content encouraging serious self-harm;
+- post terrorism content or content encouraging, promoting or instructing suicide,
+  deliberate self-injury or eating-disorder behaviour;
 - share intimate images or private information without permission;
 - post pornography, sexually explicit content, cyberflashing, or sexual
   exploitation;
@@ -116,6 +117,22 @@ You must follow the Community Guidelines. In particular, do not:
 - hide a material commercial relationship or misrepresent a business; or
 - probe, damage, overload, reverse-engineer for a hostile purpose, or gain
   unauthorized access to CraftSky systems.
+
+The Guidelines also prohibit content harmful to children for everyone using
+child-accessible parts of CraftSky, including adults. This includes bullying,
+protected-characteristic abuse or hateful incitement, serious-violence
+encouragement and covered serious-violence or graphic-injury depictions,
+dangerous challenges, encouragement to self-administer harmful substances,
+body stigma, and promotion of depression, hopelessness or despair. These rules
+cover harmful content even where it does not amount to a criminal offence.
+
+Educational, medical, artistic or historical context informs the assessment; it
+does not automatically exempt content that still meets a harmful-content
+definition. Legitimate craft, non-graphic health/educational material and support,
+recovery or help-seeking remain welcome when they do not meet those definitions.
+CraftSky reviews reports and available context and may restrict or remove content
+from its own surfaces under the moderation and appeal processes below. The
+reporting and visibility limits for independent services still apply.
 
 Do not use reports or complaints maliciously or to harass another person.
 
@@ -346,7 +363,7 @@ Contact for questions about these Terms: `support@craftsky.social`
 
 Reports, complaints, and moderation appeals: `moderation@craftsky.social`
 
-Postal address: **[TO BE CONFIRMED]**
+Postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, United Kingdom, PO15 5TD**
 
 ## Change History
 
@@ -355,3 +372,6 @@ Postal address: **[TO BE CONFIRMED]**
 | 0.1 | 11 September 2026 | Initial repository draft; records the contractual 16+ eligibility rule, CraftSky legal name, and `craftsky.social` contact domain. Age is not currently verified. | Prepared with repository review; not approved |
 | 0.2 | 14 September 2026 | Records decisions on contacts, age, content licensing, moderation, subscriptions, account deletion, changes, and publication control. | Douglas Todd / approval pending |
 | 0.3 | 14 September 2026 | Records CraftSky as the assumed company name and adds explicit registration-detail placeholders. | Douglas Todd / approval pending |
+| 0.4 | 9 November 2026 | Records CRAFTSKY LTD, company number 17482696, and registered office from Companies House; policy approval remains pending. | Repository update / approval pending |
+
+| 0.5 | 9 November 2026 | Aligns child-harm content rules with the owner-approved all-user boundary and context safeguards. Full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |

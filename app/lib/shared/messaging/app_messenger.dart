@@ -11,7 +11,8 @@ import 'package:craftsky_app/shared/messaging/message_action.dart';
 /// reach an `AppMessenger` through `MessengerScope.of(context)`, or via the
 /// `BuildContext` extension `context.showInfo(...)` etc.
 abstract interface class AppMessenger {
-  /// Shows a transient informational message. Auto-dismisses after ~4s.
+  /// Shows a transient informational message. Short messages dismiss after ~4s;
+  /// longer messages get up to 30s to read.
   void info(String message, {MessageAction? action});
 
   /// Shows a sticky warning. Stays until the user dismisses it (close icon,

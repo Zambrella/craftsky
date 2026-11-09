@@ -88,6 +88,9 @@
 		</div>
 		{#if step === 2}<section class="guidelines stack">
 				<h1>Our community guidelines</h1>
+				<a href="/safety" target="_blank" rel="noopener noreferrer"
+					>Safety and support for young people, parents and carers ↗</a
+				>
 				<h2>A welcoming place to make and share</h2>
 				<p>
 					CraftSky exists to be a welcoming, inspiring home for the textile

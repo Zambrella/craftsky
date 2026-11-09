@@ -478,7 +478,13 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		bunnyCleanup = deps.BunnyVideoCleanup
 	}
 	bunnyCleanupDone := startBatchWorker(consumerCtx, bunnyCleanup, deps.Logger, 5*time.Second, "bunny_video_cleanup", "delete_and_purge")
+	var safetyEmail scheduledBatchProcessor
+	if deps.SafetyEmail != nil {
+		safetyEmail = deps.SafetyEmail
+	}
+	safetyEmailDone := startBatchWorker(consumerCtx, safetyEmail, deps.Logger, 30*time.Second, "safety_email", "deliver")
 	workerDone := []<-chan struct{}{
+		safetyEmailDone,
 		bunnyCleanupDone,
 		consumerDone,
 		tapProjectionDone,

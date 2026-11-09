@@ -26,14 +26,15 @@ type ModerationCommander interface {
 }
 
 type adminDecisionRequest struct {
-	LegalClassification moderation.LegalClassification `json:"legalClassification"`
-	ExpectedRevision    *int64                         `json:"expectedRevision"`
-	Disposition         moderation.Disposition         `json:"disposition"`
-	Reason              moderation.Reason              `json:"reason"`
-	EvidenceNotes       string                         `json:"evidenceNotes"`
-	UserSafeDetail      string                         `json:"userSafeDetail"`
-	SeverityRationale   string                         `json:"severityRationale"`
-	Consequences        []moderation.EffectType        `json:"consequences"`
+	IllegalContentRationale string                         `json:"illegalContentRationale"`
+	LegalClassification     moderation.LegalClassification `json:"legalClassification"`
+	ExpectedRevision        *int64                         `json:"expectedRevision"`
+	Disposition             moderation.Disposition         `json:"disposition"`
+	Reason                  moderation.Reason              `json:"reason"`
+	EvidenceNotes           string                         `json:"evidenceNotes"`
+	UserSafeDetail          string                         `json:"userSafeDetail"`
+	SeverityRationale       string                         `json:"severityRationale"`
+	Consequences            []moderation.EffectType        `json:"consequences"`
 }
 
 type adminAppealConfirmationRequest struct {
@@ -148,7 +149,7 @@ func ModerationAdminCommandHandler(commander ModerationCommander, sourceDID synt
 				replayID,
 				moderation.ResolveRequest{
 					CaseID: reference.UUID(), ExpectedRevision: *request.ExpectedRevision,
-					Decision: moderation.Decision{Disposition: request.Disposition, Reason: request.Reason, Evidence: request.EvidenceNotes, UserSafeDetail: request.UserSafeDetail, SeverityRationale: request.SeverityRationale, LegalClassification: request.LegalClassification, Consequences: request.Consequences},
+					Decision: moderation.Decision{IllegalContentRationale: request.IllegalContentRationale, Disposition: request.Disposition, Reason: request.Reason, Evidence: request.EvidenceNotes, UserSafeDetail: request.UserSafeDetail, SeverityRationale: request.SeverityRationale, LegalClassification: request.LegalClassification, Consequences: request.Consequences},
 				},
 			)
 			if err == nil {

@@ -5,11 +5,13 @@
 	let {
 		message,
 		warning = false,
+		support = false,
 		onDismiss,
 		children
 	}: {
 		message: string;
 		warning?: boolean;
+		support?: boolean;
 		onDismiss: () => void;
 		children?: Snippet;
 	} = $props();
@@ -21,7 +23,9 @@
 			untrack(() => hub.remove(source));
 			return;
 		}
-		untrack(() => hub.show({ source, message, warning, onDismiss, children }));
+		untrack(() =>
+			hub.show({ source, message, warning, support, onDismiss, children })
+		);
 		// Recovery controls belong to their screen. Confirmed successes survive navigation.
 		return () => {
 			if (warning) untrack(() => hub.remove(source));
@@ -32,6 +36,7 @@
 {#if !hub && message}<ToastSurface
 		{message}
 		{warning}
+		{support}
 		{onDismiss}
 		{children}
 	/>{/if}

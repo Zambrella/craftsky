@@ -239,7 +239,6 @@ def main() -> None:
         },
         "externalBlockers": [
             "Accountable owner and specialist policy approval",
-            "Final operator/controller details and DPO position",
             "Worldwide jurisdiction review",
             "Commercial and subscription policy scope decision",
             "Atomic Cloudflare deployment and rollback evidence",

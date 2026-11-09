@@ -208,7 +208,7 @@ func TestDefaultRateLimitsKeepLinkPreviewQuotaIndependent(t *testing.T) {
 // would cause Load to skip the file's value — the opposite of what we want.
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
-	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
+	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID", "SAFETY_EMAIL_ENABLED", "BREVO_API_KEY",
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_ACK_SAFETY_MARGIN", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
@@ -1754,5 +1754,45 @@ func TestCheckedInDevVideoUploadBudget(t *testing.T) {
 	}
 	if cfg.PDSEffectTimeout != 10*time.Second {
 		t.Fatal("ordinary PDS effect budget changed")
+	}
+}
+
+func TestLoadConfigSafetyEmailRequiresCompleteConfiguration(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, tc := range []struct {
+		name, extra string
+		wantError   bool
+	}{
+		{"disabled", "", false},
+		{"missing credentials", "SAFETY_EMAIL_ENABLED=true\n", true},
+		{"admin disabled", "SAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n", true},
+		{"invalid flag", "SAFETY_EMAIL_ENABLED=invalid\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadConfig(EnvDev, testConfigFile(t, base+tc.extra))
+			if (err != nil) != tc.wantError {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if err != nil && strings.Contains(err.Error(), "credential-canary") {
+				t.Fatal("credential leaked")
+			}
+			if err == nil && cfg.SafetyEmailEnabled {
+				t.Fatal("email enabled by default")
+			}
+		})
+	}
+}
+
+func TestLoadConfigSafetyEmailProduction(t *testing.T) {
+	base := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n")
+	cfg, err := LoadConfig(EnvProd, testConfigFile(t, base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.SafetyEmailEnabled || cfg.BrevoAPIKey.Reveal() != "credential-canary" {
+		t.Fatal("email configuration unavailable")
+	}
+	if strings.Contains(fmt.Sprintf("%+v", cfg), "credential-canary") {
+		t.Fatal("credential exposed in config diagnostics")
 	}
 }

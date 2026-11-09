@@ -1,14 +1,17 @@
 <script lang="ts">
+	import guide from '../safety/guide-data.json';
 	import type { Snippet } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
 	let {
 		message,
 		warning = false,
+		support = false,
 		onDismiss,
 		children
 	}: {
 		message: string;
 		warning?: boolean;
+		support?: boolean;
 		onDismiss: () => void;
 		children?: Snippet;
 	} = $props();
@@ -17,7 +20,14 @@
 	const paused = $derived(hovered || focused);
 	$effect(() => {
 		if (!message || warning || paused) return;
-		const timer = setTimeout(onDismiss, 4000);
+		// Preserve the short-message timeout and allow longer confirmations to be read.
+		const words = (message + (support ? ' ' + guide.reportSupport : ''))
+			.trim()
+			.split(/\s+/).length;
+		const timer = setTimeout(
+			onDismiss,
+			Math.min(30000, Math.max(4000, words * 300))
+		);
 		return () => clearTimeout(timer);
 	});
 </script>
@@ -32,7 +42,11 @@
 	onfocusout={() => (focused = false)}
 >
 	<span class="severity"><Icon name={warning ? 'warning' : 'info'} /></span>
-	<p>{message}</p>
+	<div>
+		<p>{message}</p>
+		{#if support}<p>{guide.reportSupport}</p>
+			<a href="/safety">Find support</a>{/if}
+	</div>
 	<div class="snackbar-actions">
 		{#if children}{@render children()}{/if}
 		<button type="button" aria-label="Dismiss notification" onclick={onDismiss}

@@ -353,6 +353,8 @@ type Config struct {
 	TrustedModerationSourceDIDs []string
 
 	ModerationAdminEnabled       bool
+	SafetyEmailEnabled           bool
+	BrevoAPIKey                  Secret
 	ModerationSourceDID          string
 	ModerationExpiryPollInterval time.Duration
 	ModerationExpiryBatchSize    int
@@ -1082,6 +1084,15 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
 		return Config{}, err
+	}
+	if cfg.SafetyEmailEnabled, err = boolEnv("SAFETY_EMAIL_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.SafetyEmailEnabled {
+		cfg.BrevoAPIKey = Secret(strings.TrimSpace(os.Getenv("BREVO_API_KEY")))
+		if cfg.BrevoAPIKey.Reveal() == "" || !cfg.ModerationAdminEnabled || cfg.OAuth.PublicOrigin.Scheme != "https" {
+			return Config{}, fmt.Errorf("SAFETY_EMAIL_ENABLED requires BREVO_API_KEY, MODERATION_ADMIN_ENABLED and an HTTPS OAUTH_PUBLIC_ORIGIN")
+		}
 	}
 	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
 	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {

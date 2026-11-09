@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import type { CraftskyAPI, PostPresentation } from '#lib/api/client.ts';
 	import { Work } from './work.svelte';
@@ -43,6 +44,7 @@
 	>
 	<h1>#{tag}</h1>
 </div>
+{#key tag}<SearchSupportNotice query={tag} />{/key}
 <Status
 	{work}
 	skeleton="posts"

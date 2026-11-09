@@ -33,6 +33,7 @@ import (
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/retention"
+	"social.craftsky/appview/internal/safetyalerts"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/safetyintake"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -118,6 +119,7 @@ type Deps struct {
 	SafetyWorkflows      *safetyincident.WorkflowService
 	SafetyCSEA           *safetyincident.CSEAWorkflow
 	SafetyRetention      *retention.Worker
+	SafetyEmail          *safetyalerts.Worker
 	PushDispatcher       *push.Dispatcher
 	FollowerGrowthStore  *followergrowth.Store
 	FollowerGrowthWorker *followergrowth.Worker
@@ -520,6 +522,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.SafetyWorkflows = safety.workflows
 	deps.SafetyCSEA = safety.csea
 	deps.SafetyRetention = safety.retention
+	deps.SafetyEmail, err = newSafetyEmailDependencies(pool, cfg, observer)
+	if err != nil {
+		return nil, nil, err
+	}
 	var evidenceStore safetyincident.EvidenceStore
 	if safety.objects != nil {
 		evidenceStore = safety.objects

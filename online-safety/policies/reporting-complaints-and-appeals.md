@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.2 |
+| Approved by | Pending final policy approval by Douglas Todd |
+| Version | 0.3 |
 | Status | Draft; not effective |
 | Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 14 September 2026 |
+| Last reviewed | 9 November 2026 (harmful-content boundary alignment) |
 | Next review | Before publication, then at least annually |
 | Publication | Public after controls are implemented and reviewed |
 
@@ -27,17 +27,28 @@ People can report:
 
 - suspected illegal content or criminal activity;
 - child sexual exploitation, grooming, or child sexual abuse material;
-- credible threats, terrorism, violence, or encouragement of serious self-harm;
+- credible threats, terrorism, serious violence or its encouragement;
+- encouragement, promotion or instructions for suicide, deliberate self-injury
+  or eating-disorder behaviour;
 - intimate-image abuse or cyberflashing;
-- hate, harassment, stalking, doxxing, or block evasion;
+- hate, protected-characteristic abuse, harassment, bullying, stalking, doxxing
+  or block evasion;
 - sexual exploitation, pornography, or graphic content;
 - fraud, scams, phishing, impersonation, or counterfeit goods;
 - spam or platform manipulation;
 - copyright, trade mark, or other rights infringement;
-- dangerous or materially false claims;
+- dangerous challenges, encouragement to self-administer harmful substances,
+  or other dangerous or materially false claims;
+- body shaming or stigma, or promotion of depression, hopelessness or despair;
 - generative-AI content prohibited by the Community Guidelines;
 - off-topic content or another Community Guidelines violation; and
 - a safety concern that does not fit a listed category.
+
+Content can break the Community Guidelines even when it is not illegal. CraftSky
+reviews the actual content and context. Legitimate craft, health, grief, recovery
+and help-seeking discussion is not a violation merely because of its topic.
+Educational or medical context is not a blanket exception for content that still
+meets a harmful-content definition in the Guidelines.
 
 A report is an allegation. It does not establish that the reported account broke
 a rule. Multiple reports about one subject are grouped for review and report
@@ -212,3 +223,5 @@ People may also:
 |---|---|---|---|
 | 0.1 | 11 September 2026 | Initial public-process draft aligned with current moderation architecture and 2026 duties. | Working draft / not approved |
 | 0.2 | 14 September 2026 | Records decisions on email intake, coverage, acknowledgement, reporter outcomes, appeals, misuse, and external routes. | Douglas Todd / approval pending |
+
+| 0.3 | 9 November 2026 | Aligns reporting topics and contextual review with the approved harmful-to-children boundary without changing intake, status UI, communications or provider-report routing. | Douglas Todd / content boundary approved only |

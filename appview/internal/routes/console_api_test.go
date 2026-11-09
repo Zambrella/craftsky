@@ -585,3 +585,56 @@ func TestConsoleIntimateImageRejectsUnconfiguredTargetWithoutCommitting(t *testi
 		t.Fatalf("rejected command committed: %s", list.Body)
 	}
 }
+
+func TestConsoleExternalIntakeSharedPostLinkCreatesMatchingCase(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	const uri = "at://did:plc:intake-owner/social.craftsky.feed.post/3testpost"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at,indexed_at) VALUES($1,'did:plc:intake-owner','3testpost','bafy-fixture','benign test','{}',now(),now())`, uri); err != nil {
+		t.Fatal(err)
+	}
+	deps := testDeps()
+	deps.DB = pool
+	deps.Config.ModerationAdminEnabled = true
+	deps.OperatorAuthentication = consoleTestAuthentication(safetyincident.RoleModerator)
+	mux := http.NewServeMux()
+	AddRoutes(t.Context(), mux, deps)
+	post := func(path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", path, strings.NewReader(body))
+		r.Header.Set("Idempotency-Key", uuid.NewString())
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		return w
+	}
+	intake := post("/v1/admin/safety/external-intakes", `{"providerMessageReference":"benign-readiness-test","receivedAt":"2026-11-09T11:53:00Z","canonicalSubject":"https://app.craftsky.social/posts/did%3Aplc%3Aintake-owner/3testpost","kind":"allegation","urgency":"routine","attachmentStatus":"none"}`)
+	if intake.Code != 201 {
+		t.Fatalf("intake: %d %s", intake.Code, intake.Body)
+	}
+	var accepted struct{ ID string }
+	if err := json.Unmarshal(intake.Body.Bytes(), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	var saved string
+	if err := pool.QueryRow(t.Context(), `SELECT canonical_subject FROM external_safety_intakes WHERE id=$1`, accepted.ID).Scan(&saved); err != nil || saved != uri {
+		t.Fatalf("canonical subject: %q %v", saved, err)
+	}
+	body := `{"subjectType":"post","subjectDid":"did:plc:intake-owner","subjectUri":"` + uri + `","reason":"benign launch-readiness test","intakeId":"` + accepted.ID + `"}`
+	created := post("/v1/admin/moderation/cases", body)
+	if created.Code != 201 {
+		t.Fatalf("case: %d %s", created.Code, created.Body)
+	}
+	// Previously accepted links can also be used without rewriting historical intake.
+	if _, err := pool.Exec(t.Context(), `UPDATE external_safety_intakes SET canonical_subject=$2 WHERE id=$1`, accepted.ID, "https://app.craftsky.social/posts/did%3Aplc%3Aintake-owner/3testpost"); err != nil {
+		t.Fatal(err)
+	}
+	if legacy := post("/v1/admin/moderation/cases", body); legacy.Code != 201 {
+		t.Fatalf("stored link: %d %s", legacy.Code, legacy.Body)
+	}
+	forged := post("/v1/admin/moderation/cases", strings.ReplaceAll(body, "3testpost", "otherpost"))
+	if forged.Code != 422 {
+		t.Fatalf("unrelated subject accepted: %d %s", forged.Code, forged.Body)
+	}
+	invalid := post("/v1/admin/safety/external-intakes", `{"providerMessageReference":"invalid-link-test","receivedAt":"2026-11-09T11:53:00Z","canonicalSubject":"https://app.craftsky.social.attacker.invalid/posts/did:plc:intake-owner/post","kind":"allegation","urgency":"routine","attachmentStatus":"none"}`)
+	if invalid.Code != 422 || !strings.Contains(invalid.Body.String(), "invalid_external_intake_subject") {
+		t.Fatalf("invalid subject response: %d %s", invalid.Code, invalid.Body)
+	}
+}

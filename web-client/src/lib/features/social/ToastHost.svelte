@@ -27,14 +27,19 @@
 	}
 	onMount(() => {
 		const receive = (event: Event) => {
-			const { message, warning } = (
-				event as CustomEvent<{ message: string; warning: boolean }>
+			const { message, warning, support } = (
+				event as CustomEvent<{
+					message: string;
+					warning: boolean;
+					support?: boolean;
+				}>
 			).detail;
 			if (typeof message === 'string' && message)
 				hub.show({
 					source: Symbol('completed-action'),
 					message,
 					warning: !!warning,
+					support: support === true,
 					onDismiss() {}
 				});
 		};
@@ -55,6 +60,7 @@
 		<ToastSurface
 			message={toast.message}
 			warning={toast.warning}
+			support={toast.support}
 			children={toast.children}
 			onDismiss={() => hub.dismiss(toast.source)}
 		/>

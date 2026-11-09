@@ -7,12 +7,12 @@
       "route": "/terms",
       "source": "online-safety/policies/terms-of-service.md",
       "artifact": "web/terms.html",
-      "version": "0.3",
+      "version": "0.5",
       "effectiveDate": "1 October 2026, subject to launch readiness",
       "approvalStatus": "Draft; not effective",
-      "approvedBy": "Pending approval by Douglas Todd after specialist review",
-      "sourceDigest": "sha256:17a0a1581190eabcd10758536155a48929db1c03ffcdecdb298a94c159438ead",
-      "artifactDigest": "sha256:c82ba2a76cdf44be155fe0a570fa14f3fb001f2140dc7534f9fda6c7db2a6917",
+      "approvedBy": "Pending final policy approval by Douglas Todd",
+      "sourceDigest": "sha256:fec13253d78ddeacad849860d651f0d18c1f2b1a215264e5bab3d06caaac5b90",
+      "artifactDigest": "sha256:070511698c736636390220de32c6da3e28dde8f2ab98e13bff772c37ae9f59d1",
       "presentTenseClaims": [
         {
           "control": "BR-005",
@@ -30,12 +30,12 @@
       "route": "/privacy",
       "source": "online-safety/policies/privacy-policy.md",
       "artifact": "web/privacy.html",
-      "version": "0.3",
+      "version": "0.4",
       "effectiveDate": "1 October 2026, subject to launch readiness",
       "approvalStatus": "Draft; not effective",
       "approvedBy": "Pending approval by Douglas Todd after specialist review",
-      "sourceDigest": "sha256:4fe48ac25723eb73eeca148bf0e0b004dc9d411ffe945c58f716bbfef1ecc5a1",
-      "artifactDigest": "sha256:2b7f3234e5584169c83567b4384241b54edd450bcfbc21dc14b0f81429dba6a0",
+      "sourceDigest": "sha256:132f727c03157c7bba98fa0062f6c6547a23f21ff6b7d2eeff5870e25a3f54fa",
+      "artifactDigest": "sha256:68a832864e446e2ab65529ae09edd217a6ff4e393d5b6ee0186fc931dc3a77da",
       "presentTenseClaims": [
         {
           "control": "BR-006",
@@ -58,12 +58,12 @@
       "route": "/community-guidelines",
       "source": "online-safety/policies/community-guidelines.md",
       "artifact": "web/community-guidelines.html",
-      "version": "0.2",
+      "version": "0.4",
       "effectiveDate": "1 October 2026, subject to launch readiness",
       "approvalStatus": "Draft; not effective",
-      "approvedBy": "Pending approval by Douglas Todd after specialist review",
-      "sourceDigest": "sha256:b15c0070c98c32bd00b765be397b559d134cf35922a634101b7c7202fd9daeab",
-      "artifactDigest": "sha256:8742590b87bcd19bf4daff098335cb6b727adccfaded65852c38de7d8c2b015d",
+      "approvedBy": "Pending final policy approval by Douglas Todd",
+      "sourceDigest": "sha256:b9d38aee84370b3230b7d300a59fb649d57e19f3c1acf8b31a13dc50cc0178c8",
+      "artifactDigest": "sha256:411e1086e6f24629f3b07e9bd91bf4ae5a5de43a34a5345526a375095b004db1",
       "presentTenseClaims": [
         {
           "control": "FR-015",
@@ -81,12 +81,12 @@
       "route": "/reporting",
       "source": "online-safety/policies/reporting-complaints-and-appeals.md",
       "artifact": "web/reporting.html",
-      "version": "0.2",
+      "version": "0.3",
       "effectiveDate": "1 October 2026, subject to launch readiness",
       "approvalStatus": "Draft; not effective",
-      "approvedBy": "Pending approval by Douglas Todd after specialist review",
-      "sourceDigest": "sha256:c4813a3b116085c79a6e7d36ade2d60fe009a502907472906848312a4a224c67",
-      "artifactDigest": "sha256:5ed637f995e1fdee23538a1103e9a9105bb9b9f6ab08403f10f08a62cc464270",
+      "approvedBy": "Pending final policy approval by Douglas Todd",
+      "sourceDigest": "sha256:628211dceb5b1e75476ea8177a7ce79952deeff7fcdef3d68fa512551ce9774c",
+      "artifactDigest": "sha256:3585954046fd3ac2a06c8a809600fe4eca4cd4ed99dad481db3109e622f28758",
       "presentTenseClaims": [
         {
           "control": "FR-014",
@@ -138,7 +138,6 @@
   },
   "externalBlockers": [
     "Accountable owner and specialist policy approval",
-    "Final operator/controller details and DPO position",
     "Worldwide jurisdiction review",
     "Commercial and subscription policy scope decision",
     "Atomic Cloudflare deployment and rollback evidence"

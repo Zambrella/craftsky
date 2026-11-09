@@ -15,6 +15,7 @@ List<RouteBase> get $appRoutes => [
   $addAccountRoute,
   $authCompleteRoute,
   $onboardingRoute,
+  $safetyRoute,
 ];
 
 RouteBase get $accountDeletionReauthCompleteRoute => GoRouteData.$route(
@@ -1610,6 +1611,34 @@ mixin $OnboardingRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+RouteBase get $safetyRoute => GoRouteData.$route(
+  path: '/safety',
+  name: 'safety',
+  hasOverriddenOnExit: false,
+  parentNavigatorKey: SafetyRoute.$parentNavigatorKey,
+  factory: $SafetyRoute._fromState,
+);
+
+mixin $SafetyRoute on GoRouteData {
+  static SafetyRoute _fromState(GoRouterState state) => const SafetyRoute();
+
+  @override
+  String get location => GoRouteData.$location('/safety');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
@@ -1656,4 +1685,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'cb8a9aed3cf040d8c5cc4ed70ed79bbcc5e9f49d';
+String _$goRouterHash() => r'6a72251ea626ad0eaeb22c68712474debe8ae105';

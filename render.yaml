@@ -194,6 +194,9 @@ projects:
                 value: 10s
               - key: HTTP_UPLOAD_BODY_READ_TIMEOUT
                 value: 1m
+              # Owner-approved internal target, measured from original receipt.
+              - key: SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN
+                value: 24h
               - key: MODERATION_ADMIN_ENABLED
                 value: "true"
               - key: MODERATION_SOURCE_DID

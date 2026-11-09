@@ -184,6 +184,8 @@ func writeSafetyIntakeError(w http.ResponseWriter, r *http.Request, err error) b
 	}
 	runID := middleware.GetRunID(r.Context())
 	switch {
+	case errors.Is(err, safetyintake.ErrInvalidSubject):
+		envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_external_intake_subject", "use a CraftSky record link, AT URI or appeal case reference", runID, nil)
 	case errors.Is(err, safetyintake.ErrInvalidEmailMetadata):
 		envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_external_intake", "external intake is invalid", runID, nil)
 	case errors.Is(err, safetyintake.ErrUnsafeAttachment):

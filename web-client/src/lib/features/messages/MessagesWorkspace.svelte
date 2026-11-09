@@ -417,6 +417,7 @@
 		{#if inboxActionsVisible || (contentReady && !settingsGate)}<nav
 				aria-label="Messaging actions"
 			>
+				<a href="/safety">Safety and support</a>
 				{#if inboxActionsVisible}<a
 						class="icon-link"
 						href="/messages/requests"
