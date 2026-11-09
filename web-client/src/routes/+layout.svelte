@@ -20,14 +20,6 @@
 	});
 	import StatusHost from '#lib/features/status/StatusHost.svelte';
 	let statusBlocking = $state(false);
-	onMount(() => {
-		try {
-			const theme = localStorage.getItem('craftsky.theme');
-			if (theme === 'light' || theme === 'dark')
-				document.documentElement.dataset.theme = theme;
-			else delete document.documentElement.dataset.theme;
-		} catch {}
-	});
 	onMount(installFieldValidation);
 	import DiagnosticsHost from '#lib/features/diagnostics/DiagnosticsHost.svelte';
 	import { page } from '$app/state';

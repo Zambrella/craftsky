@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Startup from './Startup.svelte';
 	import { routeTitle } from './page-context';
 	import RailNavigation from './RailNavigation.svelte';
 	import NavigationFooter from './NavigationFooter.svelte';
@@ -400,11 +401,6 @@
 		const updateDesktop = () => (desktop = desktopQuery.matches);
 		updateDesktop();
 		desktopQuery.addEventListener('change', updateDesktop);
-		try {
-			const theme = localStorage.getItem('craftsky.theme');
-			if (theme === 'light' || theme === 'dark')
-				document.documentElement.dataset.theme = theme;
-		} catch {}
 		void boot();
 		timer = setInterval(counts, 30000);
 		const draftSaved = (event: Event) => {
@@ -736,9 +732,8 @@
 			<a class="button" href="/sign-in">Sign in</a><button
 				onclick={() => openAccounts()}>Switch account</button
 			><button onclick={logout}>Sign out</button>
-		</section>{:else if !ready}{#if !error}<p class="empty" role="status">
-				Loading your CraftSky…
-			</p>{/if}{:else if eligibility?.state === 'restricted' && !allowedRestricted()}<section
+		</section>{:else if !ready}{#if !error}<Startup
+			/>{/if}{:else if eligibility?.state === 'restricted' && !allowedRestricted()}<section
 			class="panel stack"
 		>
 			<h1>Your account is restricted</h1>

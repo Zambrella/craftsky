@@ -79,6 +79,79 @@ test.beforeEach(async ({ page }) => {
 	await fetch(fixture + '/__test/reset');
 });
 
+for (const theme of ['light', 'dark'] as const) {
+	test(`startup uses saved ${theme} theme before content and hands off to feed skeletons`, async ({
+		page,
+		context
+	}) => {
+		await seed(context);
+		await page.emulateMedia({
+			colorScheme: theme === 'dark' ? 'light' : 'dark',
+			reducedMotion: 'reduce'
+		});
+		if (theme === 'dark')
+			await page.setViewportSize({ width: 390, height: 844 });
+		await page.addInitScript((theme) => {
+			localStorage.setItem('craftsky.theme', theme);
+			const observer = new MutationObserver(() => {
+				if (document.body) {
+					(window as any).themeAtBody = document.documentElement.dataset.theme;
+					observer.disconnect();
+				}
+			});
+			observer.observe(document.documentElement || document, {
+				childList: true,
+				subtree: true
+			});
+		}, theme);
+		let releaseAccount!: () => void;
+		const accountGate = new Promise<void>(
+			(resolve) => (releaseAccount = resolve)
+		);
+		let releaseFeed!: () => void;
+		const feedGate = new Promise<void>((resolve) => (releaseFeed = resolve));
+		await page.route('**/api/appview/v1/account/eligibility', async (route) => {
+			await accountGate;
+			await route.continue();
+		});
+		await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+			await feedGate;
+			await route.continue();
+		});
+		await page.goto('/feed');
+		const startup = page.getByRole('status', {
+			name: 'Loading your CraftSky',
+			exact: true
+		});
+		await expect(startup).toBeVisible();
+		await expect(startup.locator('img')).toBeVisible();
+		await expect(startup.locator('img')).toHaveCSS('animation-name', 'none');
+		expect(await page.evaluate(() => (window as any).themeAtBody)).toBe(theme);
+		await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+		const position = await startup.locator('img').boundingBox();
+		const viewport = page.viewportSize()!;
+		const contentWidth = await page.evaluate(
+			() => document.body.getBoundingClientRect().width
+		);
+		expect(
+			Math.abs(position!.x + position!.width / 2 - contentWidth / 2)
+		).toBeLessThan(2);
+		expect(
+			Math.abs(position!.y + position!.height / 2 - viewport.height / 2)
+		).toBeLessThan(2);
+		releaseAccount();
+		await expect(startup).toHaveCount(0);
+		await expect(
+			page.getByRole('heading', { name: 'Home', exact: true })
+		).toBeVisible();
+		await expect(page.locator('.feed-content .skeletons')).toBeVisible();
+		releaseFeed();
+		await expect(page.locator('.feed-content .skeletons')).toHaveCount(0);
+		await page.locator('a[href="/search"]:visible').first().click();
+		await expect(startup).toHaveCount(0);
+	});
+}
+
 test('browser sign-in crosses the fake provider and persists HttpOnly pending before confirmation', async ({
 	page,
 	context
