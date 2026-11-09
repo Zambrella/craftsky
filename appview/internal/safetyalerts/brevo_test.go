@@ -80,7 +80,9 @@ func TestBrevoRejectsRedirectsAndInvalidOrigins(t *testing.T) {
 	leaked := false
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { leaked = true }))
 	defer target.Close()
-	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, 307) }))
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	}))
 	defer redirect.Close()
 	b, _ := NewBrevo("key", "https://appview.craftsky.social")
 	b.endpoint = redirect.URL
