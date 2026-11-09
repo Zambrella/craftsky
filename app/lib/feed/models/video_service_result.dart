@@ -7,6 +7,7 @@ enum VideoServiceOutcome {
   validationFailed,
   processingFailed,
   uploadTimedOut,
+  providerSizeLimit,
 }
 
 final class VideoServiceBlob {
@@ -72,6 +73,7 @@ final class VideoServiceResult {
       (_, 'email_unverified' || 'unconfirmed_email', _) =>
         VideoServiceOutcome.emailUnverified,
       (_, 'quota_exhausted', _) => VideoServiceOutcome.quotaExhausted,
+      (_, 'pds_blob_too_large', _) => VideoServiceOutcome.providerSizeLimit,
       (_, 'video_upload_timeout', _) => VideoServiceOutcome.uploadTimedOut,
       (_, 'provider_unsupported', _) => VideoServiceOutcome.providerUnsupported,
       (_, 'video_too_long' || 'video_too_large' || 'invalid_video', _) =>

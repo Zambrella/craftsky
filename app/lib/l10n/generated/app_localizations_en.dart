@@ -1595,6 +1595,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'The video service couldn\'t accept this video. Check its size and duration, then try another file.';
 
   @override
+  String get postVideoUploadsUnavailable =>
+      'Video uploads aren’t available right now. You can still add photos.';
+
+  @override
+  String get postVideoProviderSizeLimit =>
+      'The processed video exceeds your account provider’s upload limit. Choose a shorter video or reduce its size. Your draft is safe.';
+
+  @override
   String get postVideoUploadTimedOut =>
       'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.';
 

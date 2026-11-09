@@ -319,6 +319,11 @@ func testConfigFile(t *testing.T, contents string) string {
 			}
 		})
 	}
+	// Unrelated config tests explicitly use the credential-free provider.
+	// Video default tests pass VIDEO_PROVIDER= to exercise the real fallback.
+	if !strings.Contains(contents, "VIDEO_PROVIDER=") {
+		contents += "\nVIDEO_PROVIDER=bluesky\n"
+	}
 	f, err := os.CreateTemp(t.TempDir(), "test-*.env")
 	if err != nil {
 		t.Fatalf("create temp: %v", err)
@@ -875,6 +880,7 @@ func TestLoadConfig_DevDIDIgnoredInProd(t *testing.T) {
 }
 
 func TestLoadConfig_TapFields(t *testing.T) {
+	t.Setenv("VIDEO_PROVIDER", "bluesky")
 	dir := t.TempDir()
 	envPath := dir + "/test.env"
 	contents := "DATABASE_URL=postgres://x\n" +
@@ -1677,7 +1683,8 @@ func TestBunnyVideoProviderConfiguration(t *testing.T) {
 		name, extra string
 		valid       bool
 	}{
-		{"default", "", true},
+		{"blueskyOverride", "VIDEO_PROVIDER=bluesky\n", true},
+		{"defaultMissingCredentials", "VIDEO_PROVIDER=\n", false},
 		{"unknown", "VIDEO_PROVIDER=unknown\n", false},
 		{"incomplete", "VIDEO_PROVIDER=bunny\n", false},
 		{"configured", "VIDEO_PROVIDER=bunny\nBUNNY_STREAM_LIBRARY_ID=123\nBUNNY_STREAM_API_KEY=private-bunny-key\nBUNNY_STREAM_CDN_HOSTNAME=test.b-cdn.net\n", true},

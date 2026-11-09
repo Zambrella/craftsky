@@ -112,6 +112,18 @@ Apple team ID to the `social.craftsky.app` iOS application in Firebase Console.
 Confirm the signed TestFlight application has the production `aps-environment`
 entitlement before relying on production delivery.
 
+### Bunny video configuration
+
+Video defaults to enabled with the Bunny provider. `render.yaml` explicitly sets
+`VIDEO_ENABLED=true` and `VIDEO_PROVIDER=bunny`. Before deploying this configuration,
+supply `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_CDN_HOSTNAME`,
+`BUNNY_STREAM_API_KEY`, and `BUNNY_CDN_PURGE_API_KEY` on the AppView service.
+These are declared with `sync: false`; never commit their values. Existing services
+must have them entered manually before the reviewed Blueprint sync/deployment;
+adding `sync: false` entries does not populate their values on an existing service.
+Missing Bunny configuration fails startup. Explicit `VIDEO_ENABLED=false` disables
+uploads but does not remove the selected provider's configuration requirements.
+
 ### 5. Apply the Blueprint
 
 The Blueprint must be present on `main`. Open:

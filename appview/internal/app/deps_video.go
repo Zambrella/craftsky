@@ -104,6 +104,7 @@ func newVideoDependencies(authCapability *authDependencies, federated *federated
 		if err != nil {
 			return nil, err
 		}
+		bunny.SetPDSBlobLimits(video.NewPDSBlobLimits(federated.pdsJSON))
 		return &videoDependencies{uploadAuthorization: bunny, uploadLimits: bunny, completionVerifier: bunny, playback: bunny, captionFetcher: captionFetcher, bunny: bunny, cleanup: video.NewBunnyCleanup(bunny, string(cfg.BunnyCDNPurgeAPIKey), observer), importExisting: func(ctx context.Context, owner syntax.DID, cid syntax.CID) (string, error) {
 			return bunny.ImportExisting(ctx, owner, cid, federated.directory, federated.boundary)
 		}}, nil
