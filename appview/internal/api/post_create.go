@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
@@ -49,6 +50,8 @@ type CreatePostHandlerOptions struct {
 	VideoCompletionVerifier VideoCompletionVerifier
 	DisableVideo            bool
 	Commands                AppendCommandExecutor
+	InstagramAccounts       InstagramPostImportAccounts
+	InstagramImports        InstagramPostImportLookup
 }
 
 type AppendCommandExecutor interface {
@@ -68,10 +71,14 @@ func CreatePostHandler(
 	var videoVerifier VideoCompletionVerifier
 	disableVideo := false
 	var commands AppendCommandExecutor
+	var instagramAccounts InstagramPostImportAccounts
+	var instagramImports InstagramPostImportLookup
 	if len(options) > 0 {
 		videoVerifier = options[0].VideoCompletionVerifier
 		disableVideo = options[0].DisableVideo
 		commands = options[0].Commands
+		instagramAccounts = options[0].InstagramAccounts
+		instagramImports = options[0].InstagramImports
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -126,6 +133,36 @@ func CreatePostHandler(
 			envelope.WriteError(w, http.StatusUnprocessableEntity,
 				"validation_failed", "validation failed", runID, nil)
 			return
+		}
+		var selectedRkey syntax.RecordKey
+		var selectImportRecordKey func(context.Context, pgx.Tx) (syntax.RecordKey, error)
+		if req.InstagramImport != nil {
+			if !requireInstagramPostImportAccount(w, r, instagramAccounts, did) {
+				return
+			}
+			if commands == nil {
+				envelope.WriteError(w, http.StatusServiceUnavailable, "instagram_unavailable", "Instagram import publishing unavailable", runID, nil)
+				return
+			}
+			original, _ := time.Parse(time.RFC3339Nano, req.InstagramImport.CreatedAt)
+			selectedRkey, _ = instagram.PostImportRecordKey(req.InstagramImport.SourceKey, original)
+			selectImportRecordKey = func(ctx context.Context, tx pgx.Tx) (syntax.RecordKey, error) {
+				return instagram.ReservePostImport(ctx, tx, did, req.InstagramImport.SourceKey, selectedRkey)
+			}
+			if instagramImports != nil {
+				history, err := instagramImports.Lookup(r.Context(), did, []string{req.InstagramImport.SourceKey})
+				if err != nil {
+					observability.ReportRequestFailure(r.Context(), err, "instagram.post_import", "lookup")
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Could not read Instagram import history", runID, nil)
+					return
+				}
+				for _, previous := range history {
+					if previous.OperationKey != operationKey {
+						envelope.WriteError(w, http.StatusConflict, "instagram_post_already_imported", "This Instagram post has already been imported", runID, nil)
+						return
+					}
+				}
+			}
 		}
 		var verifiedVideo *video.Blob
 		if req.Embed != nil && req.Embed.Video != nil {
@@ -231,7 +268,7 @@ func CreatePostHandler(
 			result, err := commands.Execute(r.Context(), pdscommands.AppendCommandRequest{
 				Owner: did, OwnerGeneration: ownerGeneration, Targets: effectTargets,
 				SessionID: sessionID, OperationKind: "post.create", OperationKey: operationKey,
-				Collection: syntax.NSID(craftskyPostNSID), Intent: intent,
+				Collection: syntax.NSID(craftskyPostNSID), SelectedRkey: selectedRkey, SelectRecordKey: selectImportRecordKey, Intent: intent,
 				Blobs: postCreateBlobReferences(req, verifiedVideo),
 				BuildRecord: func(createdAt time.Time) (json.RawMessage, error) {
 					body, err := lexiconRecordBodyAt(req, verifiedVideo, createdAt)
@@ -244,7 +281,17 @@ func CreatePostHandler(
 					return acceptedPostCreateResult(r, store, resolver, did, req, verifiedVideo, record)
 				},
 				FinalizeAccepted: func(ctx context.Context, tx pgx.Tx, _ pdscommands.PreparedCommand, record pdscommands.AuthoritativeRecord) error {
-					return postpublication.SeedAcceptedCreate(ctx, tx, record.URI, record.Record)
+					if err := postpublication.SeedAcceptedCreate(ctx, tx, record.URI, record.Record); err != nil {
+						return err
+					}
+					if req.InstagramImport != nil {
+						kind := "standard"
+						if req.Project != nil {
+							kind = "project"
+						}
+						return instagram.FinalizePostImport(ctx, tx, did, instagram.PostImport{SourceKey: req.InstagramImport.SourceKey, URI: record.URI, Kind: kind, OperationKey: operationKey})
+					}
+					return nil
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
 					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
@@ -256,6 +303,10 @@ func CreatePostHandler(
 					return RejectedCommandResult(runID, err)
 				},
 			})
+			if errors.Is(err, instagram.ErrPostAlreadyImported) {
+				envelope.WriteError(w, http.StatusConflict, "instagram_post_already_imported", "This Instagram post has already been imported", runID, nil)
+				return
+			}
 			if err != nil {
 				logger.Warn("post append command failed", slog.Any("error", err))
 				WriteCommandError(w, runID, err, r.Context())
@@ -566,11 +617,21 @@ func lexiconRecordBody(req PostCreateRequest, verifiedVideo *video.Blob) (map[st
 }
 
 func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, createdAt time.Time) (map[string]any, error) {
+	if req.InstagramImport != nil {
+		original, err := time.Parse(time.RFC3339Nano, req.InstagramImport.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		createdAt = original
+	}
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
 		"sponsored": req.Sponsored,
 		"createdAt": createdAt.UTC().Format(time.RFC3339Nano),
+	}
+	if req.InstagramImport != nil {
+		body["externalImport"] = map[string]any{"source": "instagram"}
 	}
 	if len(req.Facets) > 0 {
 		body["facets"] = req.Facets
@@ -698,6 +759,9 @@ func syntheticPostRow(
 		CreatedAt: now,
 		IndexedAt: now,
 		Project:   req.Project,
+	}
+	if req.InstagramImport != nil {
+		row.ExternalImportSource = strPtr("instagram")
 	}
 	if len(req.Crafts) > 0 {
 		crafts, err := json.Marshal(req.Crafts)

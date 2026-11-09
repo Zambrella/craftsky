@@ -18,6 +18,41 @@ in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 See [ADR 024](../adr/024-public-server-rendered-web-client.md) and
 [ADR 025](../adr/025-browser-consumer-handoff.md).
 
+## Instagram post imports
+
+Verified Instagram accounts can import posts at `/settings/instagram`. The JSON
+export ZIP is inspected in a dedicated browser worker; the archive is never
+uploaded. Reels and supported MP4/MOV videos use the existing video composer.
+Each source opens the standard or project composer with its original caption and
+selected media. Users must resolve text/media limits; mixed carousels are not
+supported. Project fields still require review and a primary craft.
+
+The selected ZIP and thumbnails stay in browser memory across composer navigation.
+Reloading requires selecting the export again. Selected composer media and import
+identity can be saved in the existing account-scoped local draft store. Clearing
+the export or leaving the account closes the archive worker and releases previews.
+Never use real personal exports in tests or commit them as fixtures.
+
+AppView verifies Instagram eligibility again when publishing. Import requests use
+`instagramImport: {sourceKey, createdAt}` on `POST /v1/posts`. The source key is a
+stable digest of the original date and source media paths, independent of caption
+edits; it stays private. Public records contain only the existing
+`externalImport: {source: "instagram"}` provenance and original `createdAt`.
+Historical profile ordering, search visibility, home-feed exclusion and suppressed
+source notifications follow ADR 008. Normal post creation cannot backdate posts.
+
+`POST /v1/migrations/instagram/post-imports/lookup` accepts up to 100 `sourceKeys`
+and returns `{items: [{sourceKey, uri, kind}]}` for confirmed account-owned imports.
+The list refreshes this history after returning from the composer and before
+opening a source again. Server duplicate protection also covers concurrent
+publication attempts. This identifies the same source export item, rather than
+claiming to detect every manually copied or substantially changed export.
+
+The standalone `instagram-importer/` site and its separate OAuth/publishing flow
+have been removed. Its reusable local parsing safeguards now live under
+`src/lib/features/instagram-import/`. This source change does not delete a hosted
+site, DNS, or OAuth grants; retiring deployed infrastructure is a separate operation.
+
 ## Local development and checks
 
 Use Node 24 (minimum 22.17) and Docker. From the repository root:

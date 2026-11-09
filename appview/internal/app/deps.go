@@ -136,6 +136,7 @@ type Deps struct {
 	InstagramRetention      *instagram.RetentionService
 	InstagramAccount        *instagram.AccountStore
 	InstagramImports        *instagram.ImportService
+	InstagramPostImports    *instagram.PostImportStore
 	InstagramRestoration    *instagram.ReconciliationTrigger
 
 	// ProfileStore serves the /v1/profiles endpoints.
@@ -497,6 +498,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.InstagramWebhookWorker = instagramRuntime.webhookWorker
 	deps.InstagramImports = instagramRuntime.imports
 	deps.InstagramAccount = instagramRuntime.account
+	deps.InstagramPostImports = instagramStorage.postImports
 	deps.InstagramReconciliation = instagramRuntime.reconciliation
 	deps.InstagramSuggestions = instagramRuntime.suggestions
 	deps.InstagramRetention = instagramRuntime.retention

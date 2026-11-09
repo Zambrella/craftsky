@@ -36,13 +36,16 @@ type AppendCommandService struct {
 }
 
 type AppendCommandRequest struct {
-	Owner            syntax.DID
-	OwnerGeneration  int64
-	Targets          []syntax.DID
-	SessionID        string
-	OperationKind    string
-	OperationKey     uuid.UUID
-	Collection       syntax.NSID
+	Owner           syntax.DID
+	OwnerGeneration int64
+	Targets         []syntax.DID
+	SessionID       string
+	OperationKind   string
+	OperationKey    uuid.UUID
+	Collection      syntax.NSID
+	// SelectedRkey is optional for callers with a deterministic create-only identity.
+	SelectedRkey     syntax.RecordKey
+	SelectRecordKey  func(context.Context, pgx.Tx) (syntax.RecordKey, error)
 	Intent           json.RawMessage
 	Blobs            []BlobReference
 	BuildRecord      func(time.Time) (json.RawMessage, error)
@@ -79,13 +82,19 @@ func (service *AppendCommandService) Execute(ctx context.Context, request Append
 	if err != nil {
 		return CommandResult{}, err
 	}
-	prepared, err := service.store.PrepareOrReplayWithSelection(ctx, PrepareRequest{
+	prepared, err := service.store.PrepareOrReplayWithTransactionalSelection(ctx, PrepareRequest{
 		Owner: request.Owner, OwnerGeneration: request.OwnerGeneration,
 		OperationKind: request.OperationKind, OperationKey: request.OperationKey,
 		FingerprintVersion: 1, Fingerprint: fingerprint, ImmutableRequest: request.Intent,
 		ExpectedOwner: request.Owner, ExpectedOwnerGeneration: request.OwnerGeneration,
-	}, func() (syntax.ATURI, syntax.RecordKey, error) {
-		rkey, err := service.newRecordKey()
+	}, func(selectionCtx context.Context, tx pgx.Tx) (syntax.ATURI, syntax.RecordKey, error) {
+		rkey := request.SelectedRkey
+		var err error
+		if request.SelectRecordKey != nil {
+			rkey, err = request.SelectRecordKey(selectionCtx, tx)
+		} else if rkey == "" {
+			rkey, err = service.newRecordKey()
+		}
 		if err != nil {
 			return "", "", fmt.Errorf("allocate append record key: %w", err)
 		}
@@ -188,7 +197,8 @@ func appendRequestFingerprint(
 ) ([32]byte, error) {
 	conditions, err := json.Marshal(struct {
 		Owners []ownerlifecycle.ExpectedOwner `json:"owners"`
-	}{Owners: expected})
+		Rkey   syntax.RecordKey               `json:"selectedRkey,omitempty"`
+	}{Owners: expected, Rkey: request.SelectedRkey})
 	if err != nil {
 		return [32]byte{}, err
 	}
@@ -219,6 +229,11 @@ func validateAppendCommandRequest(request AppendCommandRequest) error {
 		request.OperationKey == uuid.Nil || request.Collection == "" || !json.Valid(request.Intent) ||
 		request.BuildRecord == nil || request.Accepted == nil || request.Rejected == nil {
 		return ErrMalformedCommand
+	}
+	if request.SelectedRkey != "" {
+		if _, err := syntax.ParseRecordKey(request.SelectedRkey.String()); err != nil {
+			return ErrMalformedCommand
+		}
 	}
 	for _, blob := range request.Blobs {
 		if blob.CID == "" || blob.MIMEType == "" || blob.Size < 0 {

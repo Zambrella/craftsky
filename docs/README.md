@@ -18,7 +18,7 @@ Start with the [repository README](../README.md) for the product and quick start
 | [Flutter client](../app/README.md) | SDK, local configuration, devices, and OAuth links |
 | [AppView](../appview/README.md) | Compose, backend ownership, tests, and OAuth debugging |
 | [Website](../web/README.md) | Local serving, browser checks, and static build |
-| [Instagram importer](../instagram-importer/README.md) | Browser-only importer, synthetic fixtures, and package checks |
+| [Web client](../web-client/README.md) | Signed-in web app, local Instagram post imports, and composer checks |
 | [Service status](../service-status/README.md) | Worker checks and local status simulation |
 | [Verified links](../verified-links/README.md) | App-link hosting and OAuth fallbacks |
 | [Flutter integration tests](../app/integration_test/README.md) | Native journey coverage and its limits |

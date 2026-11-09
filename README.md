@@ -75,9 +75,9 @@ Read the [architecture reference](atproto-craft-social-app-reference.md) and [ar
 | --- | --- |
 | [app/](app/README.md) | Flutter client |
 | [appview/](appview/README.md) | Go API, OAuth backend, and firehose indexing |
+| [web-client/](web-client/README.md) | Svelte web app, including verified Instagram post imports |
 | [lexicon/](lexicon/README.md) | `social.craftsky.*` public record schemas |
 | [web/](web/README.md) | Public website and policy pages |
-| [instagram-importer/](instagram-importer/README.md) | Standalone browser importer |
 | [service-status/](service-status/README.md) | Public service-status Worker |
 | [verified-links/](verified-links/README.md) | Native app-link association files and OAuth fallbacks |
 | [docs/](docs/README.md) | Development guides, roadmap, and operations |

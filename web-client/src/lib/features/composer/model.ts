@@ -105,6 +105,13 @@ export function validateText(
 }
 export function validateDraft(draft: Draft, scheduling = false): string[] {
 	const errors: string[] = [];
+	if (
+		draft.instagramImport &&
+		(scheduling || draft.scheduleId || draft.scheduleLater)
+	)
+		errors.push('Imported Instagram posts cannot be scheduled.');
+	if (draft.instagramImport && (draft.edit || draft.reply || draft.quote))
+		errors.push('An Instagram import must create a new post or project.');
 	if (!draft.text.trim()) errors.push('Add some text to your post.');
 	if (!validateText(draft.text, 2000, 20000))
 		errors.push('Posts can contain up to 2,000 characters.');
@@ -302,6 +309,8 @@ export function postPayload(draft: Draft, facets: Facet[]): PostPayload {
 		sponsored: draft.sponsored
 	};
 	if (facets.length) payload.facets = facets;
+	if (draft.instagramImport)
+		payload.instagramImport = { ...draft.instagramImport };
 	if (draft.kind === 'project')
 		payload.project = draft.project as unknown as Project;
 	if (draft.reply) payload.reply = draft.reply;

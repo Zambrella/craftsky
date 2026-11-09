@@ -34,7 +34,7 @@ Run commands from the repository root unless a guide says otherwise. Use only de
 | Backend | Docker + Compose v2, `just`, and Go matching [go.mod](appview/go.mod). Run `just dev-d`. See [AppView setup](appview/README.md). |
 | Flutter | FVM with the SDK pinned in [.fvmrc](.fvmrc), plus target platform tooling. Run `fvm install`, then `(cd app && fvm flutter pub get)` and `fvm exec just app-run`. See [client setup](app/README.md). |
 | Website | Python for local serving; Node.js 22+ and npm for checks. See [website setup](web/README.md). |
-| Instagram importer | Node.js 22.12+ and the npm version in its package manifest. See [importer setup](instagram-importer/README.md). |
+| Web client | Node.js 22.17+ and npm. Includes Instagram post imports. See [web client setup](web-client/README.md). |
 | Service status | See [status setup](service-status/README.md) for local checks and preview. |
 | Documentation | A text editor; check relative links and any commands you change against their source. |
 
@@ -67,7 +67,7 @@ Run the checks for the parts you changed, and report their actual results in the
 | Flutter | `fvm exec just app-analyze` and `fvm exec just app-test`. For UI changes, inspect the affected screens and attach screenshots or a recording. See [device integration tests](app/integration_test/README.md) for applicable native journeys. |
 | Lexicons / generated types | `just lexgen-check` and the relevant backend/client checks, including `just appview-check`. Commit regenerated output with the schema. |
 | Website | `just web-setup` once, then `just web-check`. This checks a local build; no login or deployment is needed. |
-| Instagram importer | `just importer-install`, `just importer-check`, and `just importer-test-e2e` for browser changes. Install Playwright browsers as described in its README. |
+| Web client and Instagram imports | `just web-client-check`; synthetic archive and composer tests run with the web client. See [web client checks](web-client/README.md). |
 | Service status | `just service-status-test`. |
 | Documentation / issue forms | Check links, command names, formatting, and YAML structure. Run any area-specific checks needed for changed executable examples. |
 

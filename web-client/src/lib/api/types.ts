@@ -237,6 +237,8 @@ export interface PostPayload {
 	text: string;
 	langs: string[];
 	sponsored: boolean;
+	/** Private source identity; AppView publishes only the Instagram provenance token. */
+	instagramImport?: { sourceKey: string; createdAt: string };
 	images?: CreatePostImage[];
 	facets?: Facet[];
 	project?: Project;
