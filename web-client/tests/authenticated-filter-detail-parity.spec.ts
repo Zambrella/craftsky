@@ -195,10 +195,12 @@ test('project filters are a content-column route with Back and Forward and no mo
 		.click();
 	await expect(page).toHaveURL(/craft=.*knitting/);
 	const origin = page.url();
-	await page
-		.getByRole('button', { name: 'Filter projects', exact: true })
-		.click();
-	await expect(page).toHaveURL(/\/feed\/filters\?/);
+	// Wait for route navigation, which can outlast the default assertion timeout
+	// when the local Worker is serving the filter route's server data.
+	await Promise.all([
+		page.waitForURL(/\/feed\/filters\?/),
+		page.getByRole('button', { name: 'Filter projects', exact: true }).click()
+	]);
 	const filters = page.getByRole('region', {
 		name: 'Filter Knitting projects',
 		exact: true
