@@ -373,7 +373,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	_ = godotenv.Load(envFilePath)
 
 	cfg := Config{
-		VideoProvider:             getEnvWithDefault("VIDEO_PROVIDER", "bluesky"),
+		VideoProvider:             getEnvWithDefault("VIDEO_PROVIDER", "bunny"),
 		BunnyStreamLibraryID:      os.Getenv("BUNNY_STREAM_LIBRARY_ID"),
 		BunnyStreamAPIKey:         Secret(os.Getenv("BUNNY_STREAM_API_KEY")),
 		BunnyStreamCDNHostname:    os.Getenv("BUNNY_STREAM_CDN_HOSTNAME"),
@@ -412,7 +412,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	cfg.TapWSURL = os.Getenv("TAP_WS_URL")
 
 	var err error
-	configuredVideoEnabled, parseVideoEnabledErr := strconv.ParseBool(getEnvWithDefault("VIDEO_ENABLED", "false"))
+	configuredVideoEnabled, parseVideoEnabledErr := strconv.ParseBool(getEnvWithDefault("VIDEO_ENABLED", "true"))
 	if parseVideoEnabledErr != nil {
 		return Config{}, fmt.Errorf("VIDEO_ENABLED: %w", parseVideoEnabledErr)
 	}

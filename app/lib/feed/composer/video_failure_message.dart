@@ -3,6 +3,9 @@ import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 
 String videoPublicationFailureMessage(
   AppLocalizations l10n,
@@ -49,6 +52,7 @@ String _failureMessage(
     _,
   ) => l10n.postVideoProviderUnsupported,
   (VideoServiceOutcome.validationFailed, _) => l10n.postVideoValidationFailed,
+  (VideoServiceOutcome.providerSizeLimit, _) => l10n.postVideoProviderSizeLimit,
   (VideoServiceOutcome.uploadTimedOut, _) => l10n.postVideoUploadTimedOut,
   (VideoServiceOutcome.processingFailed, _) => l10n.postVideoProcessingFailed,
   _ => l10n.postVideoRetryableFailure,
@@ -56,6 +60,10 @@ String _failureMessage(
 
 String videoSelectionFailureMessage(AppLocalizations l10n, Object failure) =>
     switch (failure) {
+      ApiException(:final details)
+          when details.appViewError == 'video_disabled' =>
+        l10n.postVideoUploadsUnavailable,
+      ApiException() => AppErrorMapper.map(failure).message(l10n),
       VideoSourceException(reason: VideoSourceRejection.tooLarge) =>
         l10n.postVideoSourceTooLarge,
       VideoSourceException(reason: VideoSourceRejection.tooLong) =>

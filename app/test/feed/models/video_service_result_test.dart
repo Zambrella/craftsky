@@ -2,6 +2,15 @@ import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('PDS size rejection is actionable', () {
+    final result = VideoServiceResult.fromJson({
+      'state': 'JOB_STATE_FAILED',
+      'error': 'pds_blob_too_large',
+      'jobId': 'job',
+    });
+    expect(result.outcome, VideoServiceOutcome.providerSizeLimit);
+    expect(result.blob, isNull);
+  });
   group('VideoServiceResult', () {
     const blob = VideoServiceBlob(
       cid: 'bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a',

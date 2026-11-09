@@ -411,9 +411,11 @@ async function uploadVideoWithinDeadline(
 				(status.error && status.error !== 'already_exists')
 			)
 				throw new UserFacingError(
-					status.error === 'video_upload_timeout'
-						? 'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
-						: 'Video processing failed. Please try again or choose another video.'
+					status.error === 'pds_blob_too_large'
+						? 'The processed video exceeds your account provider’s upload limit. Choose a shorter video or reduce its size. Your draft is safe.'
+						: status.error === 'video_upload_timeout'
+							? 'The video was processed, but saving it to your account timed out. Your draft is safe. Please try posting again.'
+							: 'Video processing failed. Please try again or choose another video.'
 				);
 			if (!jobId || Date.now() - started >= (bunny ? 60 : 15) * 60 * 1000)
 				throw new UserFacingError(

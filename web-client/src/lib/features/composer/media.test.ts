@@ -257,6 +257,46 @@ it('reports an upload timeout without blaming the format or account allowance', 
 	);
 });
 
+it('explains an account provider size limit', async () => {
+	const api = {
+		media: {
+			videoLimits: async () => ({ canUpload: true }),
+			videoAuthorization: async () => ({
+				token: 'capability-canary',
+				expiresAt: new Date(Date.now() + 60000).toISOString()
+			})
+		}
+	} as unknown as CraftskyAPI;
+	const fetcher = vi.fn<typeof fetch>(
+		async () =>
+			new Response(
+				JSON.stringify({
+					jobId: 'job',
+					state: 'JOB_STATE_FAILED',
+					error: 'pds_blob_too_large'
+				})
+			)
+	);
+	await expect(
+		uploadVideo(
+			api,
+			'did:plc:maker',
+			{
+				id: 'v',
+				name: 'v.mp4',
+				mime: 'video/mp4',
+				blob: new Blob(['video']),
+				alt: ''
+			},
+			new AbortController().signal,
+			() => {},
+			fetcher
+		)
+	).rejects.toThrow(
+		'The processed video exceeds your account provider’s upload limit. Choose a shorter video or reduce its size. Your draft is safe.'
+	);
+});
+
 it('aborts Bunny transfer without retrying and cancels the owner job separately', async () => {
 	const controller = new AbortController();
 	const jobId = 'cccccccc-cccc-4ccc-accc-cccccccccccc';

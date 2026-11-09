@@ -2794,6 +2794,18 @@ abstract class AppLocalizations {
   /// **'The video service couldn\'t accept this video. Check its size and duration, then try another file.'**
   String get postVideoValidationFailed;
 
+  /// Video selection is unavailable because the backend has video uploads disabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Video uploads aren’t available right now. You can still add photos.'**
+  String get postVideoUploadsUnavailable;
+
+  /// No processed video rendition fits the account provider blob limit.
+  ///
+  /// In en, this message translates to:
+  /// **'The processed video exceeds your account provider’s upload limit. Choose a shorter video or reduce its size. Your draft is safe.'**
+  String get postVideoProviderSizeLimit;
+
   /// PDS upload timed out after successful video encoding.
   ///
   /// In en, this message translates to:

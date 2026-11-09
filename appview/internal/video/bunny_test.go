@@ -8,11 +8,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/pdseffects"
@@ -57,10 +59,16 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 		t.Fatal(err)
 	}
 	effects := &bunnyEffects{}
-	b, err := NewBunny(pool, "123", "private-key-canary", "test.b-cdn.net", func(context.Context, syntax.DID, string) (BunnyBlobEffects, error) { return effects, nil }, nil)
+	runner := &fakeSessionRunner{session: &oauth.ClientSession{Data: &oauth.ClientSessionData{HostURL: "https://pds.example"}}}
+	b, err := NewBunny(pool, "123", "private-key-canary", "test.b-cdn.net", func(context.Context, syntax.DID, string) (BunnyBlobEffects, error) { return effects, nil }, nil, runner)
 	if err != nil {
 		t.Fatal(err)
 	}
+	discoveries := 0
+	b.SetPDSBlobLimits(NewPDSBlobLimits(&http.Client{Transport: bunnyRoundTrip(func(*http.Request) (*http.Response, error) {
+		discoveries++
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"blobUploadLimit":50}`))}, nil
+	})}))
 	const video = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 	const mp4 = "\x00\x00\x00\x18ftypisomsynthetic-video"
 	const collection = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
@@ -119,6 +127,9 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if discoveries != 1 {
+		t.Fatal("capability discovery must precede source upload", discoveries)
+	}
 	if !strings.HasSuffix(title, " UTC · "+authorization.JobID[:8]) || authorization.Title != title || authorization.CollectionID != collection || metadataJob != authorization.JobID || metadataCID != "" {
 		t.Fatal("missing unique title or initial technical metadata")
 	}
@@ -132,6 +143,9 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 	status, err := b.Status(ctx, owner, "session", authorization.JobID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if discoveries != 1 {
+		t.Fatal("cached PDS capability was not reused", discoveries)
 	}
 	if status.State != "JOB_STATE_COMPLETED" || effects.calls != 1 || string(effects.body) != mp4 {
 		t.Fatalf("incomplete handoff: %+v, calls %d", status, effects.calls)
@@ -209,7 +223,7 @@ func TestBunnyDownloadRejectsRedirectOversizeAndInvalidMP4(t *testing.T) {
 			b := &Bunny{cdn: "test.b-cdn.net", client: &http.Client{Timeout: time.Second, Transport: bunnyRoundTrip(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: test.status, ContentLength: test.size, Body: io.NopCloser(strings.NewReader(test.body))}, nil
 			})}}
-			if file, err := b.download(context.Background(), "video", "720p"); err == nil {
+			if file, err := b.download(context.Background(), "video", "720p", maxVideoBlobBytes); err == nil {
 				file.Close()
 				t.Fatal("unsafe media accepted")
 			}
@@ -263,5 +277,64 @@ func TestBunnyUploadTimeoutPersistsAcrossStatusPolls(t *testing.T) {
 	}
 	if effects.calls != 1 {
 		t.Fatal("uncertain upload repeated")
+	}
+}
+
+func TestBunnyPDSLimitRejectsBeforeUploadAndPersistsFailure(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := t.Context()
+	owner := syntax.DID("did:plc:limited-owner")
+	const job = "cccccccc-cccc-4ccc-accc-cccccccccccc"
+	const video = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+	_, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES($1,'active',1,1,'test',now())`, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(ctx, `INSERT INTO bunny_video_jobs(id,owner_did,owner_generation,library_id,video_id) VALUES($1,$2,1,'123',$3)`, job, owner, video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	effects := &bunnyEffects{}
+	runner := &fakeSessionRunner{session: &oauth.ClientSession{Data: &oauth.ClientSessionData{HostURL: "https://pds.example"}}}
+	b, err := NewBunny(pool, "123", "key", "test.b-cdn.net", func(context.Context, syntax.DID, string) (BunnyBlobEffects, error) { return effects, nil }, nil, runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	discoveries := 0
+	b.SetPDSBlobLimits(NewPDSBlobLimits(&http.Client{Transport: bunnyRoundTrip(func(*http.Request) (*http.Response, error) {
+		discoveries++
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"blobUploadLimit":12}`))}, nil
+	})}))
+	downloads := 0
+	b.client.Transport = bunnyRoundTrip(func(r *http.Request) (*http.Response, error) {
+		body := `{"guid":"` + video + `","videoLibraryId":123,"status":4,"length":3,"hasMP4Fallback":true,"availableResolutions":"720p,360p"}`
+		if r.URL.Host == b.cdn {
+			downloads++
+			body = "\x00\x00\x00\x18ftypisomtoo-large"
+		}
+		return &http.Response{StatusCode: 200, ContentLength: int64(len(body)), Body: io.NopCloser(strings.NewReader(body))}, nil
+	})
+	for range 2 {
+		status, err := b.Status(ctx, owner, "session", job)
+		if err != nil || status.State != "JOB_STATE_FAILED" || status.Error != "pds_blob_too_large" {
+			t.Fatal(status, err)
+		}
+	}
+	if effects.calls != 0 || downloads != 2 || discoveries != 1 {
+		t.Fatal("unexpected upload or repeated processing", effects.calls, downloads, discoveries)
+	}
+	// Rollback retains the failed job and maps the new code to an older one.
+	for _, direction := range []string{"down", "up"} {
+		migration, err := os.ReadFile("../../migrations/000121_video_blob_limits." + direction + ".sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var code string
+	if err := pool.QueryRow(ctx, "SELECT failure_code FROM bunny_video_jobs WHERE id=$1", job).Scan(&code); err != nil || code != "processing_failed" {
+		t.Fatal(code, err)
 	}
 }
