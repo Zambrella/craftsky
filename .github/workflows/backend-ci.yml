@@ -45,7 +45,7 @@ jobs:
           app_profile=false
           while IFS= read -r path; do
             case "$path" in
-              appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
+              appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/config|scripts/compose-dev|scripts/worktree-create|scripts/test_config.py|docs/development/configuration-reference.md|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
                 appview=true
                 ;;
             esac
@@ -92,6 +92,11 @@ jobs:
         with:
           go-version: 1.27.3
           cache-dependency-path: appview/go.sum
+
+      - name: Verify configuration inventory and worktree secret handling
+        run: |
+          ./scripts/config lint
+          python3 -m unittest discover -s scripts -p 'test_config.py'
 
       - name: Run unit-only AppView tests
         run: ./scripts/appview-test unit

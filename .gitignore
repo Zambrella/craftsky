@@ -9,6 +9,7 @@ appview/tmp/
 # Env
 .env
 .env.local
+.env.secrets.local
 app/config/*.env
 !app/config/*.env.example
 

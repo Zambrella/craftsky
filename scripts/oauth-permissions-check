@@ -25,11 +25,17 @@ def source(path, release):
     return (ROOT / path).read_text()
 
 
+def production_scopes(release=None):
+    lines = source('render.yaml', release).splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() == '- key: OAUTH_SCOPES':
+            return lines[index + 1].strip().removeprefix('value: ').strip('"')
+    raise ValueError('Release Blueprint is missing OAuth scopes')
+
+
 def check(origin, release=None, publication_only=False):
     expected = json.loads(source('lexicon/social/craftsky/authFull.json', release))
-    scopes = next(line.removeprefix('OAUTH_SCOPES=') for line in
-                  source('appview/environments/prod.env.example', release).splitlines()
-                  if line.startswith('OAUTH_SCOPES=')).split()
+    scopes = production_scopes(release).split()
     if 'include:social.craftsky.authFull' not in scopes or any(
             scope.startswith('transition:') or scope.startswith('repo:*') for scope in scopes):
         raise ValueError('Release does not require granular CraftSky consent')

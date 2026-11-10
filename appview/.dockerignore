@@ -7,3 +7,11 @@ coverage.*
 .idea
 .vscode
 *.swp
+
+# Never send private environment files or credentials to a builder.
+*.env
+.env*
+**/*.env
+**/.env*
+**/*credentials*.json
+**/*service-account*.json

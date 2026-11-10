@@ -68,50 +68,22 @@ projects:
                 value: 1h
               - key: OAUTH_REVOCATION_MAX_CREDENTIAL_RETENTION
                 value: 24h
-              - key: AUTH_AUXILIARY_CLEANUP_POLL_INTERVAL
-                value: 5s
-              - key: AUTH_AUXILIARY_CLEANUP_BATCH_SIZE
-                value: "20"
               - key: AUTH_AUXILIARY_CLEANUP_LEASE_DURATION
                 value: 1m
-              - key: AUTH_AUXILIARY_CLEANUP_OPERATION_TIMEOUT
-                value: 20s
-              - key: AUTH_AUXILIARY_CLEANUP_MAX_ATTEMPTS
-                value: "5"
               - key: AUTH_AUXILIARY_CLEANUP_BACKOFF_MIN
                 value: 1m
               - key: AUTH_AUXILIARY_CLEANUP_BACKOFF_MAX
                 value: 1h
               - key: AUTH_SESSION_EXPIRY_SWEEP_INTERVAL
                 value: 1m
-              - key: AUTH_SESSION_EXPIRY_SWEEP_BATCH
-                value: "100"
-              - key: ACCOUNT_DELETION_INTENT_TTL
-                value: 10m
               - key: ACCOUNT_DELETION_INTENT_SWEEP_INTERVAL
                 value: 1m
-              - key: ACCOUNT_DELETION_INTENT_SWEEP_BATCH
-                value: "100"
               - key: TERMINAL_PURGE_POLL_INTERVAL
                 value: 1s
-              - key: TERMINAL_PURGE_COMPONENT_LIMIT
-                value: "16"
-              - key: TERMINAL_PURGE_ROW_BATCH_SIZE
-                value: "100"
               - key: TERMINAL_PURGE_LEASE_DURATION
                 value: 1m
               - key: TERMINAL_PURGE_RETRY_DELAY
                 value: 1s
-              - key: IDENTITY_CACHE_REFRESH_POLL_INTERVAL
-                value: 5m
-              - key: IDENTITY_CACHE_REFRESH_BATCH_SIZE
-                value: "100"
-              - key: IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT
-                value: 10s
-              - key: IDENTITY_CACHE_REFRESH_RETRY_DELAY
-                value: 15m
-              - key: CRAFTSKY_SESSION_ACTIVITY_WRITE_INTERVAL
-                value: 5m
               - key: OAUTH_LOGIN_START_TIMEOUT
                 value: 20s
               - key: OAUTH_CALLBACK_OPERATION_TIMEOUT
@@ -120,48 +92,20 @@ projects:
                 value: 30s
               - key: APP_VERIFIED_LINK_ORIGIN
                 value: https://app.craftsky.social
-              - key: APPVIEW_ENABLE_DEV_OAUTH_SCHEME
-                value: "false"
               - key: OAUTH_HANDOFF_EXCHANGE_TTL
                 value: 10m
               - key: OAUTH_HANDOFF_CONFIRMATION_TTL
                 value: 2m
               - key: OAUTH_HANDOFF_RECEIPT_KEY_VERSION
                 value: "1"
-              - key: TAP_ACK_TIMEOUT
-                value: 10s
-              - key: TAP_ACK_SAFETY_MARGIN
-                value: 500ms
-              - key: TAP_RECONNECT_MAX
-                value: 30s
-              - key: TAP_PROJECTION_POLL_INTERVAL
-                value: 250ms
-              - key: TAP_PROJECTION_LEASE_DURATION
-                value: 30s
-              - key: TAP_PROJECTION_BATCH_SIZE
-                value: "32"
               - key: TAP_PROJECTION_BACKOFF_MIN
                 value: 1s
-              - key: TAP_PROJECTION_BACKOFF_MAX
-                value: 5m
               - key: TAP_REPOSITORY_POLL_INTERVAL
                 value: 1s
               - key: TAP_REPOSITORY_LEASE_DURATION
                 value: 45s
-              - key: TAP_REPOSITORY_BATCH_SIZE
-                value: "8"
-              - key: TAP_REPOSITORY_BACKOFF_MIN
-                value: 2s
-              - key: TAP_REPOSITORY_BACKOFF_MAX
-                value: 5m
               - key: TAP_QUARANTINE_POLL_INTERVAL
                 value: 1s
-              - key: TAP_QUARANTINE_LEASE_DURATION
-                value: 30s
-              - key: TAP_QUARANTINE_OPERATION_TIMEOUT
-                value: 10s
-              - key: TAP_QUARANTINE_BATCH_SIZE
-                value: "8"
               - key: HTTP_MAX_CONNECTIONS
                 value: "512"
               - key: HTTP_MAX_IN_FLIGHT_REQUESTS
@@ -213,10 +157,6 @@ projects:
                 value: 10s
               - key: PDS_COMMAND_COMPACTION_POLL_INTERVAL
                 value: 1m
-              - key: PDS_COMMAND_COMPACTION_BATCH_SIZE
-                value: "100"
-              - key: SCHEDULED_MEDIA_PUT_TIMEOUT
-                value: 30s
               - key: FEDERATED_HTTP_DIAL_TIMEOUT
                 value: 5s
               - key: FEDERATED_HTTP_TLS_HANDSHAKE_TIMEOUT
@@ -259,16 +199,6 @@ projects:
                 value: eu-central-1
               - key: LINK_PREVIEWS_ENABLED
                 value: "true"
-              - key: VIDEO_ENABLED
-                value: "true"
-              - key: VIDEO_PROVIDER
-                value: bunny
-              - key: VIDEO_SERVICE_URL
-                value: https://video.bsky.app
-              - key: VIDEO_PLAYLIST_URL_TEMPLATE
-                value: https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8
-              - key: VIDEO_THUMBNAIL_URL_TEMPLATE
-                value: https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg
               - key: SCHEDULED_IMAGE_MAX_WIDTH
                 value: "4000"
               - key: SCHEDULED_IMAGE_MAX_HEIGHT
@@ -296,7 +226,10 @@ projects:
                 value: "true"
               - key: SENTRY_TAP_TRACES_SAMPLE_RATE
                 value: "0.01"
+
               - key: APPVIEW_UNSAFE_LOG_RESPONSE_BODIES
+                value: "false"
+              - key: APPVIEW_ENABLE_DEV_OAUTH_SCHEME
                 value: "false"
 
         services:
@@ -388,4 +321,64 @@ projects:
               - key: SCHEDULED_POSTS_S3_ACCESS_KEY_ID
                 sync: false
               - key: SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY
+                sync: false
+              # Optional integration inventory. Existing values are managed by operators.
+              # sync:false does not provision values on an existing Blueprint sync.
+              - key: CHAT_OPERATION_HMAC_KEY
+                sync: false
+              - key: CHAT_OPERATION_HMAC_KEY_VERSION
+                sync: false
+              - key: INSTAGRAM_DATA_HMAC_KEY
+                sync: false
+              - key: INSTAGRAM_META_ENABLED
+                sync: false
+              - key: INSTAGRAM_META_REPLIES_ENABLED
+                sync: false
+              - key: INSTAGRAM_META_APP_SECRET
+                sync: false
+              - key: INSTAGRAM_META_VERIFY_TOKEN
+                sync: false
+              - key: INSTAGRAM_META_ACCESS_TOKEN
+                sync: false
+              - key: INSTAGRAM_META_ACCOUNT_ID
+                sync: false
+              - key: INSTAGRAM_META_API_VERSION
+                sync: false
+              - key: INSTAGRAM_META_API_BASE_URL
+                sync: false
+              - key: INSTAGRAM_META_DM_URL
+                sync: false
+              - key: REVENUECAT_ENABLED
+                sync: false
+              - key: REVENUECAT_ENVIRONMENT
+                sync: false
+              - key: REVENUECAT_API_KEY
+                sync: false
+              - key: REVENUECAT_PROJECT_ID
+                sync: false
+              - key: REVENUECAT_WEBHOOK_AUTHORIZATION
+                sync: false
+              - key: REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE
+                sync: false
+              - key: REVENUECAT_WEBHOOK_SIGNING_SECRET
+                sync: false
+              - key: REVENUECAT_APP_IDS
+                sync: false
+              - key: REVENUECAT_PRODUCT_MAPPINGS
+                sync: false
+              - key: SAFETY_EVIDENCE_S3_ENDPOINT
+                sync: false
+              - key: SAFETY_EVIDENCE_S3_REGION
+                sync: false
+              - key: SAFETY_EVIDENCE_S3_BUCKET
+                sync: false
+              - key: SAFETY_EVIDENCE_S3_ACCESS_KEY_ID
+                sync: false
+              - key: SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY
+                sync: false
+              - key: SAFETY_EMAIL_ENABLED
+                sync: false
+              - key: BREVO_API_KEY
+                sync: false
+              - key: WEB_APP_ORIGIN
                 sync: false

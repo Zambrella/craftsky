@@ -71,6 +71,8 @@ attaching it:
 AppView performs `HeadBucket` at startup and then uses `HeadObject`, `GetObject`,
 `PutObject`, and `DeleteObject`. Do not grant access to other buckets.
 
+See [configuration management](../development/configuration.md) for setting ownership, worktree development secrets and the generated variable reference.
+
 ### 3. Generate application secrets
 
 Generate the confidential OAuth key locally:

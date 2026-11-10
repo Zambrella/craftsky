@@ -1,5 +1,18 @@
 set dotenv-load := false
 
+# Initialize development credentials, inheriting missing values from the primary checkout.
+config-init:
+    ./scripts/config init
+
+config-check:
+    ./scripts/config check
+
+config-status:
+    ./scripts/config status
+
+config-reference:
+    ./scripts/config reference
+
 default:
     @just --list
 
