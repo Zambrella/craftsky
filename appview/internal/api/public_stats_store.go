@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,31 +18,32 @@ func NewPublicStatsStore(pool *pgxpool.Pool) *PublicStatsStore {
 }
 
 // One statement gives the totals and craft breakdown the same database snapshot.
-// The shared anonymous predicates exclude unavailable owners and content rather
-// than borrowing authenticated viewer/owner visibility exceptions.
+// Aggregate totals are independent of individual logged-out profile visibility
+// and media clearance. Active membership and explicit moderation still apply;
+// the response contains no owner identifiers or record content.
 func (s *PublicStatsStore) PublicStats(ctx context.Context) (*PublicStats, error) {
 	const finishedStatus = "social.craftsky.feed.defs#finished"
 	query := `
- WITH public_accounts AS MATERIALIZED (
-   SELECT cp.did FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did WHERE TRUE ` + publicOwnerPredicate + `
- ), public_posts AS MATERIALIZED (
+ WITH eligible_accounts AS MATERIALIZED (
+   SELECT cp.did FROM craftsky_profiles cp WHERE TRUE ` + publicOwnerBasePredicate + `
+ ), eligible_posts AS MATERIALIZED (
    SELECT p.is_project, p.quote_uri, pp.uri AS project_uri,
           pp.common_craft_type, pp.common_status
    FROM craftsky_posts p
-   JOIN public_accounts cp ON cp.did=p.did
+   JOIN eligible_accounts cp ON cp.did=p.did
    LEFT JOIN craftsky_project_posts pp ON pp.uri=p.uri
    WHERE p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL
-   ` + publicPostPredicate + `
+   ` + strings.ReplaceAll(postOwnerModerationPredicate, "('hide', 'takedown')", "('hide', 'takedown', 'warn')") + `
  ), projects AS MATERIALIZED (
-   SELECT common_craft_type, common_status FROM public_posts
+   SELECT common_craft_type, common_status FROM eligible_posts
    WHERE is_project AND project_uri IS NOT NULL AND quote_uri IS NULL
  ), crafts AS (
    SELECT common_craft_type, count(*) AS count
    FROM projects GROUP BY common_craft_type
  )
  SELECT statement_timestamp(),
-        (SELECT count(*) FROM public_accounts),
-        (SELECT count(*) FROM public_posts),
+        (SELECT count(*) FROM eligible_accounts),
+        (SELECT count(*) FROM eligible_posts),
         (SELECT count(*) FROM projects),
         (SELECT count(*) FROM projects WHERE common_status=$1),
         COALESCE((SELECT jsonb_agg(jsonb_build_object('craft', common_craft_type, 'count', count)

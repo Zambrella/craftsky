@@ -64,18 +64,21 @@ Each chart row has `craft` (a full craft identifier such as
 `social.craftsky.feed.defs#knitting`) and integer `count`. The timestamp records
 when the snapshot was generated. The headline fields count:
 
-- **Accounts:** CraftSky profiles eligible for anonymous viewing.
-- **Posts:** visible top-level CraftSky posts, including project posts; replies
+- **Accounts:** active CraftSky profiles, including profiles with hidden, unknown, or pending logged-out visibility.
+- **Posts:** published top-level CraftSky posts, including project posts; replies
   are excluded.
-- **Project posts:** visible top-level project posts, excluding quotes.
+- **Project posts:** published top-level project posts, excluding quotes.
 - **Finished project posts:** those project posts marked finished.
 
 The chart groups project posts by their primary craft, so one post contributes
 to one bar. Additional crafts do not multiply counts. A project post is a
 snapshot of a make, rather than a unique physical project: two updates about
-the same sweater count twice. The API applies existing anonymous-view owner,
-moderation, lifecycle and media eligibility rules. These are AppView-indexed
-public counts, not a census of the entire AT Protocol network.
+the same sweater count twice. The API applies existing owner lifecycle, suspension and explicit moderation
+exclusions. Logged-out profile visibility and media-clearance state do not affect
+these aggregate totals; individual profile, post and media access keep their
+existing visibility rules. The response exposes no owner identifiers or record
+content. These are AppView-indexed CraftSky counts, not a census of the entire
+AT Protocol network.
 
 ## Hosting and publication
 

@@ -66,7 +66,7 @@ func TestPublicStatsHandler(t *testing.T) {
 	}
 }
 
-func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
+func TestPublicStatsStoreCountsActivePostSnapshots(t *testing.T) {
 	ctx := context.Background()
 	pool := testdb.WithSchema(t, publicPageDDL)
 	if err := testdb.ApplyMigrations(ctx, pool, "000118_profile_guest_visibility.up.sql"); err != nil {
@@ -96,6 +96,7 @@ func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	seedMember(t, pool, "did:plc:unknown-stats")
 	seedStatsMember(t, pool, "did:plc:hidden-stats")
 	exec(`UPDATE bluesky_profiles SET guest_visibility_hidden=true WHERE did='did:plc:hidden-stats'`)
+	exec(`UPDATE bluesky_profiles SET guest_visibility_hold_key='018f4d5c-7a61-7d40-a1a2-777777777777' WHERE did='did:plc:labeler'`)
 	project := func(owner, key, craft, status string) string {
 		t.Helper()
 		uri := seedPost(t, pool, owner, key, "Public project", time.Now())
@@ -117,7 +118,11 @@ func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 		reply := project(alice, column, knitting, finished)
 		exec(`UPDATE craftsky_posts SET `+column+`=$2 WHERE uri=$1`, reply, first)
 	}
-	// Aggregate visibility must match anonymous reads, independent of a viewer.
+	// Aggregate counts include hidden and unknown profiles without exposing their
+	// individual records. Pending visibility changes do not affect totals.
+	project("did:plc:unknown-stats", "unknown", knitting, finished)
+	project("did:plc:hidden-stats", "hidden", sewing, "social.craftsky.feed.defs#wip")
+	// Lifecycle and explicit moderation exclusions still apply.
 	for _, state := range []string{"departed", "deletion_pending", "deleting", "terminal"} {
 		owner := "did:plc:" + state
 		seedStatsMember(t, pool, owner)
@@ -145,17 +150,17 @@ func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Accounts != 2 || stats.Posts != 6 || stats.ProjectPosts != 4 || stats.FinishedProjectPosts != 3 {
+	if stats.Accounts != 4 || stats.Posts != 10 || stats.ProjectPosts != 8 || stats.FinishedProjectPosts != 6 {
 		t.Fatalf("incorrect public totals: %+v", stats)
 	}
-	wantCrafts := []api.PublicCraftCount{{Craft: knitting, Count: 2}, {Craft: sewing, Count: 1}, {Craft: extensionCraft, Count: 1}}
+	wantCrafts := []api.PublicCraftCount{{Craft: knitting, Count: 5}, {Craft: sewing, Count: 2}, {Craft: extensionCraft, Count: 1}}
 	if !reflect.DeepEqual(stats.ProjectsByCraft, wantCrafts) {
 		t.Fatalf("crafts=%+v want %+v", stats.ProjectsByCraft, wantCrafts)
 	}
 	// Removing an owner immediately removes their posts from every count.
 	exec(`UPDATE owner_lifecycles SET state='departed' WHERE owner_did=$1`, alice)
 	stats, err = store.PublicStats(ctx)
-	if err != nil || stats.Accounts != 1 || stats.Posts != 0 || stats.ProjectPosts != 0 || stats.FinishedProjectPosts != 0 || len(stats.ProjectsByCraft) != 0 {
+	if err != nil || stats.Accounts != 3 || stats.Posts != 2 || stats.ProjectPosts != 2 || stats.FinishedProjectPosts != 1 || len(stats.ProjectsByCraft) != 2 {
 		t.Fatalf("departed owner statistics=%+v err=%v", stats, err)
 	}
 }
@@ -166,7 +171,7 @@ func TestPublicStatsStoreMigratedSchema(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES('did:plc:alice','active',1,1,'test',now())`); err != nil {
 		t.Fatal(err)
 	}
-	seedStatsMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:alice") // Existing production profiles have unknown visibility.
 	uri := seedPost(t, pool, "did:plc:alice", "knit", "Finished scarf", time.Now())
 	seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Scarf")
 	if _, err := pool.Exec(ctx, `

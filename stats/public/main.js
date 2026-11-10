@@ -90,7 +90,7 @@
 
   function drawChart(data) {
     if (data.projectPosts === 0) {
-      chartMessage('No public project posts yet.');
+      chartMessage('No project posts yet.');
       return;
     }
     const rows = new Map(Object.keys(crafts).map(key => [prefix + key, 0]));
