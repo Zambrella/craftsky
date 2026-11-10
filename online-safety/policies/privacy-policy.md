@@ -3,16 +3,13 @@
 | Field | Value |
 |---|---|
 | Privacy owner | Douglas Todd, Founder |
-| Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.4 |
-| Status | Draft; not effective |
-| Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 9 November 2026 |
-| Next review | Before publication, then at least annually |
-| Publication | Public after factual, DPIA, and legal approval |
-
-> This draft is not effective and must not be published until the outstanding
-> launch requirements in the internal compliance register are complete.
+| Approved by | Douglas Todd, 10 November 2026 (private beta publication) |
+| Version | 1.0 |
+| Status | Approved |
+| Effective date | 10 November 2026 |
+| Last reviewed | 10 November 2026 |
+| Next review | Before full public launch, then at least annually |
+| Publication | Public; approved for private beta |
 
 ## 1. Who We Are
 
@@ -164,9 +161,10 @@ The known inventory includes:
 | PostHog | Consent-based, limited public-website analytics in the EU |
 | Sentry | App and service errors, logs, and sampled traces in the EU |
 | Cloudflare | Website delivery, bot protection, security, and network infrastructure |
-| Hetzner | Intended EU hosting and database infrastructure |
-| Amazon S3 in the AWS Europe (Frankfurt) Region | Temporary private storage for scheduled-post media |
+| Render | AppView hosting and PostgreSQL database infrastructure in Frankfurt |
+| Amazon S3 in the AWS Europe (Frankfurt) Region | Temporary private storage for scheduled-post media; separate restricted storage for safety evidence when configured |
 | PDS and AT Protocol infrastructure operators | Store and distribute public records and fulfil user-directed requests; these operators are usually independent controllers |
+| Bunny.net Stream | Processes uploaded videos and delivers public video playback; the processed video is also stored on the owner's PDS |
 | Bluesky video service | Process a user-directed video upload and store the processed result on the user's PDS |
 | Meta/Instagram | Optional account linking, verification, migration, and related messages |
 | Apple and Google | App distribution, push delivery, and in-app subscriptions; they generally act under their own terms and privacy policies |
@@ -362,3 +360,4 @@ requires it.
 | 0.2 | 14 September 2026 | Records decisions on contacts, analytics consent, providers, retention, rights requests, legal holds, and publication naming. | Douglas Todd / approval pending |
 | 0.3 | 14 September 2026 | Records CraftSky as the assumed company name, adds registration-detail placeholders, and identifies Amazon S3 in AWS Frankfurt for scheduled-media storage. | Douglas Todd / approval pending |
 | 0.4 | 9 November 2026 | Records CRAFTSKY LTD, company number 17482696, and registered office from Companies House; policy approval remains pending. | Repository update / approval pending |
+| 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026; updates the provider inventory for Render, Bunny Stream, and separate safety evidence storage. Full public launch readiness remains tracked separately. | Douglas Todd |

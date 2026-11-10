@@ -8,7 +8,7 @@ Static public site served at https://craftsky.social.
 - `why-instagram-sucks-for-crafters.html` + `why-instagram.css` — sourced comparison campaign at `/why-instagram-sucks-for-crafters`
 - `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
-  `copyright.html` — generated policy drafts; approval remains recorded in the readiness manifest
+  `copyright.html` — generated policies; publication approval and remaining full-launch evidence are recorded in the readiness manifest
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
 - `main.js` — waiting-list modal + PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture

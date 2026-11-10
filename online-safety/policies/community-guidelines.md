@@ -3,14 +3,14 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending final policy approval by Douglas Todd |
-| Version | 0.4 |
-| Status | Draft; not effective |
-| Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 9 November 2026 (approved harmful-content boundary; full policy review pending) |
-| Next review | Before publication, then at least annually |
-| Publication | Public after approval |
-| Content-boundary decision | Douglas Todd approved the full all-user harmful-to-children content boundary and context safeguards on 9 November 2026; full policy/publication approval remains pending |
+| Approved by | Douglas Todd, 10 November 2026 (private beta publication) |
+| Version | 1.0 |
+| Status | Approved |
+| Effective date | 10 November 2026 |
+| Last reviewed | 10 November 2026 |
+| Next review | Before full public launch, then at least annually |
+| Publication | Public; approved for private beta |
+| Content-boundary decision | Douglas Todd approved the full all-user harmful-to-children content boundary and context safeguards on 9 November 2026; private beta publication approved on 10 November 2026 |
 
 CraftSky is a social network for textile and fibre crafters. We want it to be a
 place where people can share projects, ask questions, learn, and celebrate each
@@ -333,3 +333,4 @@ accessed by children and applies the safeguards required by law.
 | 0.3 | 9 November 2026 | Records owner approval of the public-content approach: prohibit pornography, sexual exploitation and harmful suicide/self-harm/eating-disorder encouragement or instruction for all users, retaining legitimate non-promotional context exceptions. Full policy approval remains pending. | Douglas Todd / content approach approved only |
 
 | 0.4 | 9 November 2026 | Aligns all-user harmful-content prohibitions and context safeguards with the owner-approved children's content boundary; full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |
+| 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |

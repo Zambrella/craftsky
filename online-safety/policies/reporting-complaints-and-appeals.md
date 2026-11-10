@@ -3,23 +3,22 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending final policy approval by Douglas Todd |
-| Version | 0.3 |
-| Status | Draft; not effective |
-| Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 9 November 2026 (harmful-content boundary alignment) |
-| Next review | Before publication, then at least annually |
-| Publication | Public after controls are implemented and reviewed |
+| Approved by | Douglas Todd, 10 November 2026 (private beta publication) |
+| Version | 1.0 |
+| Status | Approved |
+| Effective date | 10 November 2026 |
+| Last reviewed | 10 November 2026 |
+| Next review | Before full public launch, then at least annually |
+| Publication | Public; approved for private beta |
 
 ## Purpose
 
 This policy explains how people can report safety concerns, complain about
 CraftSky's handling of illegal content, and appeal moderation decisions.
 
-This draft is not yet operative. When it takes effect, signed-in CraftSky members
-will be able to report posts, profiles, accounts, and business events in the app.
-People who cannot sign in will be able to report or complain by email as described
-below.
+Signed-in CraftSky members can report posts, profiles, accounts, and business
+events in the app. People who cannot sign in can report or complain by email as
+described below.
 
 ## Report Content or Conduct
 
@@ -225,3 +224,4 @@ People may also:
 | 0.2 | 14 September 2026 | Records decisions on email intake, coverage, acknowledgement, reporter outcomes, appeals, misuse, and external routes. | Douglas Todd / approval pending |
 
 | 0.3 | 9 November 2026 | Aligns reporting topics and contextual review with the approved harmful-to-children boundary without changing intake, status UI, communications or provider-report routing. | Douglas Todd / content boundary approved only |
+| 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |

@@ -159,6 +159,7 @@ def render(title: str, route: str, meta: dict[str, str], body: str) -> bytes:
     version = meta.get("Version", "")
     status = meta.get("Status", "")
     effective = meta.get("Proposed effective date", meta.get("Effective date", ""))
+    effective_label = "Effective date" if status == "Approved" else "Proposed effective date"
     warning = ""
     if status != "Approved":
         warning = '<p class="legal__draft" role="status"><strong>Draft, not effective.</strong> Publication remains blocked pending the approvals and evidence recorded in the release manifest.</p>'
@@ -178,8 +179,8 @@ def render(title: str, route: str, meta: dict[str, str], body: str) -> bytes:
   <hr class="section-rule" />
   <main id="main" class="legal"><article class="container container--narrow">
     <h1 class="legal__title">{html.escape(title)}</h1>
-    <p class="legal__updated">Version {html.escape(version)}. Proposed effective date: {html.escape(effective)}.</p>
-    {warning}
+    <p class="legal__updated">Version {html.escape(version)}. {effective_label}: {html.escape(effective)}.</p>
+{warning}
     {body}
   </article></main>
   <script src="/main.js" defer></script>
@@ -222,7 +223,7 @@ def main() -> None:
 
     manifest = {
         "schemaVersion": 1,
-        "publicationStatus": "blocked",
+        "publicationStatus": "approved" if all(entry["approvalStatus"] == "Approved" for entry in entries) else "blocked",
         "generatedFrom": "online-safety/policies",
         "policies": entries,
         "releaseControls": {
@@ -238,7 +239,7 @@ def main() -> None:
             },
         },
         "externalBlockers": [
-            "Accountable owner and specialist policy approval",
+            "Specialist policy review before full public launch",
             "Worldwide jurisdiction review",
             "Commercial and subscription policy scope decision",
             "Atomic Cloudflare deployment and rollback evidence",

@@ -3,16 +3,13 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending final policy approval by Douglas Todd |
-| Version | 0.5 |
-| Status | Draft; not effective |
-| Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 9 November 2026 |
-| Next review | Before publication, then at least annually |
-| Publication | Public after approval; replaces the April 2026 web Terms |
-
-> This draft is not effective and must not be published until the outstanding
-> launch requirements in the internal compliance register are complete.
+| Approved by | Douglas Todd, 10 November 2026 (private beta publication) |
+| Version | 1.0 |
+| Status | Approved |
+| Effective date | 10 November 2026 |
+| Last reviewed | 10 November 2026 |
+| Next review | Before full public launch, then at least annually |
+| Publication | Public; approved for private beta |
 
 ## 1. About These Terms
 
@@ -375,3 +372,4 @@ Postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, Unit
 | 0.4 | 9 November 2026 | Records CRAFTSKY LTD, company number 17482696, and registered office from Companies House; policy approval remains pending. | Repository update / approval pending |
 
 | 0.5 | 9 November 2026 | Aligns child-harm content rules with the owner-approved all-user boundary and context safeguards. Full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |
+| 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |
