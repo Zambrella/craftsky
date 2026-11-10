@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Print public mobile build configuration states, never their values."""
+import json
+from pathlib import Path
+import runpy
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def summarize(args, read):
+    files, defines = [], {}
+    iterator = iter(args)
+    for arg in iterator:
+        name, separator, value = arg.partition('=')
+        if name not in ('--dart-define', '--dart-define-from-file'):
+            continue
+        if not separator:
+            value = next(iterator, '')
+        if name == '--dart-define-from-file':
+            files.append(value)
+        else:
+            # Flutter accepts comma-separated defines; explicit defines beat files.
+            for entry in value.split(','):
+                key, _, val = entry.partition('=')
+                defines[key] = val
+    values = {}
+    for name in files:
+        path = ROOT / 'app' / name
+        loaded = json.loads(path.read_text()) if path.suffix == '.json' else read(path)
+        values.update({key: str(value).lower() if isinstance(value, bool) else str(value)
+                       for key, value in loaded.items()})
+    values.update(defines)
+    enabled = lambda key: values.get(key) == 'true'
+    debug = '--release' not in args and '--profile' not in args
+    subscriptions = enabled('SUBSCRIPTIONS_ENABLED')
+    test_store = subscriptions and debug and enabled('REVENUECAT_USE_TEST_STORE')
+    environment = values.get('SENTRY_ENVIRONMENT', '').strip().lower() or 'development'
+    sentry = bool(values.get('SENTRY_DSN', '').strip()) and (
+        environment in ('production', 'staging') or enabled('SENTRY_LOCAL_OPT_IN'))
+    rows = [('SUBSCRIPTIONS_ENABLED', subscriptions),
+            ('REVENUECAT_USE_TEST_STORE (effective)', test_store),
+            ('CRAFTSKY_DEV_OAUTH_SCHEME (effective)', debug and enabled('CRAFTSKY_DEV_OAUTH_SCHEME')),
+            ('CRAFTSKY_DEBUG_LOGS', enabled('CRAFTSKY_DEBUG_LOGS')),
+            ('SENTRY_LOCAL_OPT_IN', enabled('SENTRY_LOCAL_OPT_IN'))]
+    print('Mobile services and feature flags (build configuration; runtime consent still applies):')
+    print('  Sentry: ' + ('configured (requires consent)' if sentry else 'disabled'))
+    for platform in ('ios', 'android'):
+        key = 'REVENUECAT_TEST_STORE_PUBLIC_KEY' if test_store else f'REVENUECAT_{platform.upper()}_PUBLIC_KEY'
+        ready = subscriptions and bool(values.get(key, '').strip())
+        print('  RevenueCat ' + platform + ': ' + ('configured' if ready else 'disabled'))
+        native = ROOT / ('app/ios/Runner/GoogleService-Info.plist' if platform == 'ios'
+                         else 'app/android/app/google-services.json')
+        print('  Firebase push ' + platform + ': ' + ('configuration present' if native.is_file() else 'configuration missing'))
+    for key, state in rows:
+        print('  ' + key + ': ' + ('enabled' if state else 'disabled'))
+    print('Backend-controlled features are reported by just dev-d; connectivity is not checked.')
+
+
+if __name__ == '__main__':
+    try:
+        config = runpy.run_path(str(ROOT / 'scripts/config'))
+        summarize(sys.argv[1:], config['read'])
+    except Exception:
+        # Parser errors may contain source lines, file paths or supplied values.
+        print('Mobile configuration summary unavailable; values withheld.', file=sys.stderr)

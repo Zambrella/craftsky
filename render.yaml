@@ -378,6 +378,8 @@ projects:
                 sync: false
               - key: SAFETY_EMAIL_ENABLED
                 sync: false
+              - key: SAFETY_EMAIL_CONSOLE_ORIGIN
+                sync: false
               - key: BREVO_API_KEY
                 sync: false
               - key: WEB_APP_ORIGIN

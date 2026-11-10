@@ -36,5 +36,6 @@ cd web-client
 if [[ ! -d node_modules ]]; then
   npm ci
 fi
+node scripts/config-summary.mjs "$@"
 printf 'CraftSky web: http://127.0.0.1:%s (AppView: %s)\n' "$public_app_port" "$APPVIEW_ORIGIN"
 exec npm run dev -- --port "$public_app_port" --strictPort "$@"

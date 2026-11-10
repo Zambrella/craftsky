@@ -92,6 +92,12 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue((self.target / '.env.local').exists())
         self.assertFalse((self.target / '.env.secrets.local').exists())
 
+    def test_worktree_does_not_inherit_console_origin(self):
+        (self.source / '.env.local').write_text('SAFETY_EMAIL_CONSOLE_ORIGIN=http://127.0.0.1:18080\n')
+        self.initialize()
+        copied = self.helper('read', self.target / '.env.secrets.local')
+        self.assertNotIn('SAFETY_EMAIL_CONSOLE_ORIGIN', copied)
+
     def test_symlink_destination_is_rejected(self):
         outside = self.root / 'outside'
         outside.write_text('unchanged')
@@ -129,9 +135,75 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(output.getvalue(), 'export CRAFTSKY_PUBLIC_APP_PORT=25444\n')
             self.assertNotIn('protected-canary', output.getvalue())
 
+    def test_service_summary_merges_profiles_without_exposing_values(self):
+        (self.root / 'appview/environments').mkdir(parents=True)
+        (self.root / 'appview/internal/app').mkdir(parents=True)
+        (self.root / 'appview/internal/app/config.go').write_text('boolEnv("LINK_PREVIEWS_ENABLED", env != EnvProd)\nboolEnv("PUSH_ENABLED", false)\nboolEnv("SENTRY_LOGS_ENABLED", false)\n')
+        (self.root / 'appview/environments/dev.env').write_text('SENTRY_DSN=dsn-canary\nVIDEO_PROVIDER=bunny\n')
+        (self.root / '.env.secrets.local').write_text('VIDEO_PROVIDER=bluesky\nREVENUECAT_API_KEY=secret-canary\nCHAT_OPERATION_HMAC_KEY=chat-canary\n')
+        (self.root / '.env.local').write_text('VIDEO_ENABLED=false\nINSTAGRAM_META_ENABLED=false\nSENTRY_DSN=\n')
+        with patch.object(config, 'ROOT', self.root), patch.dict(os.environ, {'INSTAGRAM_META_ENABLED': 'true', 'REVENUECAT_ENABLED': 'true'}, clear=True), patch('sys.argv', ['config', 'services', '--push-enabled']):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                config.main()
+        text = output.getvalue()
+        for expected in ('Firebase push: enabled (ADC found)', 'Instagram Meta: enabled',
+                         'RevenueCat: disabled', 'Sentry: disabled', 'Brevo safety emails: disabled',
+                         'Bunny Stream video: disabled (provider not selected)', 'Bluesky video: disabled',
+                         'Bunny CDN purge: not configured', 'Bluesky chat: configured'):
+            self.assertIn(expected, text)
+        self.assertNotIn('canary', text)
+        self.assertIn('LINK_PREVIEWS_ENABLED: enabled', text)
+        self.assertIn('PUSH_ENABLED: enabled', text)
+        self.assertIn('SENTRY_LOGS_ENABLED: disabled (Sentry DSN not configured)', text)
+
+    def test_service_summary_defaults_and_invalid_values_are_redacted(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            config.service_summary({})
+            config.service_summary({'INSTAGRAM_META_ENABLED': 'private-canary', 'VIDEO_PROVIDER': 'private-canary'})
+        text = output.getvalue()
+        self.assertIn('Bunny Stream video: enabled', text)
+        self.assertIn('Firebase push: disabled (ADC not found)', text)
+        self.assertIn('Instagram Meta: invalid configuration', text)
+        self.assertIn('Bunny Stream video: invalid configuration', text)
+        self.assertNotIn('private-canary', text)
+
+    def test_feature_flags_follow_loader_defaults_and_redact_invalid_values(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            config.service_summary({'VIDEO_ENABLED': 'false', 'LINK_PREVIEWS_ENABLED': 'private-canary',
+                                    'INSTAGRAM_META_REPLIES_ENABLED': 'true'})
+        text = output.getvalue()
+        self.assertIn('VIDEO_ENABLED: disabled', text)
+        self.assertIn('LINK_PREVIEWS_ENABLED: invalid configuration', text)
+        self.assertIn('INSTAGRAM_META_REPLIES_ENABLED: enabled', text)
+        self.assertIn('REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE: enabled', text)
+        self.assertIn('APPVIEW_UNSAFE_LOG_RESPONSE_BODIES: disabled', text)
+        self.assertNotIn('private-canary', text)
+
     def test_refuses_to_copy_into_unignored_paths(self):
         (self.target / '.gitignore').write_text('')
         with self.assertRaises(ValueError):
             self.initialize()
         self.assertFalse((self.target / '.env.local').exists())
         self.assertFalse((self.target / '.env.secrets.local').exists())
+
+    def test_fresh_backend_examples_initialize_and_validate(self):
+        for name in ('.env.local', '.env.secrets.local'):
+            shutil.copyfile(ROOT / (name + '.example'), self.target / name)
+        profile = self.target / 'appview/environments'
+        profile.mkdir(parents=True)
+        shutil.copyfile(ROOT / 'appview/environments/dev.env', profile / 'dev.env')
+        self.initialize()
+        local = self.helper('read', self.target / '.env.local')
+        secret = self.helper('read', self.target / '.env.secrets.local')
+        for key in ('CHAT_OPERATION_HMAC_KEY', 'OAUTH_HANDOFF_RECEIPT_KEY', 'INSTAGRAM_DATA_HMAC_KEY'):
+            self.assertTrue(secret[key])
+            self.assertNotIn(key, local)
+        for key in ('BUNNY_STREAM_API_KEY', 'BUNNY_CDN_PURGE_API_KEY', 'BREVO_API_KEY',
+                    'INSTAGRAM_META_ACCESS_TOKEN', 'REVENUECAT_API_KEY'):
+            self.assertEqual(secret[key], '')
+            self.assertNotIn(key, local)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(self.helper('validate', self.target)['valid'])

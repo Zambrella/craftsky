@@ -208,7 +208,7 @@ func TestDefaultRateLimitsKeepLinkPreviewQuotaIndependent(t *testing.T) {
 // would cause Load to skip the file's value — the opposite of what we want.
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
-	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID", "SAFETY_EMAIL_ENABLED", "BREVO_API_KEY",
+	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID", "SAFETY_EMAIL_ENABLED", "BREVO_API_KEY", "SAFETY_EMAIL_CONSOLE_ORIGIN",
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_ACK_SAFETY_MARGIN", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
@@ -1771,16 +1771,52 @@ func TestLoadConfigSafetyEmailRequiresCompleteConfiguration(t *testing.T) {
 }
 
 func TestLoadConfigSafetyEmailProduction(t *testing.T) {
-	base := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n")
+	base := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\nSAFETY_EMAIL_CONSOLE_ORIGIN=https://console.example.org\n")
 	cfg, err := LoadConfig(EnvProd, testConfigFile(t, base))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.SafetyEmailEnabled || cfg.BrevoAPIKey.Reveal() != "credential-canary" {
+	if cfg.SafetyEmailConsoleOrigin != "https://console.example.org" || !cfg.SafetyEmailEnabled || cfg.BrevoAPIKey.Reveal() != "credential-canary" {
 		t.Fatal("email configuration unavailable")
 	}
 	if strings.Contains(fmt.Sprintf("%+v", cfg), "credential-canary") {
 		t.Fatal("credential exposed in config diagnostics")
+	}
+}
+
+func TestLoadConfigSafetyEmailConsoleOrigin(t *testing.T) {
+	const credentials = "MODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n"
+	for _, tc := range []struct {
+		name, origin, want string
+		env                Env
+		wantError          bool
+	}{
+		{"dev default follows callback port", "", "http://127.0.0.1:18444", EnvDev, false},
+		{"dev explicit loopback", "http://localhost:18080/", "http://localhost:18080", EnvDev, false},
+		{"dev separate HTTPS console", "https://console.example.org", "https://console.example.org", EnvDev, false},
+		{"dev rejects LAN HTTP", "http://192.168.1.50:18080", "", EnvDev, true},
+		{"prod requires explicit console origin", "", "", EnvProd, true},
+		{"prod rejects loopback HTTP", "http://127.0.0.1:18080", "", EnvProd, true},
+		{"prod independent HTTPS console", "https://console.example.org/", "https://console.example.org", EnvProd, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := "DATABASE_URL=postgres://test\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n" + credentials
+			if tc.env == EnvProd {
+				base = withProductionOAuth(strings.Replace(base, "ALLOWED_ORIGINS=*", "ALLOWED_ORIGINS=https://craftsky.social", 1))
+			} else {
+				base += "OAUTH_CALLBACK_URL=http://127.0.0.1:18444/oauth/callback\n"
+			}
+			if tc.origin != "" {
+				base += "SAFETY_EMAIL_CONSOLE_ORIGIN=" + tc.origin + "\n"
+			}
+			cfg, err := LoadConfig(tc.env, testConfigFile(t, base))
+			if (err != nil) != tc.wantError {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if err == nil && cfg.SafetyEmailConsoleOrigin != tc.want {
+				t.Fatalf("console origin = %q", cfg.SafetyEmailConsoleOrigin)
+			}
+		})
 	}
 }
 

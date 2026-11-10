@@ -24,6 +24,7 @@ import (
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/safetyalerts"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/scheduledposts"
 )
@@ -355,6 +356,7 @@ type Config struct {
 
 	ModerationAdminEnabled       bool
 	SafetyEmailEnabled           bool
+	SafetyEmailConsoleOrigin     string
 	BrevoAPIKey                  Secret
 	ModerationSourceDID          string
 	ModerationExpiryPollInterval time.Duration
@@ -1094,8 +1096,16 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.SafetyEmailEnabled {
 		cfg.BrevoAPIKey = Secret(strings.TrimSpace(os.Getenv("BREVO_API_KEY")))
-		if cfg.BrevoAPIKey.Reveal() == "" || !cfg.ModerationAdminEnabled || cfg.OAuth.PublicOrigin.Scheme != "https" {
-			return Config{}, fmt.Errorf("SAFETY_EMAIL_ENABLED requires BREVO_API_KEY, MODERATION_ADMIN_ENABLED and an HTTPS OAUTH_PUBLIC_ORIGIN")
+		if cfg.BrevoAPIKey.Reveal() == "" || !cfg.ModerationAdminEnabled {
+			return Config{}, fmt.Errorf("SAFETY_EMAIL_ENABLED requires BREVO_API_KEY and MODERATION_ADMIN_ENABLED")
+		}
+		origin := os.Getenv("SAFETY_EMAIL_CONSOLE_ORIGIN")
+		if origin == "" && env == EnvDev {
+			origin = cfg.OAuth.CallbackURL.Scheme + "://" + cfg.OAuth.CallbackURL.Host
+		}
+		cfg.SafetyEmailConsoleOrigin, err = safetyalerts.ConsoleOrigin(origin, env == EnvDev)
+		if err != nil {
+			return Config{}, fmt.Errorf("SAFETY_EMAIL_CONSOLE_ORIGIN must be an HTTPS origin (loopback HTTP is allowed in dev)")
 		}
 	}
 	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")

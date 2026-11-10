@@ -17,7 +17,7 @@ CLIENT_FILES = ('app/config/local.env', 'app/config/local-android.env')
 # Host/port and remote authorization are deliberately specific to each worktree.
 TOPOLOGY = ('CRAFTSKY_', 'COMPOSE_', 'APPVIEW_DEV_', 'APPVIEW_EXPECTED_HOSTS',
             'OAUTH_PUBLIC_ORIGIN', 'OAUTH_CLIENT_SECRET_KEY', 'OAUTH_CALLBACK_URL',
-            'WEB_APP_ORIGIN', 'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL')
+            'WEB_APP_ORIGIN', 'SAFETY_EMAIL_CONSOLE_ORIGIN', 'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL')
 SHELL_KEYS = {'CRAFTSKY_COMPOSE_PROJECT_NAME', 'CRAFTSKY_POSTGRES_PORT',
  'CRAFTSKY_APPVIEW_PORT', 'CRAFTSKY_MINIO_PORT', 'CRAFTSKY_MINIO_CONSOLE_PORT',
  'CRAFTSKY_POSTGRES_PUBLISH_HOST', 'CRAFTSKY_APPVIEW_PUBLISH_HOST',
@@ -141,10 +141,65 @@ def lint():
     print('Configuration inventory and Docker secret exclusions verified.')
 
 
+def service_summary(values, push_enabled=False):
+    """Describe backend configuration only; never serialize configuration values."""
+    def flag(key, default=False):
+        value = values.get(key) or ('true' if default else 'false')
+        if value in ('1', 't', 'T', 'TRUE', 'true', 'True'):
+            return 'enabled'
+        if value in ('0', 'f', 'F', 'FALSE', 'false', 'False'):
+            return 'disabled'
+        return 'invalid configuration'
+
+    provider = values.get('VIDEO_PROVIDER') or 'bunny'
+    video = flag('VIDEO_ENABLED', True)
+    rows = [
+        ('Firebase push', 'enabled (ADC found)' if push_enabled else 'disabled (ADC not found)'),
+        ('Instagram Meta', flag('INSTAGRAM_META_ENABLED')),
+        ('RevenueCat', flag('REVENUECAT_ENABLED')),
+        ('Sentry', 'enabled' if values.get('SENTRY_DSN') else 'disabled'),
+        ('Brevo safety emails', flag('SAFETY_EMAIL_ENABLED')),
+    ]
+    for name, selected in (('Bunny Stream video', 'bunny'), ('Bluesky video', 'bluesky')):
+        state = video if provider == selected else 'disabled (provider not selected)'
+        if provider not in ('bunny', 'bluesky'):
+            state = 'invalid configuration'
+        rows.append((name, state))
+    rows.extend([
+        ('Bunny CDN purge', 'configured' if values.get('BUNNY_CDN_PURGE_API_KEY') else 'not configured'),
+        ('Bluesky chat', 'configured' if values.get('CHAT_OPERATION_HMAC_KEY') else 'unavailable (operation key missing)'),
+    ])
+    print('External services (backend configuration; connectivity not checked):')
+    for name, state in rows:
+        print('  ' + name + ': ' + state)
+    print('Feature flags (backend):')
+    # Discover flags and their development defaults from the owning loaders,
+    # keeping newly added flags visible without another inventory to maintain.
+    defaults = {}
+    for path in sorted((ROOT / 'appview/internal/app').glob('*config*.go')):
+        if path.name.endswith('_test.go'):
+            continue
+        source = path.read_text()
+        for key, default in re.findall(r'boolEnv\("([A-Z_]+)", (true|false|env != EnvProd)\)', source):
+            defaults[key] = default != 'false'
+        for key, default in re.findall(r'strconv.ParseBool\(getEnvWithDefault\("([A-Z_]+)", "(true|false)"\)\)', source):
+            defaults[key] = default == 'true'
+    for key, default in sorted(defaults.items()):
+        if key == 'PUSH_ENABLED':
+            state = 'enabled' if push_enabled else 'disabled'
+        else:
+            state = flag(key, default)
+            if key.startswith('SENTRY_') and not values.get('SENTRY_DSN'):
+                state = 'disabled (Sentry DSN not configured)'
+        print('  ' + key + ': ' + state)
+    print('Run just config-check to validate integration requirements.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['init', 'check', 'status', 'shell', 'port', 'reference', 'lint'])
+    parser.add_argument('action', choices=['init', 'check', 'status', 'services', 'shell', 'port', 'reference', 'lint'])
     parser.add_argument('--target', type=Path)
+    parser.add_argument('--push-enabled', action='store_true')
     args = parser.parse_args()
     if args.action == 'init':
         init((args.target or ROOT).resolve())
@@ -158,9 +213,18 @@ def main():
         print('Local AppView configuration valid (no services contacted).')
     else:
         values = {}
+        if args.action == 'services':
+            values.update(read(ROOT / 'appview/environments/dev.env'))
         for name in LOCAL_FILES:
             values.update(read(ROOT / name))
-        if args.action == 'shell':
+        if args.action == 'services':
+            # Compose explicitly overrides push based on ADC discovery. Other
+            # backend shell variables are not forwarded by compose-dev.
+            for key in SHELL_KEYS:
+                if key in os.environ:
+                    values[key] = os.environ[key]
+            service_summary(values, args.push_enabled)
+        elif args.action == 'shell':
             for key in sorted(SHELL_KEYS):
                 if key in values and key not in os.environ:
                     print('export ' + key + '=' + shlex.quote(values[key]))

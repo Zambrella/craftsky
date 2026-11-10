@@ -52,7 +52,7 @@ func TestBrevoPayloadAndResponsePrivacy(t *testing.T) {
 				_, _ = io.WriteString(w, tc.body)
 			}))
 			defer server.Close()
-			b, err := NewBrevo("credential-canary", "https://appview.craftsky.social")
+			b, err := NewBrevo("credential-canary", "https://appview.craftsky.social", false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,7 +73,7 @@ func TestBrevoPayloadAndResponsePrivacy(t *testing.T) {
 
 func TestBrevoRejectsRedirectsAndInvalidOrigins(t *testing.T) {
 	for _, origin := range []string{"http://example.com", "https://user:pass@example.com", "https://example.com/?token=x", "https://example.com/#secret", "https://example.com/private"} {
-		if _, err := NewBrevo("key", origin); err == nil {
+		if _, err := NewBrevo("key", origin, false); err == nil {
 			t.Errorf("accepted %s", origin)
 		}
 	}
@@ -84,9 +84,47 @@ func TestBrevoRejectsRedirectsAndInvalidOrigins(t *testing.T) {
 		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
 	}))
 	defer redirect.Close()
-	b, _ := NewBrevo("key", "https://appview.craftsky.social")
+	b, _ := NewBrevo("key", "https://appview.craftsky.social", false)
 	b.endpoint = redirect.URL
 	if err := b.Send(context.Background(), uuid.New()); err == nil || leaked {
 		t.Fatal("redirect followed or considered delivered")
+	}
+}
+
+func TestConsoleOriginDevelopmentBoundary(t *testing.T) {
+	for _, origin := range []string{"http://localhost:18080", "http://127.0.0.1:18080", "http://[::1]:18080"} {
+		if _, err := NewBrevo("key", origin, true); err != nil {
+			t.Errorf("development loopback rejected: %v", err)
+		}
+		if _, err := NewBrevo("key", origin, false); err == nil {
+			t.Error("production accepted loopback HTTP")
+		}
+	}
+	for _, origin := range []string{"http://example.org", "http://localhost.example.org", "http://192.168.1.2", "http://127.0.0.1:0", "http://127.0.0.1:65536", "http://user:secret@localhost", "http://localhost/private", "http://localhost/?", "http://localhost/#", "http://localhost/%2f", " http://localhost", "http://localhost\\private"} {
+		if _, err := NewBrevo("credential-canary", origin, true); err == nil || strings.Contains(err.Error(), "credential-canary") {
+			t.Errorf("invalid origin accepted or credential leaked")
+		}
+	}
+}
+
+func TestBrevoDevelopmentConsoleLinkInPayload(t *testing.T) {
+	b, err := NewBrevo("credential-canary", "http://127.0.0.1:18444/", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if !strings.Contains(body["textContent"].(string), "http://127.0.0.1:18444/admin/") {
+			t.Error("incorrect console link")
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+	b.endpoint = server.URL
+	if err := b.Send(t.Context(), uuid.New()); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -57,7 +57,7 @@ func newSafetyEmailDependencies(pool *pgxpool.Pool, cfg Config, observer *observ
 	if !cfg.SafetyEmailEnabled {
 		return nil, nil
 	}
-	sender, err := safetyalerts.NewBrevo(cfg.BrevoAPIKey.Reveal(), cfg.OAuth.PublicOrigin.String())
+	sender, err := safetyalerts.NewBrevo(cfg.BrevoAPIKey.Reveal(), cfg.SafetyEmailConsoleOrigin, cfg.Env == EnvDev)
 	if err != nil {
 		return nil, err
 	}

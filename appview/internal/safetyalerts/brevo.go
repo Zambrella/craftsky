@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,12 +28,36 @@ type Brevo struct {
 	endpoint   string
 }
 
-func NewBrevo(key, origin string) (*Brevo, error) {
+// ConsoleOrigin validates a console link independently of OAuth configuration.
+// Plain HTTP is restricted to loopback hosts and explicitly enabled development.
+func ConsoleOrigin(origin string, allowLoopbackHTTP bool) (string, error) {
 	u, err := url.Parse(origin)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.TrimSpace(key) == "" {
+	if err != nil || origin != strings.TrimSpace(origin) || strings.ContainsAny(origin, "\\\\#\r\n\t") ||
+		u.Opaque != "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery ||
+		u.Fragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") {
+		return "", errors.New("invalid safety email console origin")
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return "", errors.New("invalid safety email console origin")
+		}
+	}
+	ip := net.ParseIP(u.Hostname())
+	loopback := u.Hostname() == "localhost" || (ip != nil && ip.IsLoopback())
+	if u.Scheme != "https" && !(allowLoopbackHTTP && u.Scheme == "http" && loopback) {
+		return "", errors.New("safety email console origin requires HTTPS or development loopback HTTP")
+	}
+	u.Path = ""
+	return u.String(), nil
+}
+
+func NewBrevo(key, origin string, allowLoopbackHTTP bool) (*Brevo, error) {
+	canonical, err := ConsoleOrigin(origin, allowLoopbackHTTP)
+	if err != nil || strings.TrimSpace(key) == "" {
 		return nil, errors.New("invalid safety email configuration")
 	}
-	return &Brevo{key: key, consoleURL: strings.TrimRight(origin, "/") + "/admin/", endpoint: "https://api.brevo.com/v3/smtp/email", client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Brevo{key: key, consoleURL: canonical + "/admin/", endpoint: "https://api.brevo.com/v3/smtp/email", client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
 // Send exports only static text, console origin and an opaque delivery UUID.

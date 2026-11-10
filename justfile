@@ -362,7 +362,12 @@ app-env-init:
 app-run *ARGS: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
-    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    python3 ./scripts/app-config-summary --dart-define-from-file=config/local.env \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" {{ARGS}}
+    if ! APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080) || [[ -z "$APPVIEW_ADDRESS" ]]; then
+      echo "AppView is unavailable. Check just config-check and just logs; start it with just dev-d." >&2
+      exit 1
+    fi
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     # Android's loopback belongs to the device. Prepare connected Android
     # devices before Flutter's picker so localhost works on every target.

@@ -15,6 +15,16 @@ Configuration has one owner per setting:
 
 ## Local setup and worktrees
 
+For a fresh primary checkout, copy `.env.local.example` to `.env.local` and
+`.env.secrets.local.example` to `.env.secrets.local`, then run
+`chmod 600 .env.local .env.secrets.local` and `just config-init`. Keep development
+API keys and signing keys in `.env.secrets.local`; keep flags, provider selection,
+public identifiers and ports in `.env.local`. The examples leave generated-key
+entries commented so initialization can supply independent keys. Do not copy an
+example over an existing configured file. Run `just config-check` before startup.
+The examples select credential-free Bluesky video; switch to Bunny only after
+providing its complete development library configuration.
+
 Run `just config-init` in the primary checkout after configuring its development integrations. Run it in an existing worktree to inherit missing development values from the primary checkout. `just worktree <branch>` runs this automatically for new worktrees. Worktrees created by other tools need `just config-init` once.
 
 The primary checkout is located through Git's common directory; it does not depend on which branch is currently checked out there. Setup reads its development `.env.local` and `.env.secrets.local`, never `prod.env`, production/staging mobile profiles, E2E passwords, Firebase service-account files, or deployment credentials from other files. Keep the source development-only. A credential accidentally placed in a development input cannot be distinguished from a development credential.
@@ -38,6 +48,25 @@ Local AppView precedence, from highest to lowest:
 The wrapper uses AppView's `godotenv` parser for quotes, comments and escapes. It exports only an explicit list of wrapper controls. Shell overrides apply to those controls; arbitrary shell variables are not automatically forwarded into Compose containers. The frontend launcher reads only its port, never sources backend secrets.
 
 Use `just config-status` for variable presence without values and `just config-check` for local configuration validation without contacting services. Invalid integration bundles fail validation. The wrapper also checks remote-development transport/host authorization before starting Compose. Changes to env files require container recreation with `just dev-d`, not merely a restart.
+
+Compose startup commands (`up`), including `just dev-d`, print a credential-free backend integration summary for Firebase push, Instagram, RevenueCat, Sentry, Brevo, video providers, Bunny CDN purge and Bluesky chat, followed by the backend's boolean feature flags. Port lookups used by client launchers do not print backend summaries. Flag names and development defaults are discovered from the Go configuration loaders. The summary describes configuration intent, not provider connectivity or client build settings. Firebase push reflects the wrapper's ADC discovery; the other entries use the development profile and local overrides.
+
+Safety emails are opt-in with `SAFETY_EMAIL_ENABLED=true`, `BREVO_API_KEY` and
+`MODERATION_ADMIN_ENABLED=true`. Their moderation-console links use
+`SAFETY_EMAIL_CONSOLE_ORIGIN`, independently of OAuth. In development, omitting
+it uses the loopback AppView origin from the configured callback (including the
+worktree port); an explicit HTTP origin must use `localhost` or a loopback IP.
+Production requires an explicit HTTPS console origin, for example
+`https://appview.craftsky.social`. Origins cannot contain credentials, query
+parameters, fragments or paths; the sender appends `/admin/`. Enabling the local
+worker sends real generic alerts to the existing moderation mailbox; it does
+not redirect delivery to a test inbox.
+
+`just app-run` also prints mobile service configuration and build flags, including
+explicit Flutter define overrides and debug-only gates. `just web-run` prints web
+service configuration and the subscription flag using Vite's selected mode,
+dotenv precedence and shell overrides. These summaries omit credential values;
+configured diagnostics and push still require runtime consent or permission.
 
 The tooling requires Python 3.9+ and the repository's pinned Go toolchain. It uses the existing Go dotenv dependency, without installing a second parser.
 

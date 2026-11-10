@@ -196,28 +196,19 @@ fi
 if [[ -n "$adc_path" ]]; then
   export FIREBASE_ADC_PATH="$adc_path"
   compose+=(-f "$repo_root/docker-compose.push.yml")
-  printf '%s\n' 'Firebase ADC found; push notifications enabled.' >&2
-else
-  printf '%s\n' 'Firebase ADC not found; push notifications disabled.' >&2
 fi
 
-instagram_meta_enabled=$(dotenv_value INSTAGRAM_META_ENABLED)
-instagram_meta_enabled=$(printf '%s' "$instagram_meta_enabled" | tr '[:upper:]' '[:lower:]')
-case "$instagram_meta_enabled" in
-  1 | t | true)
-    printf '%s\n' 'Instagram Meta integration enabled; use just config-check to validate the complete bundle.' >&2
-    ;;
-  "" | 0 | f | false)
-    printf '%s\n' 'Instagram Meta integration disabled; Instagram verification disabled.' >&2
-    ;;
-  *)
-    printf 'Invalid INSTAGRAM_META_ENABLED value %q; AppView startup will fail.\n' \
-      "$instagram_meta_enabled" >&2
-    ;;
-esac
+# Startup summaries belong to backend startup, not client port discovery.
+if [[ "${1:-}" == up ]]; then
+  summary_args=(services)
+  if [[ -n "$adc_path" ]]; then
+    summary_args+=(--push-enabled)
+  fi
+  ./scripts/config "${summary_args[@]}" >&2
 
-printf 'CraftSky stack: project=%s appview-listener=http://%s:%s postgres=%s:%s minio=http://%s:%s minio-console=http://%s:%s\n' \
-  "$project_name" "$appview_publish_host" "$appview_port" "$postgres_publish_host" "$postgres_port" \
-  "$minio_publish_host" "$minio_port" "$minio_publish_host" "$minio_console_port" >&2
+  printf 'CraftSky stack: project=%s appview-listener=http://%s:%s postgres=%s:%s minio=http://%s:%s minio-console=http://%s:%s\n' \
+    "$project_name" "$appview_publish_host" "$appview_port" "$postgres_publish_host" "$postgres_port" \
+    "$minio_publish_host" "$minio_port" "$minio_publish_host" "$minio_console_port" >&2
+fi
 
 exec "${compose[@]}" "$@"

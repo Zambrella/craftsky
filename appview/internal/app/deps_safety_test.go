@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"github.com/google/uuid"
-	"net/url"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/testdb"
 	"testing"
@@ -41,8 +40,7 @@ func TestSafetyEmailCompositionIsOptIn(t *testing.T) {
 	if err != nil || disabled != nil {
 		t.Fatalf("disabled email: %v", err)
 	}
-	origin, _ := url.Parse("https://appview.craftsky.social")
-	enabled, err := newSafetyEmailDependencies(nil, Config{SafetyEmailEnabled: true, BrevoAPIKey: Secret("fixture-key"), OAuth: OAuthDeployment{PublicOrigin: *origin}}, nil)
+	enabled, err := newSafetyEmailDependencies(nil, Config{SafetyEmailEnabled: true, BrevoAPIKey: Secret("fixture-key"), SafetyEmailConsoleOrigin: "https://console.example.org"}, nil)
 	if err != nil || enabled == nil {
 		t.Fatalf("enabled email: %v", err)
 	}

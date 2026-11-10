@@ -69,6 +69,8 @@ services:
       # TAP_WS_URL is required by LoadConfig but unused by `cli migrate`.
       # Kept here so a single compose-level config satisfies all services.
       TAP_WS_URL: ws://tap:2480/channel
+      # Migrations do not upload video or receive provider credentials.
+      VIDEO_PROVIDER: bluesky
     depends_on:
       postgres:
         condition: service_healthy
