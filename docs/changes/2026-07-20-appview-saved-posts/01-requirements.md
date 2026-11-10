@@ -7,7 +7,7 @@ Implement the AppView slice of private saved posts for Craftsky. The behavior sh
 ## 2. Current Codebase Findings
 
 - Relevant files:
-  - Architecture and privacy boundary: `atproto-craft-social-app-reference.md`, `AGENTS.md`.
+  - Architecture and privacy boundary: `docs/architecture.md`, `AGENTS.md`.
   - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`, `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`.
   - Route registration and route policies: `appview/internal/routes/routes.go`, `appview/internal/routes/policy.go`.
   - Canonical post handlers, storage, and response model: `appview/internal/api/post.go`, `appview/internal/api/post_store.go`, `appview/internal/api/post_response.go`.

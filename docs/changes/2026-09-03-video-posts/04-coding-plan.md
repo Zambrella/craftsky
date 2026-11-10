@@ -5,8 +5,8 @@
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md`, Approved with notes
-- Credential decision: `adr/012-ephemeral-video-service-token-handoff.md`
-- Lexicon decision: `adr/013-standard-video-embed.md`
+- Credential decision: `docs/adr/012-ephemeral-video-service-token-handoff.md`
+- Lexicon decision: `docs/adr/013-standard-video-embed.md`
 - Risk: High
 - Implementation status: Not started
 - Approval gate: Explicit user approval is required before the first TDD change.

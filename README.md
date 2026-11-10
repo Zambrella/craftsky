@@ -65,9 +65,9 @@ Flutter client ── reads / write requests ──> AppView (Go + PostgreSQL)
                                          User's PDS → Relay → Tap
 ```
 
-AppView mediates record writes and keeps OAuth credentials server-side. Reads come from its PostgreSQL index. Public records live on the PDS; private data such as drafts and mutes stays in AppView. Narrow, temporary credentials permit direct image and video uploads under [ADR 017](adr/017-direct-image-upload-service-token-handoff.md) and [ADR 012](adr/012-ephemeral-video-service-token-handoff.md).
+AppView mediates record writes and keeps OAuth credentials server-side. Reads come from its PostgreSQL index. Public records live on the PDS; private data such as drafts and mutes stays in AppView. Narrow, temporary credentials permit direct image and video uploads under [ADR 017](docs/adr/017-direct-image-upload-service-token-handoff.md) and [ADR 012](docs/adr/012-ephemeral-video-service-token-handoff.md).
 
-Read the [architecture reference](atproto-craft-social-app-reference.md) and [architecture decisions](adr/) before proposing architectural changes.
+Read the [architecture overview](docs/architecture.md) and [architecture decisions](docs/adr/) before proposing architectural changes.
 
 ## Repository map
 

@@ -7,7 +7,7 @@
 - Document review: `03-document-review.md` — Approved, High risk (re-reviewed 2026-07-14)
 - Repository guidance: `AGENTS.md`
 - Architecture references:
-  - `atproto-craft-social-app-reference.md`
+  - `docs/architecture.md`
   - `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
   - `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`
 - Existing implementation inspected:

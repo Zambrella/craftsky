@@ -19,7 +19,7 @@ and implementation status must be checked again before approval or publication.
 - [Draft CraftSky Pricing](https://docs.google.com/document/d/1vesCXif3vtNfGNTm1CinXeSbC2RoPjnpb1kaX5ToSN0/edit?usp=sharing), reviewed 11 September 2026.
 - [Current public Privacy Policy](https://craftsky.social/privacy), last updated 26 April 2026.
 - [Current public Terms of Service](https://craftsky.social/terms), last updated 26 April 2026.
-- `AGENTS.md` and `atproto-craft-social-app-reference.md` for architecture and product boundaries.
+- `AGENTS.md` and `docs/architecture.md` for architecture and product boundaries.
 - `docs/changes/2026-05-30-moderation-flow-mvp/` for report intake and visibility enforcement.
 - `docs/changes/2026-09-09-moderation-strikes/` for cases, decisions, strikes, suspension, history, and appeals.
 - `docs/changes/2026-07-18-mutes-and-blocks/` for user safety controls.

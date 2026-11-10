@@ -5,7 +5,7 @@
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` (`Approved`, 2026-09-10)
-- Architecture: `adr/014-account-assigned-subscription-licenses.md`
+- Architecture: `docs/adr/014-account-assigned-subscription-licenses.md`
 - API conventions:
   `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 - Wire conventions:

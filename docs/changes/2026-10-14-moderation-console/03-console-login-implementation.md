@@ -41,7 +41,7 @@ authentication at its provider; no password is collected by CraftSky.
   terminal DIDs cannot log in, receive a session or authenticate an existing
   session. Pending attempts join bounded terminal purge; private operator/audit
   identity is retained. Migration 95 supplies its required DID/state index.
-- Recorded [ADR 018](../../../adr/018-atmosphere-operator-console-sessions.md),
+- Recorded [ADR 018](../../adr/018-atmosphere-operator-console-sessions.md),
   amended both API/auth architecture documents, added the
   [OpenAPI contract](../../../appview/internal/operatorconsole/openapi.json)
   and replaced the [operations runbook](../../operations/moderation-operators.md).

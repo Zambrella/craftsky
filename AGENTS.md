@@ -8,7 +8,7 @@ Guidance for AI agents and human contributors working in this repository.
 
 Craftsky is a crafting-focused social platform built on the [AT Protocol](https://atproto.com). It is a federated, user-owned alternative to Instagram/Pinterest for the crafting community.
 
-Read [atproto-craft-social-app-reference.md](atproto-craft-social-app-reference.md) before making architectural decisions — it captures the full design rationale (PDS vs App View split, auth flow, lexicon design, tech stack choices).
+Read the [current architecture overview](docs/architecture.md) and relevant [ADRs](docs/adr/) before making architectural decisions. The overview describes component responsibilities, data ownership, authentication, media and deployment boundaries; ADRs record the decisions and exceptions.
 
 For the product-level "why" and the community-facing feature intent, read the vision doc: [Building a Social Network for Textile Crafters](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing). It's the source of truth for product principles (no ads ever, data portability, transparent business accounts, chronological feed, no algorithmic ranking) and for the project-post field set. If a technical decision conflicts with this doc, flag it — don't silently diverge.
 
@@ -31,7 +31,7 @@ and report validation results or remaining limitations for each separately.
 
 ## Production Hosting (Render)
 
-The backend is hosted on Render. [`render.yaml`](render.yaml) is the source of truth for infrastructure configuration, [ADR 016](adr/016-render-managed-production-infrastructure.md) records the architecture decision, and [`docs/operations/production-render.md`](docs/operations/production-render.md) is the deployment and recovery runbook.
+The backend is hosted on Render. [`render.yaml`](render.yaml) is the source of truth for infrastructure configuration, [ADR 016](docs/adr/016-render-managed-production-infrastructure.md) records the architecture decision, and [`docs/operations/production-render.md`](docs/operations/production-render.md) is the deployment and recovery runbook.
 
 Basic production configuration:
 
@@ -79,7 +79,7 @@ Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for e
 
 1. **Record writes go through the PDS; reads come from the App View.** Never have Flutter read craft data directly from a PDS. Record writes remain AppView-mediated; ADR 017 permits immediate image blob uploads directly to the authorized PDS endpoint. Scheduled/private media retain their private storage flow. ADR 012 narrowly permits Flutter to upload a video directly to the configured Bluesky video service, which stores the processed blob on the user's PDS; final post creation and verification still go through AppView.
 2. **OAuth credentials stay server-side.** OAuth access/refresh tokens, DPoP keys, and generic PDS credentials live only in AppView. ADRs 012 and 017 permit Flutter to hold short-lived PDS-signed service JWTs in memory solely for the exact approved video-service or session-authorized PDS blob-upload endpoint. It must never be persisted, logged, forwarded on redirect, or reused for another operation. Any broader TMB handoff requires a separate architecture decision.
-3. **Public data on PDS, private data in Postgres.** Posts, follows, blocks, likes → PDS records. Drafts, mutes, push tokens, moderation state → App View Postgres. See the reference doc's "Data Visibility & Privacy" section.
+3. **Public data on PDS, private data in Postgres.** Posts, follows, blocks, likes → PDS records. Drafts, mutes, push tokens, moderation state → App View Postgres. See [Data ownership](docs/architecture.md#data-ownership).
 4. **Lexicon changes need an ADR.** Before modifying anything in `lexicon/`, invoke the project-level `atproto-lexicon` skill (at [`.claude/skills/atproto-lexicon/`](.claude/skills/atproto-lexicon/SKILL.md)) for NSID/type/style/evolution rules, then use `writing-architecture-decision-records` for the decision record itself.
    > **New firehose indexers** register via `dispatcher.Register(nsid, idx)` in `appview/internal/app/deps.go`. One indexer per NSID; `Handle` must be idempotent on `(URI, CID)`.
 5. **No generic OAuth libraries.** atproto OAuth requires DPoP, dynamic server discovery, and client metadata. Use `indigo/atproto/auth/oauth` or `haileyok/atproto-oauth-golang`.

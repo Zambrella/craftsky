@@ -6,8 +6,8 @@ Start with the [repository README](../README.md) for the product and quick start
 
 - [Product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing) — community principles and project-post intent.
 - [Roadmap](roadmap.md) — implementation history, open work, and future ideas.
-- [Architecture reference](../atproto-craft-social-app-reference.md) — PDS/AppView split and design rationale; use later ADRs for subsequent decisions.
-- [Architecture decisions](../adr/) — recorded choices and their constraints.
+- [Architecture overview](architecture.md) — current components, data ownership, authentication, media and deployment boundaries; follow linked ADRs for decisions and exceptions.
+- [Architecture decisions](adr/) — recorded choices and their constraints.
 - [API architecture](superpowers/specs/2026-04-21-appview-api-architecture-design.md) and [wire conventions](superpowers/specs/2026-04-22-api-wire-alignment-design.md) — required reading for API changes.
 - [Lexicons](../lexicon/README.md) — public record schemas and generation rules.
 

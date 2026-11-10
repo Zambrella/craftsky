@@ -103,7 +103,7 @@ Standard REST semantics:
 
 ### Operator console addition (15 October 2026)
 
-[ADR 018](../../../adr/018-atmosphere-operator-console-sessions.md) adds a separate
+[ADR 018](../../adr/018-atmosphere-operator-console-sessions.md) adds a separate
 cookie-authenticated browser boundary for `/v1/admin/*`, with DID allowlisting,
 request-time permission sets and CSRF protection for unsafe requests. Operator
 login/bootstrap routes are pre-authenticated browser endpoints and do not use

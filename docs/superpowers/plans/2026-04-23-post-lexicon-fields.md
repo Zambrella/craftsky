@@ -8,7 +8,7 @@
 
 **Tech Stack:** atproto Lexicon v1 (JSON schemas), `social.craftsky.*` NSID namespace. No build tooling — lexicons are static JSON that clients and the AppView consume directly.
 
-**Spec:** [`docs/superpowers/specs/2026-04-23-post-lexicon-fields-design.md`](../specs/2026-04-23-post-lexicon-fields-design.md). **ADR:** [`adr/001-post-lexicon-project-extensibility.md`](../../../adr/001-post-lexicon-project-extensibility.md).
+**Spec:** [`docs/superpowers/specs/2026-04-23-post-lexicon-fields-design.md`](../specs/2026-04-23-post-lexicon-fields-design.md). **ADR:** [`docs/adr/001-post-lexicon-project-extensibility.md`](../../adr/001-post-lexicon-project-extensibility.md).
 
 **Pre-flight:** before editing any file under `lexicon/`, re-read the project skill [`.claude/skills/atproto-lexicon/SKILL.md`](../../../.claude/skills/atproto-lexicon/SKILL.md) — it has the NSID / type / style / evolution checklist you'll validate each file against.
 
@@ -154,7 +154,7 @@ quilting), status (wip, finished), and pattern difficulty (beginner,
 intermediate, advanced, expert). Referenced from #projectCommon and
 #pattern in social.craftsky.feed.post (landing in a follow-up commit).
 
-Refs adr/001-post-lexicon-project-extensibility.md."
+Refs docs/adr/001-post-lexicon-project-extensibility.md."
 ```
 
 ---
@@ -237,7 +237,7 @@ social.craftsky.project.sewing (landing next).
 Token def names use lowerCamelCase per atproto style guide; the spec's
 kebab-case labels were informal. No semantic change.
 
-Refs adr/001-post-lexicon-project-extensibility.md."
+Refs docs/adr/001-post-lexicon-project-extensibility.md."
 ```
 
 ---
@@ -311,7 +311,7 @@ token-backed knownValues pointing at sewing.defs. Deliberately minimal;
 richer sewing structure (garment sizing, dimensions, etc.) is out of
 scope per the spec's alternatives-considered section.
 
-Refs adr/001-post-lexicon-project-extensibility.md and the post lexicon
+Refs docs/adr/001-post-lexicon-project-extensibility.md and the post lexicon
 fields spec (2026-04-23)."
 ```
 
@@ -613,7 +613,7 @@ No production records use the prior shape (confirmed by product owner),
 so this is a rewrite, not an evolution. Future field additions will
 follow atproto evolution rules (optional-only, knownValues open).
 
-Refs adr/001-post-lexicon-project-extensibility.md."
+Refs docs/adr/001-post-lexicon-project-extensibility.md."
 ```
 
 ---
@@ -698,7 +698,7 @@ Replace with:
 After the existing note about comments/quote posts, add:
 
 ```
-Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
+Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../../adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
 ```
 
 - [ ] **Step 4: Commit**
@@ -798,10 +798,10 @@ If grep finds stale references or cross-refs don't resolve, make a follow-up com
 
 ### Task 8: Mark ADR 001 as approved/implemented (small, optional)
 
-ADR 001 ([`adr/001-post-lexicon-project-extensibility.md`](../../../adr/001-post-lexicon-project-extensibility.md)) doesn't currently have an explicit status line — the generic ADR template it used doesn't require one. Adding a short status note now makes it clear to future readers that this ADR has landed.
+ADR 001 ([`docs/adr/001-post-lexicon-project-extensibility.md`](../../adr/001-post-lexicon-project-extensibility.md)) doesn't currently have an explicit status line — the generic ADR template it used doesn't require one. Adding a short status note now makes it clear to future readers that this ADR has landed.
 
 **Files:**
-- Modify: `adr/001-post-lexicon-project-extensibility.md`
+- Modify: `docs/adr/001-post-lexicon-project-extensibility.md`
 
 - [ ] **Step 1: Add a Status line**
 
@@ -816,7 +816,7 @@ No other changes to the ADR body.
 - [ ] **Step 2: Commit**
 
 ```bash
-git add adr/001-post-lexicon-project-extensibility.md
+git add docs/adr/001-post-lexicon-project-extensibility.md
 git commit -m "docs(adr): mark 001 as approved and implemented
 
 The post lexicon fields plan (2026-04-23) implements the shape this ADR

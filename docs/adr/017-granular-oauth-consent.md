@@ -88,5 +88,5 @@ the set and actual CraftSky record collections in a source-free test.
 
 - [AT Protocol permissions](https://atproto.com/specs/permission)
 - [Lexicon publication](https://atproto.com/specs/lexicon#lexicon-publication-and-resolution)
-- [OAuth permissions rollout](../docs/operations/oauth-permissions.md)
+- [OAuth permissions rollout](../operations/oauth-permissions.md)
 - [ADR 012](012-ephemeral-video-service-token-handoff.md)

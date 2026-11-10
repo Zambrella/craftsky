@@ -4,7 +4,7 @@ Craftsky atproto lexicon schemas, under the `social.craftsky.*` namespace.
 
 Lexicons are JSON schemas that define the shape of records stored on user PDSes. They are load-bearing: once users create records against a lexicon, changing it is painful because existing data on PDSes can't be easily migrated.
 
-**Design carefully upfront.** Schema changes need an ADR. Agree on scope before implementation, following [CONTRIBUTING.md](../CONTRIBUTING.md). Record the decision in `adr/` using the existing documents as examples.
+**Design carefully upfront.** Schema changes need an ADR. Agree on scope before implementation, following [CONTRIBUTING.md](../CONTRIBUTING.md). Record the decision in `docs/adr/` using the existing documents as examples.
 
 **Before editing or adding schemas, read the [project Lexicon rules](../.agents/skills/atproto-lexicon/SKILL.md).** Coding agents should invoke this skill; human contributors can follow its naming, type, style, and evolution checklist directly. No agent tooling is required to contribute.
 
@@ -49,11 +49,11 @@ Business declarations also reference the complete, locally vendored
 `at://did:plc:mtr7qrqtcyseedx3jyr5o7db/com.atproto.lexicon.schema/community.lexicon.location.address`
 at CID `bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq`.
 Generation resolves this dependency offline from the CID-named file under
-`appview/cmd/lexgen/external/`; see [ADR 010](../adr/010-business-profile-event-lexicons-and-pinned-data.md).
+`appview/cmd/lexgen/external/`; see [ADR 010](../docs/adr/010-business-profile-event-lexicons-and-pinned-data.md).
 
 Note: comments are not a separate record type — a "comment" is a `social.craftsky.feed.post` with its `reply` field set. Quote posts are regular posts whose `embed` carries a `#quoteEmbed` wrapping a strongRef to the quoted record.
 
-Project metadata lives under `social.craftsky.project.defs`; `social.craftsky.feed.post.project` references `project.defs#project`. Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
+Project metadata lives under `social.craftsky.project.defs`; `social.craftsky.feed.post.project` references `project.defs#project`. Per-craft `#details` lexicons live under the `social.craftsky.project.*` branch (one file per craft). They define a `#details` object type only — they are referenced types, not standalone records. See [ADR 001](../docs/adr/001-post-lexicon-project-extensibility.md) for the extensibility rationale.
 
 ## References
 

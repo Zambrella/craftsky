@@ -49,7 +49,7 @@ One Must acceptance criterion is still under-implemented: create-post image vali
   - Authenticated file upload is bounded to 15 MB + 1 byte and invalid MIME/oversize paths are tested not to call PDS upload.
   - PDS tokens remain server-side; upload and route tests do not expose PDS tokens in responses.
   - Logging-safety tests cover sentinel upload bytes, request text, and bearer token values.
-  - Lexicon governance was followed with `adr/003-post-image-aspect-ratio.md`, schema update, `just lexgen`, and generated file updates.
+  - Lexicon governance was followed with `docs/adr/003-post-image-aspect-ratio.md`, schema update, `just lexgen`, and generated file updates.
 - Approval notes:
   - Most high-risk areas are covered, but the missing create-post blob-metadata validation leaves a Must acceptance criterion incomplete.
 

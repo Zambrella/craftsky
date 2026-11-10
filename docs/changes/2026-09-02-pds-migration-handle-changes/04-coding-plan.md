@@ -5,7 +5,7 @@
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` (`Approved`, high risk)
-- Architecture references: `AGENTS.md`, `atproto-craft-social-app-reference.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
+- Architecture references: `AGENTS.md`, `docs/architecture.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 - Approved approach: lean hybrid with Tap-first ingestion, uncached DID-to-PDS authority checks, bounded effect-only OAuth metadata caching, fully fresh OAuth callbacks, same-DID reauthorization, and a narrow verified repository repair sweep
 - Lexicon impact: none expected. Stop and run the lexicon/ADR workflow if implementation discovers a record-shape change.
 

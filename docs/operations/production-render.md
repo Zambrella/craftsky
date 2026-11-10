@@ -1,6 +1,6 @@
 # Production on Render
 
-This runbook implements [ADR 016](../../adr/016-render-managed-production-infrastructure.md).
+This runbook implements [ADR 016](../adr/016-render-managed-production-infrastructure.md).
 The source of truth for resource configuration is [`render.yaml`](../../render.yaml).
 
 ## Production topology

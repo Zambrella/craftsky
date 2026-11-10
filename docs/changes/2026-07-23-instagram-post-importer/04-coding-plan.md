@@ -9,7 +9,7 @@
 - Document review: `03-document-review.md` — Approved with notes, High risk,
   2026-07-23.
 - Repository guidance: `AGENTS.md`,
-  `atproto-craft-social-app-reference.md`, the AppView API architecture
+  `docs/architecture.md`, the AppView API architecture
   specification, and the project `atproto-lexicon` skill.
 - Current external contracts consulted:
   - AT Protocol browser OAuth and granular permission specifications.
@@ -147,7 +147,7 @@ generated from source and are not hand-edited.
 
 | Path | Create / Change | Purpose |
 |---|---|---|
-| `adr/008-instagram-import-provenance.md` | Create | Record the optional self-asserted field, alternatives, evolution, privacy, distribution, and compatibility decision. |
+| `docs/adr/008-instagram-import-provenance.md` | Create | Record the optional self-asserted field, alternatives, evolution, privacy, distribution, and compatibility decision. |
 | `lexicon/social/craftsky/feed/post.json` | Change | Add optional `externalImport` ref and `#externalImport` object with required bounded `source`. |
 | `appview/internal/lexicon/craftsky/feedpost.go` | Generate | Add generated Go post field/object. |
 | `appview/internal/lexicon/craftsky/feedpost_import_test.go` | Create | Validate optional/valid/invalid source shapes and generation contract. |

@@ -9,7 +9,7 @@ Implement the timeline/feed piece of work as an AppView-only chunk, including en
 - Relevant files:
   - `docs/roadmap.md` lists `GET /v1/feed/timeline` as open v1 AppView/API work and the Flutter feed screen as a separate open client task.
   - `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md` already reserves `GET /v1/feed/timeline` for a chronological feed of followed accounts, and defines `/v1/`, authenticated requests, error envelopes, and opaque cursor pagination.
-  - `atproto-craft-social-app-reference.md` describes the basic feed query as a join between posts and follows, ordered newest first, with a later optimisation path for materialised feed tables and caching.
+  - `docs/architecture.md` describes the basic feed query as a join between posts and follows, ordered newest first, with a later optimisation path for materialised feed tables and caching.
   - `docs/superpowers/specs/2026-05-04-feed-post-indexing-design.md` defines `indexed_at` as the canonical chronological-feed ordering key for `craftsky_posts`.
   - `appview/internal/routes/routes.go` has authenticated `/v1/` post/profile routes but no `/v1/feed/timeline` route today.
   - `appview/internal/api/post.go`, `post_store.go`, and `post_response.go` implement existing post read/list handlers, opaque seek cursors, `PostResponse`, author hydration, and engagement summary hydration.

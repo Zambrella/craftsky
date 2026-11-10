@@ -6,7 +6,7 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` — Approved with notes, High risk, 2026-07-18
 - Repository guidance: `AGENTS.md`
-- Architecture reference: `atproto-craft-social-app-reference.md`
+- Architecture reference: `docs/architecture.md`
 - Existing implementation inspected:
   - Flutter single-session secure storage, auth projection/controller, OAuth handoff, session and handoff Dio clients, global `401` interceptor, router redirects, onboarding state, shell navigation, account-sensitive repositories/providers, compose/edit discard flows, and provider logging
   - Flutter notification registration/runtime/open/effect flow, secure routing bindings, notification list/preferences/seen/new-count providers, foreground banner, and Firebase lifecycle boundary

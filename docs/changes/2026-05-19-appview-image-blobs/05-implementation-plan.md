@@ -112,7 +112,7 @@
 - Implement: updated index flattening to persist `{cid,mime,size,alt,aspectRatio?}`; added lexicon `#image.aspectRatio` schema and regenerated lexicon-derived Go types (`just lexgen`).
 - Run command: `cd appview && go test ./internal/index -run TestFlattenImages_IncludesSizeAndAspectRatio`
 - Refactor: none.
-- Notes: added ADR `adr/003-post-image-aspect-ratio.md`; updated `appview/cmd/lexgen/cborgen/main.go` for new generated type coverage.
+- Notes: added ADR `docs/adr/003-post-image-aspect-ratio.md`; updated `appview/cmd/lexgen/cborgen/main.go` for new generated type coverage.
 
 ### Step 10: UT-005
 - Write failing test: image URL synthesis with unknown MIME omission in `appview/internal/api/post_response_test.go`

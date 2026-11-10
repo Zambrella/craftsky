@@ -12,7 +12,7 @@ Workflow inputs:
 - `03-document-review.md` (`Approved with notes`)
 - `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 - `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`
-- `atproto-craft-social-app-reference.md`
+- `docs/architecture.md`
 
 This plan implements the approved AppView-owned public customisation resource, additive identity response enrichment, authenticated full-replacement mutation, shared Flutter rendering, and Settings editing flow. It does not change a Lexicon, PDS record, Tap indexer, blob, atproto profile mutation, or public interaction record.
 

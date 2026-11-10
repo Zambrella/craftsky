@@ -24,7 +24,7 @@ The original v1 scope is retained below for context. Linked designs explain the 
 - [x] Profile reads, edits, and follow/unfollow; record writes are mediated by AppView.
 - [x] Post and thread reads, creation, deletion, likes, and unlikes.
 - [x] Notifications: `GET /v1/notifications`
-- [x] Image upload — [ADR 017](../adr/017-direct-image-upload-service-token-handoff.md) defines the narrow direct-upload handoff.
+- [x] Image upload — [ADR 017](adr/017-direct-image-upload-service-token-handoff.md) defines the narrow direct-upload handoff.
 - [x] Tap-backed indexing of CraftSky and shared atproto records.
 - [x] Request body size limits — [`2026-06-28-appview-architecture-hardening`](changes/2026-06-28-appview-architecture-hardening/)
 - [x] Cross-cutting envelope helpers + device-id middleware — [`2026-06-28-appview-architecture-hardening`](changes/2026-06-28-appview-architecture-hardening/)
@@ -113,7 +113,7 @@ The original v1 scope is retained below for context. Linked designs explain the 
 
 ### Ops / infra
 
-- [x] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) — [ADR 016](../adr/016-render-managed-production-infrastructure.md)
+- [x] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) — [ADR 016](adr/016-render-managed-production-infrastructure.md)
 - [x] Backup strategy
 - [x] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
 - [x] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission

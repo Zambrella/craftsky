@@ -11,7 +11,7 @@ Existing contracts:
 - [Multi-account requirements](../2026-07-17-multi-account-sessions/01-requirements.md), especially FR-007, FR-008, FR-009 and NFR-001: account-bound requests, isolated state, and rejection of stale completions.
 - [Multi-account acceptance tests](../2026-07-17-multi-account-sessions/02-acceptance-tests.md) and [approved document review](../2026-07-17-multi-account-sessions/03-document-review.md).
 - [PDS mutation requirements](../2026-09-17-unified-pds-record-mutations/01-requirements.md), [acceptance tests](../2026-09-17-unified-pds-record-mutations/02-acceptance-tests.md), and [approved document review](../2026-09-17-unified-pds-record-mutations/03-document-review.md): immutable keyed retries, in-memory operation state, and reconciliation through the shared controller.
-- [Architecture reference](../../../atproto-craft-social-app-reference.md) and [logging/error-reporting guide](../../development/logging-error-reporting.md).
+- [Architecture reference](../../architecture.md) and [logging/error-reporting guide](../../development/logging-error-reporting.md).
 
 The current worktree already contains an uncommitted profile-save retry consolidation and its regression tests from this conversation. Treat those as a starting point to review, rather than repeating the change or assuming it completes this plan.
 

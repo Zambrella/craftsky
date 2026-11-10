@@ -3,7 +3,7 @@
 CraftSky requests `include:social.craftsky.authFull` plus explicit Bluesky,
 media and video-service scopes. The canonical client ID is
 `https://appview.craftsky.social/oauth-client-metadata.json`.
-See [ADR 017](../../adr/017-granular-oauth-consent.md).
+See [ADR 017](../adr/017-granular-oauth-consent.md).
 
 ## Publish before activating
 

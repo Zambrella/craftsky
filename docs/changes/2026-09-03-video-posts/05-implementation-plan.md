@@ -5,7 +5,7 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` (`Approved with notes`)
 - Coding plan: `04-coding-plan.md`
-- Architecture decisions: `adr/012-ephemeral-video-service-token-handoff.md`, `adr/013-standard-video-embed.md`
+- Architecture decisions: `docs/adr/012-ephemeral-video-service-token-handoff.md`, `docs/adr/013-standard-video-embed.md`
 - Implementation approval: Granted by the user's 2026-09-03 request to invoke `implement-tdd` and continue this workflow.
 
 ## Implementation Rules

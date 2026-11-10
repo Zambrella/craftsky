@@ -463,6 +463,6 @@ The pragmatic sequence is:
 - [Atmosphere: Storage-Heavy Applications and PDS Limits](https://discourse.atmosphere.community/t/storage-heavy-applications-and-pds-limits/825)
 - [Atmosphere: VidSky](https://discourse.atmosphere.community/t/vidsky-an-atproto-powered-video-platform/918)
 - [Atmosphere: standalone image Lexicon discussion](https://discourse.atmosphere.community/t/proposal-a-community-lexicon-for-standalone-images/1091/28)
-- `adr/012-ephemeral-video-service-token-handoff.md`
-- `adr/013-standard-video-embed.md`
+- `docs/adr/012-ephemeral-video-service-token-handoff.md`
+- `docs/adr/013-standard-video-embed.md`
 - `docs/changes/2026-09-03-video-posts/01-requirements.md`

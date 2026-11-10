@@ -51,7 +51,7 @@ deployment receipts, policy-artifact handling and full-site rollback.
 The Svelte application in `web-client/` has its own Worker,
 `craftsky-public-app`, in the existing CraftSky Cloudflare account. It is separate
 from the marketing Worker `craftsky-landing`, service status, and AppView on
-Render. See [ADR 026](../../adr/026-web-client-preview-promotion.md).
+Render. See [ADR 026](../adr/026-web-client-preview-promotion.md).
 
 The workflow is **create/push a web release tag → upload that exact tag →
 review/sign in on the preview → promote that exact Worker version in Cloudflare**. Merging a PR does not publish the client. Do not connect

@@ -2,7 +2,7 @@
 
 Bunny is the default video provider. Local credentials belong in `appview/config/.env.secrets.local`;
 production settings are declared in `render.yaml` and must be supplied before a
-reviewed manual sync and deployment. See [ADR 024](../../adr/024-bunny-video-development-integration.md).
+reviewed manual sync and deployment. See [ADR 024](../adr/024-bunny-video-development-integration.md).
 
 ## Run locally
 

@@ -392,7 +392,7 @@ deployment remain separate explicitly authorized operations.
 
 ## Governing references
 
-- [Architecture reference](../../../atproto-craft-social-app-reference.md).
+- [Architecture reference](../../architecture.md).
 - [API architecture](../../superpowers/specs/2026-04-21-appview-api-architecture-design.md).
 - [OAuth BFF design](../../superpowers/specs/2026-04-18-appview-oauth-bff-design.md).
 - [AT Protocol OAuth specification](https://atproto.com/specs/oauth).

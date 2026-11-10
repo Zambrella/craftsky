@@ -112,6 +112,6 @@ Honoring `!no-unauthenticated` should be wired into this function from day one a
 
 #### Related references
 
-- `atproto-craft-social-app-reference.md` for the broader AppView shape Craftsky is building toward.
+- `docs/architecture.md` for the current AppView/PDS boundaries.
 - `docs/roadmap.md` for v1 scope and post-v1 milestones — the anonymous tier should be added to the roadmap as a deferred item with the trigger conditions above.
 - ADR 001 (`001-post-lexicon-project-extensibility.md`) for the "build the data model so future additions are additive" pattern this ADR mirrors at the product-surface layer.

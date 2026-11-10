@@ -85,4 +85,4 @@ Not chosen.
 - Per-craft lexicons (`social.craftsky.project.<craft>`) define a `#details` object type only — they do not declare a `main` record. They are referenced types, not standalone records. Records still live under `social.craftsky.feed.post`.
 - The existing `#projectDetails` local def inside `social/craftsky/feed/post.json` is replaced by the new `{common, details?}` structure. Since no records exist on production PDSes yet (per the user: "The existing lexicons are not in production"), this is a free edit.
 - Atproto lexicon evolution rules: adding an optional field is safe; adding a new member to an open union is safe; removing or renaming fields is not. The design favours additive changes for exactly this reason.
-- Related references: [lexicon/README.md](../lexicon/README.md), [atproto-craft-social-app-reference.md](../atproto-craft-social-app-reference.md) §"Lexicon Design" (flags this as the most important early decision), `docs/roadmap.md` under "Lexicons."
+- Related references: [lexicon/README.md](../../lexicon/README.md), [docs/architecture.md](../architecture.md) §"Data ownership", `docs/roadmap.md` under "Lexicons."

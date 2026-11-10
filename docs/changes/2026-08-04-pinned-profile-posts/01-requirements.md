@@ -7,7 +7,7 @@ Let users pin their own posts so pinned content appears first in the correspondi
 ## 2. Current Codebase Findings
 
 - Relevant files:
-  - Product and architecture boundaries: `atproto-craft-social-app-reference.md`, `AGENTS.md`, and the linked product vision document, *Building a Social Network for Textile & Fibre Crafters*.
+  - Product and architecture boundaries: `docs/architecture.md`, `AGENTS.md`, and the linked product vision document, *Building a Social Network for Textile & Fibre Crafters*.
   - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md` and `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`.
   - Shared card and context menu: `app/lib/feed/widgets/post_card.dart`.
   - Profile list presentation: `app/lib/profile/widgets/profile_tabs/profile_posts_tab.dart`, `profile_projects_tab.dart`, and `profile_post_feed_slivers.dart`.

@@ -5,7 +5,7 @@
 - Requirements: `01-requirements.md`, including user-authorized simplifications and the document-review follow-up edits.
 - Tests: `02-acceptance-tests.md`, including clarified language/typo eligibility, explicit equivalence cases, deterministic proposed bounds and concrete distractors.
 - Document review: `03-document-review.md`; verdict Approved with notes, risk Medium. It records the earlier versions; the user subsequently authorized the revisions and progression to this stage.
-- Repository context: `atproto-craft-social-app-reference.md`, the AppView API architecture spec, `docs/development/logging-error-reporting.md`, existing search capability owners, indexer materialization, Flutter search providers and test harnesses.
+- Repository context: `docs/architecture.md`, the AppView API architecture spec, `docs/development/logging-error-reporting.md`, existing search capability owners, indexer materialization, Flutter search providers and test harnesses.
 - This artifact is a design contract. No implementation, executable tests, dependencies, migrations or commits were created or run in this stage.
 
 ## 2. Implementation Strategy

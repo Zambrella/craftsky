@@ -15,8 +15,8 @@ profile URLs render the public view when signed out and the app view when signed
 in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 `/feed/filters`; they also have no `/app` prefix.
 
-See [ADR 024](../adr/024-public-server-rendered-web-client.md) and
-[ADR 025](../adr/025-browser-consumer-handoff.md).
+See [ADR 024](../docs/adr/024-public-server-rendered-web-client.md) and
+[ADR 025](../docs/adr/025-browser-consumer-handoff.md).
 
 ## Local development and checks
 

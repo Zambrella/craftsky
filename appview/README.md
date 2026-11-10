@@ -382,8 +382,8 @@ The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
 against users' PDSes, using [indigo's `atproto/auth/oauth`](https://github.com/bluesky-social/indigo/tree/main/atproto/auth/oauth).
 OAuth access/refresh tokens and DPoP keys stay server-side; clients present an
 opaque CraftSky bearer token on authenticated AppView requests. Narrow exceptions
-under [ADR 012](../adr/012-ephemeral-video-service-token-handoff.md) and
-[ADR 017](../adr/017-direct-image-upload-service-token-handoff.md) allow temporary,
+under [ADR 012](../docs/adr/012-ephemeral-video-service-token-handoff.md) and
+[ADR 017](../docs/adr/017-direct-image-upload-service-token-handoff.md) allow temporary,
 upload-only service JWTs for the configured video service and authorized PDS image
 endpoint. These credentials stay in memory and do not provide general OAuth authority.
 
@@ -692,6 +692,6 @@ then, goat is the path of least resistance.
 
 ## Why Go
 
-See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
+Go provides familiar contributor tooling and aligns the backend with the atproto Go ecosystem (`indigo`). See the [architecture overview](../docs/architecture.md) for the current component and ownership boundaries.
 
 See [configuration management](../docs/development/configuration.md) for local secrets, worktree setup, validation and production ownership.

@@ -6,7 +6,7 @@ Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atpro
 
 - **Reads:** `app` → `appview` HTTP API → Postgres index
 - **Writes:** `app` → `appview` (which holds PDS OAuth tokens) → user's PDS → Relay → firehose → `appview` indexes it
-- **Image upload exception:** immediate images may upload directly to the session-authorized PDS endpoint using the temporary, memory-only service JWT constrained by [ADR 017](../adr/017-direct-image-upload-service-token-handoff.md)
+- **Image upload exception:** immediate images may upload directly to the session-authorized PDS endpoint using the temporary, memory-only service JWT constrained by [ADR 017](../docs/adr/017-direct-image-upload-service-token-handoff.md)
 - **Video upload exception:** `app` streams to the exact configured Bluesky video endpoint with the ephemeral, memory-only service JWT constrained by ADR 012; AppView still verifies and creates the post
 
 The app never holds OAuth access/refresh tokens or DPoP keys. It persists only a

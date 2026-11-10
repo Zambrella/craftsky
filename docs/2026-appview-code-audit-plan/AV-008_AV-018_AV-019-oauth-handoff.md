@@ -296,7 +296,7 @@ The first upstream credential insert is explicitly `pending_handoff`, never impl
 - [Flutter authentication design](../superpowers/specs/2026-04-21-flutter-auth-design.md)
 - [AppView API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [Settings and permanent-deletion requirements](../changes/2026-08-10-settings-page/01-requirements.md)
-- [AT Protocol architecture reference](../../atproto-craft-social-app-reference.md#authentication)
+- [AT Protocol architecture reference](../architecture.md#authentication)
 - [AT Protocol OAuth specification](https://atproto.com/specs/oauth)
 - [Android App Links](https://developer.android.com/training/app-links/about)
 - [Apple Universal Links](https://developer.apple.com/library/archive/documentation/General/Conceptual/AppSearch/UniversalLinks.html)

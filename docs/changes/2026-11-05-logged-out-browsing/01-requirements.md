@@ -31,7 +31,7 @@ Inspected on 5 November 2026. Findings describe this checkout, not a live produc
 
 ### Constraints and principles
 
-Read `atproto-craft-social-app-reference.md`, the API architecture spec at `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`, and the [product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit). Preserve user-owned data, AppView-mediated writes, server-side OAuth credentials, chronological feeds, business/sponsorship disclosure and no paid visibility advantage. Older reference/spec descriptions are historical where current repository behavior has superseded them.
+Read `docs/architecture.md`, the API architecture spec at `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`, and the [product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit). Preserve user-owned data, AppView-mediated writes, server-side OAuth credentials, chronological feeds, business/sponsorship disclosure and no paid visibility advantage. Older reference/spec descriptions are historical where current repository behavior has superseded them.
 
 ### Bluesky research and observed behavior
 

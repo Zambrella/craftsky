@@ -6,7 +6,7 @@
 - Tests: `docs/changes/2026-09-09-moderation-strikes/02-acceptance-tests.md`
 - Document review: `docs/changes/2026-09-09-moderation-strikes/03-document-review.md` (`Approved`)
 - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
-- Architecture reference: `atproto-craft-social-app-reference.md`
+- Architecture reference: `docs/architecture.md`
 - Risk: High; implementation requires explicit user approval and all merge-blocking tests from `02-acceptance-tests.md`.
 - SQL decision: Use a scoped inline-`pgx` exception for this feature because the current repository has no sqlc configuration or generated query package. Keep SQL private to moderation stores and transaction-aware bridge methods; do not establish a second general data-access convention.
 

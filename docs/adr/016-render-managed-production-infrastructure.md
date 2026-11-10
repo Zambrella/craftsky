@@ -265,10 +265,9 @@ move canonical atproto media into CraftSky infrastructure.
 
 ### Related references
 
-- `atproto-craft-social-app-reference.md` describes the AppView/PDS boundary and
-  the original superseded Hetzner recommendation.
-- `appview/environments/prod.env.example` defines the production service, OAuth,
-  admission, Tap, object-store, and observability constraints.
+- `docs/architecture.md` describes the current AppView/PDS and hosting boundaries.
+- `render.yaml` and `docs/development/configuration.md` define production wiring
+  and configuration ownership.
 - `docker-compose.yml` remains the local development topology.
 - `docs/roadmap.md` tracks the production deployment, backup, monitoring, DNS,
   and app-distribution work that follows this decision.

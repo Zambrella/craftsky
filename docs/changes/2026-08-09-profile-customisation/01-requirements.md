@@ -9,7 +9,7 @@ The existing Flutter customisation widgets are discovery evidence only. They are
 ## 2. Current Codebase Findings
 
 - Relevant files:
-  - Product and storage boundaries: `AGENTS.md`, `atproto-craft-social-app-reference.md`, and `docs/roadmap.md`.
+  - Product and storage boundaries: `AGENTS.md`, `docs/architecture.md`, and `docs/roadmap.md`.
   - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md` and `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`.
   - Existing profile-only presentation experiments: `app/lib/profile/widgets/profile_customisation_theme.dart`, `profile_framed_avatar.dart`, `profile_header_background.dart`, `profile_card.dart`, `profile_sliver_app_bar.dart`, `profile_route_presentation.dart`, and `app/lib/profile/pages/profile_page.dart`.
   - Shared avatar seam: `app/lib/profile/widgets/profile_avatar.dart`.

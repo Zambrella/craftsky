@@ -12,7 +12,7 @@ The project lexicon has been updated and the AppView should now support project 
   - Current post indexer: `appview/internal/index/craftsky_post.go`.
   - Current post storage/API: `appview/migrations/000010_craftsky_posts.up.sql`, `appview/internal/api/post_store.go`, `appview/internal/api/post_request.go`, `appview/internal/api/post_response.go`, `appview/internal/api/post.go`, `appview/internal/api/timeline_store.go`, `appview/internal/routes/routes.go`.
   - Profile count surface: `appview/internal/api/profile_store.go`, `appview/internal/api/profile_response.go`.
-  - Existing design references: `adr/001-post-lexicon-project-extensibility.md`, `docs/superpowers/specs/2026-04-23-post-lexicon-fields-design.md`, `docs/superpowers/specs/2026-05-04-feed-post-indexing-design.md`, `docs/superpowers/specs/2026-05-04-feed-post-crud-endpoints-design.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`.
+  - Existing design references: `docs/adr/001-post-lexicon-project-extensibility.md`, `docs/superpowers/specs/2026-04-23-post-lexicon-fields-design.md`, `docs/superpowers/specs/2026-05-04-feed-post-indexing-design.md`, `docs/superpowers/specs/2026-05-04-feed-post-crud-endpoints-design.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`.
 - Existing patterns:
   - Craftsky keeps one post record type, `social.craftsky.feed.post`; project posts are posts with an optional `project` sub-object, not separate top-level collections.
   - The AppView writes to user PDSes through the server-side PDS client and reads indexed craft data from Postgres.

@@ -112,7 +112,7 @@ The production operator client derives its own client ID/callback paths from
 the configured OAuth public origin. It initially shares the server signing-key
 configuration with the consumer client; key rotation must update both published
 client documents. No new production client configuration was applied during
-development. See [ADR 018](../../adr/018-atmosphere-operator-console-sessions.md).
+development. See [ADR 018](../adr/018-atmosphere-operator-console-sessions.md).
 
 If sign-in fails, return to `/admin/` and begin again. Do not copy callback URLs,
 cookies, CSRF tokens or provider request URIs into logs or support messages.

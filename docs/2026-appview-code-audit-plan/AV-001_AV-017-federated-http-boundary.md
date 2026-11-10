@@ -185,7 +185,7 @@ Before rollout, provide a dry-run diagnostic command or startup report that coun
 ## References
 
 - [AppView OAuth BFF design](../superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
-- [CraftSky AT Protocol architecture reference](../../atproto-craft-social-app-reference.md)
+- [CraftSky AT Protocol architecture reference](../architecture.md)
 - [AppView API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [AT Protocol OAuth security considerations](https://atproto.com/specs/oauth#security-considerations)
 - [Go `net/http` Client documentation](https://pkg.go.dev/net/http#Client)

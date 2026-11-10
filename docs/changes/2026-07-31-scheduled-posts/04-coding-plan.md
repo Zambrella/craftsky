@@ -15,7 +15,7 @@ This plan implements the approved workflow contract in:
 
 It also follows the current repository architecture in:
 
-- `atproto-craft-social-app-reference.md`
+- `docs/architecture.md`
 - `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 - `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`
 - `AGENTS.md`

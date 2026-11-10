@@ -10,7 +10,7 @@ This document records the approved implementation design. Execution and verifica
 - Tests: [02-acceptance-tests.md](02-acceptance-tests.md), including the revised timestamp and publication-recipient outcome matrices and TD-010/TD-011 field/surface inventories.
 - Document review: [03-document-review.md](03-document-review.md), verdict **Approved with notes**. It reviewed the preceding drafts; this plan responds to DR-001–DR-004 and the subsequently authorized revisions. It does not claim a fresh independent review occurred.
 - Authorization: the maintainer approved this coding plan and subsequently requested TDD implementation. On 2026-10-27, the maintainer confirmed strict Lexicon rejection for malformed external edit timestamps. Commits, pushes and deployments remain unauthorized.
-- Architecture: `atproto-craft-social-app-reference.md`, API architecture and wire-alignment specs, existing command/ingestion/notification boundaries, mandatory logging guide and project atproto-lexicon skill. Earlier product vision/discovery remain the product context.
+- Architecture: `docs/architecture.md`, API architecture and wire-alignment specs, existing command/ingestion/notification boundaries, mandatory logging guide and project atproto-lexicon skill. Earlier product vision/discovery remain the product context.
 
 ## 2. Implementation Strategy
 
@@ -46,7 +46,7 @@ Paths marked Create are proposed. Migration numbers and ADR number must use the 
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `adr/<next>-published-post-editing.md` | Create later | Record optional timestamp, live quote semantics, current-only metadata and publication eligibility decisions before schema mutation | FR-006, FR-008, RULE-004, RULE-006 | IT-010–IT-014, REG-008 |
+| `docs/adr/<next>-published-post-editing.md` | Create later | Record optional timestamp, live quote semantics, current-only metadata and publication eligibility decisions before schema mutation | FR-006, FR-008, RULE-004, RULE-006 | IT-010–IT-014, REG-008 |
 | `lexicon/social/craftsky/feed/post.json`; generated `appview/internal/lexicon/craftsky/` and schema output | Change later | Optional `editedAt` datetime; regenerate rather than hand-edit Go types | FR-006, FR-012, RULE-006 | UT-003, IT-010, IT-014 |
 | `appview/migrations/<next>_post_editing.{up,down}.sql`; `appview/queries/` | Create/change later | Current edit state, immutable publication eligibility facts, necessary indexes and current-read joins | FR-006, FR-011, FR-012, RULE-003–RULE-006 | IT-001, IT-007, IT-010–IT-014, REG-004, REG-008 |
 | `appview/internal/postrecord/edit.go` | Create | Raw-field preservation, supported change application, fixed-structure checks and content fingerprint excluding edit metadata | FR-002, FR-003, FR-005, RULE-003 | UT-001–UT-004, UT-008, IT-008, IT-009 |
