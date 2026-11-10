@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.3.2 - 2026-11-10
+
+- fix(privacy): require explicit opt-out from guest visibility
+
 ## 1.3.1 - 2026-11-10
 
 - fix(stats): count active records in aggregate totals
