@@ -1,5 +1,40 @@
 # AppView Changelog
 
+## 1.3.0 - 2026-11-10
+
+- feat(web-client): move authenticated routes to root
+- feat(web-client): add tagged release and preview promotion flow
+- fix(web-client): provide safe social share images
+- feat(video): add Bunny Stream development integration
+- fix(web-client): recover autocomplete and handle missing crafts
+- feat(video): add Bunny uploads and hosted web playback
+- fix(web-client): harden recovery and restore release checks
+- feat(stats): add public CraftSky statistics page
+- fix(appview): classify public stats diagnostics
+- fix(video): show previews in quotes and saved posts
+- fix(video): extend upload finalization deadlines
+- feat(video): cancel Bunny uploads safely
+- test(video): tidy Bunny and video test formatting
+- feat(guest-browsing): enable public content exploration
+- feat(feed): add extended network timeline
+- feat(browsing): expand logged-out content exploration
+- feat(moderation): allow guests to submit content reports
+- chore(app): remove Flutter web support
+- fix(search): align recent and hashtag result rows
+- fix(observability): preserve actionable production diagnostics
+- fix(appview): align report reason constraints with intake
+- feat(video): enforce PDS blob limits for Bunny uploads
+- test: isolate release fixtures from video provider defaults
+- feat(safety): add go-live safety and moderation controls
+- test(safetyalerts): use named redirect status constant
+- chore(config): centralize AppView secret management
+- feat(config): separate local credentials from app settings
+- refactor(config): move local env files into component config dirs
+- feat(config): isolate client settings by build mode
+- chore(docs): reorganize project documentation
+- fix(app): stabilize chat and feed journeys
+- chore(appview): use Instagram DM deep link
+
 ## 1.2.0 - 2026-11-04
 
 - feat(web): add server-rendered public pages
