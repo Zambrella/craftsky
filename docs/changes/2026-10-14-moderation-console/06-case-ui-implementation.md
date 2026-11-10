@@ -89,7 +89,7 @@ The moderation OpenAPI document passes OpenAPI 3.0 validation.
 
 The shared browser used a genuine Atmosphere operator session against this
 worktree's Docker AppView/PostgreSQL. Only benign synthetic fixtures were added
-using [seed-stage3.sql](../../../tools/moderation-console/seed-stage3.sql).
+using [seed-stage3.sql](../../../scripts/moderation-console/seed-stage3.sql).
 No operator grants, consumer OAuth credentials or production data were changed.
 Development schema version 98 is clean (`dirty=false`).
 

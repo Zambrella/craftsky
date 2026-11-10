@@ -242,7 +242,7 @@ For local synthetic review only, seed the migrated development database with:
 
 ```sh
 ./scripts/compose-dev exec -T postgres psql -v ON_ERROR_STOP=1 \
-  -U craftsky -d craftsky_dev < tools/moderation-console/seed-stage3.sql
+  -U craftsky -d craftsky_dev < scripts/moderation-console/seed-stage3.sql
 ```
 
 The seed adds benign fixtures without operators or grants. Repeating it preserves
@@ -307,7 +307,7 @@ Seed the stage 4 local fixtures after migrations with:
 
 ```sh
 ./scripts/compose-dev exec -T postgres psql -v ON_ERROR_STOP=1 \
-  -U craftsky -d craftsky_dev < tools/moderation-console/seed-stage4.sql
+  -U craftsky -d craftsky_dev < scripts/moderation-console/seed-stage4.sql
 ```
 
 The seed adds a benign indexed post, detection metadata and a failed scan job.

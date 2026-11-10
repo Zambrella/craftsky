@@ -73,7 +73,7 @@ reviewed configuration required before rollout.
 Tests use the agreed rendered UI/HTTP boundary, real registered Go HTTP routes
 with isolated migrated PostgreSQL schemas, and the shared T3 browser against the
 local Docker API with benign synthetic records. Development seeds are in
-`tools/moderation-console/seed-stage4.sql`; rerunning them preserves walkthrough
+`scripts/moderation-console/seed-stage4.sql`; rerunning them preserves walkthrough
 results and creates no operators or grants.
 
 Observed passing checks:
