@@ -340,13 +340,13 @@
 				box-shadow 120ms ease,
 				background 120ms ease;
 		}
-		:global(.app-main) .filter-trigger:hover {
+		:global(.app-main) .filter-trigger.icon-button:hover {
 			background: var(--primary-hover);
 			color: var(--on-primary);
 			transform: translate(-1px, -1px);
 			box-shadow: 4px 4px 0 var(--shadow);
 		}
-		:global(.app-main) .filter-trigger:active {
+		:global(.app-main) .filter-trigger.icon-button:active {
 			background: var(--primary-pressed);
 			transform: translate(3px, 3px);
 			box-shadow: none;
@@ -356,8 +356,8 @@
 		}
 	}
 	@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
-		:global(.app-main) .filter-trigger:hover,
-		:global(.app-main) .filter-trigger:active {
+		:global(.app-main) .filter-trigger.icon-button:hover,
+		:global(.app-main) .filter-trigger.icon-button:active {
 			transform: none;
 		}
 	}
