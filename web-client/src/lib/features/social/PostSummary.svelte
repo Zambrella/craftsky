@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { QuotePreviewPost, Post } from '#lib/api/types.ts';
 	import Avatar from '#lib/Avatar.svelte';
+	import SponsoredLabel from '#lib/SponsoredLabel.svelte';
 	import { compactDate, fullTimestamp } from '#lib/public.ts';
 	import { profileStyle, safeLink, name } from './model';
 	import CompactIdentity from './CompactIdentity.svelte';
@@ -38,9 +39,7 @@
 		{#if post.externalImport?.source === 'instagram'}<small class="import-label"
 				>Imported from Instagram</small
 			>{/if}
-		{#if post.sponsored}<small class="sponsored-label"
-				><Icon name="info" size={14} />Sponsored / commercial relationship</small
-			>{/if}
+		{#if post.sponsored}<SponsoredLabel />{/if}
 		{#if post.project?.common.title}<h3>{post.project.common.title}</h3>{/if}
 		{#if post.text}<p class="summary-text">{post.text}</p>{/if}
 		{#if post.video}<VideoThumbnail
@@ -171,8 +170,7 @@
 		object-fit: cover;
 		margin-top: 8px;
 	}
-	.import-label,
-	.sponsored-label {
+	.import-label {
 		display: flex;
 		align-items: center;
 		gap: 4px;

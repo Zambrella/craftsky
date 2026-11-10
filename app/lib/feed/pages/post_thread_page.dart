@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart' as craftsky_post;
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -25,6 +27,7 @@ import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/guest_frame.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
@@ -564,6 +567,17 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     _scheduleFocusedReveal();
     _scheduleCommentsReveal();
+    ref
+      ..watch(toggleLikePostProvider)
+      ..watch(toggleRepostPostProvider);
+    final root = ref.watch(isGuestBrowsingProvider)
+        ? widget.section.post
+        : applyPostInteractionOverlaysForLease(
+            ref.read(pdsRecordOperationControllerProvider),
+            ref.watch(sessionRegistryProvider).value?.activeLease?.session,
+            widget.section.post,
+            reconcile: false,
+          );
     return YarnRefreshScrollView(
       onRefresh: widget.onRefresh,
       controller: _controller,
@@ -620,13 +634,13 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   onDelete: _deleteIfViewerOwned(widget.section.post),
                   onReport: _reportIfViewerNotOwner(widget.section.post),
                 ),
-                if (widget.section.post.likeCount > 0 ||
-                    widget.section.post.repostCount > 0 ||
-                    widget.section.post.quoteCount > 0)
+                if (root.likeCount > 0 ||
+                    root.repostCount > 0 ||
+                    root.quoteCount > 0)
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
                     child: PostInteractionSummary(
-                      post: widget.section.post,
+                      post: root,
                       onLikes: ref.watch(isGuestBrowsingProvider)
                           ? () => unawaited(showGuestSignIn(context, ref))
                           : () => PostLikesRoute(

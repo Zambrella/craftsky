@@ -563,10 +563,6 @@ video {
 	margin: 8px 0 12px;
 	background: var(--primary-soft);
 }
-.sponsored {
-	background: var(--red-soft);
-	color: var(--red-ink);
-}
 .business-label {
 	color: var(--primary);
 	font-size: 13px;
@@ -1795,6 +1791,9 @@ dialog > button {
 		gap: 8px;
 		padding: 14px 20px;
 		border-radius: 22px;
+	}
+	.app-main:has(~ .compose-fab) {
+		padding-bottom: 88px;
 	}
 	.workspace-header,
 	.workspace-heading {
