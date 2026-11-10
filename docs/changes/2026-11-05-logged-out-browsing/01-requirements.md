@@ -66,7 +66,7 @@ Revision on 6 November 2026: guests do not see recent users and have basic searc
 - Home shows craft feeds, with existing sign-in content in an optional-exploration modal.
 - Logged-out users retain a persistent sign-in/register CTA banner.
 
-The user confirmed all section 20 assumptions and approved these requirements on 5 November 2026, with one scope amendment: **no backfill**. This excludes startup/deploy sweeps, historical replay, background catch-up, lazy guest-read repair and dedicated profile-refresh jobs for this feature. Normal incoming profile events and explicit owner settings operations may establish visibility; unknown existing profiles remain unavailable to guests until then.
+The user confirmed all section 20 assumptions and approved these requirements on 5 November 2026, with one scope amendment: **no backfill**. This excludes startup/deploy sweeps, historical replay, background catch-up, lazy guest-read repair and dedicated profile-refresh jobs for this feature. Normal incoming profile events and explicit owner settings operations may establish visibility; the original approved behavior kept unknown existing profiles unavailable to guests until then. On 10 November 2026 the user superseded that default: **only an explicit `!no-unauthenticated` opts an account out; every other preference state is guest-visible**. The no-backfill instruction remains in force.
 
 ## 4. Candidate Approaches
 
@@ -159,7 +159,7 @@ An authenticated owner can ask apps and sites to hide their account from logged-
 | RULE-001 | Business rule | Must | No active session grants guest read capability only; no synthetic member identity or OAuth credentials shall be required for browsing. Writes/private resources shall retain existing authentication/authorization. | Preserve trust boundary | Architecture | AC-006 |
 | RULE-002 | Business rule | Must | An indexed opt-out shall exclude the account and its authored content from guest discovery and substitute a safe auth-required/unavailable state on direct access. Every nested author is evaluated separately; visible neighbours may remain. | Account-wide presentation choice | Prompt; Q1 | AC-010 |
 | RULE-003 | Business rule | Must | Opt-out is a presentation request, not private storage. Authenticated visibility remains subject to existing moderation, lifecycle, block and eligibility rules; guests cannot override those rules. | Accurate privacy promise | Official moderation docs; codebase | AC-008, AC-016 |
-| RULE-004 | Business rule | Must | No backfill, historical replay, catch-up sweep or guest-read repair shall be added or run. Unverified or unreadable preferences, including legacy profiles, shall stay unavailable to guests until normal incoming profile ingestion or an explicit owner settings operation establishes visibility. Own successful saves shall apply locally before success is acknowledged; delayed pre-save events shall not undo that newer decision. Normal incoming authoritative records shall establish unknown visibility even when their CID already matches the stored legacy profile; repeated established events remain idempotent. External edits converge after normal ingestion. | Safe rollout and propagation | Indexer finding | AC-009, AC-010, AC-017 |
+| RULE-004 | Business rule | Must | No backfill, historical replay, catch-up sweep or guest-read repair shall be added or run. Only an indexed explicit `!no-unauthenticated` shall exclude an account on preference grounds. Missing, unverified, malformed and unreadable preferences, including legacy profiles, are guest-visible without refresh or backfill. A pending settings operation alone shall not exclude an account; an existing explicit opt-out remains effective until superseded by newer evidence. Own successful saves shall apply locally before success is acknowledged; delayed pre-save events shall not undo that newer decision. Normal incoming authoritative records shall establish unknown visibility even when their CID already matches the stored legacy profile; repeated established events remain idempotent. External edits converge after normal ingestion. | Safe rollout and propagation | Indexer finding | AC-009, AC-010, AC-017 |
 
 ## 13. Acceptance Criteria
 
@@ -181,7 +181,7 @@ An authenticated owner can ask apps and sites to hide their account from logged-
 | AC-014 | FR-008 | Given unavailable settings reads, failed/conflicting saves or a required OAuth reauthorization, the setting is not falsely shown as saved or defaulted to public; the user receives retry/recovery behavior and other Privacy settings continue to work. |
 | AC-015 | NFR-003 | Given keyboard/screen reader access, enlarged text, reduced motion and narrow/wide viewports, modal focus is contained/restored, dismissal is accessible, banner CTAs remain reachable, and neither banner nor modal hides required reading/navigation controls. Validate iOS, Android and responsive web. |
 | AC-016 | RULE-003 | Given suspended/deleting/nonmember or moderation-restricted fixtures, guest feeds, search, threads, profiles and previews preserve the current conservative public exclusions and image-safety policy. A missing member identity cannot enable an owner bypass. Signing in does not override ordinary member eligibility rules. |
-| AC-017 | RULE-004 | Given pre-existing profiles whose labels were never indexed, migration/startup/guest reads perform no backfill, replay or repair requests and leave them unavailable to guests. Normal incoming profile events or explicit owner settings operations can establish visibility. For both profile projection paths, a normally delivered authoritative event establishes unknown visibility even if its CID equals the stored legacy CID, without fetching or replaying records. Repeated established events remain idempotent; replacement/deletion and unavailable source reads leave a deterministic safe state. |
+| AC-017 | RULE-004 | Given pre-existing profiles whose labels were never indexed, migration/startup/guest reads perform no backfill, replay or repair requests and leave their stored preference unknown while allowing guest reads. Normal incoming profile events or explicit owner settings operations can establish visibility. For both profile projection paths, a normally delivered authoritative event establishes unknown visibility even if its CID equals the stored legacy CID, without fetching or replaying records. Repeated established events remain idempotent; newer replacement/deletion without an explicit opt-out permits guests. Same-revision conflicts preserve an explicit opt-out from either observation; older events cannot clear it. |
 
 ## 14. Edge Cases
 
@@ -192,7 +192,7 @@ An authenticated owner can ask apps and sites to hide their account from logged-
 | EC-003 | Opted-out root with eligible replies | Direct root uses safe auth-required state; independently addressed eligible replies may render with unavailable ancestor context | FR-003, RULE-002 |
 | EC-004 | All candidates on a result page are hidden | Continue bounded eligible pagination or return a genuine safe empty/end state | FR-001, FR-002, NFR-002 |
 | EC-005 | External profile edit or rapid enable/disable | Apply authoritative record ordering under existing ingestion rules; stale events must not undo newer visibility | FR-009, RULE-004 |
-| EC-006 | Missing/deleted/malformed profile preference | Preserve account lifecycle rules; use verified-absence versus unknown distinction; unknown fails closed | RULE-003, RULE-004 |
+| EC-006 | Missing/deleted/malformed profile preference | Preserve account lifecycle rules; only explicit opt-out excludes guests; missing/deleted/malformed preference is guest-visible | RULE-003, RULE-004 |
 | EC-007 | Existing sign-in/add-account/callback deep link | Reach correct authentication flow; preserve callback security and retained-account behavior | FR-004, FR-007 |
 | EC-008 | Third-party cached preview or direct PDS/blob URL | Explain that CraftSky cannot revoke external copies or make public blobs private | FR-008, RULE-003 |
 | EC-009 | Session expires while private screen is open | Clear private viewer data and offer safe guest/authentication destination; do not render stale member screen | FR-007, NFR-004 |
@@ -202,7 +202,7 @@ An authenticated owner can ask apps and sites to hide their account from logged-
 
 - New fields: indexed verified visibility state/provenance for the standard profile preference; exact storage design deferred.
 - Changed fields: standard PDS `app.bsky.actor.profile/self.labels` only for explicit owner updates; no new `social.craftsky.*` record shape.
-- Migration required: likely an AppView schema migration to represent unknown versus established visibility. **No backfill**, including SQL-derived inferred opt-in, historical replay, startup/background sweeps or lazy guest-read repair. Existing unknown profiles remain unavailable to guests until normal incoming profile events or explicit owner settings operations establish visibility. No migrations are run in this stage.
+- Migration required: likely an AppView schema migration to represent unknown versus established visibility. **No backfill**, including SQL-derived inferred opt-in, historical replay, startup/background sweeps or lazy guest-read repair. Existing unknown profiles are guest-visible without modifying their stored provenance; normal incoming profile events or explicit owner settings operations can establish an explicit opt-out. No migrations are run in this stage.
 - Backwards compatibility: shipped app compatibility is not required under AGENTS.md, but existing public URLs, OAuth callbacks, owner data and operational safeguards remain acceptance constraints. No production release actions are authorized here.
 - Concurrent edits: preserve unknown fields and other labels; conflict handling must use the existing PDS mutation conventions. The coding plan must identify the actual owner-save/ingestion ordering boundary and partial-success recovery. CIDs identify content and must not be treated as sortable versions. A delayed pre-save event cannot undo an acknowledged newer local visibility decision (DR-002).
 - Normal-event initialization: both profile projection paths must distinguish an unknown projection from an established one even when the stored CID is unchanged. Establishing visibility from a normally delivered authoritative record is permitted; requesting historical delivery or fetching profiles to fill unknown state is excluded (DR-001).
@@ -260,7 +260,7 @@ No new analytics events, alerts or tracking requirements are introduced. Use exi
 
 | ID | Risk | Impact | Mitigation |
 |---|---|---|---|
-| RISK-001 | Legacy profiles have no indexed preference and no backfill is permitted | Legacy content remains unavailable to guests until a normal event or explicit owner settings operation establishes visibility | Preserve unknown state and fail closed; index both paths without adding catch-up jobs |
+| RISK-001 | Legacy profiles have no indexed preference and no backfill is permitted | An opt-out not yet indexed cannot be honored until normal ingestion or an owner settings operation establishes it | Preserve unknown provenance while permitting guests; index both paths without adding catch-up jobs |
 | RISK-002 | Hidden content leaks through nested entities or OG/SSR | Preference violated despite hidden UI | Shared eligibility, safe serialization and canary tests across all representations |
 | RISK-003 | Shared toggle surprises Bluesky users or overwrites profile edits | Cross-app behavior/data loss | Explicit copy; preserve unrelated data/labels; concurrency handling |
 | RISK-004 | Member-centric state reused in guests | Private state or owner privileges exposed | Explicit capability contracts, isolation and auth-transition tests |
@@ -270,7 +270,7 @@ No new analytics events, alerts or tracking requirements are introduced. Use exi
 
 ## 20. Assumptions
 
-All assumptions ASM-001–ASM-009 were confirmed by the user on 5 November 2026. The later no-backfill instruction is incorporated in RULE-004 and AC-017.
+All assumptions ASM-001–ASM-009 were confirmed by the user on 5 November 2026. The later no-backfill instruction and 10 November explicit-opt-out default are incorporated in RULE-004 and AC-017.
 
 | ID | Assumption | Impact If Wrong |
 |---|---|---|

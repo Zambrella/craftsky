@@ -22,7 +22,8 @@ func SetPreference(record json.RawMessage, hidden bool) (json.RawMessage, error)
 		"values": json.RawMessage(`[]`),
 	}
 	if raw, exists := fields["labels"]; exists {
-		if ParsePreference(record) == Unknown || json.Unmarshal(raw, &labels) != nil {
+		_, valid := parseSelfLabels(raw)
+		if !valid || json.Unmarshal(raw, &labels) != nil {
 			return nil, errors.New("profile self-labels are not understood")
 		}
 	}

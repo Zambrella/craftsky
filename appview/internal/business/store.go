@@ -481,6 +481,6 @@ func guestEventOwnerSQL(guest bool) string {
 	if !guest {
 		return ""
 	}
-	return `AND EXISTS (SELECT 1 FROM bluesky_profiles guest_profile WHERE guest_profile.did=event.owner_did AND guest_profile.guest_visibility_hidden IS FALSE AND guest_profile.guest_visibility_hold_key IS NULL)
+	return `AND NOT EXISTS (SELECT 1 FROM bluesky_profiles guest_profile WHERE guest_profile.did=event.owner_did AND guest_profile.guest_visibility_hidden IS TRUE)
  AND NOT EXISTS (SELECT 1 FROM moderation_account_standings standing WHERE standing.owner_did=event.owner_did AND standing.effective_suspended)`
 }

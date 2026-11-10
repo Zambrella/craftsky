@@ -14,7 +14,7 @@ const (
 
 const Label = "!no-unauthenticated"
 
-func (preference Preference) AllowsGuest() bool { return preference == Public }
+func (preference Preference) AllowsGuest() bool { return preference != Hidden }
 
 // ParsePreference interprets an authoritative profile record. The caller must
 // establish its ordering evidence before this value can become serving state.
@@ -27,23 +27,39 @@ func ParsePreference(record json.RawMessage) Preference {
 	if !exists {
 		return Public
 	}
-	var labels struct {
-		Type   string `json:"$type"`
-		Values []struct {
-			Value string `json:"val"`
-		} `json:"values"`
+	hidden, valid := parseSelfLabels(raw)
+	if hidden {
+		return Hidden
 	}
-	if json.Unmarshal(raw, &labels) != nil || labels.Type != "com.atproto.label.defs#selfLabels" || labels.Values == nil {
+	if !valid {
 		return Unknown
 	}
-	preference := Public
-	for _, label := range labels.Values {
-		if label.Value == "" {
-			return Unknown
+	return Public
+}
+
+// An explicit opt-out wins even when another label is not understood. Validity
+// remains separate so preference writes never replace an unknown label payload.
+func parseSelfLabels(raw json.RawMessage) (hidden, valid bool) {
+	var labels struct {
+		Type   json.RawMessage   `json:"$type"`
+		Values []json.RawMessage `json:"values"`
+	}
+	if json.Unmarshal(raw, &labels) != nil {
+		return false, false
+	}
+	var labelType string
+	valid = json.Unmarshal(labels.Type, &labelType) == nil && labelType == "com.atproto.label.defs#selfLabels" && labels.Values != nil
+	for _, rawLabel := range labels.Values {
+		var label struct {
+			Value string `json:"val"`
+		}
+		if json.Unmarshal(rawLabel, &label) != nil || label.Value == "" {
+			valid = false
+			continue
 		}
 		if label.Value == Label {
-			preference = Hidden
+			hidden = true
 		}
 	}
-	return preference
+	return hidden, valid
 }

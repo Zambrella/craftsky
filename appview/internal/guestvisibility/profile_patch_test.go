@@ -54,3 +54,14 @@ func TestGuestVisibilityPatchPreservesProfileAndOtherLabels(t *testing.T) {
 		t.Fatal("unknown label union overwritten")
 	}
 }
+
+func TestGuestVisibilityPatchStillRejectsMalformedLabelsWithOptOut(t *testing.T) {
+	for _, raw := range []string{
+		`{"labels":{"$type":"unknown","values":[{"val":"!no-unauthenticated"}]}}`,
+		`{"labels":{"$type":"com.atproto.label.defs#selfLabels","values":[{}, {"val":"!no-unauthenticated"}]}}`,
+	} {
+		if _, err := guestvisibility.SetPreference(json.RawMessage(raw), false); err == nil {
+			t.Fatal("malformed labels were overwritten")
+		}
+	}
+}

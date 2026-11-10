@@ -168,9 +168,9 @@ func TestGuestVisibilityOwnerWithNoStandardProfile(t *testing.T) {
 	}
 }
 
-// IT-005 / RULE-004 / AC-009: contradictory authoritative observations fail
-// closed even when the owner read itself must return a recoverable conflict.
-func TestGuestVisibilityConflictingObservationPersistsUnknown(t *testing.T) {
+// IT-005 / RULE-004 / AC-009: contradictory observations retain an explicit
+// opt-out while the owner read returns a recoverable conflict.
+func TestGuestVisibilityConflictingObservationPreservesOptOut(t *testing.T) {
 	now := time.Date(2026, 11, 6, 16, 0, 0, 0, time.UTC)
 	service, pds, base := postEditCommandFixture(t, &now)
 	uri := guestProfileURI(base.Owner)
@@ -193,8 +193,8 @@ func TestGuestVisibilityConflictingObservationPersistsUnknown(t *testing.T) {
 		t.Fatalf("expected conflicting observation, got %v", err)
 	}
 	var hidden *bool
-	if err := service.store.pool.QueryRow(context.Background(), `SELECT guest_visibility_hidden FROM bluesky_profiles WHERE did=$1`, base.Owner).Scan(&hidden); err != nil || hidden != nil {
-		t.Fatalf("contradictory evidence retained public state: hidden=%v err=%v", hidden, err)
+	if err := service.store.pool.QueryRow(context.Background(), `SELECT guest_visibility_hidden FROM bluesky_profiles WHERE did=$1`, base.Owner).Scan(&hidden); err != nil || hidden == nil || !*hidden {
+		t.Fatalf("contradictory evidence lost explicit opt-out: hidden=%v err=%v", hidden, err)
 	}
 }
 
@@ -315,8 +315,9 @@ func TestGuestVisibilityRejectedSaveRetainsCurrentAuthority(t *testing.T) {
 }
 
 // IT-007 / FR-008, RULE-004 / AC-008, AC-010: unsupported authoritative
-// records are an error and persist unknown; they never imply a public default.
-func TestGuestVisibilityUnsupportedOwnerRecordFailsClosed(t *testing.T) {
+// records remain a settings-read error and persist unknown. Guest serving
+// independently permits unknown preferences.
+func TestGuestVisibilityUnsupportedOwnerRecordDoesNotFabricateSetting(t *testing.T) {
 	for _, record := range []map[string]any{
 		{"$type": "app.bsky.actor.profile", "labels": map[string]any{"$type": "future.labels", "values": []any{}}},
 		{"$type": "future.profile"},

@@ -39,8 +39,12 @@ an ADR and regenerated types.
 
 PDS repository records and referenced blobs are public; hiding something from
 CraftSky does not make the underlying record private. Logged-out visibility is
-an AppView presentation policy, not PDS access control. Bluesky chat uses its
-separate authorization and service boundary, not private CraftSky PDS records.
+an AppView presentation policy, not PDS access control. Only the explicit shared
+`!no-unauthenticated` profile self-label opts an account out of guest viewing.
+Missing or unknown preference state permits guests without a refresh or backfill;
+account lifecycle, moderation and media-safety restrictions still apply.
+Bluesky chat uses its separate authorization and service boundary, not private
+CraftSky PDS records.
 
 Public projections can be reconstructed from authoritative records, subject to
 source availability. Private database state and private objects require backups

@@ -118,14 +118,14 @@ func TestPublicVideoCaptionChecksGuestEligibility(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 		want := 404
-		if owner == "public" {
+		if owner != "hidden" {
 			want = 200
 		}
 		if w.Code != want || w.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("owner=%s status=%d body=%s cache=%s", owner, w.Code, w.Body, w.Header().Get("Cache-Control"))
 		}
 	}
-	if fetcher.calls != 1 {
-		t.Fatalf("fetched ineligible blob: %d", fetcher.calls)
+	if fetcher.calls != 2 {
+		t.Fatalf("expected public and unknown-owner captions only: %d", fetcher.calls)
 	}
 }

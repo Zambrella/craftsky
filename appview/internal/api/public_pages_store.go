@@ -37,8 +37,7 @@ var publicOwnerBasePredicate = `
  ` + strings.ReplaceAll(profileVisibleModerationPredicate, "('hide', 'takedown')", "('hide', 'takedown', 'warn')")
 
 var publicOwnerPredicate = publicOwnerBasePredicate + `
- AND bp.guest_visibility_hidden IS FALSE
- AND bp.guest_visibility_hold_key IS NULL
+ AND bp.guest_visibility_hidden IS NOT TRUE
 `
 
 func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*PublicProfile, error) {
@@ -50,12 +49,12 @@ func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*P
  WHERE cp.did=$1 `+publicOwnerPredicate, did).Scan(&row.DID, &row.Crafts, &row.CreatedAt, &row.DisplayName, &row.Description, &row.Pronouns, &row.AvatarCID, &row.AvatarMime, &row.BannerCID, &row.BannerMime)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// A known opt-out may offer sign-in, but other public-policy exclusions
-		// and unknown/pending state stay indistinguishable from unavailable.
+		// remain indistinguishable from unavailable.
 		var optedOut bool
 		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(
 			SELECT 1 FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did
 			WHERE cp.did=$1 `+publicOwnerBasePredicate+`
-			AND bp.guest_visibility_hidden IS TRUE AND bp.guest_visibility_hold_key IS NULL
+			AND bp.guest_visibility_hidden IS TRUE
 		)`, did).Scan(&optedOut); err != nil {
 			return nil, err
 		}

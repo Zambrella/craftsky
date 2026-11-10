@@ -28,8 +28,8 @@ type Evidence struct {
 }
 
 // ApplyTx returns false when older/conflicting evidence must not project any
-// presentation. Conflicts persist an unknown state rather than preserve public
-// visibility. The caller owns the transaction and lifecycle fence.
+// presentation. Conflicts retain an explicit opt-out from either record; otherwise they persist
+// an unknown preference. The caller owns the transaction and lifecycle fence.
 func ApplyTx(ctx context.Context, tx pgx.Tx, owner syntax.DID, preference Preference, evidence Evidence) (bool, error) {
 	if owner == "" || evidence.Revision == "" || (evidence.Kind != Source && evidence.Kind != WriteReceipt && evidence.Kind != Observation) {
 		return false, errors.New("guest visibility evidence is incomplete")
@@ -61,8 +61,14 @@ func ApplyTx(ctx context.Context, tx pgx.Tx, owner syntax.DID, preference Prefer
 			}
 			// Keep the conflicting revision floor. No same-revision delivery may
 			// subsequently re-enable an account whose authority is uncertain.
-			preference = Unknown
-			cid = pgtype.Text{}
+			if current.GuestVisibilityHidden.Valid && current.GuestVisibilityHidden.Bool {
+				// Preserve its identity and provenance along with the opt-out.
+				return false, nil
+			}
+			if preference != Hidden {
+				preference = Unknown
+				cid = pgtype.Text{}
+			}
 			accepted = false
 		}
 	}

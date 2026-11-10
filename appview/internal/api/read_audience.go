@@ -36,7 +36,7 @@ func postReadPredicate(ctx context.Context) string {
 // Correlated eligibility runs inside the candidate query, before ordering and
 // LIMIT. It also applies to records hydrated independently as nested subjects.
 var guestPostOwnerPredicate = ` AND EXISTS (
- SELECT 1 FROM craftsky_profiles cp JOIN bluesky_profiles bp ON bp.did=cp.did
+ SELECT 1 FROM craftsky_profiles cp LEFT JOIN bluesky_profiles bp ON bp.did=cp.did
  WHERE cp.did=p.did ` + publicOwnerPredicate + `)`
 
 func profileReadPredicate(ctx context.Context) string {
