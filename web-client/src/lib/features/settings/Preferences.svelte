@@ -328,7 +328,6 @@
 			>{/each}
 	</div>
 {:else if section === 'privacy'}
-	<LoggedOutVisibility {api} />
 	<div class="native-list">
 		<label class="switch-row native-option"
 			><SettingsIcon name="errorReporting" /><span class="tile-copy"
@@ -351,6 +350,7 @@
 			/></label
 		>
 	</div>
+	<LoggedOutVisibility {api} />
 {:else if !work.loading && loaded && section === 'languages'}
 	<section class="panel stack">
 		<SingleSelect

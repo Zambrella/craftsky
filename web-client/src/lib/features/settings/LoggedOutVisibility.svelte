@@ -18,30 +18,33 @@
 	aria-label="Logged-out visibility"
 	aria-busy={model.busy}
 >
-	<label class="switch-row native-option"
-		><span class="tile-copy"
-			><span>Ask apps and sites not to show my account to logged-out users</span
-			><small
-				>CraftSky and Bluesky will not show your account to logged-out users and
-				will ask other apps to do the same. Other apps may not honour this
-				request. It doesn't make your account private.</small
-			></span
+	<div class="native-list">
+		<label class="switch-row native-option"
+			><span class="tile-copy"
+				><span
+					>Ask apps and sites not to show my account to logged-out users</span
+				><small
+					>CraftSky and Bluesky will not show your account to logged-out users
+					and will ask other apps to do the same. Other apps may not honour this
+					request. It doesn't make your account private.</small
+				></span
+			>
+			{#if model.value}<input
+					type="checkbox"
+					role="switch"
+					aria-label="Ask apps and sites not to show my account to logged-out users"
+					checked={model.value.hideFromLoggedOut}
+					disabled={model.busy || !!model.pending}
+					onchange={(event) => {
+						const desired = event.currentTarget.checked;
+						event.currentTarget.checked = model.value!.hideFromLoggedOut;
+						void model.setHidden(desired);
+					}}
+				/>{:else}<span
+					>{model.busy ? 'Loading preference…' : 'Preference unavailable'}</span
+				>{/if}</label
 		>
-		{#if model.value}<input
-				type="checkbox"
-				role="switch"
-				aria-label="Ask apps and sites not to show my account to logged-out users"
-				checked={model.value.hideFromLoggedOut}
-				disabled={model.busy || !!model.pending}
-				onchange={(event) => {
-					const desired = event.currentTarget.checked;
-					event.currentTarget.checked = model.value!.hideFromLoggedOut;
-					void model.setHidden(desired);
-				}}
-			/>{:else}<span
-				>{model.busy ? 'Loading preference…' : 'Preference unavailable'}</span
-			>{/if}</label
-	>
+	</div>
 	<p>
 		This is the shared Bluesky profile preference. Changing it here also changes
 		it on Bluesky.
