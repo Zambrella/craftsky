@@ -65,9 +65,12 @@ test('serves post text, project details and share metadata in initial HTML', asy
 	);
 	await expect(page.getByText('Blue linen', { exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Summer dress' })).toHaveCount(0);
-	await expect(
-		page.getByText('Sponsored / commercial relationship', { exact: true })
-	).toBeVisible();
+	const sponsored = page.getByText('Sponsored', { exact: true });
+	await expect(sponsored).toBeVisible();
+	await expect(sponsored).toHaveAttribute(
+		'title',
+		'The creator marked this post as sponsored because they received money, products, or another benefit.'
+	);
 	expect(response.headers()['cache-control']).toBe('no-store');
 	expect(response.headers()['content-security-policy']).toContain(
 		"frame-ancestors 'none'"

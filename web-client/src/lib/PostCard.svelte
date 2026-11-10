@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import type { Facet } from './api/types';
 	import Avatar from './Avatar.svelte';
+	import SponsoredLabel from './SponsoredLabel.svelte';
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
 	import Icon from './features/shell/Icon.svelte';
@@ -270,9 +271,7 @@
 			></a
 		>
 	</div>
-	{#if post.sponsored}<p class="badge sponsored">
-			Sponsored / commercial relationship
-		</p>{/if}
+	{#if post.sponsored}<SponsoredLabel />{/if}
 	{#if !post.project}
 		{#if detail}<h1 class="visually-hidden">{postTitle(post)}</h1>{/if}
 		{#if !detail}<h2 class="visually-hidden">

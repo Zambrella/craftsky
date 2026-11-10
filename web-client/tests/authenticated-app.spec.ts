@@ -396,9 +396,12 @@ test('compact quote previews derive their route from AT URI and show safe select
 	await expect(
 		quote.getByRole('heading', { name: 'Quoted linen dress' })
 	).toBeVisible();
-	await expect(
-		quote.getByText('Sponsored / commercial relationship', { exact: true })
-	).toBeVisible();
+	const sponsored = quote.getByText('Sponsored', { exact: true });
+	await expect(sponsored).toBeVisible();
+	await expect(sponsored).toHaveAttribute(
+		'title',
+		'The creator marked this post as sponsored because they received money, products, or another benefit.'
+	);
 	await expect(
 		quote.getByRole('img', { name: 'Selected quote image' })
 	).toHaveAttribute('src', 'https://cdn.example/quote-selected.png');

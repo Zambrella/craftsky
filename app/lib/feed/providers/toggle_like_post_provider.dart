@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
-import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -127,7 +126,8 @@ void _invalidateLikeReads(Ref ref, Post post) {
         audience: ref.read(browsingContextProvider),
       ),
     )
-    ..invalidate(postCommentSectionProvider)
+    // PostCard applies the per-post interaction overlay. Reloading the section
+    // here would discard expanded reply branches and paginated comments.
     ..invalidate(postQuotesProvider)
     ..invalidate(timelineProvider)
     ..invalidate(extendedNetworkProvider)

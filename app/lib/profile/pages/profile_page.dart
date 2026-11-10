@@ -1119,7 +1119,13 @@ class _ProfileTabScrollView extends ConsumerWidget {
       slivers: [
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.paddingOf(context).bottom,
+            bottom:
+                MediaQuery.paddingOf(context).bottom +
+                (isOwnProfile &&
+                        FormFactor.fromWidth(MediaQuery.sizeOf(context).width)
+                            .isSmall
+                    ? 88
+                    : 0),
           ),
           sliver: _sliverForTab(context, tab, profile, l10n),
         ),

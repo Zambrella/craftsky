@@ -2,6 +2,39 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { resolve } from 'node:path';
 
+for (const [width, height] of [
+	[600, 2400],
+	[2400, 600]
+]) {
+	test(`fullscreen fits a ${width}x${height} photo`, async ({ page }) => {
+		await page.route('https://fixture.craftsky.test/**', (route) =>
+			route.fulfill({
+				contentType: 'image/svg+xml',
+				body: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="red"/></svg>`
+			})
+		);
+		await page.goto('/feed');
+		await page
+			.locator('.member-post')
+			.first()
+			.getByRole('link', { name: 'CraftSky illustration 1', exact: true })
+			.click();
+		await expect(page).toHaveURL(/\/posts\/.*\?imageCid=bafyimage1$/);
+		await page
+			.getByRole('link', { name: 'CraftSky illustration 1', exact: true })
+			.click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await expect(gallery).toBeVisible();
+		await expect(gallery.locator('img')).toHaveJSProperty('complete', true);
+		const bounds = (await gallery.locator('img').boundingBox())!;
+		const viewport = page.viewportSize()!;
+		expect(bounds.x).toBeGreaterThanOrEqual(0);
+		expect(bounds.y).toBeGreaterThanOrEqual(0);
+		expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+		expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+	});
+}
+
 const fixture = 'http://127.0.0.1:19847';
 const account = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
