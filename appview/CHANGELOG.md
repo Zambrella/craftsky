@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.3.1 - 2026-11-10
+
+- fix(stats): count active records in aggregate totals
+
 ## 1.3.0 - 2026-11-10
 
 - feat(web-client): move authenticated routes to root
