@@ -316,6 +316,18 @@ final class LoopbackAppView {
       ('GET', '/v1/posts/did:plc:alice/alice-read') => _alicePost(),
       ('PATCH', '/v1/posts/did:plc:alice/alice-read') => _editPost(body!),
       ('GET', '/v1/profiles/me') => _profileForToken(authorization),
+      ('GET', '/v1/chat/status') => <String, dynamic>{
+        'generation': 0,
+        'enabled': false,
+        'pushEnabled': false,
+        'state': 'disabled',
+        'capabilities': {
+          'canRead': false,
+          'canSend': false,
+          'canReport': false,
+          'canSetPolicy': false,
+        },
+      },
       ('GET', final path) when path.startsWith('/v1/profiles/@') =>
         _profileResponse(path),
       ('GET', '/v1/scheduled-posts') => <String, dynamic>{

@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -183,6 +184,45 @@ Future<void> _pump(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets(
+    'last compact feed post menu can scroll clear of the compose button',
+    (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pump(
+        tester,
+        FakePostRepository(
+          onListTimeline: ({cursor, limit}) async =>
+              _timelinePage([_post('a')]),
+        ),
+      );
+      await pumpUntilFound(
+        tester,
+        find.byKey(keys.feed.menu),
+        description: 'the last post menu',
+      );
+      final menuBottom = tester.getRect(find.byKey(keys.feed.menu)).bottom;
+      tester.view.physicalSize = Size(400, menuBottom + 16);
+      await tester.pumpAndSettle();
+      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+      scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(find.byKey(keys.feed.menu).hitTestable(), findsOneWidget);
+      expect(
+        tester
+            .getRect(find.byKey(keys.feed.menu))
+            .overlaps(
+              tester.getRect(find.byType(CraftskyFloatingActionButton)),
+            ),
+        isFalse,
+      );
+    },
+  );
 
   testWidgets('compact Feed exposes one extended New post action', (
     tester,

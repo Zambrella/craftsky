@@ -127,6 +127,9 @@ class _FeedPageState extends ConsumerState<FeedPage>
         InlinePinchZoomScope(
           onPinchChanged: _handleImagePinchChanged,
           child: YarnRefreshScrollView(
+            scrollViewKey: keys.feed.scrollView(
+              extendedNetwork: widget.extendedNetwork,
+            ),
             notificationPredicate: (notification) =>
                 !_isPinchingImage &&
                 defaultScrollNotificationPredicate(notification),
@@ -170,6 +173,10 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   ),
                 ),
               },
+              // Keep the last post's actions reachable above the compact FAB,
+              // including when this feed is embedded in Home's scaffold.
+              if (isCompact && hasItems)
+                const SliverToBoxAdapter(child: SizedBox(height: 88)),
             ],
           ),
         ),

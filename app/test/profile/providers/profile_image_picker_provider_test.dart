@@ -278,7 +278,9 @@ void main() {
     final decoded = img.decodeJpg(prepared.bytes)!;
     expect(decoded.width, 4000);
     expect(decoded.height, 3000);
-  });
+    // The host codec processes all 48 million pixels in Dart. Allow for the
+    // CPU cost under a concurrent full-suite run; retain the output assertions.
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('accepts 48 MP source geometry and files up to 100 MB', () async {
     final container = ProviderContainer.test();

@@ -124,15 +124,26 @@ final class PostsModule {
   }
 
   Future<void> like(Post post) async {
-    await $(keys.feed.post(post.uri)).scrollTo();
-    await $(keys.feed.post(post.uri)).$(keys.feed.action('Like')).scrollTo();
+    await $(keys.feed.post(post.uri)).scrollTo(
+      view: $(keys.feed.scrollView(extendedNetwork: false)),
+    );
+    await $(keys.feed.post(post.uri))
+        .$(keys.feed.action('Like'))
+        .scrollTo(
+          view: $(keys.feed.scrollView(extendedNetwork: false)),
+        );
     await $(keys.feed.post(post.uri))
         .$(keys.feed.action('Like'))
         .tap(settlePolicy: SettlePolicy.noSettle);
   }
 
   Future<void> editTextAndRemoveSecondImage(Post post, String text) async {
-    await $(keys.feed.post(post.uri)).$(keys.feed.menu).tap();
+    await $(keys.feed.post(post.uri))
+        .$(keys.feed.menu)
+        .scrollTo(
+          view: $(keys.feed.scrollView(extendedNetwork: false)),
+        )
+        .tap();
     await $(keys.feed.edit).tap(settlePolicy: SettlePolicy.noSettle);
     await $(keys.feed.composerBody).enterText(text);
     FocusManager.instance.primaryFocus?.unfocus();
@@ -155,11 +166,20 @@ final class PostsModule {
         )
         .waitUntilVisible();
     await $(keys.feed.submit).tap(settlePolicy: SettlePolicy.noSettle);
-    await $(keys.feed.post(post.uri)).waitUntilVisible();
+    await $(keys.feed.post(post.uri))
+        .$(keys.feed.menu)
+        .scrollTo(
+          view: $(keys.feed.scrollView(extendedNetwork: false)),
+        );
   }
 
   Future<void> delete(Post post) async {
-    await $(keys.feed.post(post.uri)).$(keys.feed.menu).tap();
+    await $(keys.feed.post(post.uri))
+        .$(keys.feed.menu)
+        .scrollTo(
+          view: $(keys.feed.scrollView(extendedNetwork: false)),
+        )
+        .tap();
     await $(keys.feed.delete).tap();
     await $(keys.dialog.confirm).tap(settlePolicy: SettlePolicy.noSettle);
   }

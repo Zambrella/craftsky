@@ -427,8 +427,14 @@ test('Instagram verification, reviewed manual import and following a match compl
 		)
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Import 2 usernames' }).click();
-	await expect(page.getByText('Bob Maker', { exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Follow', exact: true }).click();
+	const matches = page.locator('section').filter({
+		has: page.getByRole('heading', {
+			name: 'Possible CraftSky accounts',
+			exact: true
+		})
+	});
+	await expect(matches.getByText('Bob Maker', { exact: true })).toBeVisible();
+	await matches.getByRole('button', { name: 'Follow', exact: true }).click();
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Following this maker.' })
 	).toBeVisible();
