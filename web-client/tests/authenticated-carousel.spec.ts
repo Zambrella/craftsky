@@ -19,6 +19,7 @@ for (const [width, height] of [
 			.first()
 			.getByRole('link', { name: 'CraftSky illustration 1', exact: true })
 			.click();
+		await expect(page).toHaveURL(/\/posts\/.*\?imageCid=bafyimage1$/);
 		await page
 			.getByRole('link', { name: 'CraftSky illustration 1', exact: true })
 			.click();
