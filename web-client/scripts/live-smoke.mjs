@@ -14,7 +14,7 @@ if (args.some((arg) => !['--list', '--headed'].includes(arg))) {
 const listing = args.includes('--list');
 let values;
 try {
-	const source = readFileSync(join(cwd, '.env.local'), 'utf8');
+	const source = readFileSync(join(cwd, 'config/.env.local'), 'utf8');
 	values = parseEnv(source);
 	// Match Patrol's password handling: an unquoted # is part of the password.
 	// Quoted values still follow dotenv escaping rules. Never accept inline comments here.
@@ -26,10 +26,14 @@ try {
 	if (rawPassword && !/^["']/.test(rawPassword))
 		values.E2E_PASSWORD = rawPassword;
 } catch {
-	throw new Error('Add E2E_HANDLE and E2E_PASSWORD to web-client/.env.local.');
+	throw new Error(
+		'Add E2E_HANDLE and E2E_PASSWORD to web-client/config/.env.local.'
+	);
 }
 if (!values.E2E_HANDLE || !values.E2E_PASSWORD)
-	throw new Error('Set E2E_HANDLE and E2E_PASSWORD in web-client/.env.local.');
+	throw new Error(
+		'Set E2E_HANDLE and E2E_PASSWORD in web-client/config/.env.local.'
+	);
 const compose = (...command) =>
 	execFileSync(join(root, 'scripts/compose-dev'), command, {
 		cwd: root,

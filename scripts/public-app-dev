@@ -20,7 +20,7 @@ export APPVIEW_ORIGIN="http://127.0.0.1:${appview_port}"
 # Separate checkouts get stable browser ports as well as separate backends.
 # An explicit override can resolve the small possibility of a checksum collision.
 public_app_port=${CRAFTSKY_PUBLIC_APP_PORT:-}
-if [[ -z "$public_app_port" && -f .env.local ]]; then
+if [[ -z "$public_app_port" && -f config/.env.local ]]; then
   public_app_port=$(./scripts/config port)
 fi
 if [[ -z "$public_app_port" ]]; then

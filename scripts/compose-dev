@@ -6,7 +6,6 @@ cd "$repo_root"
 
 git_dir=$(git rev-parse --path-format=absolute --git-dir)
 git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
-local_env="$repo_root/.env.local"
 
 # Parse once using AppView's dotenv parser, export only wrapper-owned keys.
 # Backend credentials remain in Compose env_file inputs.
@@ -93,7 +92,7 @@ else
 
   # Stable per-checkout ports let linked worktrees run alongside the primary
   # checkout. The small collision risk can be handled with the overrides in
-  # .env.local.
+  # appview/config/.env.local.
   checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
   port_offset=$((checkout_checksum % 1000 + 1))
   default_postgres_port=$((15432 + port_offset))

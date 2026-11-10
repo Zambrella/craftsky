@@ -16,6 +16,7 @@ class PublicAppDevTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / 'scripts').mkdir()
+        (self.root / 'config').mkdir()
         (self.root / 'web-client').mkdir()
         self.bin = self.root / 'bin'
         self.bin.mkdir()
@@ -62,7 +63,7 @@ print('Web services and feature flags (fixture)')
         return result, calls
 
     def test_selects_this_worktrees_backend_and_explicit_port_without_sourcing_secrets(self):
-        (self.root / '.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\nPRIVATE_CANARY=protected\n')
+        (self.root / 'config/.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\nPRIVATE_CANARY=protected\n')
         result, calls = self.run_launcher('--open')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[0]['args'], ['port', 'appview', '8080'])
@@ -86,7 +87,7 @@ print('Web services and feature flags (fixture)')
 
     def test_normalizes_all_interfaces_and_prefers_shell_override(self):
         self.env.update(FIXTURE_ADDRESS='0.0.0.0:19001', CRAFTSKY_PUBLIC_APP_PORT='25555')
-        (self.root / '.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\n')
+        (self.root / 'config/.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\n')
         result, calls = self.run_launcher()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[-1]['origin'], 'http://127.0.0.1:19001')

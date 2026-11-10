@@ -151,13 +151,13 @@ services:
       minio-bootstrap:
         condition: service_completed_successfully
     env_file:
-      - path: ./appview/environments/dev.env
+      - path: ./appview/config/dev.env
         required: true
-      - path: ./.env.secrets.local
+      - path: ./appview/config/.env.secrets.local
         required: false
       # Optional developer-owned secrets and local integration configuration.
-      # Copy .env.local.example to .env.local; the destination is gitignored.
-      - path: ./.env.local
+      # Copy appview/config/.env.local.example to appview/config/.env.local; the destination is gitignored.
+      - path: ./appview/config/.env.local
         required: false
     environment:
       APPVIEW_ENV: dev

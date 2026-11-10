@@ -7,6 +7,7 @@ appview/tmp/
 *.out
 
 # Env
+config/*.env
 .env
 .env.local
 .env.secrets.local
@@ -72,6 +73,9 @@ web-client/.svelte-kit/
 web-client/.wrangler/
 web-client/test-results/
 web-client/playwright-report/
+web-client/config/.env*
+!web-client/config/.env.example
+# Ignore legacy local files during migration too.
 web-client/.env*
 !web-client/.env.example
 web-client/.sentry-artifacts/

@@ -8,7 +8,7 @@
 //	appview --version
 //
 // The positional argument selects the environment file under
-// environments/ and the dev/prod divergent wiring (log level, auth
+// config/ and the dev/prod divergent wiring (log level, auth
 // service, CORS permissiveness).
 package main
 
@@ -126,7 +126,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 
-	cfg, err := app.LoadConfig(env, fmt.Sprintf("environments/%s.env", env))
+	cfg, err := app.LoadConfig(env, fmt.Sprintf("config/%s.env", env))
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}

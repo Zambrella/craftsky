@@ -19,7 +19,7 @@ func loadDeps(ctx context.Context) (*app.Deps, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	cfg, err := app.LoadConfig(env, fmt.Sprintf("environments/%s.env", env))
+	cfg, err := app.LoadConfig(env, fmt.Sprintf("config/%s.env", env))
 	if err != nil {
 		return nil, nil, fmt.Errorf("load config: %w", err)
 	}
@@ -44,7 +44,7 @@ func parseEnvFlag() (app.Env, error) {
 
 // loadCfgLight loads Config without building Deps (no DB connection).
 func loadCfgLight(env app.Env) (app.Config, error) {
-	return app.LoadConfig(env, "environments/"+string(env)+".env")
+	return app.LoadConfig(env, "config/"+string(env)+".env")
 }
 
 // resolveBaseURL picks the URL `cli request` should hit.

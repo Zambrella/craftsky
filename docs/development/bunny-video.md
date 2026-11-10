@@ -1,6 +1,6 @@
 # Bunny video development and manual acceptance
 
-Bunny is the default video provider. Local credentials belong in `.env.local`;
+Bunny is the default video provider. Local credentials belong in `appview/config/.env.secrets.local`;
 production settings are declared in `render.yaml` and must be supplied before a
 reviewed manual sync and deployment. See [ADR 024](../../adr/024-bunny-video-development-integration.md).
 
@@ -33,7 +33,7 @@ four migrations in order. Production databases must use the normal reviewed
 migration process.
 
 Video defaults to enabled (`VIDEO_ENABLED=true`) with `VIDEO_PROVIDER=bunny`.
-The ignored `.env.local` contains the development
+The ignored `appview/config/.env.secrets.local` contains the development
 library credentials. Do not print that file or copy keys into Dart defines.
 `BUNNY_CDN_PURGE_API_KEY` supplies the separate Bunny account API credential for
 CDN purges. It is server-only; the Stream library key cannot authorize purges.

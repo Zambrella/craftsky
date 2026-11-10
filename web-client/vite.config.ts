@@ -19,6 +19,7 @@ const sentryBuildPlugin = () =>
 		}
 	});
 export default defineConfig({
+	envDir: 'config',
 	build: { sourcemap: 'hidden' },
 	worker: { plugins: () => [sentryBuildPlugin()] },
 	define: {
@@ -30,6 +31,7 @@ export default defineConfig({
 	plugins: [
 		sveltekit({
 			adapter: adapter(),
+			env: { dir: 'config' },
 			files: { params: 'src/params.ts' },
 			serviceWorker: { register: false },
 			csp: {

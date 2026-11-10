@@ -27,6 +27,8 @@ just dev-d
 just web-run
 ```
 
+Optional web settings live in `web-client/config/.env.local`; copy `web-client/config/.env.example` as a starting point. Vite and SvelteKit both read this directory.
+
 Start the backend separately with `just dev-d`, as for `just app-run`.
 `just web-run` (also available as `just public-app-dev`) resolves the running worktree's published AppView port
 through `scripts/compose-dev`, installs
@@ -36,7 +38,7 @@ and backend secrets are not sourced into the frontend process. An inherited or
 frontend `.env` `APPVIEW_ORIGIN` cannot override the selected worktree backend.
 
 Use `just public-app-dev --open` to also open the browser. Set
-`CRAFTSKY_PUBLIC_APP_PORT` in the shell or the root `.env.local` if the web port is
+`CRAFTSKY_PUBLIC_APP_PORT` in the shell or root `config/.env.local` if the web port is
 already occupied. `--strictPort` prevents silently moving to another worktree's
 port. Ctrl-C stops the web client; `just down` stops the worktree's Docker stack.
 
@@ -106,7 +108,7 @@ This separate, opt-in Playwright suite mirrors
 It uses real browser OAuth, this checkout's Docker AppView and the same coral/teal
 PNG fixtures. No provider, API, upload or persistence operation is mocked.
 
-Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/.env.local` using a
+Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/config/.env.local` using a
 **dedicated disposable Bluesky-hosted account** and its full account password.
 The runner preserves `#` in an unquoted password, matching Patrol; quoted dotenv
 values also work. Do not add inline comments to the password line. App passwords

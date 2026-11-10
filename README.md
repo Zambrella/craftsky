@@ -89,4 +89,4 @@ Read the [architecture reference](atproto-craft-social-app-reference.md) and [ar
 
 [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Copyright © 2026 Doug Todd and contributors.
 
-Configuration and worktree secrets: run `just config-init`, then `just config-check`. See [configuration management](docs/development/configuration.md).
+Configuration lives in `appview/config/`, `app/config/`, and `web-client/config/`; shared launcher overrides live in root `config/.env.local`. Run `just config-init` to set up worktree secrets or migrate existing local files, then `just config-check`. See [configuration management](docs/development/configuration.md).

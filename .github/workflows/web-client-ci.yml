@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'web-client/**'
+      - 'config/**'
+      - 'scripts/config'
       - 'verified-links/**'
       - 'scripts/public-app-dev'
       - 'scripts/compose-dev'

@@ -363,14 +363,14 @@ type Config struct {
 	ModerationExpiryBatchSize    int
 }
 
-// LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
+// LoadConfig reads config/<env>.env from envFilePath, layers os.Getenv
 // on top (so shell env vars override the file), and validates that every
 // required field is set. Missing required fields produce an error naming
 // the specific key.
 //
 // envFilePath is passed explicitly (not derived from env) so tests can
 // point at a temp file. Callers in main code will pass
-// "environments/<env>.env".
+// "config/<env>.env".
 func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// godotenv.Load merges the file into os.Environ without overwriting
 	// existing values — exactly the "os.Getenv wins" semantics we want.

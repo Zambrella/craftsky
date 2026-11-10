@@ -77,7 +77,7 @@ Run these commands from the repository root. `web-setup` installs the locked
 Wrangler/browser-test dependencies and Chromium. `web-whoami` shows your account
 IDs. Deployment uses the account ID checked into `wrangler.json`, overriding any
 inherited `CLOUDFLARE_ACCOUNT_ID`; no account environment variable is needed.
-The scripts do not load the repository's backend `.env.local` or write Cloudflare credentials.
+The scripts do not load the repository's backend `appview/config/.env.local` or write Cloudflare credentials.
 Wrangler manages the local OAuth login. Alternatively, supply
 `CLOUDFLARE_API_TOKEN` in your shell with Account → Workers Scripts → Edit
 permission scoped to the intended account. Never commit a token.

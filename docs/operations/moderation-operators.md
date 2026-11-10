@@ -278,7 +278,7 @@ configuration is still a separate production operation. There is no implicit
 code default. An unset/zero target rejects creation with HTTP 422
 `deadline_target_not_configured` before committing. Configure a reviewed target
 through the normal production configuration controls before enabling that work.
-For local synthetic walkthroughs, set the variable in gitignored `.env.local`
+For local synthetic walkthroughs, set the variable in gitignored `appview/config/.env.local`
 and rebuild the worktree stack. Production configuration was not changed.
 
 The target runs from **original report receipt**, not when a moderator opens the

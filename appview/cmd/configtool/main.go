@@ -43,16 +43,21 @@ func main() {
 		root := os.Args[2]
 		// Files are applied in the same order as Compose; inherited environment wins.
 		values := map[string]string{}
-		for _, name := range []string{"appview/environments/dev.env", ".env.secrets.local", ".env.local"} {
+		for _, name := range []string{"appview/config/dev.env", "appview/config/.env.secrets.local", "appview/config/.env.local", "config/.env.local"} {
 			path := filepath.Join(root, name)
 			next, err := godotenv.Read(path)
-			if os.IsNotExist(err) && name != "appview/environments/dev.env" {
+			if os.IsNotExist(err) && name != "appview/config/dev.env" {
 				continue
 			}
 			if err != nil {
 				fail()
 			}
 			for k, v := range next {
+				// Shared launcher inputs do not supply backend settings or secrets.
+				// Validation only needs the AppView publish host from that file.
+				if name == "config/.env.local" && k != "CRAFTSKY_APPVIEW_PUBLISH_HOST" {
+					continue
+				}
 				values[k] = v
 			}
 		}

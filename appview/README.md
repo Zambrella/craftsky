@@ -21,7 +21,7 @@ appview/
 │   ├── tap/                 # WebSocket-with-acks consumer for the Tap sidecar
 │   ├── index/               # CraftSky and shared atproto record indexers
 │   └── models/              # sqlc-generated database types
-├── environments/
+├── config/
 │   └── dev.env              # checked-in local profile; production uses Render
 ├── migrations/              # SQL files consumed by golang-migrate/v4
 └── queries/                 # SQL files consumed by sqlc
@@ -192,10 +192,10 @@ Their bind addresses are independent:
 
 Changing the AppView address therefore cannot expose the database or object
 store. The wrapper rejects a non-loopback AppView address unless all remote-dev
-controls are present. To test from a remote device, copy `.env.local.example`
-to the ignored `.env.local`, then:
+controls are present. To test from a remote device, copy `appview/config/.env.local.example`
+to the ignored `appview/config/.env.local`, then:
 
-1. Set only `CRAFTSKY_APPVIEW_PUBLISH_HOST` to the interface address that the
+1. Set only `CRAFTSKY_APPVIEW_PUBLISH_HOST` in root `config/.env.local` to the interface address that the
    protected edge may reach.
 2. Set `APPVIEW_DEV_REMOTE_ACCESS=true` and generate
    `APPVIEW_DEV_AUTH_SECRET` with `openssl rand -hex 32`.
@@ -566,7 +566,7 @@ Run `just moderation-help` for the underlying helper syntax. Effect lists are
 comma-separated and use `formalWarning`, `visibilityWarn`, `visibilityHide`,
 `visibilityTakedown`, `strike`, or `severeSuspension`. A severe suspension also
 requires an eligible reason and a non-empty `SEVERITY` argument. Override the
-local moderator identity or token in ignored `.env.local`, then recreate the
+local moderator identity or token in ignored `appview/config/.env.local`, then recreate the
 AppView container.
 
 ## Smoke testing the indexer

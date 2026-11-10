@@ -12,17 +12,18 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-LOCAL_FILES = ('.env.secrets.local', '.env.local')
+LOCAL_FILES = ('appview/config/.env.secrets.local', 'appview/config/.env.local')
+DEV_FILE = 'config/.env.local'
+DEV_KEYS = {'CRAFTSKY_COMPOSE_PROJECT_NAME', 'CRAFTSKY_POSTGRES_PORT',
+ 'CRAFTSKY_APPVIEW_PORT', 'CRAFTSKY_MINIO_PORT', 'CRAFTSKY_MINIO_CONSOLE_PORT',
+ 'CRAFTSKY_POSTGRES_PUBLISH_HOST', 'CRAFTSKY_APPVIEW_PUBLISH_HOST',
+ 'CRAFTSKY_MINIO_PUBLISH_HOST', 'CRAFTSKY_PUBLIC_APP_PORT', 'CRAFTSKY_APPVIEW_MEMORY_LIMIT'}
 CLIENT_FILES = ('app/config/local.env', 'app/config/local-android.env')
 # Host/port and remote authorization are deliberately specific to each worktree.
 TOPOLOGY = ('CRAFTSKY_', 'COMPOSE_', 'APPVIEW_DEV_', 'APPVIEW_EXPECTED_HOSTS',
             'OAUTH_PUBLIC_ORIGIN', 'OAUTH_CLIENT_SECRET_KEY', 'OAUTH_CALLBACK_URL',
             'WEB_APP_ORIGIN', 'SAFETY_EMAIL_CONSOLE_ORIGIN', 'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL')
-SHELL_KEYS = {'CRAFTSKY_COMPOSE_PROJECT_NAME', 'CRAFTSKY_POSTGRES_PORT',
- 'CRAFTSKY_APPVIEW_PORT', 'CRAFTSKY_MINIO_PORT', 'CRAFTSKY_MINIO_CONSOLE_PORT',
- 'CRAFTSKY_POSTGRES_PUBLISH_HOST', 'CRAFTSKY_APPVIEW_PUBLISH_HOST',
- 'CRAFTSKY_MINIO_PUBLISH_HOST', 'CRAFTSKY_PUBLIC_APP_PORT', 'CRAFTSKY_APPVIEW_MEMORY_LIMIT',
- 'APPVIEW_DEV_REMOTE_ACCESS', 'APPVIEW_DEV_PROTECTED_TRANSPORT', 'APPVIEW_DEV_AUTH_SECRET',
+SHELL_KEYS = DEV_KEYS | {'APPVIEW_DEV_REMOTE_ACCESS', 'APPVIEW_DEV_PROTECTED_TRANSPORT', 'APPVIEW_DEV_AUTH_SECRET',
  'APPVIEW_EXPECTED_HOSTS', 'INSTAGRAM_META_ENABLED'}
 
 
@@ -38,10 +39,10 @@ def helper(action, path, data=None):
 
 
 def read(path):
-    if not path.exists():
-        return {}
     if path.is_symlink():
         raise ValueError('configuration files must be regular files, not symlinks')
+    if not path.exists():
+        return {}
     return helper('read', path)
 
 
@@ -67,16 +68,77 @@ def primary():
     return Path(common).parent
 
 
+def local_files(root):
+    # A primary checkout or target may still be on a pre-migration branch.
+    if (root / 'appview/config/dev.env').exists():
+        return LOCAL_FILES
+    return ('.env.secrets.local', '.env.local')
+
+
+def migrate(target):
+    """Move developer-owned inputs without overwriting conflicting values."""
+    if not (target / 'appview/config/dev.env').exists():
+        return
+    plans = {}
+    sources = []
+    for old, new in (('.env.secrets.local', LOCAL_FILES[0]), ('.env.local', LOCAL_FILES[1])):
+        path = target / old
+        if not path.exists() and not path.is_symlink():
+            continue
+        values = read(path)
+        sources.append(path)
+        for key, value in values.items():
+            destination = DEV_FILE if key in DEV_KEYS else new
+            plans.setdefault(destination, {})[key] = value
+    web = target / 'web-client'
+    web_moves = []
+    for path in web.glob('.env*'):
+        if path.name.endswith('.example') or (path.name != '.env' and not path.name.startswith('.env.')):
+            continue
+        destination = web / 'config' / path.name
+        if path.is_symlink() or destination.is_symlink():
+            raise ValueError('configuration files must be regular files, not symlinks')
+        if destination.exists() and destination.read_bytes() != path.read_bytes():
+            raise ValueError('configuration migration has conflicting values; original files preserved')
+        if subprocess.run(['git', 'check-ignore', '-q', str(destination.relative_to(target))], cwd=target).returncode:
+            raise ValueError('refusing to migrate configuration into a path not ignored by Git')
+        web_moves.append((path, destination))
+    # Check every destination before writing any file or removing an old input.
+    for name, values in plans.items():
+        if subprocess.run(['git', 'check-ignore', '-q', name], cwd=target).returncode:
+            raise ValueError('refusing to migrate configuration into a path not ignored by Git')
+        existing = read(target / name)
+        if any(key in existing and existing[key] != value for key, value in values.items()):
+            raise ValueError('configuration migration has conflicting values; original files preserved')
+    for name, values in plans.items():
+        write_missing(target / name, values)
+        # Preserve intentionally empty files and private permissions too.
+        path = target / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        os.fchmod(fd, 0o600)
+        os.close(fd)
+    for path in sources:
+        path.unlink()
+    for path, destination in web_moves:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        path.replace(destination)
+        destination.chmod(0o600)
+
+
 def init(target):
+    migrate(target)
     source = primary()
     inherited = {}
-    for name in LOCAL_FILES:
+    # Read legacy inputs too when the primary has updated its code but has not
+    # yet run config-init. New-layout values take precedence during transition.
+    for name in ('.env.secrets.local', '.env.local', *LOCAL_FILES):
         inherited.update(read(source / name))
     # .env.local is a DEVELOPMENT-only source. Production and staging files are never read.
     supported = set(re.findall(r'\| `([A-Z][A-Z0-9_]+)`', reference()))
     inherited = {k: v for k, v in inherited.items() if k in supported and not k.startswith(TOPOLOGY)}
     existing = {}
-    for name in LOCAL_FILES:
+    for name in local_files(target):
         existing.update(read(target / name))
     inherited = {k: v for k, v in inherited.items() if k not in existing}
     if not existing.get('VIDEO_PROVIDER') and not inherited.get('VIDEO_PROVIDER') and not (existing.get('BUNNY_STREAM_API_KEY') or inherited.get('BUNNY_STREAM_API_KEY')):
@@ -87,8 +149,9 @@ def init(target):
     if not existing.get('INSTAGRAM_DATA_HMAC_KEY') and not inherited.get('INSTAGRAM_DATA_HMAC_KEY'):
         inherited['INSTAGRAM_DATA_HMAC_KEY'] = secrets.token_hex(32)
     # Older base branches may not yet ignore the new secrets filename.
-    ignored = subprocess.run(['git', 'check-ignore', '-q', '.env.secrets.local'], cwd=target).returncode == 0
-    secrets_name = '.env.secrets.local' if ignored else '.env.local'
+    secrets_name, settings_name = local_files(target)
+    ignored = subprocess.run(['git', 'check-ignore', '-q', secrets_name], cwd=target).returncode == 0
+    secrets_name = secrets_name if ignored else settings_name
     planned = [secrets_name] + [name for name in CLIENT_FILES if not (target / name).exists()]
     for name in planned:
         if subprocess.run(['git', 'check-ignore', '-q', name], cwd=target).returncode:
@@ -133,8 +196,16 @@ def lint():
     for name in tracked:
         if name.endswith(('.env.local', '.env.secrets.local', '/prod.env')):
             raise ValueError('private environment file is tracked')
+        path = Path(name)
+        if name.endswith('.example'):
+            continue
+        if ((name.startswith(('config/', 'app/config/')) and name.endswith('.env')) or
+                (name.startswith('appview/config/') and path.name != 'dev.env' and
+                 (path.name.startswith('.env') or name.endswith('.env'))) or
+                (name.startswith('web-client/config/') and path.name.startswith('.env'))):
+            raise ValueError('private environment file is tracked')
     supported = set(re.findall(r'\| `([A-Z][A-Z0-9_]+)`', expected))
-    local_keys = set(re.findall(r'^([A-Z][A-Z0-9_]+)=', (ROOT / 'appview/environments/dev.env').read_text(), re.M))
+    local_keys = set(re.findall(r'^([A-Z][A-Z0-9_]+)=', (ROOT / 'appview/config/dev.env').read_text(), re.M))
     unknown = local_keys - supported
     if unknown:
         raise ValueError('unknown local profile settings: ' + ', '.join(sorted(unknown)))
@@ -197,12 +268,17 @@ def service_summary(values, push_enabled=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['init', 'check', 'status', 'services', 'shell', 'port', 'reference', 'lint'])
+    parser.add_argument('action', choices=['init', 'migrate', 'check', 'status', 'services', 'shell', 'port', 'reference', 'lint'])
     parser.add_argument('--target', type=Path)
     parser.add_argument('--push-enabled', action='store_true')
     args = parser.parse_args()
+    if args.action not in ('init', 'migrate', 'reference', 'lint') and any(
+            (ROOT / name).exists() for name in ('.env.local', '.env.secrets.local')):
+        raise ValueError('legacy local configuration found; run just config-init to migrate it')
     if args.action == 'init':
         init((args.target or ROOT).resolve())
+    elif args.action == 'migrate':
+        migrate((args.target or ROOT).resolve())
     elif args.action == 'reference':
         (ROOT / 'docs/development/configuration-reference.md').write_text(reference())
     elif args.action == 'lint':
@@ -214,9 +290,11 @@ def main():
     else:
         values = {}
         if args.action == 'services':
-            values.update(read(ROOT / 'appview/environments/dev.env'))
-        for name in LOCAL_FILES:
+            values.update(read(ROOT / 'appview/config/dev.env'))
+        # Port lookup never reads AppView credentials.
+        for name in (() if args.action == 'port' else LOCAL_FILES):
             values.update(read(ROOT / name))
+        values.update({k: v for k, v in read(ROOT / DEV_FILE).items() if k in DEV_KEYS})
         if args.action == 'services':
             # Compose explicitly overrides push based on ADC discovery. Other
             # backend shell variables are not forwarded by compose-dev.

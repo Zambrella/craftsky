@@ -1723,7 +1723,7 @@ func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
 }
 
 func TestCheckedInDevVideoUploadBudget(t *testing.T) {
-	contents, err := os.ReadFile("../../environments/dev.env")
+	contents, err := os.ReadFile("../../config/dev.env")
 	if err != nil {
 		t.Fatal(err)
 	}

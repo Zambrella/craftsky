@@ -38,8 +38,11 @@ class ConfigTests(unittest.TestCase):
         self.target = self.root / 'target'
         self.source.mkdir()
         self.target.mkdir()
+        for directory in (self.root, self.source, self.target):
+            (directory / 'appview/config').mkdir(parents=True)
+            (directory / 'appview/config/dev.env').write_text('')
         subprocess.run(['git', 'init', '-q', str(self.target)], check=True)
-        (self.target / '.gitignore').write_text('.env.local\n.env.secrets.local\napp/config/*.env\n')
+        (self.target / '.gitignore').write_text('.env.local\n.env.secrets.local\napp/config/*.env\nconfig/*.env\nweb-client/config/.env*\n')
         self.addCleanup(patch.stopall)
         patch.object(config, 'primary', return_value=self.source).start()
         patch.object(config, 'helper', side_effect=self.helper).start()
@@ -56,13 +59,13 @@ class ConfigTests(unittest.TestCase):
             config.init(self.target)
 
     def test_inherits_credentials_without_ports_production_or_overwrites(self):
-        (self.source / '.env.local').write_text('BUNNY_STREAM_API_KEY=source-canary\nCRAFTSKY_APPVIEW_PORT=18080\nOAUTH_CLIENT_SECRET_KEY=production-canary\nDATABASE_URL=production-canary\nSENTRY_AUTH_TOKEN=deploy-canary\nE2E_PASSWORD=login-canary\n')
-        (self.target / '.env.local').write_text('BUNNY_STREAM_API_KEY=destination-canary\nCRAFTSKY_APPVIEW_PORT=18999\n')
+        (self.source / 'appview/config/.env.local').write_text('BUNNY_STREAM_API_KEY=source-canary\nCRAFTSKY_APPVIEW_PORT=18080\nOAUTH_CLIENT_SECRET_KEY=production-canary\nDATABASE_URL=production-canary\nSENTRY_AUTH_TOKEN=deploy-canary\nE2E_PASSWORD=login-canary\n')
+        (self.target / 'appview/config/.env.local').write_text('BUNNY_STREAM_API_KEY=destination-canary\nCRAFTSKY_APPVIEW_PORT=18999\n')
         (self.source / 'app/config').mkdir(parents=True)
         (self.source / 'app/config/production.env').write_text('PRIVATE=production-canary\n')
         (self.source / 'app/config/local.env').write_text('SENTRY_DSN=public-local\n')
         self.initialize()
-        copied = self.helper('read', self.target / '.env.secrets.local')
+        copied = self.helper('read', self.target / 'appview/config/.env.secrets.local')
         self.assertNotIn('BUNNY_STREAM_API_KEY', copied)
         self.assertNotIn('CRAFTSKY_APPVIEW_PORT', copied)
         self.assertNotIn('OAUTH_CLIENT_SECRET_KEY', copied)
@@ -72,36 +75,37 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse((self.target / 'app/config/production.env').exists())
         self.assertEqual(self.helper('read', self.target / 'app/config/local.env')['SENTRY_DSN'], 'public-local')
         self.assertEqual(len(copied['CHAT_OPERATION_HMAC_KEY']), 43)
-        self.assertEqual((self.target / '.env.secrets.local').stat().st_mode & 0o777, 0o600)
-        first = (self.target / '.env.secrets.local').read_bytes()
+        self.assertEqual((self.target / 'appview/config/.env.secrets.local').stat().st_mode & 0o777, 0o600)
+        first = (self.target / 'appview/config/.env.secrets.local').read_bytes()
         self.initialize()
-        self.assertEqual(first, (self.target / '.env.secrets.local').read_bytes())
+        self.assertEqual(first, (self.target / 'appview/config/.env.secrets.local').read_bytes())
 
     def test_quotes_dollars_backslashes_unicode_and_newlines_round_trip(self):
         values = {'BUNNY_STREAM_API_KEY': 'dollar$WORD \\ quoted\'" café\nnext', 'CHAT_OPERATION_HMAC_KEY': '000123'}
-        path = self.source / '.env.local'
+        path = self.source / 'appview/config/.env.local'
         config.write_missing(path, values)
         self.assertEqual(self.helper('read', path), values)
         self.initialize()
-        copied = self.helper('read', self.target / '.env.secrets.local')
+        copied = self.helper('read', self.target / 'appview/config/.env.secrets.local')
         self.assertEqual(copied['BUNNY_STREAM_API_KEY'], values['BUNNY_STREAM_API_KEY'])
 
     def test_old_base_uses_ignored_legacy_filename(self):
+        (self.target / 'appview/config/dev.env').unlink()
         (self.target / '.gitignore').write_text('.env.local\napp/config/*.env\n')
         self.initialize()
         self.assertTrue((self.target / '.env.local').exists())
         self.assertFalse((self.target / '.env.secrets.local').exists())
 
     def test_worktree_does_not_inherit_console_origin(self):
-        (self.source / '.env.local').write_text('SAFETY_EMAIL_CONSOLE_ORIGIN=http://127.0.0.1:18080\n')
+        (self.source / 'appview/config/.env.local').write_text('SAFETY_EMAIL_CONSOLE_ORIGIN=http://127.0.0.1:18080\n')
         self.initialize()
-        copied = self.helper('read', self.target / '.env.secrets.local')
+        copied = self.helper('read', self.target / 'appview/config/.env.secrets.local')
         self.assertNotIn('SAFETY_EMAIL_CONSOLE_ORIGIN', copied)
 
     def test_symlink_destination_is_rejected(self):
         outside = self.root / 'outside'
         outside.write_text('unchanged')
-        (self.target / '.env.secrets.local').symlink_to(outside)
+        (self.target / 'appview/config/.env.secrets.local').symlink_to(outside)
         with self.assertRaises(ValueError):
             self.initialize()
         self.assertEqual(outside.read_text(), 'unchanged')
@@ -127,7 +131,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(actual.replace('$$', '$'), value)
 
     def test_wrapper_exports_only_controls_and_parses_quoted_port(self):
-        (self.root / '.env.local').write_text("CRAFTSKY_PUBLIC_APP_PORT='25444'\nBUNNY_STREAM_API_KEY=protected-canary\n")
+        (self.root / 'config').mkdir()
+        (self.root / 'config/.env.local').write_text("CRAFTSKY_PUBLIC_APP_PORT='25444'\nBUNNY_STREAM_API_KEY=protected-canary\n")
         with patch.object(config, 'ROOT', self.root), patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['config', 'shell']):
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
@@ -136,12 +141,12 @@ class ConfigTests(unittest.TestCase):
             self.assertNotIn('protected-canary', output.getvalue())
 
     def test_service_summary_merges_profiles_without_exposing_values(self):
-        (self.root / 'appview/environments').mkdir(parents=True)
+        (self.root / 'appview/config').mkdir(parents=True, exist_ok=True)
         (self.root / 'appview/internal/app').mkdir(parents=True)
         (self.root / 'appview/internal/app/config.go').write_text('boolEnv("LINK_PREVIEWS_ENABLED", env != EnvProd)\nboolEnv("PUSH_ENABLED", false)\nboolEnv("SENTRY_LOGS_ENABLED", false)\n')
-        (self.root / 'appview/environments/dev.env').write_text('SENTRY_DSN=dsn-canary\nVIDEO_PROVIDER=bunny\n')
-        (self.root / '.env.secrets.local').write_text('VIDEO_PROVIDER=bluesky\nREVENUECAT_API_KEY=secret-canary\nCHAT_OPERATION_HMAC_KEY=chat-canary\n')
-        (self.root / '.env.local').write_text('VIDEO_ENABLED=false\nINSTAGRAM_META_ENABLED=false\nSENTRY_DSN=\n')
+        (self.root / 'appview/config/dev.env').write_text('SENTRY_DSN=dsn-canary\nVIDEO_PROVIDER=bunny\n')
+        (self.root / 'appview/config/.env.secrets.local').write_text('VIDEO_PROVIDER=bluesky\nREVENUECAT_API_KEY=secret-canary\nCHAT_OPERATION_HMAC_KEY=chat-canary\n')
+        (self.root / 'appview/config/.env.local').write_text('VIDEO_ENABLED=false\nINSTAGRAM_META_ENABLED=false\nSENTRY_DSN=\n')
         with patch.object(config, 'ROOT', self.root), patch.dict(os.environ, {'INSTAGRAM_META_ENABLED': 'true', 'REVENUECAT_ENABLED': 'true'}, clear=True), patch('sys.argv', ['config', 'services', '--push-enabled']):
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
@@ -186,18 +191,18 @@ class ConfigTests(unittest.TestCase):
         (self.target / '.gitignore').write_text('')
         with self.assertRaises(ValueError):
             self.initialize()
-        self.assertFalse((self.target / '.env.local').exists())
-        self.assertFalse((self.target / '.env.secrets.local').exists())
+        self.assertFalse((self.target / 'appview/config/.env.local').exists())
+        self.assertFalse((self.target / 'appview/config/.env.secrets.local').exists())
 
     def test_fresh_backend_examples_initialize_and_validate(self):
-        for name in ('.env.local', '.env.secrets.local'):
+        for name in config.LOCAL_FILES:
             shutil.copyfile(ROOT / (name + '.example'), self.target / name)
-        profile = self.target / 'appview/environments'
-        profile.mkdir(parents=True)
-        shutil.copyfile(ROOT / 'appview/environments/dev.env', profile / 'dev.env')
+        profile = self.target / 'appview/config'
+        profile.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / 'appview/config/dev.env', profile / 'dev.env')
         self.initialize()
-        local = self.helper('read', self.target / '.env.local')
-        secret = self.helper('read', self.target / '.env.secrets.local')
+        local = self.helper('read', self.target / 'appview/config/.env.local')
+        secret = self.helper('read', self.target / 'appview/config/.env.secrets.local')
         for key in ('CHAT_OPERATION_HMAC_KEY', 'OAUTH_HANDOFF_RECEIPT_KEY', 'INSTAGRAM_DATA_HMAC_KEY'):
             self.assertTrue(secret[key])
             self.assertNotIn(key, local)
@@ -207,3 +212,48 @@ class ConfigTests(unittest.TestCase):
             self.assertNotIn(key, local)
         with patch.dict(os.environ, {}, clear=True):
             self.assertTrue(self.helper('validate', self.target)['valid'])
+
+    def test_migration_splits_shared_controls_preserves_values_and_web_bytes(self):
+        config.write_missing(self.target / '.env.secrets.local', {'CHAT_OPERATION_HMAC_KEY': '000123'})
+        config.write_missing(self.target / '.env.local', {
+            'CRAFTSKY_APPVIEW_PORT': '18444', 'BUNNY_STREAM_API_KEY': 'dollar$KEY \\ café',
+            'SAFETY_EMAIL_ENABLED': 'false', 'APPVIEW_DEV_REMOTE_ACCESS': 'false'})
+        (self.target / 'web-client').mkdir()
+        web_bytes = b'E2E_PASSWORD=literal#hash$dollar\nPUBLIC_SENTRY_ENVIRONMENT=development\n'
+        (self.target / 'web-client/.env.local').write_bytes(web_bytes)
+        self.initialize()
+        self.assertEqual(config.read(self.target / 'config/.env.local'), {'CRAFTSKY_APPVIEW_PORT': '18444'})
+        backend = config.read(self.target / config.LOCAL_FILES[1])
+        self.assertEqual(backend['BUNNY_STREAM_API_KEY'], 'dollar$KEY \\ café')
+        self.assertEqual(backend['APPVIEW_DEV_REMOTE_ACCESS'], 'false')
+        self.assertEqual(config.read(self.target / config.LOCAL_FILES[0])['CHAT_OPERATION_HMAC_KEY'], '000123')
+        self.assertEqual((self.target / 'web-client/config/.env.local').read_bytes(), web_bytes)
+        for name in ('.env.local', '.env.secrets.local', 'web-client/.env.local'):
+            self.assertFalse((self.target / name).exists())
+        for name in (*config.LOCAL_FILES, 'config/.env.local', 'web-client/config/.env.local'):
+            self.assertEqual((self.target / name).stat().st_mode & 0o777, 0o600)
+
+    def test_migration_conflict_preserves_all_original_files(self):
+        (self.target / '.env.local').write_text('VIDEO_PROVIDER=bluesky\n')
+        (self.target / config.LOCAL_FILES[1]).write_text('VIDEO_PROVIDER=bunny\n')
+        (self.target / '.env.secrets.local').write_text('BREVO_API_KEY=protected-canary\n')
+        with self.assertRaisesRegex(ValueError, 'conflicting values'):
+            config.migrate(self.target)
+        self.assertTrue((self.target / '.env.local').exists())
+        self.assertTrue((self.target / '.env.secrets.local').exists())
+        self.assertFalse((self.target / config.LOCAL_FILES[0]).exists())
+
+    def test_shared_controls_win_and_port_lookup_does_not_read_backend_secrets(self):
+        (self.root / 'config').mkdir()
+        (self.root / 'config/.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25555\nSENTRY_DSN=protected-canary\n')
+        (self.root / config.LOCAL_FILES[0]).write_text('INVALID="unterminated\n')
+        with patch.object(config, 'ROOT', self.root), patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['config', 'port']):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                config.main()
+        self.assertEqual(output.getvalue(), '25555\n')
+
+    def test_new_worktree_can_inherit_from_unmigrated_primary(self):
+        (self.source / '.env.secrets.local').write_text('BREVO_API_KEY=legacy-canary\n')
+        self.initialize()
+        self.assertEqual(config.read(self.target / config.LOCAL_FILES[0])['BREVO_API_KEY'], 'legacy-canary')

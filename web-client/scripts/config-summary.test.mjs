@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -32,16 +32,20 @@ test('reports incomplete push, consent and exact subscription flag without value
 
 test('uses Vite mode-specific dotenv precedence and shell overrides', () => {
 	const directory = mkdtempSync(join(tmpdir(), 'craftsky-summary-'));
+	mkdirSync(join(directory, 'config'));
 	const previous = process.env.SUBSCRIPTIONS_ENABLED;
 	try {
 		delete process.env.SUBSCRIPTIONS_ENABLED;
-		writeFileSync(join(directory, '.env'), 'SUBSCRIPTIONS_ENABLED=false\n');
 		writeFileSync(
-			join(directory, '.env.local'),
+			join(directory, 'config/.env'),
+			'SUBSCRIPTIONS_ENABLED=false\n'
+		);
+		writeFileSync(
+			join(directory, 'config/.env.local'),
 			'SUBSCRIPTIONS_ENABLED=true\n'
 		);
 		writeFileSync(
-			join(directory, '.env.review'),
+			join(directory, 'config/.env.review'),
 			'SUBSCRIPTIONS_ENABLED=false\n'
 		);
 		assert.match(
