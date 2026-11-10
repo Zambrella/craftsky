@@ -219,6 +219,23 @@ through Bunny when the retention check is finished.
 
 ## Before production
 
+Verify the library's **Block requests with no Referer** setting is disabled
+(`BlockNoneReferrer=false`), alongside direct playback and MP4 fallback. New
+libraries can default to blocking these requests even when direct playback is
+allowed. AppView downloads processed MP4s without a Referer, native clients use
+direct playback, and the web client sends `Referrer-Policy: no-referrer`.
+This follows ADR 024's public-media capability URL model: anyone with a media
+URL can fetch it. Configure this intentional production access setting with:
+
+```sh
+bunny stream libraries security update LIBRARY --no-block-direct-access
+```
+
+After the setting propagates, verify an encoded `play_720p.mp4` URL and its
+`playlist.m3u8` return HTTP 200 without supplying a Referer. Otherwise encoding
+can complete successfully while AppView finalization fails with a CDN 403.
+This check precedes the live PDS upload and playback acceptance below.
+
 Manual acceptance must include real PDS publication, native/browser playback,
 large-file timing and the delayed retention check. Production needs a separately
 reviewed library and purge credentials, moderation policy, deployment
