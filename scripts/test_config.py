@@ -42,7 +42,7 @@ class ConfigTests(unittest.TestCase):
             (directory / 'appview/config').mkdir(parents=True)
             (directory / 'appview/config/dev.env').write_text('')
         subprocess.run(['git', 'init', '-q', str(self.target)], check=True)
-        (self.target / '.gitignore').write_text('.env.local\n.env.secrets.local\napp/config/*.env\nconfig/*.env\nweb-client/config/.env*\n')
+        (self.target / '.gitignore').write_text('.env.local\n.env.secrets.local\napp/config/*.env\napp/config/.env*\nconfig/*.env\nweb-client/config/.env*\n')
         self.addCleanup(patch.stopall)
         patch.object(config, 'primary', return_value=self.source).start()
         patch.object(config, 'helper', side_effect=self.helper).start()
@@ -62,8 +62,8 @@ class ConfigTests(unittest.TestCase):
         (self.source / 'appview/config/.env.local').write_text('BUNNY_STREAM_API_KEY=source-canary\nCRAFTSKY_APPVIEW_PORT=18080\nOAUTH_CLIENT_SECRET_KEY=production-canary\nDATABASE_URL=production-canary\nSENTRY_AUTH_TOKEN=deploy-canary\nE2E_PASSWORD=login-canary\n')
         (self.target / 'appview/config/.env.local').write_text('BUNNY_STREAM_API_KEY=destination-canary\nCRAFTSKY_APPVIEW_PORT=18999\n')
         (self.source / 'app/config').mkdir(parents=True)
-        (self.source / 'app/config/production.env').write_text('PRIVATE=production-canary\n')
-        (self.source / 'app/config/local.env').write_text('SENTRY_DSN=public-local\n')
+        (self.source / 'app/config/.env.production.local').write_text('PRIVATE=production-canary\n')
+        (self.source / 'app/config/.env.development.local').write_text('SENTRY_DSN=public-local\n')
         self.initialize()
         copied = self.helper('read', self.target / 'appview/config/.env.secrets.local')
         self.assertNotIn('BUNNY_STREAM_API_KEY', copied)
@@ -72,8 +72,8 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn('DATABASE_URL', copied)
         self.assertNotIn('SENTRY_AUTH_TOKEN', copied)
         self.assertNotIn('E2E_PASSWORD', copied)
-        self.assertFalse((self.target / 'app/config/production.env').exists())
-        self.assertEqual(self.helper('read', self.target / 'app/config/local.env')['SENTRY_DSN'], 'public-local')
+        self.assertFalse((self.target / 'app/config/.env.production.local').exists())
+        self.assertEqual(self.helper('read', self.target / 'app/config/.env.development.local')['SENTRY_DSN'], 'public-local')
         self.assertEqual(len(copied['CHAT_OPERATION_HMAC_KEY']), 43)
         self.assertEqual((self.target / 'appview/config/.env.secrets.local').stat().st_mode & 0o777, 0o600)
         first = (self.target / 'appview/config/.env.secrets.local').read_bytes()
@@ -91,7 +91,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_old_base_uses_ignored_legacy_filename(self):
         (self.target / 'appview/config/dev.env').unlink()
-        (self.target / '.gitignore').write_text('.env.local\napp/config/*.env\n')
+        (self.target / '.gitignore').write_text('.env.local\napp/config/*.env\napp/config/.env*\n')
         self.initialize()
         self.assertTrue((self.target / '.env.local').exists())
         self.assertFalse((self.target / '.env.secrets.local').exists())
@@ -227,10 +227,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(backend['BUNNY_STREAM_API_KEY'], 'dollar$KEY \\ café')
         self.assertEqual(backend['APPVIEW_DEV_REMOTE_ACCESS'], 'false')
         self.assertEqual(config.read(self.target / config.LOCAL_FILES[0])['CHAT_OPERATION_HMAC_KEY'], '000123')
-        self.assertEqual((self.target / 'web-client/config/.env.local').read_bytes(), web_bytes)
+        self.assertEqual((self.target / 'web-client/config/.env.development.local').read_bytes(), web_bytes)
         for name in ('.env.local', '.env.secrets.local', 'web-client/.env.local'):
             self.assertFalse((self.target / name).exists())
-        for name in (*config.LOCAL_FILES, 'config/.env.local', 'web-client/config/.env.local'):
+        for name in (*config.LOCAL_FILES, 'config/.env.local', 'web-client/config/.env.development.local'):
             self.assertEqual((self.target / name).stat().st_mode & 0o777, 0o600)
 
     def test_migration_conflict_preserves_all_original_files(self):
@@ -257,3 +257,20 @@ class ConfigTests(unittest.TestCase):
         (self.source / '.env.secrets.local').write_text('BREVO_API_KEY=legacy-canary\n')
         self.initialize()
         self.assertEqual(config.read(self.target / config.LOCAL_FILES[0])['BREVO_API_KEY'], 'legacy-canary')
+
+    def test_client_profile_migration_preserves_bytes_and_excludes_production_inheritance(self):
+        (self.target / 'app/config').mkdir(parents=True)
+        profiles = {
+            'app/config/local.env': ('app/config/.env.development.local', b'SENTRY_DSN=dev-canary\n'),
+            'app/config/production.env': ('app/config/.env.production.local', b'SENTRY_DSN=prod-canary\n'),
+            'web-client/config/.env.local': ('web-client/config/.env.development.local', b'E2E_PASSWORD=literal#hash$dollar\n'),
+        }
+        for old, (_, content) in profiles.items():
+            path = self.target / old
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        self.initialize()
+        for old, (new, content) in profiles.items():
+            self.assertFalse((self.target / old).exists())
+            self.assertEqual((self.target / new).read_bytes(), content)
+            self.assertEqual((self.target / new).stat().st_mode & 0o777, 0o600)

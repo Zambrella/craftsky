@@ -171,8 +171,10 @@ where practical, with independent patch versions for platform-specific fixes.
 Do not hold a web fix for an app-store release or bump AppView solely to match a
 client version. This is a release convention, not a cross-stream equality gate.
 
-Set optional `PUBLIC_SENTRY_*` and public Firebase web configuration at build time,
-as described in the client README. Runtime AppView/subscription settings come
+Set optional `PUBLIC_SENTRY_*` and public Firebase web configuration in ignored
+`web-client/config/.env.production.local` (copy its matching example), or in the
+build shell environment. Set `PUBLIC_SENTRY_ENVIRONMENT=production`. Development
+settings in `.env.development.local` are excluded from production builds. Runtime AppView/subscription settings come
 from the Worker config. The default subscription flag is `false`. If reporting
 is enabled, upload the exact candidate's private source maps before promotion:
 

@@ -2,8 +2,11 @@ import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { assertModeSpecificEnv } from './scripts/env-files.mjs';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { webRelease } from './scripts/sentry-build.mjs';
+assertModeSpecificEnv(fileURLToPath(new URL('./config/', import.meta.url)));
 const sentryBuildPlugin = () =>
 	sentryVitePlugin({
 		telemetry: false,

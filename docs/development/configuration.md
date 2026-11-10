@@ -9,8 +9,8 @@ Configuration has one owner per setting:
 | Production resources, service wiring and intentional overrides | `render.yaml` |
 | Development integration credentials | Ignored `appview/config/.env.secrets.local`; `appview/config/.env.local` can override it |
 | Production credentials | Render service secret variables and secret files |
-| Flutter public build settings | `app/config/*.env`; only local profiles are inherited |
-| Svelte public build settings | `web-client/config/.env.local`; Worker runtime settings in `web-client/wrangler.jsonc` |
+| Flutter public build settings | `app/config/.env.*.local`; only local profiles are inherited |
+| Svelte public build settings | `web-client/config/.env.<mode>.local`; Worker runtime settings in `web-client/wrangler.jsonc` |
 | Deployment credentials | Operator credential store / environment, never client build inputs |
 
 ## Local setup and worktrees
@@ -31,9 +31,9 @@ providing its complete development library configuration.
 
 Run `just config-init` in the primary checkout after configuring its development integrations. Run it in an existing worktree to inherit missing development values from the primary checkout. `just worktree <branch>` runs this automatically for new worktrees. Worktrees created by other tools need `just config-init` once.
 
-The primary checkout is located through Git's common directory; it does not depend on which branch is currently checked out there. Setup reads its development `appview/config/.env.local` and `appview/config/.env.secrets.local` (with legacy root inputs supported during migration), never `prod.env`, production/staging mobile profiles, E2E passwords, Firebase service-account files, or deployment credentials from other files. Keep the source development-only. A credential accidentally placed in a development input cannot be distinguished from a development credential.
+The primary checkout is located through Git's common directory; it does not depend on which branch is currently checked out there. Setup reads its development `appview/config/.env.local` and `appview/config/.env.secrets.local` (with legacy root inputs supported during migration), never `prod.env`, production mobile profiles, E2E passwords, Firebase service-account files, or deployment credentials from other files. Keep the source development-only. A credential accidentally placed in a development input cannot be distinguished from a development credential.
 
-Missing integration values are copied into the destination `appview/config/.env.secrets.local`, with mode 0600. Existing destination keys (including intentionally empty ones) are preserved. Setup refuses to copy into paths that Git does not ignore. Worktree ports, project names, database URLs, remote-access controls, OAuth confidential keys and credential file paths are excluded. Missing mobile `local.env` and `local-android.env` profiles are copied; existing client profiles are left alone. Older base branches retain their legacy root filenames; setup detects the target layout.
+Missing integration values are copied into the destination `appview/config/.env.secrets.local`, with mode 0600. Existing destination keys (including intentionally empty ones) are preserved. Setup refuses to copy into paths that Git does not ignore. Worktree ports, project names, database URLs, remote-access controls, OAuth confidential keys and credential file paths are excluded. Missing mobile `.env.development.local` and `.env.development-android.local` profiles are copied; existing client profiles are left alone. Older base branches retain their legacy root filenames; setup detects the target layout.
 
 If no video provider or Bunny credentials are configured, setup explicitly selects the credential-free Bluesky provider for development.
 
@@ -90,6 +90,6 @@ This cleanup changes no live Render settings. Review and validate the Blueprint,
 
 Run `just config-reference` after changing a Go configuration loader. CI verifies that the reference is current, private env files are untracked, Docker excludes secret inputs, and worktree inheritance preserves isolation. The generated table links to the exact default, parsing and validation definitions; it contains no credential values.
 
-Vite and SvelteKit both load web dotenv files from `web-client/config/`, preserving standard mode-specific precedence. Web E2E credentials remain local and are never inherited into worktrees.
+Vite and SvelteKit both load web dotenv files from `web-client/config/`. Development uses `.env.development.local`; production builds use `.env.production.local`. Their `.example` counterparts are tracked. Generic `.env` and `.env.local` files in this directory are rejected to prevent settings crossing modes. Shell variables override the selected profile. Mobile uses the same names, plus `.env.development-android.local` for Android development; Flutter receives its selected file explicitly. `just config-init` migrates earlier client filenames without changing values. Web E2E credentials remain local and are never inherited into worktrees.
 
 Client build inputs are public. Firebase web configuration, Sentry DSNs and RevenueCat public SDK keys can be included; provider API secrets, OAuth private keys and service-account JSON cannot. E2E account passwords stay in separate ignored test configuration and are never copied by worktree setup.

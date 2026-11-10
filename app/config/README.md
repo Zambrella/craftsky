@@ -12,14 +12,13 @@ just app-env-init
 
 That creates:
 
-- `app/config/local.env` for iOS simulator.
-- `app/config/local-android.env` for the Android emulator.
+- `app/config/.env.development.local` for iOS simulator.
+- `app/config/.env.development-android.local` for the Android emulator.
 
 Build config files must be created explicitly from their examples:
 
 ```bash
-cp app/config/staging.env.example app/config/staging.env
-cp app/config/production.env.example app/config/production.env
+cp app/config/.env.production.local.example app/config/.env.production.local
 ```
 
 Video selection is enabled in the standard and project composers without a

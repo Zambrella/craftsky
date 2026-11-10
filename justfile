@@ -349,11 +349,13 @@ lexgen-check:
 app-env-init:
     #!/usr/bin/env bash
     set -euo pipefail
-    for name in local local-android; do
-      target="app/config/${name}.env"
-      example="app/config/${name}.env.example"
+    ./scripts/config migrate
+    for name in development development-android; do
+      target="app/config/.env.${name}.local"
+      example="$target.example"
       if [[ ! -f "$target" ]]; then
         cp "$example" "$target"
+        chmod 600 "$target"
         echo "Created $target"
       fi
     done
@@ -362,7 +364,7 @@ app-env-init:
 app-run *ARGS: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
-    python3 ./scripts/app-config-summary --dart-define-from-file=config/local.env \
+    python3 ./scripts/app-config-summary --dart-define-from-file=config/.env.development.local \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" {{ARGS}}
     if ! APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080) || [[ -z "$APPVIEW_ADDRESS" ]]; then
       echo "AppView is unavailable. Check just config-check and just logs; start it with just dev-d." >&2
@@ -379,7 +381,7 @@ app-run *ARGS: app-env-init
       done < <(adb devices)
     fi
     cd app
-    flutter run --dart-define-from-file=config/local.env \
+    flutter run --dart-define-from-file=config/.env.development.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -390,7 +392,7 @@ app-run-ios: app-env-init
     APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     cd app
-    flutter run -d ios --dart-define-from-file=config/local.env \
+    flutter run -d ios --dart-define-from-file=config/.env.development.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
 app-run-android *ARGS: app-env-init
@@ -403,7 +405,7 @@ app-run-android *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     adb reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
     cd app
-    flutter run --dart-define-from-file=config/local-android.env \
+    flutter run --dart-define-from-file=config/.env.development-android.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -422,7 +424,7 @@ app-run-device DEVICE *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     adb -s "$device" reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
     cd app
-    flutter run -d "$device" --dart-define-from-file=config/local-android.env \
+    flutter run -d "$device" --dart-define-from-file=config/.env.development-android.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -431,7 +433,7 @@ app-run-device DEVICE *ARGS: app-env-init
 app-run-production *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/production.env"
+    config="config/.env.production.local"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
     flutter run --dart-define-from-file="$config" {{ARGS}}
@@ -514,7 +516,11 @@ _app-build-mobile TARGET ENV:
     set -euo pipefail
     target={{ quote(TARGET) }}
     environment={{ quote(ENV) }}
-    config="config/${environment}.env"
+    case "$environment" in
+      local) environment=development ;;
+      local-android) environment=development-android ;;
+    esac
+    config="config/.env.${environment}.local"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     if [[ "$environment" == "production" && "$target" != "ios" ]]; then
         ./scripts/app-release-preflight "$target" "app/$config"

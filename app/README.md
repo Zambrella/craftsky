@@ -70,14 +70,14 @@ just app-run-device <device-id>
 ```
 
 Under the hood these recipes call Flutter with
-`--dart-define-from-file=app/config/<env>.env`. They discover the current
+`--dart-define-from-file=app/config/.env.<environment>.local`. They discover the current
 worktree stack's published AppView port and override `CRAFTSKY_API_BASE_URL`
 for that run; the remaining local settings still come from the config file.
 Release builds **require** a config file with `CRAFTSKY_API_BASE_URL`; the app
 throws on first API call if it's missing.
 
 To keep initial loading UI visible for inspection, add a delay in milliseconds
-to `config/local.env` and `config/local-android.env` as needed:
+to `config/.env.development.local` and `config/.env.development-android.local` as needed:
 
 ```env
 CRAFTSKY_API_DELAY_MS=3000

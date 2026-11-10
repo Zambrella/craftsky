@@ -27,7 +27,7 @@ just dev-d
 just web-run
 ```
 
-Optional web settings live in `web-client/config/.env.local`; copy `web-client/config/.env.example` as a starting point. Vite and SvelteKit both read this directory.
+Optional web settings live in `web-client/config/.env.development.local`; copy `web-client/config/.env.development.local.example` as a starting point. Vite and SvelteKit both read this directory. Production builds instead read `config/.env.production.local`; copy its matching `.example` and supply public Firebase/Sentry settings, with `PUBLIC_SENTRY_ENVIRONMENT=production`. Generic `.env` and `.env.local` files are rejected; run `just config-init` to migrate an older local profile. Worker runtime settings (`APPVIEW_ORIGIN` and `SUBSCRIPTIONS_ENABLED`) remain in `wrangler.jsonc`.
 
 Start the backend separately with `just dev-d`, as for `just app-run`.
 `just web-run` (also available as `just public-app-dev`) resolves the running worktree's published AppView port
@@ -108,7 +108,7 @@ This separate, opt-in Playwright suite mirrors
 It uses real browser OAuth, this checkout's Docker AppView and the same coral/teal
 PNG fixtures. No provider, API, upload or persistence operation is mocked.
 
-Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/config/.env.local` using a
+Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/config/.env.development.local` using a
 **dedicated disposable Bluesky-hosted account** and its full account password.
 The runner preserves `#` in an unquoted password, matching Patrol; quoted dotenv
 values also work. Do not add inline comments to the password line. App passwords

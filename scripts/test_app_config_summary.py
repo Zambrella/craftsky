@@ -18,8 +18,11 @@ class AppConfigSummaryTests(unittest.TestCase):
             (root / 'scripts').mkdir()
             (root / 'app/config').mkdir(parents=True)
             (root / 'justfile').write_text(Path(__file__).resolve().parents[1].joinpath('justfile').read_text())
-            for name in ('local', 'local-android'):
-                (root / f'app/config/{name}.env').write_text('')
+            for name in ('development', 'development-android'):
+                (root / f'app/config/.env.{name}.local').write_text('')
+            config = root / 'scripts/config'
+            config.write_text('#!/bin/sh\nexit 0\n')
+            config.chmod(0o755)
             (root / 'scripts/app-config-summary').write_text("print('Mobile services and feature flags')")
             compose = root / 'scripts/compose-dev'
             compose.write_text('#!/bin/sh\necho "no port 8080/tcp" >&2\nexit 1\n')
@@ -57,7 +60,7 @@ class AppConfigSummaryTests(unittest.TestCase):
                   'SENTRY_LOCAL_OPT_IN': 'true', 'REVENUECAT_TEST_STORE_PUBLIC_KEY': 'sdk-canary'}
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            summary(['--dart-define-from-file=config/local.env',
+            summary(['--dart-define-from-file=config/.env.development.local',
                      '--dart-define=SUBSCRIPTIONS_ENABLED=true,REVENUECAT_USE_TEST_STORE=true',
                      '--dart-define', 'CRAFTSKY_DEV_OAUTH_SCHEME=true'], lambda _: values)
         text = output.getvalue()
@@ -74,7 +77,7 @@ class AppConfigSummaryTests(unittest.TestCase):
                   'SENTRY_DSN': 'dsn-canary'}
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            summary(['--dart-define-from-file=config/local.env', '--release'], lambda _: values)
+            summary(['--dart-define-from-file=config/.env.development.local', '--release'], lambda _: values)
         text = output.getvalue()
         self.assertIn('REVENUECAT_USE_TEST_STORE (effective): disabled', text)
         self.assertIn('CRAFTSKY_DEV_OAUTH_SCHEME (effective): disabled', text)

@@ -18,7 +18,8 @@ DEV_KEYS = {'CRAFTSKY_COMPOSE_PROJECT_NAME', 'CRAFTSKY_POSTGRES_PORT',
  'CRAFTSKY_APPVIEW_PORT', 'CRAFTSKY_MINIO_PORT', 'CRAFTSKY_MINIO_CONSOLE_PORT',
  'CRAFTSKY_POSTGRES_PUBLISH_HOST', 'CRAFTSKY_APPVIEW_PUBLISH_HOST',
  'CRAFTSKY_MINIO_PUBLISH_HOST', 'CRAFTSKY_PUBLIC_APP_PORT', 'CRAFTSKY_APPVIEW_MEMORY_LIMIT'}
-CLIENT_FILES = ('app/config/local.env', 'app/config/local-android.env')
+CLIENT_FILES = ('app/config/.env.development.local', 'app/config/.env.development-android.local')
+LEGACY_CLIENT_FILES = ('app/config/local.env', 'app/config/local-android.env')
 # Host/port and remote authorization are deliberately specific to each worktree.
 TOPOLOGY = ('CRAFTSKY_', 'COMPOSE_', 'APPVIEW_DEV_', 'APPVIEW_EXPECTED_HOSTS',
             'OAUTH_PUBLIC_ORIGIN', 'OAUTH_CLIENT_SECRET_KEY', 'OAUTH_CALLBACK_URL',
@@ -91,18 +92,40 @@ def migrate(target):
             destination = DEV_FILE if key in DEV_KEYS else new
             plans.setdefault(destination, {})[key] = value
     web = target / 'web-client'
-    web_moves = []
+    file_moves = []
     for path in web.glob('.env*'):
         if path.name.endswith('.example') or (path.name != '.env' and not path.name.startswith('.env.')):
             continue
-        destination = web / 'config' / path.name
+        destination = web / 'config' / ('.env.development.local' if path.name == '.env.local' else path.name)
         if path.is_symlink() or destination.is_symlink():
             raise ValueError('configuration files must be regular files, not symlinks')
         if destination.exists() and destination.read_bytes() != path.read_bytes():
             raise ValueError('configuration migration has conflicting values; original files preserved')
         if subprocess.run(['git', 'check-ignore', '-q', str(destination.relative_to(target))], cwd=target).returncode:
             raise ValueError('refusing to migrate configuration into a path not ignored by Git')
-        web_moves.append((path, destination))
+        file_moves.append((path, destination))
+    profile_moves = [
+        ('web-client/config/.env.local', 'web-client/config/.env.development.local'),
+        *zip(LEGACY_CLIENT_FILES, CLIENT_FILES),
+        ('app/config/production.env', 'app/config/.env.production.local'),
+    ]
+    for old, new in profile_moves:
+        path, destination = target / old, target / new
+        if not path.exists() and not path.is_symlink():
+            continue
+        if path.is_symlink() or destination.is_symlink():
+            raise ValueError('configuration files must be regular files, not symlinks')
+        if destination.exists() and destination.read_bytes() != path.read_bytes():
+            raise ValueError('configuration migration has conflicting values; original files preserved')
+        if subprocess.run(['git', 'check-ignore', '-q', new], cwd=target).returncode:
+            raise ValueError('refusing to migrate configuration into a path not ignored by Git')
+        file_moves.append((path, destination))
+    planned_moves = {}
+    for path, destination in file_moves:
+        contents = path.read_bytes()
+        if destination in planned_moves and planned_moves[destination] != contents:
+            raise ValueError('configuration migration has conflicting values; original files preserved')
+        planned_moves[destination] = contents
     # Check every destination before writing any file or removing an old input.
     for name, values in plans.items():
         if subprocess.run(['git', 'check-ignore', '-q', name], cwd=target).returncode:
@@ -120,7 +143,7 @@ def migrate(target):
         os.close(fd)
     for path in sources:
         path.unlink()
-    for path, destination in web_moves:
+    for path, destination in file_moves:
         destination.parent.mkdir(parents=True, exist_ok=True)
         path.replace(destination)
         destination.chmod(0o600)
@@ -152,15 +175,17 @@ def init(target):
     secrets_name, settings_name = local_files(target)
     ignored = subprocess.run(['git', 'check-ignore', '-q', secrets_name], cwd=target).returncode == 0
     secrets_name = secrets_name if ignored else settings_name
-    planned = [secrets_name] + [name for name in CLIENT_FILES if not (target / name).exists()]
+    clients = LEGACY_CLIENT_FILES if (target / 'app/config/local.env.example').exists() else CLIENT_FILES
+    planned = [secrets_name] + [name for name in clients if not (target / name).exists()]
     for name in planned:
         if subprocess.run(['git', 'check-ignore', '-q', name], cwd=target).returncode:
             raise ValueError('refusing to copy configuration into a path not ignored by Git')
     write_missing(target / secrets_name, inherited)
-    for name in CLIENT_FILES:
+    for index, name in enumerate(clients):
         destination = target / name
         if not destination.exists():
-            values = read(source / name) or read(ROOT / (name + '.example'))
+            values = (read(source / CLIENT_FILES[index]) or read(source / LEGACY_CLIENT_FILES[index])
+                      or read(ROOT / (CLIENT_FILES[index] + '.example')))
             write_missing(destination, values)
     print('Development configuration ready; existing values and worktree ports preserved.')
 
@@ -200,6 +225,7 @@ def lint():
         if name.endswith('.example'):
             continue
         if ((name.startswith(('config/', 'app/config/')) and name.endswith('.env')) or
+                (name.startswith('app/config/') and path.name.startswith('.env')) or
                 (name.startswith('appview/config/') and path.name != 'dev.env' and
                  (path.name.startswith('.env') or name.endswith('.env'))) or
                 (name.startswith('web-client/config/') and path.name.startswith('.env'))):

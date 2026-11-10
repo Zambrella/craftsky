@@ -37,15 +37,15 @@ test('uses Vite mode-specific dotenv precedence and shell overrides', () => {
 	try {
 		delete process.env.SUBSCRIPTIONS_ENABLED;
 		writeFileSync(
-			join(directory, 'config/.env'),
+			join(directory, 'config/.env.production.local'),
 			'SUBSCRIPTIONS_ENABLED=false\n'
 		);
 		writeFileSync(
-			join(directory, 'config/.env.local'),
+			join(directory, 'config/.env.development.local'),
 			'SUBSCRIPTIONS_ENABLED=true\n'
 		);
 		writeFileSync(
-			join(directory, 'config/.env.review'),
+			join(directory, 'config/.env.review.local'),
 			'SUBSCRIPTIONS_ENABLED=false\n'
 		);
 		assert.match(
@@ -64,6 +64,44 @@ test('uses Vite mode-specific dotenv precedence and shell overrides', () => {
 	} finally {
 		if (previous === undefined) delete process.env.SUBSCRIPTIONS_ENABLED;
 		else process.env.SUBSCRIPTIONS_ENABLED = previous;
+		rmSync(directory, { recursive: true });
+	}
+});
+
+test('development public settings never enter production and generic files are rejected', () => {
+	const directory = mkdtempSync(join(tmpdir(), 'craftsky-modes-'));
+	mkdirSync(join(directory, 'config'));
+	const previous = process.env.PUBLIC_SENTRY_DSN;
+	try {
+		delete process.env.PUBLIC_SENTRY_DSN;
+		writeFileSync(
+			join(directory, 'config/.env.development.local'),
+			'PUBLIC_SENTRY_DSN=dev-canary\n'
+		);
+		assert.match(launchSummary([], directory), /Sentry: configured/);
+		assert.match(
+			launchSummary(['--mode=production'], directory),
+			/Sentry: disabled/
+		);
+		writeFileSync(
+			join(directory, 'config/.env.production.local'),
+			'PUBLIC_SENTRY_DSN=prod-canary\n'
+		);
+		assert.match(
+			launchSummary(['--mode=production'], directory),
+			/Sentry: configured/
+		);
+		writeFileSync(
+			join(directory, 'config/.env.local'),
+			'PUBLIC_SENTRY_DSN=ambiguous-canary\n'
+		);
+		assert.throws(
+			() => launchSummary(['--mode=production'], directory),
+			/Use config\/\.env\.development\.local/
+		);
+	} finally {
+		if (previous === undefined) delete process.env.PUBLIC_SENTRY_DSN;
+		else process.env.PUBLIC_SENTRY_DSN = previous;
 		rmSync(directory, { recursive: true });
 	}
 });
