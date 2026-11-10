@@ -346,7 +346,7 @@
 			!detail &&
 			post &&
 			!element.closest(
-				'.quote-card,.external-card,.post-actions,.post-images,.notice'
+				'dialog,.quote-card,.external-card,.post-actions,.post-images,.notice'
 			) &&
 			!element.closest('a,button,input,textarea,select,summary') &&
 			!window.getSelection()?.toString() &&
