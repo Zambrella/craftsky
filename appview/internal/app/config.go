@@ -5,6 +5,7 @@ package app
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -372,7 +373,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// godotenv.Load merges the file into os.Environ without overwriting
 	// existing values — exactly the "os.Getenv wins" semantics we want.
 	// A missing file is not fatal: os.Getenv alone may have everything.
-	_ = godotenv.Load(envFilePath)
+	if err := godotenv.Load(envFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Dotenv parse errors can include secret source lines. Do not wrap them.
+		return Config{}, fmt.Errorf("cannot read configuration file: check permissions and dotenv syntax")
+	}
 
 	cfg := Config{
 		VideoProvider:             getEnvWithDefault("VIDEO_PROVIDER", "bunny"),

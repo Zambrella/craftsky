@@ -8,25 +8,17 @@ git_dir=$(git rev-parse --path-format=absolute --git-dir)
 git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
 local_env="$repo_root/.env.local"
 
+# Parse once using AppView's dotenv parser, export only wrapper-owned keys.
+# Backend credentials remain in Compose env_file inputs.
+config_shell=$(./scripts/config shell)
+eval "$config_shell"
+
 dotenv_value() {
-  local key=$1
-  local value=""
-
-  if [[ -f "$local_env" ]]; then
-    value=$(sed -n "s/^${key}=//p" "$local_env" | tail -n 1)
-  fi
-
-	printf '%s' "$value"
+  printenv "$1" 2>/dev/null || true
 }
 
 configured_value() {
-  local key=$1
-
-  if printenv "$key" >/dev/null 2>&1; then
-    printf '%s' "${!key}"
-    return
-  fi
-  dotenv_value "$key"
+  dotenv_value "$1"
 }
 
 sanitize_compose_name() {
@@ -213,30 +205,7 @@ instagram_meta_enabled=$(dotenv_value INSTAGRAM_META_ENABLED)
 instagram_meta_enabled=$(printf '%s' "$instagram_meta_enabled" | tr '[:upper:]' '[:lower:]')
 case "$instagram_meta_enabled" in
   1 | t | true)
-    instagram_required_keys=(
-      INSTAGRAM_DATA_HMAC_KEY
-      INSTAGRAM_META_REPLIES_ENABLED
-      INSTAGRAM_META_APP_SECRET
-      INSTAGRAM_META_VERIFY_TOKEN
-      INSTAGRAM_META_ACCESS_TOKEN
-      INSTAGRAM_META_ACCOUNT_ID
-      INSTAGRAM_META_API_VERSION
-      INSTAGRAM_META_API_BASE_URL
-      INSTAGRAM_META_DM_URL
-    )
-    instagram_missing_keys=()
-    for key in "${instagram_required_keys[@]}"; do
-      if [[ -z "$(dotenv_value "$key")" ]]; then
-        instagram_missing_keys+=("$key")
-      fi
-    done
-
-    if (( ${#instagram_missing_keys[@]} == 0 )); then
-      printf '%s\n' 'Instagram Meta configuration found; Instagram verification enabled.' >&2
-    else
-      printf 'Instagram Meta integration enabled but configuration incomplete (missing: %s); AppView startup will fail.\n' \
-        "$(IFS=,; printf '%s' "${instagram_missing_keys[*]}")" >&2
-    fi
+    printf '%s\n' 'Instagram Meta integration enabled; use just config-check to validate the complete bundle.' >&2
     ;;
   "" | 0 | f | false)
     printf '%s\n' 'Instagram Meta integration disabled; Instagram verification disabled.' >&2

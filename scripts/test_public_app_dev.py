@@ -28,6 +28,9 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
 if os.environ.get('FIXTURE_PORT_FAILURE'): sys.exit(1)
 if sys.argv[1]=='port': print(os.environ.get('FIXTURE_ADDRESS','127.0.0.1:18400'))
 ''')
+        config = self.root / 'scripts/config'
+        config.write_text('#!/bin/sh\nprintf \'25444\\n\'\n')
+        config.chmod(0o755)
         npm = self.bin / 'npm'
         npm.write_text('''#!/usr/bin/env python3
 import json, os, sys

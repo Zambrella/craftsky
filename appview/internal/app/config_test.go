@@ -1586,22 +1586,9 @@ func TestLoadConfigScheduledImageDecodeLimits(t *testing.T) {
 }
 
 func TestProductionDeploymentImageGeometryMatchesApplicationCeiling(t *testing.T) {
-	productionEnv, err := os.ReadFile("../../environments/prod.env.example")
-	if err != nil {
-		t.Fatal(err)
-	}
 	blueprint, err := os.ReadFile("../../../render.yaml")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	for _, expected := range []string{
-		"SCHEDULED_IMAGE_MAX_WIDTH=4000",
-		"SCHEDULED_IMAGE_MAX_HEIGHT=4000",
-	} {
-		if !strings.Contains(string(productionEnv), expected) {
-			t.Fatalf("production environment is missing %q", expected)
-		}
 	}
 	for _, expected := range []string{
 		"SCHEDULED_IMAGE_MAX_WIDTH\n                value: \"4000\"",
@@ -1794,5 +1781,13 @@ func TestLoadConfigSafetyEmailProduction(t *testing.T) {
 	}
 	if strings.Contains(fmt.Sprintf("%+v", cfg), "credential-canary") {
 		t.Fatal("credential exposed in config diagnostics")
+	}
+}
+
+func TestLoadConfigMalformedDotenvDoesNotExposeValues(t *testing.T) {
+	path := testConfigFile(t, "SECRET=\"protected-value-canary\n")
+	_, err := LoadConfig(EnvDev, path)
+	if err == nil || strings.Contains(err.Error(), "protected-value-canary") {
+		t.Fatal("malformed dotenv must fail without exposing source values")
 	}
 }

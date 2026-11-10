@@ -37,7 +37,7 @@ CHAT_SCOPES = [f'rpc:{method}?aud=did:web:api.bsky.chat%23bsky_chat' for method 
 class PermissionVerificationTests(unittest.TestCase):
     def setUp(self):
         self.expected = json.loads(module.source('lexicon/social/craftsky/authFull.json', None))
-        self.scopes = next(line.split('=', 1)[1] for line in module.source('appview/environments/prod.env.example', None).splitlines() if line.startswith('OAUTH_SCOPES='))
+        self.scopes = module.production_scopes()
         self.record = {'value': {'$type': 'com.atproto.lexicon.schema', **self.expected}}
         self.advertised_scopes = self.scopes.split() + CHAT_SCOPES
         self.metadata = {'client_id': 'https://appview.craftsky.social/oauth-client-metadata.json', 'scope': ' '.join(self.advertised_scopes)}

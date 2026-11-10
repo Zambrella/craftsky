@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Local configuration setup, redacted status, validation and generated reference."""
+import argparse
+import base64
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shlex
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+LOCAL_FILES = ('.env.secrets.local', '.env.local')
+CLIENT_FILES = ('app/config/local.env', 'app/config/local-android.env')
+# Host/port and remote authorization are deliberately specific to each worktree.
+TOPOLOGY = ('CRAFTSKY_', 'COMPOSE_', 'APPVIEW_DEV_', 'APPVIEW_EXPECTED_HOSTS',
+            'OAUTH_PUBLIC_ORIGIN', 'OAUTH_CLIENT_SECRET_KEY', 'OAUTH_CALLBACK_URL',
+            'WEB_APP_ORIGIN', 'GOOGLE_APPLICATION_CREDENTIALS', 'DATABASE_URL')
+SHELL_KEYS = {'CRAFTSKY_COMPOSE_PROJECT_NAME', 'CRAFTSKY_POSTGRES_PORT',
+ 'CRAFTSKY_APPVIEW_PORT', 'CRAFTSKY_MINIO_PORT', 'CRAFTSKY_MINIO_CONSOLE_PORT',
+ 'CRAFTSKY_POSTGRES_PUBLISH_HOST', 'CRAFTSKY_APPVIEW_PUBLISH_HOST',
+ 'CRAFTSKY_MINIO_PUBLISH_HOST', 'CRAFTSKY_PUBLIC_APP_PORT', 'CRAFTSKY_APPVIEW_MEMORY_LIMIT',
+ 'APPVIEW_DEV_REMOTE_ACCESS', 'APPVIEW_DEV_PROTECTED_TRANSPORT', 'APPVIEW_DEV_AUTH_SECRET',
+ 'APPVIEW_EXPECTED_HOSTS', 'INSTAGRAM_META_ENABLED'}
+
+
+def helper(action, path, data=None):
+    result = subprocess.run(['go', 'run', './cmd/configtool', action, str(path)],
+                            cwd=ROOT / 'appview', capture_output=True, text=True, input=json.dumps(data) if data is not None else None)
+    if result.returncode:
+        if action == 'validate' and result.stdout:
+            report = json.loads(result.stdout)
+            raise ValueError('invalid configuration; check ' + (', '.join(sorted(report['keys'])) or 'integration requirements'))
+        raise ValueError('configuration could not be parsed or tooling could not run; values withheld')
+    return json.loads(result.stdout)
+
+
+def read(path):
+    if not path.exists():
+        return {}
+    if path.is_symlink():
+        raise ValueError('configuration files must be regular files, not symlinks')
+    return helper('read', path)
+
+
+def write_missing(path, values):
+    if path.is_symlink():
+        raise ValueError('refusing to write a symlink')
+    current = read(path)
+    missing = {k: v for k, v in values.items() if k not in current}
+    if not missing:
+        return
+    encoded = helper('marshal', '-', missing)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Exclusive creation / no-follow append prevents replacing a destination link.
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'a') as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        stream.write('\n' + encoded + '\n')
+    print('Updated ' + str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else 'Updated worktree development configuration')
+
+
+def primary():
+    common = subprocess.check_output(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=ROOT, text=True).strip()
+    return Path(common).parent
+
+
+def init(target):
+    source = primary()
+    inherited = {}
+    for name in LOCAL_FILES:
+        inherited.update(read(source / name))
+    # .env.local is a DEVELOPMENT-only source. Production and staging files are never read.
+    supported = set(re.findall(r'\| `([A-Z][A-Z0-9_]+)`', reference()))
+    inherited = {k: v for k, v in inherited.items() if k in supported and not k.startswith(TOPOLOGY)}
+    existing = {}
+    for name in LOCAL_FILES:
+        existing.update(read(target / name))
+    inherited = {k: v for k, v in inherited.items() if k not in existing}
+    if not existing.get('VIDEO_PROVIDER') and not inherited.get('VIDEO_PROVIDER') and not (existing.get('BUNNY_STREAM_API_KEY') or inherited.get('BUNNY_STREAM_API_KEY')):
+        inherited['VIDEO_PROVIDER'] = 'bluesky'
+    for key in ('CHAT_OPERATION_HMAC_KEY', 'OAUTH_HANDOFF_RECEIPT_KEY'):
+        if not existing.get(key) and not inherited.get(key):
+            inherited[key] = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('=')
+    if not existing.get('INSTAGRAM_DATA_HMAC_KEY') and not inherited.get('INSTAGRAM_DATA_HMAC_KEY'):
+        inherited['INSTAGRAM_DATA_HMAC_KEY'] = secrets.token_hex(32)
+    # Older base branches may not yet ignore the new secrets filename.
+    ignored = subprocess.run(['git', 'check-ignore', '-q', '.env.secrets.local'], cwd=target).returncode == 0
+    secrets_name = '.env.secrets.local' if ignored else '.env.local'
+    planned = [secrets_name] + [name for name in CLIENT_FILES if not (target / name).exists()]
+    for name in planned:
+        if subprocess.run(['git', 'check-ignore', '-q', name], cwd=target).returncode:
+            raise ValueError('refusing to copy configuration into a path not ignored by Git')
+    write_missing(target / secrets_name, inherited)
+    for name in CLIENT_FILES:
+        destination = target / name
+        if not destination.exists():
+            values = read(source / name) or read(ROOT / (name + '.example'))
+            write_missing(destination, values)
+    print('Development configuration ready; existing values and worktree ports preserved.')
+
+
+def reference():
+    rows = {}
+    for path in sorted((ROOT / 'appview/internal/app').glob('*config*.go')):
+        if path.name.endswith('_test.go'):
+            continue
+        for line_no, line in enumerate(path.read_text().splitlines(), 1):
+            for key in re.findall(r'"([A-Z][A-Z0-9_]+)"', line):
+                if '_' not in key:
+                    continue
+                rows.setdefault(key, (path.relative_to(ROOT), line_no))
+    text = '# AppView configuration reference\n\nGenerated by `just config-reference`. Do not edit the table.\n\n'
+    text += 'Go loaders own defaults, types, validation and conditional requirements. Follow each source link for the exact rule. Deployment files contain only wiring and deliberate overrides.\n\n'
+    text += '| Variable | Classification | Definition |\n|---|---|---|\n'
+    for key, (path, line) in sorted(rows.items()):
+        protected = any(x in key for x in ('SECRET', 'TOKEN', 'PASSWORD', 'HMAC', 'RECEIPT_KEY', 'ACCESS_KEY', 'API_KEY')) or key == 'DATABASE_URL'
+        text += f'| `{key}` | {"Protected server value" if protected else "Server configuration"} | [{path.name}:{line}](../../{path}#L{line}) |\n'
+    return text
+
+
+def lint():
+    expected = reference()
+    if (ROOT / 'docs/development/configuration-reference.md').read_text() != expected:
+        raise ValueError('configuration reference is stale; run just config-reference')
+    ignore = (ROOT / 'appview/.dockerignore').read_text()
+    for pattern in ('*.env', '.env*'):
+        if pattern not in ignore.splitlines():
+            raise ValueError('Docker context must exclude secret env files')
+    tracked = subprocess.check_output(['git', 'ls-files'], cwd=ROOT, text=True).splitlines()
+    for name in tracked:
+        if name.endswith(('.env.local', '.env.secrets.local', '/prod.env')):
+            raise ValueError('private environment file is tracked')
+    supported = set(re.findall(r'\| `([A-Z][A-Z0-9_]+)`', expected))
+    local_keys = set(re.findall(r'^([A-Z][A-Z0-9_]+)=', (ROOT / 'appview/environments/dev.env').read_text(), re.M))
+    unknown = local_keys - supported
+    if unknown:
+        raise ValueError('unknown local profile settings: ' + ', '.join(sorted(unknown)))
+    print('Configuration inventory and Docker secret exclusions verified.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['init', 'check', 'status', 'shell', 'port', 'reference', 'lint'])
+    parser.add_argument('--target', type=Path)
+    args = parser.parse_args()
+    if args.action == 'init':
+        init((args.target or ROOT).resolve())
+    elif args.action == 'reference':
+        (ROOT / 'docs/development/configuration-reference.md').write_text(reference())
+    elif args.action == 'lint':
+        lint()
+    elif args.action == 'check':
+        lint()
+        helper('validate', ROOT)
+        print('Local AppView configuration valid (no services contacted).')
+    else:
+        values = {}
+        for name in LOCAL_FILES:
+            values.update(read(ROOT / name))
+        if args.action == 'shell':
+            for key in sorted(SHELL_KEYS):
+                if key in values and key not in os.environ:
+                    print('export ' + key + '=' + shlex.quote(values[key]))
+        elif args.action == 'port':
+            print(os.environ.get('CRAFTSKY_PUBLIC_APP_PORT', values.get('CRAFTSKY_PUBLIC_APP_PORT', '')))
+        else:
+            for name, flag in (('Instagram', 'INSTAGRAM_META_ENABLED'), ('RevenueCat', 'REVENUECAT_ENABLED')):
+                enabled = values.get(flag, 'false').lower() in ('true', '1', 't')
+                print(name + ': ' + ('enabled' if enabled else 'disabled'))
+            print('Chat: ' + ('configured' if values.get('CHAT_OPERATION_HMAC_KEY') else 'unavailable'))
+            for key in sorted(values):
+                print(key + ': ' + ('set' if values[key] else 'empty'))
+            print('Values withheld. Run just config-check for integration validation.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except ValueError as failure:
+        print('config: ' + str(failure), file=sys.stderr)
+        sys.exit(1)
+    except (OSError, subprocess.SubprocessError):
+        # Do not serialize exceptions that might contain dotenv lines or credentials.
+        print('config: operation failed; check file permissions, dotenv syntax, integration requirements and generated reference. Values withheld.', file=sys.stderr)
+        sys.exit(1)

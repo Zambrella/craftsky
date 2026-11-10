@@ -22,8 +22,7 @@ appview/
 │   ├── index/               # CraftSky and shared atproto record indexers
 │   └── models/              # sqlc-generated database types
 ├── environments/
-│   ├── dev.env              # checked in; no secrets
-│   └── prod.env.example     # template; real prod.env is gitignored
+│   └── dev.env              # checked-in local profile; production uses Render
 ├── migrations/              # SQL files consumed by golang-migrate/v4
 └── queries/                 # SQL files consumed by sqlc
 ```
@@ -694,3 +693,5 @@ then, goat is the path of least resistance.
 ## Why Go
 
 See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
+
+See [configuration management](../docs/development/configuration.md) for local secrets, worktree setup, validation and production ownership.

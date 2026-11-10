@@ -21,7 +21,7 @@ export APPVIEW_ORIGIN="http://127.0.0.1:${appview_port}"
 # An explicit override can resolve the small possibility of a checksum collision.
 public_app_port=${CRAFTSKY_PUBLIC_APP_PORT:-}
 if [[ -z "$public_app_port" && -f .env.local ]]; then
-  public_app_port=$(sed -n 's/^CRAFTSKY_PUBLIC_APP_PORT=//p' .env.local | tail -n 1)
+  public_app_port=$(./scripts/config port)
 fi
 if [[ -z "$public_app_port" ]]; then
   checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
