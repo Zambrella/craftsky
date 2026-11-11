@@ -120,7 +120,26 @@ jobs:
           cache-dependency-path: appview/go.sum
 
       - name: Install release-gate tools
-        run: sudo apt-get update && sudo apt-get install --yes just ripgrep
+        run: |
+          tool_dir="$RUNNER_TEMP/appview-gate-tools"
+          archive_dir=$(mktemp -d)
+          trap 'rm -rf "$archive_dir"' EXIT
+          mkdir -p "$tool_dir"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/casey/just/releases/download/1.59.0/just-1.59.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$archive_dir/just.tar.gz"
+          printf '%s  %s\n' 409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e "$archive_dir/just.tar.gz" | sha256sum --check --strict
+          tar -xzf "$archive_dir/just.tar.gz" -C "$archive_dir" just
+          install -m 755 "$archive_dir/just" "$tool_dir/just"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$archive_dir/ripgrep.tar.gz"
+          printf '%s  %s\n' 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c "$archive_dir/ripgrep.tar.gz" | sha256sum --check --strict
+          tar -xzf "$archive_dir/ripgrep.tar.gz" -C "$archive_dir" ripgrep-15.2.0-x86_64-unknown-linux-musl/rg
+          install -m 755 "$archive_dir/ripgrep-15.2.0-x86_64-unknown-linux-musl/rg" "$tool_dir/rg"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          "$tool_dir/just" --version
+          "$tool_dir/rg" --version
 
       - name: Run AppView release gate
         env:
