@@ -7,6 +7,7 @@
 	import CompactIdentity from './CompactIdentity.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import VideoThumbnail from './VideoThumbnail.svelte';
+	import ExternalCard from './ExternalCard.svelte';
 	let { post, href }: { post: QuotePreviewPost | Post; href: string } =
 		$props();
 	const image = $derived(post.images?.[0]);
@@ -48,25 +49,19 @@
 				class="summary-image"
 				style:--image-ratio={ratio || 1}
 				class:unknown-ratio={!ratio}
-				class:portrait={!!ratio && ratio < 1}
 			>
 				<img
 					src={safeLink(image.thumb || image.fullsize || '')}
 					alt={image.alt}
 					loading="lazy"
 				/>
-			</div>{:else if !image && post.external && safeLink(post.external.uri)}<div
-				class="summary-external"
-			>
-				<strong>{post.external.title}</strong>{#if post.external.description}<p>
-						{post.external.description}
-					</p>{/if}{#if safeLink(post.external.thumb?.url || '')}<img
-						src={safeLink(post.external.thumb!.url)}
-						alt=""
-						loading="lazy"
-					/>{/if}
 			</div>{/if}
 	</a>
+	{#if !post.video && !image && post.external && safeLink(post.external.uri)}
+		<div class="summary-external">
+			<ExternalCard external={post.external} compact />
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -130,10 +125,9 @@
 	.summary-image {
 		margin-top: 8px;
 		width: 100%;
-		height: clamp(
-			160px,
+		height: min(
 			calc(100cqw / var(--image-ratio)),
-			clamp(420px, 70dvh, 720px)
+			var(--post-image-max-height)
 		);
 		border-radius: 8px;
 		border: 1px solid var(--hairline);
@@ -142,32 +136,15 @@
 	}
 	.summary-image.unknown-ratio {
 		height: 320px;
-		max-height: clamp(420px, 70dvh, 720px);
+		max-height: var(--post-image-max-height);
 	}
 	.summary-image img {
 		display: block;
 		width: 100%;
 		height: 100%;
-		object-fit: cover;
-	}
-	.summary-image.portrait img {
 		object-fit: contain;
 	}
 	.summary-external {
-		margin-top: 8px;
-		border: 1px solid var(--hairline);
-		border-radius: 8px;
-		padding: 12px;
-	}
-	.summary-external p {
-		margin: 4px 0;
-		font-size: 13px;
-		color: var(--ink-2);
-	}
-	.summary-external img {
-		width: 100%;
-		max-height: 180px;
-		object-fit: cover;
 		margin-top: 8px;
 	}
 	.import-label {

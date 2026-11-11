@@ -3,7 +3,13 @@
 	import { safeLink } from './model';
 	import { parseYouTubeExternal } from './youtube';
 	import YouTubePlayer from './YouTubePlayer.svelte';
-	let { external }: { external: NonNullable<Post['external']> } = $props();
+	let {
+		external,
+		compact = false
+	}: {
+		external: NonNullable<Post['external']>;
+		compact?: boolean;
+	} = $props();
 	const video = $derived(parseYouTubeExternal(external.uri));
 	const href = $derived(safeLink(external.uri));
 	const host = $derived(href ? new URL(href).host : '');
@@ -40,7 +46,7 @@
 {#snippet copy()}
 	<span class="preview-copy">
 		<strong>{external.title}</strong>
-		{#if external.description.trim()}<span class="description"
+		{#if !compact && external.description.trim()}<span class="description"
 				>{external.description}</span
 			>{/if}
 		<span class="host">{host}</span>
@@ -49,7 +55,7 @@
 
 {#if href}
 	{#if video}
-		<div class="external-card youtube-card">
+		<div class="external-card youtube-card" class:compact class:playing>
 			{#if playing}
 				{#if failed}<p class="playback-error" role="status">
 						This video can’t be played here. It may be private, unavailable, or
@@ -126,19 +132,68 @@
 			</dialog>
 		</div>
 	{:else}
-		<a class="external-card" {href} rel="ugc nofollow noreferrer"
-			><strong>{external.title}</strong>
-			{#if safeLink(external.thumb?.url || '')}<img
-					src={safeLink(external.thumb!.url)}
-					alt=""
-					loading="lazy"
-				/>{/if}
-			<p>{external.description}</p>
-		</a>
+		<a class="external-card" class:compact {href} rel="ugc nofollow noreferrer">
+			{#if compact}
+				{#if safeLink(external.thumb?.url || '')}<span class="preview-media"
+						><img
+							src={safeLink(external.thumb!.url)}
+							alt=""
+							loading="lazy"
+						/></span
+					>{/if}
+				{@render copy()}
+			{:else}
+				<strong>{external.title}</strong>
+				{#if safeLink(external.thumb?.url || '')}<img
+						src={safeLink(external.thumb!.url)}
+						alt=""
+						loading="lazy"
+					/>{/if}
+				<p>{external.description}</p>
+			{/if}</a
+		>
 	{/if}
 {/if}
 
 <style>
+	.compact {
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		border: 1px solid var(--ink-4);
+		border-radius: 6px;
+		background: var(--image-frame);
+	}
+	a.compact {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+	}
+	.compact:not(.playing) .youtube-preview {
+		display: flex;
+		align-items: center;
+	}
+	.compact .preview-media {
+		width: 72px;
+		height: 72px;
+		aspect-ratio: 1;
+		flex: none;
+	}
+	.compact .preview-copy {
+		flex: 1;
+		min-width: 0;
+		padding: 10px;
+	}
+	.compact .preview-copy strong {
+		display: block;
+		font-size: 14px;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+	.compact .play svg {
+		width: 40px;
+		height: 40px;
+	}
 	img {
 		max-height: 240px;
 		width: 100%;

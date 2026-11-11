@@ -1828,6 +1828,115 @@ for (const colorScheme of ['light', 'dark'] as const) {
 	});
 }
 
+for (const width of [390, 1280]) {
+	for (const thumbnail of [true, false]) {
+		test(`quoted YouTube previews use compact layout and inline playback at ${width}px (thumbnail: ${thumbnail})`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			let youtubeRequests = 0;
+			await page.route('https://www.youtube.com/iframe_api', (route) => {
+				youtubeRequests++;
+				return route.fulfill({
+					contentType: 'text/javascript',
+					body: 'window.YT = { Player: function() { this.destroy = function() {}; } }; window.onYouTubeIframeAPIReady();'
+				});
+			});
+			await page.route('https://www.youtube-nocookie.com/**', (route) => {
+				youtubeRequests++;
+				return route.fulfill({
+					contentType: 'text/html',
+					body: '<html><body>Fixture player</body></html>'
+				});
+			});
+			await page.route(
+				'https://fixture.craftsky.test/compact-thumbnail.svg',
+				(route) =>
+					route.fulfill({
+						contentType: 'image/svg+xml',
+						body: '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="blue"/></svg>'
+					})
+			);
+			const title =
+				'Happy Birthday Stash Hub - Mini fabric haul to celebrate with lots of sewing projects';
+			const quoted = post('quoted-youtube', {
+				external: {
+					uri: 'https://youtu.be/dQw4w9WgXcQ?t=90',
+					title,
+					description:
+						'This description should be hidden in the compact preview.',
+					...(thumbnail
+						? {
+								thumb: {
+									url: 'https://fixture.craftsky.test/compact-thumbnail.svg'
+								}
+							}
+						: {})
+				}
+			});
+			await timeline(
+				page,
+				post('quote-youtube', {
+					text: 'Some great tips in this video.',
+					quote: { uri: quoted.uri, cid: quoted.cid },
+					quoteView: { state: 'visible', post: quoted }
+				})
+			);
+			await page.goto('/feed');
+			const quote = page.getByRole('complementary', { name: 'Quoted post' });
+			const preview = quote.getByRole('button', {
+				name: 'Play YouTube video: ' + title,
+				exact: true
+			});
+			await expect(preview).toBeVisible();
+			await expect(preview.locator('.host')).toHaveText('youtu.be');
+			await expect(preview.locator('.description')).toHaveCount(0);
+			await expect(preview.locator('strong')).toHaveCSS(
+				'white-space',
+				'nowrap'
+			);
+			await expect(preview.locator('strong')).toHaveCSS(
+				'text-overflow',
+				'ellipsis'
+			);
+			if (thumbnail) {
+				const media = preview.locator('.preview-media');
+				await expect(media).toHaveCSS('width', '72px');
+				await expect(media).toHaveCSS('height', '72px');
+				await quote.screenshot({
+					path: test.info().outputPath('compact-youtube-preview.png')
+				});
+			} else await expect(preview.locator('img')).toHaveCount(0);
+			expect(youtubeRequests).toBe(0);
+			await expect(quote.locator('iframe')).toHaveCount(0);
+			await preview.click();
+			const dialog = page.getByRole('dialog', {
+				name: 'Play video from YouTube?',
+				exact: true
+			});
+			await expect(dialog).toBeVisible();
+			expect(youtubeRequests).toBe(0);
+			await expect(page).toHaveURL(/\/feed$/);
+			await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+			await expect(preview).toBeFocused();
+			await preview.click();
+			await dialog
+				.getByRole('button', { name: 'Allow once', exact: true })
+				.click();
+			await expect(
+				quote.getByTitle('YouTube video player: ' + title)
+			).toHaveAttribute(
+				'src',
+				/youtube-nocookie.com\/embed\/dQw4w9WgXcQ\?.*start=90/
+			);
+			await expect(
+				quote.getByRole('link', { name: 'Open in YouTube', exact: true })
+			).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ?t=90');
+			await expect(page).toHaveURL(/\/feed$/);
+		});
+	}
+}
+
 test('YouTube embeds require consent, retain timestamps, remember permission and handle playback errors', async ({
 	page
 }) => {
