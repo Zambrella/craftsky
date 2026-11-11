@@ -21,6 +21,10 @@ permissions:
 jobs:
   web-client:
     runs-on: ubuntu-24.04
+    container:
+      # Match the Playwright version in web-client/package-lock.json.
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+      options: --ipc=host
     timeout-minutes: 25
     defaults:
       run:
@@ -36,7 +40,6 @@ jobs:
       - run: python3 -m unittest discover -s ../scripts -p test_web_client_deploy.py
       - run: python3 -m unittest discover -s ../scripts -p test_release.py
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:release
       - name: Upload local fixture failure artifacts
         if: failure()
