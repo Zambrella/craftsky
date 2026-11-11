@@ -1510,6 +1510,15 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 /* Instagram export guide screenshots */
+.import-guide__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 2rem 0;
+  border: 0;
+}
+
 .import-guide__steps > li + li {
   margin-top: var(--sp-6);
 }
