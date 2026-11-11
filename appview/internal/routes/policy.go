@@ -414,6 +414,8 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "PUT", PathPattern: "/v1/profiles/me/customisation", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "PUT", PathPattern: "/v1/profiles/me/business", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/profiles/me/business", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/followers", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/following", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/mutual-followers", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/events", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/profiles/{handleOrDid}/follows", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

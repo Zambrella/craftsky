@@ -27,6 +27,31 @@ void main() {
     'crafts': ['sewing'],
   };
 
+  for (final kind in ['followers', 'following']) {
+    test('another profile $kind preserves pagination', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@did:plc:bob/$kind',
+        (server) => server.reply(200, {
+          'items': <Map<String, dynamic>>[],
+          'totalCount': 3,
+          'cursor': 'next',
+        }),
+        queryParameters: {'limit': 2, 'cursor': 'previous'},
+      );
+      final api = ProfileApiClient(dio);
+      final page = kind == 'followers'
+          ? await api.listFollowers('did:plc:bob', limit: 2, cursor: 'previous')
+          : await api.listFollowing(
+              'did:plc:bob',
+              limit: 2,
+              cursor: 'previous',
+            );
+      expect(page.totalCount, 3);
+      expect(page.cursor, 'next');
+    });
+  }
+
   test('decodes and serializes free-form pronouns', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onPut(

@@ -206,6 +206,8 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/profiles/me/follower-growth",
 		"GET /v1/profiles/me/followers",
 		"GET /v1/profiles/me/following",
+		"GET /v1/profiles/{handleOrDid}/followers",
+		"GET /v1/profiles/{handleOrDid}/following",
 		"PUT /v1/profiles/me",
 		"PUT /v1/profiles/me/customisation",
 		"GET /v1/profiles/{handleOrDid}/mutual-followers",

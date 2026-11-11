@@ -483,6 +483,16 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
+      onViewFollowers: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowersRoute(did: profile.did).push<void>(context),
+            ),
+      onViewFollowing: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowingRoute(did: profile.did).push<void>(context),
+            ),
       messagingAction: relationship.hasBlock
           ? null
           : ProfileMessageButton(

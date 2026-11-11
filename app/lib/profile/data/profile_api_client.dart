@@ -270,6 +270,30 @@ class ProfileApiClient {
     return ProfileAccountPageMapper.fromMap(res.data!);
   });
 
+  Future<ProfileAccountPage> listFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/followers',
+      queryParameters: _pageQuery(limit: limit, cursor: cursor),
+    );
+    return ProfileAccountPageMapper.fromMap(res.data!);
+  });
+
+  Future<ProfileAccountPage> listFollowing(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/following',
+      queryParameters: _pageQuery(limit: limit, cursor: cursor),
+    );
+    return ProfileAccountPageMapper.fromMap(res.data!);
+  });
+
   Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>
       unwrapApi(() async {
         final res = await _dio.get<Map<String, dynamic>>(

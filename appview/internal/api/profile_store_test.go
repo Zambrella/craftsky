@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -749,5 +751,54 @@ func TestProfileStore_ReadByDID_DoesNotHydrateNonCraftskyWhenCacheMisses(t *test
 	_, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")
 	if !errors.Is(err, api.ErrProfileNotFound) {
 		t.Fatalf("cache miss error = %v, want ErrProfileNotFound", err)
+	}
+}
+
+func TestProfileFollowListsKeepViewerStatePrivateAndFilterBlocks(t *testing.T) {
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+  INSERT INTO craftsky_profiles(did,record_cid) VALUES
+   ('did:plc:owner','cid'),('did:plc:viewer','cid'),('did:plc:alice','cid'),('did:plc:bob','cid'),('did:plc:carol','cid');
+  INSERT INTO actor_mutes(owner_did,subject_did) VALUES ('did:plc:owner','did:plc:alice'),('did:plc:viewer','did:plc:bob');
+  INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at) VALUES
+   ('follow','did:plc:owner','did:plc:alice','did:plc:alice','at://did:plc:owner/app.bsky.graph.follow/a','2026-11-01T00:00:00Z'),
+   ('follow','did:plc:owner','did:plc:bob','did:plc:bob','at://did:plc:owner/app.bsky.graph.follow/b','2026-11-02T00:00:00Z'),
+   ('follow','did:plc:owner','did:plc:carol','did:plc:carol','at://did:plc:owner/app.bsky.graph.follow/c','2026-11-03T00:00:00Z'),
+   ('follow','did:plc:alice','did:plc:owner','did:plc:owner','at://did:plc:alice/app.bsky.graph.follow/o','2026-11-01T00:00:00Z'),
+   ('follow','did:plc:bob','did:plc:owner','did:plc:owner','at://did:plc:bob/app.bsky.graph.follow/o','2026-11-02T00:00:00Z'),
+   ('follow','did:plc:carol','did:plc:owner','did:plc:owner','at://did:plc:carol/app.bsky.graph.follow/o','2026-11-03T00:00:00Z'),
+   ('block','did:plc:carol','did:plc:viewer','did:plc:viewer','at://did:plc:carol/app.bsky.graph.block/v',now());
+ `); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewProfileStore(pool)
+	for _, list := range []func(context.Context, syntax.DID, syntax.DID, int, string) ([]*api.ProfileAccountRow, string, int, error){store.ListProfileFollowers, store.ListProfileFollowing} {
+		rows, cursor, total, err := list(ctx, "did:plc:viewer", "did:plc:owner", 1, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != 2 || len(rows) != 1 || rows[0].DID != "did:plc:bob" || !rows[0].Muted || cursor == "" {
+			t.Fatalf("viewer page: %+v, total %d, cursor %q", rows, total, cursor)
+		}
+		rows, _, total, err = list(ctx, "did:plc:viewer", "did:plc:owner", 1, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != 2 || len(rows) != 1 || rows[0].DID != "did:plc:alice" || rows[0].Muted {
+			t.Fatalf("owner private mute leaked: %+v", rows)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at) VALUES ('block','did:plc:viewer','did:plc:owner','did:plc:owner','at://did:plc:viewer/app.bsky.graph.block/o',now())`); err != nil {
+		t.Fatal(err)
+	}
+	for _, list := range []func(context.Context, syntax.DID, syntax.DID, int, string) ([]*api.ProfileAccountRow, string, int, error){store.ListProfileFollowers, store.ListProfileFollowing} {
+		rows, _, total, err := list(ctx, "did:plc:viewer", "did:plc:owner", 10, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != 0 || len(rows) != 0 {
+			t.Fatal("blocked target graph exposed")
+		}
 	}
 }

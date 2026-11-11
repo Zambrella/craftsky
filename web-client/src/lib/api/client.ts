@@ -324,6 +324,16 @@ export class CraftskyAPI {
 				pageQuery(options),
 				options.signal
 			),
+		profileRelationships: (
+			id: string,
+			kind: 'followers' | 'following',
+			options: T.PageQuery = {}
+		) =>
+			this.transport.get<T.ProfilePage>(
+				`${profilePath(id)}/${kind}`,
+				pageQuery(options),
+				options.signal
+			),
 		mutualFollowers: (id: string, options: T.PageQuery = {}) =>
 			this.transport.get<T.ProfilePage>(
 				`${profilePath(id)}/mutual-followers`,

@@ -23,6 +23,33 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 
 void main() {
   group('ProfileActions', () {
+    for (final label in ['Followers', 'Following']) {
+      testWidgets('visitor menu opens $label', (tester) async {
+        String? opened;
+        await _pump(
+          tester,
+          ProfileActions(
+            actions: VisitorProfileActionSet(
+              isFollowing: false,
+              isBusy: false,
+              onFollowToggle: () {},
+              onShare: () {},
+              onReport: () {},
+              onMuteToggle: () {},
+              onBlockToggle: () {},
+              onViewFollowers: () => opened = 'Followers',
+              onViewFollowing: () => opened = 'Following',
+            ),
+          ),
+        );
+        await tester.tap(find.byType(CraftskyContextMenuButton));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(opened, label);
+      });
+    }
+
     testWidgets('self profile copy menu fits a narrow screen with large text', (
       tester,
     ) async {

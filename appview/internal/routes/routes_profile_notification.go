@@ -35,6 +35,8 @@ func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
 	routes.mux.Handle("GET /v1/profiles/me/follower-growth", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/follower-growth"), api.GetFollowerGrowthHandler(routes.followerGrowth, time.Now)))
 	routes.mux.Handle("GET /v1/profiles/me/followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/following", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(routes.profileStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/followers"), api.GetProfileFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/following", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/following"), api.GetProfileFollowingHandler(routes.profileStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("PUT /v1/profiles/me", routes.middleware.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(routes.profileStore, routes.handleResolver, nil, routes.mediaLimits, routes.logger, routes.compoundCommands)))
 	routes.mux.Handle("PUT /v1/profiles/me/customisation", routes.middleware.wrap(
 		mustPolicy("PUT", "/v1/profiles/me/customisation"),

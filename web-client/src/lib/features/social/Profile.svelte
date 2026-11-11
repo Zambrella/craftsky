@@ -466,6 +466,19 @@
 									);
 								}}><Icon name="share" />Share</button
 							>
+							{#if !guest && !profile.blocking && !profile.blockedBy}
+								<div class="profile-menu-divider"></div>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/followers'}><Icon name="profile" />Followers</a
+								>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/following'}><Icon name="profile" />Following</a
+								>
+							{/if}
 							<div class="profile-menu-divider"></div>
 							{#if !profile.blocking && !profile.blockedBy}<button
 									disabled={work.busy || !!work.retry}

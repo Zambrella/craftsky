@@ -83,6 +83,18 @@ abstract interface class ProfileRepository {
     String? cursor,
   });
 
+  Future<ProfileAccountPage> listFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  });
+
+  Future<ProfileAccountPage> listFollowing(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  });
+
   Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor});
 
   Future<ProfileAccountPage> listFollowingMe({int? limit, String? cursor});

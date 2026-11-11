@@ -48,6 +48,10 @@
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await loadPage(() => import('#lib/features/social/ProfileEditor.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'profiles' && ['followers', 'following'].includes(path[2])}{#await loadPage(() => import('#lib/features/settings/Connections.svelte'))}{@render loading()}{:then Module}<Module.default
+				{api}
+				section={path[2]}
+				profileId={path[1]?.replace(/^@/, '')}
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'profiles' && path[2] === 'mutual-followers'}{#await loadPage(() => import('#lib/features/social/MutualFollowers.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				id={path[1]?.replace(/^@/, '')}

@@ -337,3 +337,38 @@ test('changing the mobile tag query reloads results within the same route', asyn
 	).toBeVisible();
 	expect(tags).toEqual(['sewing', 'crochet']);
 });
+
+for (const label of ['Followers', 'Following']) {
+	test(`visitor profile menu opens and paginates ${label}`, async ({
+		page
+	}) => {
+		await fetch('http://127.0.0.1:19847/__test/control', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ visual: true })
+		});
+		await page.goto('/profiles/did%3Aplc%3Abob');
+		await page.getByLabel('More profile actions', { exact: true }).click();
+		await page.getByRole('link', { name: label, exact: true }).click();
+		await expect(page).toHaveURL(
+			new RegExp('/profiles/did%3Aplc%3Abob/' + label.toLowerCase() + '$')
+		);
+		await expect(
+			page.getByRole('heading', { name: label + ' (2)', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(
+			page.getByRole('link').filter({ hasText: 'Martha Jones' })
+		).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Load more', exact: true })
+		).not.toBeVisible();
+		await page
+			.getByRole('link', { name: 'Back to profile', exact: true })
+			.click();
+		await expect(page).toHaveURL(/profiles\/did%3Aplc%3Abob$/);
+		await expect(
+			page.getByRole('heading', { name: 'Bob Maker', exact: true })
+		).toBeVisible();
+	});
+}

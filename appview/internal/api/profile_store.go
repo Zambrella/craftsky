@@ -502,16 +502,25 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 // ListFollowers returns accounts that follow subjectDID, ordered by newest
 // follow record first.
 func (s *ProfileStore) ListFollowers(ctx context.Context, subjectDID string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
-	return s.listFollowAccounts(ctx, "followers", subjectDID, limit, cursor)
+	return s.listFollowAccounts(ctx, "followers", subjectDID, subjectDID, limit, cursor)
 }
 
 // ListFollowing returns accounts did follows, ordered by newest follow record
 // first.
 func (s *ProfileStore) ListFollowing(ctx context.Context, did string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
-	return s.listFollowAccounts(ctx, "following", did, limit, cursor)
+	return s.listFollowAccounts(ctx, "following", did, did, limit, cursor)
 }
 
-func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
+// ListProfileFollowers returns the subject's followers with the viewer's private relationship state.
+func (s *ProfileStore) ListProfileFollowers(ctx context.Context, viewer, subject syntax.DID, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
+	return s.listFollowAccounts(ctx, "followers", subject.String(), viewer.String(), limit, cursor)
+}
+
+func (s *ProfileStore) ListProfileFollowing(ctx context.Context, viewer, subject syntax.DID, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
+	return s.listFollowAccounts(ctx, "following", subject.String(), viewer.String(), limit, cursor)
+}
+
+func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did string, viewer string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
 	curCreatedAt, curURI, err := decodeSeekCursor(cursor, "createdAt")
 	if err != nil {
 		return nil, "", 0, err
@@ -529,10 +538,18 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			   OR (b.actor_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1))
 			  AND NOT appview_owner_is_terminal(b.actor_did)
 			  AND NOT appview_owner_is_terminal(b.subject_did)
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM pds_set_aggregates b
+			WHERE b.kind = 'block'
+			  AND ((b.actor_did = $2 AND b.subject_did IN ($1, ` + queryConfig.accountExpr + `))
+			   OR (b.subject_did = $2 AND b.actor_did IN ($1, ` + queryConfig.accountExpr + `)))
+			  AND NOT appview_owner_is_terminal(b.actor_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 		)`
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM pds_set_aggregates f `+queryConfig.craftskyJoin+` WHERE `+eligibleWhere, did).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM pds_set_aggregates f `+queryConfig.craftskyJoin+` WHERE `+eligibleWhere, did, viewer).Scan(&total); err != nil {
 		return nil, "", 0, fmt.Errorf("%s count %s: %w", kind, did, err)
 	}
 
@@ -545,11 +562,11 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
 			cp.crafts,
-			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = ` + queryConfig.accountExpr + `
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $2 AND m.subject_did = ` + queryConfig.accountExpr + `
 			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)),
-			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `
+			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = $2 AND b.subject_did = ` + queryConfig.accountExpr + `
 			        AND NOT appview_owner_is_terminal(b.actor_did) AND NOT appview_owner_is_terminal(b.subject_did)),
-			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1
+			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $2
 			        AND NOT appview_owner_is_terminal(b.actor_did) AND NOT appview_owner_is_terminal(b.subject_did)),
 			f.activated_at,
 			f.representative_source_uri
@@ -558,11 +575,11 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 		LEFT JOIN bluesky_profiles bp ON bp.did = ` + queryConfig.accountExpr + `
 		LEFT JOIN craftsky_profiles cp ON cp.did = ` + queryConfig.accountExpr + `
 		WHERE ` + eligibleWhere + `
-		  AND ($2::timestamptz IS NULL OR (f.activated_at, f.representative_source_uri) < ($2::timestamptz, $3::text))
+		  AND ($3::timestamptz IS NULL OR (f.activated_at, f.representative_source_uri) < ($3::timestamptz, $4::text))
 		ORDER BY f.activated_at DESC, f.representative_source_uri DESC
-		LIMIT $4
+		LIMIT $5
 	`
-	rows, err := s.pool.Query(ctx, q, did, curCreatedAt, curURI, limit)
+	rows, err := s.pool.Query(ctx, q, did, viewer, curCreatedAt, curURI, limit)
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("%s list %s: %w", kind, did, err)
 	}

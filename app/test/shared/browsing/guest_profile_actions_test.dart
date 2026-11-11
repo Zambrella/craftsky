@@ -40,6 +40,8 @@ void main() {
       expect(find.text('Settings'), findsNothing);
       await tester.tap(find.byType(ProfileMoreActionsButton));
       await tester.pumpAndSettle();
+      expect(find.text('Followers'), findsNothing);
+      expect(find.text('Following'), findsNothing);
       await tester.tap(find.text('Copy link'));
       await tester.pumpAndSettle();
       expect(copied, true);

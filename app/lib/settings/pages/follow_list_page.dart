@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -16,9 +17,10 @@ import 'package:material_ui/material_ui.dart';
 enum FollowListKind { followers, following }
 
 class FollowListPage extends ConsumerStatefulWidget {
-  const new({required this.kind, super.key});
+  const new({required this.kind, this.targetDid, super.key});
 
   final FollowListKind kind;
+  final Did? targetDid;
 
   @override
   ConsumerState<FollowListPage> createState() => _FollowListPageState();
@@ -38,6 +40,21 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   void initState() {
     super.initState();
     unawaited(_loadFirstPage());
+  }
+
+  @override
+  void didUpdateWidget(covariant FollowListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetDid != widget.targetDid ||
+        oldWidget.kind != widget.kind) {
+      _items.clear();
+      _cursor = null;
+      _totalCount = 0;
+      _isInitialLoading = true;
+      _isLoadingMore = false;
+      _isRefreshing = false;
+      unawaited(_loadFirstPage());
+    }
   }
 
   Future<void> _loadFirstPage() async {
@@ -112,6 +129,19 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
 
   Future<ProfileAccountPage> _fetchPage({String? cursor}) {
     final repo = ref.read(profileRepositoryProvider);
+    final target = widget.targetDid;
+    if (target != null) {
+      return switch (widget.kind) {
+        FollowListKind.followers => repo.listFollowers(
+          target.toString(),
+          cursor: cursor,
+        ),
+        FollowListKind.following => repo.listFollowing(
+          target.toString(),
+          cursor: cursor,
+        ),
+      };
+    }
     return switch (widget.kind) {
       FollowListKind.followers => repo.listFollowersMe(cursor: cursor),
       FollowListKind.following => repo.listFollowingMe(cursor: cursor),
@@ -132,6 +162,7 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
           ? _FollowListError(onRetry: _loadFirstPage)
           : _FollowListBody(
               kind: widget.kind,
+              isOwnProfile: widget.targetDid == null,
               items: _items,
               hasMore: _cursor != null,
               isLoadingMore: _isLoadingMore,
@@ -169,6 +200,7 @@ class _FollowListBody extends StatelessWidget {
   const new({
     required this.kind,
     required this.items,
+    required this.isOwnProfile,
     required this.hasMore,
     required this.isLoadingMore,
     required this.onLoadMore,
@@ -177,6 +209,7 @@ class _FollowListBody extends StatelessWidget {
 
   final FollowListKind kind;
   final List<ProfileAccountSummary> items;
+  final bool isOwnProfile;
   final bool hasMore;
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
@@ -199,8 +232,12 @@ class _FollowListBody extends StatelessWidget {
                 FollowListKind.following => l10n.settingsFollowing,
               },
               subtitle: switch (kind) {
-                FollowListKind.followers => 'No one follows you yet',
-                FollowListKind.following => 'You are not following anyone',
+                FollowListKind.followers =>
+                  isOwnProfile ? 'No one follows you yet' : 'No followers yet',
+                FollowListKind.following =>
+                  isOwnProfile
+                      ? 'You are not following anyone'
+                      : 'Not following anyone yet',
               },
             ),
           )

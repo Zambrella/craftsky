@@ -2,7 +2,8 @@
 	import { appendPage } from '#lib/pagination.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
-	import { onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import Icon from '../shell/Icon.svelte';
 	import {
 		newOperationKey,
 		type Author,
@@ -16,7 +17,19 @@
 	import { followerChart } from './native-settings.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
-	let { api, section }: { api: CraftskyAPI; section: string } = $props();
+	let {
+		api,
+		section,
+		profileId
+	}: { api: CraftskyAPI; section: string; profileId?: string } = $props();
+	const back = getContext<((event: MouseEvent) => void) | undefined>(
+		'craftsky-back'
+	);
+	function relationships(cursor?: string) {
+		return profileId && (kind === 'followers' || kind === 'following')
+			? api.profiles.profileRelationships(profileId, kind, { cursor })
+			: api.profiles.relationships(kind, { cursor });
+	}
 	const work = new Work('settings.Connections.action');
 	let loaded = $state(false);
 	let items = $state<Author[]>([]),
@@ -91,7 +104,7 @@
 				'settings.Connections.load'
 			);
 		return work.load(
-			() => api.profiles.relationships(kind),
+			() => relationships(),
 			(value) => {
 				loaded = true;
 				items = value.items;
@@ -105,7 +118,7 @@
 		const next = cursor;
 		if (!next) return;
 		void work.run(
-			() => api.profiles.relationships(kind, { cursor: next }),
+			() => relationships(next),
 			(value) => {
 				items = appendPage(items, value.items, (item) => item.did);
 				cursor = value.cursor || null;
@@ -140,6 +153,12 @@
 	onDestroy(() => work.dispose());
 </script>
 
+{#if profileId}<a
+		class="icon-button"
+		href={'/profiles/' + encodeURIComponent(profileId)}
+		aria-label="Back to profile"
+		onclick={back}><Icon name="back" /></a
+	>{/if}
 <h1 class="workspace-heading">
 	{section === 'growth'
 		? 'Growth'
@@ -300,8 +319,12 @@
 						: section === 'blocked'
 							? 'You have not blocked any accounts.'
 							: section === 'followers'
-								? 'No one follows you yet'
-								: 'You are not following anyone'}
+								? profileId
+									? 'No followers yet'
+									: 'No one follows you yet'
+								: profileId
+									? 'Not following anyone yet'
+									: 'You are not following anyone'}
 				detail="Nothing here yet."
 			/>{/each}
 		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
