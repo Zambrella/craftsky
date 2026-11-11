@@ -26,6 +26,7 @@ import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/sharing/profile_share_card_dialog.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
@@ -367,9 +368,7 @@ class _ProfileBody extends ConsumerWidget {
               isFollowing: false,
               isBusy: false,
               onFollowToggle: () => unawaited(showGuestSignIn(context, ref)),
-              onShare: () => context.showInfo(
-                AppLocalizations.of(context).profileShareComingSoon,
-              ),
+              onShare: () => unawaited(showProfileShareCard(context, profile)),
               onReport: () =>
                   unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
@@ -468,9 +467,9 @@ class _ProfileBody extends ConsumerWidget {
     WidgetRef ref,
     ProfileRelationship relationship,
   ) {
-    final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
+        onShareCard: () => showProfileShareCard(context, profile),
         onCopyLink: () =>
             copyRecordLink(context, RecordLinks.profile(profile.did)),
         onSendViaChat: () =>
@@ -528,7 +527,7 @@ class _ProfileBody extends ConsumerWidget {
           }),
         );
       },
-      onShare: () => context.showInfo(l10n.profileShareComingSoon),
+      onShare: () => unawaited(showProfileShareCard(context, profile)),
       onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(

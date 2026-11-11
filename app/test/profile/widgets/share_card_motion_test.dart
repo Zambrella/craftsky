@@ -1,0 +1,98 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:craftsky_app/profile/sharing/share_card_motion.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+void main() {
+  testWidgets('tilt is bounded, damped and stops for reduced motion', (
+    tester,
+  ) async {
+    final sensor = StreamController<GyroscopeEvent>.broadcast();
+    addTearDown(sensor.close);
+    late ValueListenable<ShareCardFrame> frames;
+    Widget scene({bool reduced = false}) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: ShareCardMotion(
+          gyroscope: () => sensor.stream,
+          builder: (_, value) {
+            frames = value;
+            return const SizedBox(width: 100, height: 100);
+          },
+        ),
+      ),
+    );
+    await tester.pumpWidget(scene());
+    expect(sensor.hasListener, isTrue);
+    final start = DateTime(2026);
+    for (var i = 0; i < 12; i++) {
+      sensor.add(
+        GyroscopeEvent(100, -100, 0, start.add(Duration(milliseconds: i * 32))),
+      );
+      await tester.pump(const Duration(milliseconds: 32));
+    }
+    expect(frames.value.tilt.dx, greaterThan(0));
+    expect(frames.value.tilt.dy, lessThan(0));
+    expect(
+      frames.value.tilt.distance,
+      lessThanOrEqualTo(math.sqrt(2) * 2.5 * math.pi / 180),
+    );
+    final previousTilt = frames.value.tilt.distance;
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(frames.value.tilt.distance, lessThan(previousTilt));
+    await tester.pumpWidget(scene(reduced: true));
+    await tester.pumpAndSettle();
+    expect(sensor.hasListener, isFalse);
+    expect(frames.value.tilt, Offset.zero);
+    expect(frames.value.phase, 0);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets(
+    'background, covered route, missing sensor and disposal are safe',
+    (
+      tester,
+    ) async {
+      final sensor = StreamController<GyroscopeEvent>.broadcast();
+      addTearDown(sensor.close);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          home: ShareCardMotion(
+            gyroscope: () => sensor.stream,
+            builder: (_, _) => const Text('Card'),
+          ),
+        ),
+      );
+      expect(sensor.hasListener, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(sensor.hasListener, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(sensor.hasListener, isTrue);
+      navigator.currentState!.push<void>(
+        MaterialPageRoute(builder: (_) => const Text('Covered')),
+      );
+      await tester.pumpAndSettle();
+      expect(sensor.hasListener, isFalse);
+      navigator.currentState!.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(sensor.hasListener, isTrue);
+      sensor.addError(StateError('Sensor unavailable'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      expect(sensor.hasListener, isFalse);
+    },
+  );
+}

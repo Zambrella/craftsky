@@ -589,6 +589,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileSettingsAction => 'Settings';
 
   @override
+  String get profileShareCardAction => 'Share card';
+
+  @override
+  String get profileShareCardTitle => 'Your share card';
+
+  @override
+  String get profileShareCardScan => 'Meet me on CraftSky';
+
+  @override
+  String get profileShareCardQrLabel => 'Scan to open this CraftSky profile';
+
+  @override
   String get profileShareAction => 'Share';
 
   @override

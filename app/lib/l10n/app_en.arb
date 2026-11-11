@@ -478,6 +478,14 @@
   "profileSettingsAction": "Settings",
   "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
 
+  "profileShareCardAction": "Share card",
+  "@profileShareCardAction": { "description": "Profile context-menu action opening the downloadable QR profile card." },
+  "profileShareCardTitle": "Your share card",
+  "@profileShareCardTitle": { "description": "Heading above the profile share card overlay." },
+  "profileShareCardScan": "Meet me on CraftSky",
+  "@profileShareCardScan": { "description": "Caption beneath the profile QR code on a share card." },
+  "profileShareCardQrLabel": "Scan to open this CraftSky profile",
+  "@profileShareCardQrLabel": { "description": "Accessibility label for the QR image linking to the displayed profile." },
   "profileShareAction": "Share",
   "@profileShareAction": { "description": "Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action." },
 

@@ -69,6 +69,7 @@ abstract final class CraftskyIcons {
   static const IconData menu = PhosphorIconsRegular.list;
   static const IconData mention = PhosphorIconsRegular.at;
   static const IconData more = PhosphorIconsRegular.dotsThree;
+  static const IconData shareCard = PhosphorIconsRegular.qrCode;
   static const IconData moveDown = PhosphorIconsRegular.arrowDown;
   static const IconData moveToFolder = PhosphorIconsRegular.folderOpen;
   static const IconData moveUp = PhosphorIconsRegular.arrowUp;

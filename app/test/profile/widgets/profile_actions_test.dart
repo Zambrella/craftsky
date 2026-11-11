@@ -23,6 +23,26 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 
 void main() {
   group('ProfileActions', () {
+    testWidgets('own profile opens Share card from the context menu', (
+      tester,
+    ) async {
+      var opened = false;
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: SelfProfileActionSet(
+            onEdit: () {},
+            onSettings: () {},
+            onShareCard: () => opened = true,
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share card'));
+      await tester.pumpAndSettle();
+      expect(opened, isTrue);
+    });
     testWidgets('self profile copy menu fits a narrow screen with large text', (
       tester,
     ) async {
@@ -178,7 +198,7 @@ void main() {
         await tester.tap(find.byTooltip('More profile actions'));
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsOneWidget);
-        expect(find.text('Share'), findsOneWidget);
+        expect(find.text('Share card'), findsOneWidget);
         expect(find.text('Mute account'), findsOneWidget);
         expect(find.text('Block account'), findsOneWidget);
         expect(find.text('Report profile'), findsOneWidget);
@@ -188,7 +208,7 @@ void main() {
         expect(mutes, 1);
         await tester.tap(find.byTooltip('More profile actions'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Share'));
+        await tester.tap(find.text('Share card'));
         await tester.pumpAndSettle();
         expect(shares, 1);
 
@@ -268,7 +288,7 @@ void main() {
         find.byType(PopupMenuItem<CraftskyContextMenuItem>),
         findsNWidgets(4),
       );
-      expect(find.text('Share'), findsOneWidget);
+      expect(find.text('Share card'), findsOneWidget);
     });
 
     testWidgets('UT-013 block action exposes destructive button semantics', (

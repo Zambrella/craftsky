@@ -22,6 +22,7 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/sharing/profile_share_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -2151,7 +2152,12 @@ void main() {
       expect(messenger.calls.first.$2, 'Could not update follow state.');
     });
 
-    testWidgets('tapping Share dispatches a coming-soon info', (tester) async {
+    testWidgets('tapping Share card opens the profile artwork', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -2184,11 +2190,18 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Share'));
+      await tester.tap(find.text('Share card'));
       await tester.pumpAndSettle();
-      expect(messenger.calls.length, 1);
-      expect(messenger.calls.first.$1, 'info');
-      expect(messenger.calls.first.$2, 'Share coming soon.');
+      expect(find.text('Your share card'), findsOneWidget);
+      expect(find.text('Meet me on CraftSky'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileShareCard),
+          matching: find.text('@alice.bsky.social'),
+        ),
+        findsOneWidget,
+      );
+      expect(messenger.calls, isEmpty);
     });
 
     testWidgets('tapping profile avatar opens the fullscreen image gallery', (

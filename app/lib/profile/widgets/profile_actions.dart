@@ -27,10 +27,12 @@ final class SelfProfileActionSet extends ProfileActionSet {
     required this.onSettings,
     this.onCopyLink,
     this.onSendViaChat,
+    this.onShareCard,
   });
 
   final FutureOr<void> Function()? onCopyLink;
   final FutureOr<void> Function()? onSendViaChat;
+  final FutureOr<void> Function()? onShareCard;
 
   final VoidCallback onEdit;
   final VoidCallback onSettings;
@@ -144,17 +146,24 @@ class _SelfActions extends StatelessWidget {
           icon: CraftskyIconsBold.settings,
           tooltip: l10n.profileSettingsAction,
         ),
-        if (actions.onCopyLink != null) ...[
+        if (actions.onCopyLink != null || actions.onShareCard != null) ...[
           CraftskyContextMenuButton(
             tooltip: l10n.profileMoreActions,
             groups: [
               CraftskyContextMenuGroup(
                 items: [
-                  CraftskyContextMenuItem(
-                    text: l10n.recordCopyLinkAction,
-                    icon: CraftskyIcons.link,
-                    onPressed: actions.onCopyLink,
-                  ),
+                  if (actions.onShareCard != null)
+                    CraftskyContextMenuItem(
+                      text: l10n.profileShareCardAction,
+                      icon: CraftskyIcons.shareCard,
+                      onPressed: actions.onShareCard,
+                    ),
+                  if (actions.onCopyLink != null)
+                    CraftskyContextMenuItem(
+                      text: l10n.recordCopyLinkAction,
+                      icon: CraftskyIcons.link,
+                      onPressed: actions.onCopyLink,
+                    ),
                   if (actions.onSendViaChat != null)
                     CraftskyContextMenuItem(
                       text: l10n.chatSendViaChat,
@@ -248,8 +257,8 @@ class ProfileMoreActionsButton extends StatelessWidget {
                 onPressed: actions.onSendViaChat,
               ),
             CraftskyContextMenuItem(
-              text: l10n.profileShareAction,
-              icon: CraftskyIconsBold.share,
+              text: l10n.profileShareCardAction,
+              icon: CraftskyIcons.shareCard,
               onPressed: actions.onShare,
             ),
           ],
