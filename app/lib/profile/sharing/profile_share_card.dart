@@ -1,7 +1,7 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/sharing/cobalt_thread_surface.dart';
+import 'package:craftsky_app/profile/sharing/craft_foil_surface.dart';
 import 'package:craftsky_app/profile/sharing/share_card_motion.dart';
 import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -68,7 +68,7 @@ class ProfileShareCard extends StatelessWidget {
                       children: [
                         Positioned.fill(
                           child: RepaintBoundary(
-                            child: CobaltThreadSurface(frames: frames),
+                            child: CraftFoilSurface(frames: frames),
                           ),
                         ),
                         Positioned(

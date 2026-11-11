@@ -27,7 +27,9 @@ void main() {
       ),
     );
     await tester.pumpWidget(scene());
+    await tester.pumpAndSettle();
     expect(sensor.hasListener, isTrue);
+    expect(tester.binding.hasScheduledFrame, isFalse);
     final start = DateTime(2026);
     for (var i = 0; i < 12; i++) {
       sensor.add(
@@ -46,11 +48,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(frames.value.tilt.distance, lessThan(previousTilt));
+    await tester.pumpAndSettle();
+    expect(frames.value.tilt, Offset.zero);
+    expect(tester.binding.hasScheduledFrame, isFalse);
     await tester.pumpWidget(scene(reduced: true));
     await tester.pumpAndSettle();
     expect(sensor.hasListener, isFalse);
     expect(frames.value.tilt, Offset.zero);
-    expect(frames.value.phase, 0);
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 

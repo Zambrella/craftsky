@@ -8,9 +8,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 @immutable
 class ShareCardFrame {
-  const new({this.phase = 0, this.tilt = Offset.zero});
+  const new({this.tilt = Offset.zero});
 
-  final double phase;
   final Offset tilt;
 }
 
@@ -130,6 +129,10 @@ class _ShareCardMotionState extends State<ShareCardMotion>
       (_target.dx + event.x * dt * 0.35).clamp(-_limit, _limit),
       (_target.dy + event.y * dt * 0.35).clamp(-_limit, _limit),
     );
+    if (!_ticker.isActive && _target.distanceSquared > 1e-8) {
+      _lastTick = Duration.zero;
+      _ticker.start();
+    }
   }
 
   void _tick(Duration elapsed) {
@@ -141,10 +144,15 @@ class _ShareCardMotionState extends State<ShareCardMotion>
       1 - math.exp(-dt * 9),
     )!;
     _target *= math.exp(-dt * 1.8);
-    _frames.value = ShareCardFrame(
-      phase: (elapsed.inMicroseconds / 1e6) * math.pi / 12,
-      tilt: tilt,
-    );
+    if (tilt.distanceSquared < 1e-8 && _target.distanceSquared < 1e-8) {
+      _target = Offset.zero;
+      if (_frames.value.tilt != Offset.zero) {
+        _frames.value = const ShareCardFrame();
+      }
+      _ticker.stop();
+      return;
+    }
+    _frames.value = ShareCardFrame(tilt: tilt);
   }
 
   @override

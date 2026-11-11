@@ -123,7 +123,7 @@ flutter:
     - assets/fonts/Outfit-OFL.txt
     - assets/fonts/DMSerifDisplay-OFL.txt
   shaders:
-    - shaders/share_card_threads.frag
+    - shaders/share_card_emboss.frag
   fonts:
     - family: Outfit
       fonts:

@@ -2,14 +2,17 @@ import 'dart:ui' as ui;
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/sharing/craft_foil_surface.dart';
 import 'package:craftsky_app/profile/sharing/profile_share_card.dart';
 import 'package:craftsky_app/profile/sharing/profile_share_card_dialog.dart';
 import 'package:craftsky_app/profile/sharing/profile_share_card_image.dart';
+import 'package:craftsky_app/profile/sharing/share_card_motion.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as raster;
 import 'package:material_ui/material_ui.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -45,21 +48,91 @@ Future<Uint8List> _capture(WidgetTester tester, GlobalKey key) async {
     await precacheImage(const AssetImage(shareCardTransparentLogo), context);
   });
   await tester.pumpAndSettle();
-  final pending = captureProfileShareCard(key);
-  await tester.pump();
-  final bytes = await tester.runAsync(() => pending);
+  Uint8List? bytes;
+  Object? failure;
+  final pending = captureProfileShareCard(key).then<void>(
+    (value) {
+      bytes = value;
+    },
+    onError: (Object error) {
+      failure = error;
+    },
+  );
+  // Image encoding runs on the engine while asset and frame completion use
+  // the widget test's fake clock. Advance both until the capture resolves.
+  for (
+    var attempt = 0;
+    attempt < 100 && bytes == null && failure == null;
+    attempt++
+  ) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+  }
+  expect(failure, isNull);
+  expect(bytes, isNotNull);
+  await pending;
   return bytes!;
 }
 
 void main() {
-  testWidgets('bundled thread shader compiles for the Flutter engine', (
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(CraftFoilSurface.prepareAssets);
+
+  testWidgets('bundled edge emboss shader compiles for the Flutter engine', (
     tester,
   ) async {
     final program = await tester.runAsync(
-      () => ui.FragmentProgram.fromAsset('shaders/share_card_threads.frag'),
+      () => ui.FragmentProgram.fromAsset('shaders/share_card_emboss.frag'),
     );
     expect(program, isNotNull);
     program!.fragmentShader().dispose();
+  });
+
+  testWidgets('craft foil catches tilt light while the QR stays unchanged', (
+    tester,
+  ) async {
+    final frames = ValueNotifier(const ShareCardFrame());
+    addTearDown(frames.dispose);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      _app(
+        SizedBox(
+          width: 360,
+          child: ProfileShareCard(
+            profile: _profile(),
+            frames: frames,
+            artworkKey: key,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final still = raster.decodePng(await _capture(tester, key))!;
+    frames.value = const ShareCardFrame(tilt: Offset(0.04, -0.035));
+    await tester.pumpAndSettle();
+    final tilted = raster.decodePng(await _capture(tester, key))!;
+    var visibleGlyphPixels = 0;
+    var litGlyphPixels = 0;
+    // A strip inside the left border, outside all identity/QR content.
+    for (var y = 100; y < 1350; y++) {
+      for (var x = 30; x < 80; x++) {
+        final a = still.getPixel(x, y);
+        final b = tilted.getPixel(x, y);
+        if (a.r != 21 || a.g != 53 || a.b != 214) visibleGlyphPixels++;
+        if (a.r != b.r || a.g != b.g || a.b != b.b) litGlyphPixels++;
+      }
+    }
+    expect(visibleGlyphPixels, greaterThan(100));
+    expect(litGlyphPixels, greaterThan(100));
+    for (var y = 840; y < 1260; y++) {
+      for (var x = 390; x < 810; x++) {
+        final a = still.getPixel(x, y);
+        final b = tilted.getPixel(x, y);
+        expect([a.r, a.g, a.b, a.a], [b.r, b.g, b.b, b.a]);
+      }
+    }
   });
 
   testWidgets(
