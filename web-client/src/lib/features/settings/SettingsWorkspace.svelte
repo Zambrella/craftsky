@@ -24,7 +24,7 @@
 	import Billing from './Billing.svelte';
 	import Instagram from './Instagram.svelte';
 	import Business from './Business.svelte';
-	import './settings.css';
+	import SettingsPageLayout from './SettingsPageLayout.svelte';
 	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	let {
 		api,
@@ -118,13 +118,11 @@
 	}
 </script>
 
-<div class="settings-workspace" data-settings-page={section || 'index'}>
-	{#if section}<a
-			class="back settings-back"
-			href="/settings"
-			aria-label="Back to Settings"
-			><SettingsIcon name="back" /><span>Settings</span></a
-		>{/if}
+<SettingsPageLayout
+	section={section || 'index'}
+	backHref={section ? '/settings' : undefined}
+	backLabel="Back to Settings"
+>
 	{#key `${session.did}:${section}`}
 		{#if !section}
 			<h1 class="workspace-heading">Settings</h1>
@@ -271,4 +269,4 @@
 		{:else}<h1 class="workspace-heading">Page not found</h1>
 			<p>Choose a page in <a href="/settings">Settings</a>.</p>{/if}
 	{/key}
-</div>
+</SettingsPageLayout>

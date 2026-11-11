@@ -86,6 +86,8 @@ const routes: [string, RegExp][] = [
 	['PUT', /^\/v1\/profiles\/me\/customisation$/],
 	['PUT', /^\/v1\/profiles\/me\/business$/],
 	['DELETE', /^\/v1\/profiles\/me\/business$/],
+	['GET', /^\/v1\/profiles\/[^/]+\/followers$/],
+	['GET', /^\/v1\/profiles\/[^/]+\/following$/],
 	['GET', /^\/v1\/profiles\/[^/]+\/mutual\-followers$/],
 	['GET', /^\/v1\/profiles\/[^/]+\/events$/],
 	['POST', /^\/v1\/profiles\/[^/]+\/follows$/],

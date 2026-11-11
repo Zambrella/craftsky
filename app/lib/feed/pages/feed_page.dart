@@ -343,7 +343,8 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 allowProfilePinAction: true,
                 repostReason: item.reason,
                 followedBy: item.followedBy,
-                onTap: () => PostThreadRoute(
+                onOpenPost: (imageCid) => PostThreadRoute(
+                  imageCid: imageCid,
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),

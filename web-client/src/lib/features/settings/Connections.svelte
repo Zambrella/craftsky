@@ -12,13 +12,25 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import ConnectionsSkeleton from './ConnectionsSkeleton.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
 	import { followerChart } from './native-settings.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
-	let { api, section }: { api: CraftskyAPI; section: string } = $props();
+	let {
+		api,
+		section,
+		profileId
+	}: { api: CraftskyAPI; section: string; profileId?: string } = $props();
+	function relationships(cursor?: string) {
+		return profileId && (kind === 'followers' || kind === 'following')
+			? api.profiles.profileRelationships(profileId, kind, { cursor })
+			: api.profiles.relationships(kind, { cursor });
+	}
 	const work = new Work('settings.Connections.action');
 	let loaded = $state(false);
+	let loadingMore = $state(false);
 	let items = $state<Author[]>([]),
 		cursor = $state<string | null>(null),
 		total = $state<number | null>(null);
@@ -49,6 +61,9 @@
 			: section === 'blocked'
 				? 'blocks'
 				: (section as 'followers' | 'following')
+	);
+	const initialListLoading = $derived(
+		work.loading && !loaded && ['followers', 'following'].includes(kind)
 	);
 	let filtered = $derived(
 		items.filter((p) =>
@@ -91,7 +106,7 @@
 				'settings.Connections.load'
 			);
 		return work.load(
-			() => api.profiles.relationships(kind),
+			() => relationships(),
 			(value) => {
 				loaded = true;
 				items = value.items;
@@ -101,18 +116,23 @@
 			'settings.Connections.load'
 		);
 	}
-	function more() {
+	async function more() {
 		const next = cursor;
-		if (!next) return;
-		void work.run(
-			() => api.profiles.relationships(kind, { cursor: next }),
-			(value) => {
-				items = appendPage(items, value.items, (item) => item.did);
-				cursor = value.cursor || null;
-			},
-			'',
-			'settings.Connections.more'
-		);
+		if (!next || loadingMore || work.busy || work.retry) return;
+		loadingMore = true;
+		try {
+			await work.run(
+				() => relationships(next),
+				(value) => {
+					items = appendPage(items, value.items, (item) => item.did);
+					cursor = value.cursor || null;
+				},
+				'',
+				'settings.Connections.more'
+			);
+		} finally {
+			loadingMore = false;
+		}
 	}
 	function remove(profile: Author) {
 		const id = profile.did;
@@ -149,7 +169,10 @@
 				? 'Blocked accounts'
 				: `${title(section)} (${total ?? 0})`}
 </h1>
-<Feedback {work} reload={load} />
+{#if initialListLoading}<ConnectionsSkeleton />{:else}<Feedback
+		{work}
+		reload={load}
+	/>{/if}
 {#if section === 'growth'}
 	<section class="growth-page">
 		{#if !work.loading && loaded && allowsPlus}<div class="follower-total">
@@ -300,12 +323,19 @@
 						: section === 'blocked'
 							? 'You have not blocked any accounts.'
 							: section === 'followers'
-								? 'No one follows you yet'
-								: 'You are not following anyone'}
+								? profileId
+									? 'No followers yet'
+									: 'No one follows you yet'
+								: profileId
+									? 'Not following anyone yet'
+									: 'You are not following anyone'}
 				detail="Nothing here yet."
 			/>{/each}
-		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
-			>{/if}
+		{#if cursor}<LoadMore
+				loading={loadingMore}
+				disabled={work.busy || !!work.retry}
+				onclick={() => void more()}
+			/>{/if}
 	</section>
 {/if}
 

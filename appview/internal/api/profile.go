@@ -43,6 +43,20 @@ type ProfileGraphReader interface {
 	ListFollowing(ctx context.Context, did string, limit int, cursor string) ([]*ProfileAccountRow, string, int, error)
 }
 
+// ProfileFollowGraphReader keeps viewer-private relationship state separate from the list owner.
+type ProfileFollowGraphReader interface {
+	ListProfileFollowers(context.Context, syntax.DID, syntax.DID, int, string) ([]*ProfileAccountRow, string, int, error)
+	ListProfileFollowing(context.Context, syntax.DID, syntax.DID, int, string) ([]*ProfileAccountRow, string, int, error)
+}
+
+func GetProfileFollowersHandler(store ProfileFollowGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return getGraphListHandler("followers", store.ListProfileFollowers, resolver, logger)
+}
+
+func GetProfileFollowingHandler(store ProfileFollowGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+	return getGraphListHandler("following", store.ListProfileFollowing, resolver, logger)
+}
+
 // GetProfileHandler serves GET /v1/profiles/@{handleOrDid}.
 //
 // The "{handleOrDid}" path segment arrives URL-decoded by net/http's
@@ -155,17 +169,21 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 
 // GetMeFollowersHandler serves GET /v1/profiles/me/followers.
 func GetMeFollowersHandler(store ProfileGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
-	return getMeGraphListHandler("followers", store.ListFollowers, resolver, logger)
+	return getGraphListHandler("followers", func(ctx context.Context, _, subject syntax.DID, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
+		return store.ListFollowers(ctx, subject.String(), limit, cursor)
+	}, resolver, logger)
 }
 
 // GetMeFollowingHandler serves GET /v1/profiles/me/following.
 func GetMeFollowingHandler(store ProfileGraphReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
-	return getMeGraphListHandler("following", store.ListFollowing, resolver, logger)
+	return getGraphListHandler("following", func(ctx context.Context, _, subject syntax.DID, limit int, cursor string) ([]*ProfileAccountRow, string, int, error) {
+		return store.ListFollowing(ctx, subject.String(), limit, cursor)
+	}, resolver, logger)
 }
 
-func getMeGraphListHandler(
+func getGraphListHandler(
 	label string,
-	list func(context.Context, string, int, string) ([]*ProfileAccountRow, string, int, error),
+	list func(context.Context, syntax.DID, syntax.DID, int, string) ([]*ProfileAccountRow, string, int, error),
 	resolver HandleResolver,
 	logger *slog.Logger,
 ) http.Handler {
@@ -180,7 +198,21 @@ func getMeGraphListHandler(
 		}
 		limit := parseLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		rows, nextCursor, total, err := list(r.Context(), did.String(), limit, cursor)
+		subject := did
+		if raw := r.PathValue("handleOrDid"); raw != "" {
+			resolved, err := resolveToDID(r.Context(), strings.TrimPrefix(raw, "@"), resolver)
+			if err != nil {
+				if errors.Is(err, errInvalidIdentifier) {
+					envelope.WriteError(w, http.StatusBadRequest, "invalid_identifier", "not a valid handle or DID", runID, nil)
+				} else {
+					logger.Warn("profile graph: ResolveDID failed", apiLogErrorAttrs(r.Context(), runID, operation, "identity", err)...)
+					envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve identity", runID, nil)
+				}
+				return
+			}
+			subject = resolved
+		}
+		rows, nextCursor, total, err := list(r.Context(), did, subject, limit, cursor)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest,

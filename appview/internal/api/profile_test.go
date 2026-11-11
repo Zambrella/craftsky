@@ -67,6 +67,63 @@ func (f *fakeStore) ListFollowing(_ context.Context, did string, limit int, curs
 	return f.accountRows, f.accountCursor, f.accountTotal, f.err
 }
 
+func (f *fakeStore) ListProfileFollowers(ctx context.Context, viewer, subject syntax.DID, limit int, cursor string) ([]*api.ProfileAccountRow, string, int, error) {
+	f.lastViewerDID = viewer.String()
+	return f.ListFollowers(ctx, subject.String(), limit, cursor)
+}
+func (f *fakeStore) ListProfileFollowing(ctx context.Context, viewer, subject syntax.DID, limit int, cursor string) ([]*api.ProfileAccountRow, string, int, error) {
+	f.lastViewerDID = viewer.String()
+	return f.ListFollowing(ctx, subject.String(), limit, cursor)
+}
+
+func TestProfileFollowListsUseTargetAndViewer(t *testing.T) {
+	for _, tc := range []struct {
+		kind    string
+		handler func(api.ProfileFollowGraphReader, api.HandleResolver, *slog.Logger) http.Handler
+	}{{"followers", api.GetProfileFollowersHandler}, {"following", api.GetProfileFollowingHandler}} {
+		t.Run(tc.kind, func(t *testing.T) {
+			store := &fakeStore{accountRows: []*api.ProfileAccountRow{{DID: "did:plc:bob", IsCraftskyProfile: true}}, accountTotal: 7, accountCursor: "next"}
+			resolver := fakeResolver{didFor: "did:plc:target", handlesByDID: map[string]syntax.Handle{"did:plc:bob": "bob.example"}}
+			handler := tc.handler(store, resolver, nilLogger())
+			for _, target := range []string{"@target.example", "@did:plc:target"} {
+				req := httptest.NewRequest("GET", "/?limit=3&cursor=previous", nil)
+				req.SetPathValue("handleOrDid", target)
+				req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:viewer"))
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+				if rr.Code != 200 {
+					t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+				}
+				if store.lastViewerDID != "did:plc:viewer" || store.lastProfileDID != "did:plc:target" || store.lastCursor != "previous" || store.lastLimit != 3 {
+					t.Fatalf("wrong list scope: %+v", store)
+				}
+				var body api.ProfileAccountPage
+				if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				if body.TotalCount != 7 || body.Cursor == nil || *body.Cursor != "next" || len(body.Items) != 1 {
+					t.Fatalf("body: %+v", body)
+				}
+			}
+			req := httptest.NewRequest("GET", "/", nil)
+			req.SetPathValue("handleOrDid", "invalid!")
+			req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:viewer"))
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != 400 {
+				t.Fatalf("invalid identifier: %d", rr.Code)
+			}
+			store.err = envelope.ErrInvalidCursor
+			req.SetPathValue("handleOrDid", "@did:plc:target")
+			rr = httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != 400 {
+				t.Fatalf("invalid cursor: %d", rr.Code)
+			}
+		})
+	}
+}
+
 // fakeResolver implements api.HandleResolver.
 type fakeResolver struct {
 	handleFor    syntax.Handle

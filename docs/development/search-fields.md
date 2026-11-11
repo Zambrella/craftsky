@@ -1,6 +1,6 @@
 # Searchable-field contract
 
-Contract revision: **2**. Application taxonomy: **catalog-v1.json**, version **1**.
+Contract revision: **2**. Application taxonomy: **catalog-v1.json**, version **2**.
 
 `appview/internal/api/search_fields.go` is the executable keyword allowlist;
 `appview/internal/projectcatalog/catalog-v1.json` supplies stable values, labels,

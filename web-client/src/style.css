@@ -32,6 +32,7 @@
 	--paper: #f5efe4;
 	--paper-2: #efe7d6;
 	--image-frame: #f8f8f8;
+	--post-image-max-height: min(70svh, 700px);
 	--surface: #fff;
 	--ink: #161210;
 	--ink-2: #3e3733;
@@ -469,11 +470,12 @@ footer a {
 	outline-offset: -1px;
 	border-radius: 6px;
 }
-.gallery img {
+.gallery img,
+.post-image-preview {
 	display: block;
 	width: 100%;
 	height: auto;
-	max-height: min(70svh, 700px);
+	max-height: var(--post-image-max-height);
 	object-fit: contain;
 	border-radius: 6px;
 }
@@ -1627,6 +1629,9 @@ dialog > button {
 	padding: 8px;
 }
 @media (max-width: 900px) {
+	:root {
+		--post-image-max-height: min(65svh, 700px);
+	}
 	.app-topbar.visible {
 		display: flex;
 		align-items: center;

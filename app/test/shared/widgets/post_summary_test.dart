@@ -335,10 +335,10 @@ void main() {
     tester,
   ) async {
     for (final (ratio, expectedHeight, expectedFit) in [
-      (const PostImageAspectRatio(width: 2, height: 1), 188.0, BoxFit.cover),
-      (const PostImageAspectRatio(width: 10, height: 1), 160.0, BoxFit.cover),
-      (const PostImageAspectRatio(width: 1, height: 3), 420.0, BoxFit.contain),
-      (null, 320.0, BoxFit.cover),
+      (const PostImageAspectRatio(width: 2, height: 1), 188.0, BoxFit.contain),
+      (const PostImageAspectRatio(width: 10, height: 1), 37.6, BoxFit.contain),
+      (const PostImageAspectRatio(width: 1, height: 3), 390.0, BoxFit.contain),
+      (null, 320.0, BoxFit.contain),
     ]) {
       await tester.pumpWidget(
         ProviderScope(

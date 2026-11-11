@@ -109,6 +109,20 @@ class ApiProfileRepository implements ProfileRepository {
   }) => _api.listMutualFollowers(handleOrDid, limit: limit, cursor: cursor);
 
   @override
+  Future<ProfileAccountPage> listFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => _api.listFollowers(handleOrDid, limit: limit, cursor: cursor);
+
+  @override
+  Future<ProfileAccountPage> listFollowing(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) => _api.listFollowing(handleOrDid, limit: limit, cursor: cursor);
+
+  @override
   Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>
       _api.listFollowersMe(limit: limit, cursor: cursor);
 

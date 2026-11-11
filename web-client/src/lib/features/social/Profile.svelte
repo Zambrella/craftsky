@@ -8,6 +8,7 @@
 	import { notify } from './toasts.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
+	import RichText from './RichText.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { getContext, onMount, onDestroy, untrack } from 'svelte';
@@ -465,6 +466,19 @@
 									);
 								}}><Icon name="share" />Share</button
 							>
+							{#if !guest && !profile.blocking && !profile.blockedBy}
+								<div class="profile-menu-divider"></div>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/followers'}><Icon name="profile" />Followers</a
+								>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/following'}><Icon name="profile" />Following</a
+								>
+							{/if}
 							<div class="profile-menu-divider"></div>
 							{#if !profile.blocking && !profile.blockedBy}<button
 									disabled={work.busy || !!work.retry}
@@ -506,7 +520,7 @@
 			{#if !profile.moderation || reveal}{#if profile.description}<p
 						class="profile-bio prose"
 					>
-						{profile.description}
+						<RichText text={profile.description} detectPlainText />
 					</p>{/if}
 				<ul class="profile-links">
 					{#each profile.links || [] as link}{#if safeLink(link.url)}<li>

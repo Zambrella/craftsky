@@ -94,7 +94,7 @@ focused test wrapper (it also expects the local MinIO service):
 ```
 
 Alternatively set `TEST_DATABASE_URL` explicitly to a development/test database
-and run `GOTOOLCHAIN=go1.27.3 go -C ../appview test ./internal/api -run TestPublicPage`.
+and run `GOTOOLCHAIN=go1.27.4 go -C ../appview test ./internal/api -run TestPublicPage`.
 Never point tests at production. Unset database configuration skips integration
 tests; that is not database validation.
 

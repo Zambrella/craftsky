@@ -49,6 +49,8 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onBlockToggle,
     this.onCopyLink,
     this.onSendViaChat,
+    this.onViewFollowers,
+    this.onViewFollowing,
     this.isFollowingBusy = false,
     this.isBlockingBusy = false,
     this.isMuted = false,
@@ -58,6 +60,8 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     this.messagingAction,
   });
 
+  final VoidCallback? onViewFollowers;
+  final VoidCallback? onViewFollowing;
   final bool isFollowing;
   final bool isBusy;
   final bool isFollowingBusy;
@@ -266,6 +270,23 @@ class ProfileMoreActionsButton extends StatelessWidget {
               ),
           ],
         ),
+        if (actions.onViewFollowers != null || actions.onViewFollowing != null)
+          CraftskyContextMenuGroup(
+            items: [
+              if (actions.onViewFollowers != null)
+                CraftskyContextMenuItem(
+                  text: l10n.settingsFollowers,
+                  icon: CraftskyIcons.people,
+                  onPressed: actions.onViewFollowers,
+                ),
+              if (actions.onViewFollowing != null)
+                CraftskyContextMenuItem(
+                  text: l10n.settingsFollowing,
+                  icon: CraftskyIcons.people,
+                  onPressed: actions.onViewFollowing,
+                ),
+            ],
+          ),
         CraftskyContextMenuGroup(
           items: [
             if (actions.canToggleMute)

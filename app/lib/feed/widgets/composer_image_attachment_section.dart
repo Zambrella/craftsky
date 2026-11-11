@@ -4,7 +4,9 @@ import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
@@ -1091,17 +1093,28 @@ class _DashedBorderPainter extends CustomPainter {
   }
 }
 
-double _previewAspectRatio(ComposerImageDraft image) {
+PostImageAspectRatio? _previewAspectRatio(ComposerImageDraft image) {
+  final dimensions = switch (image.phase) {
+    ImageReady(:final width, :final height) ||
+    ScheduledImageReady(:final width, :final height) ||
+    ImageUnavailable(
+      :final width,
+      :final height,
+    ) => PostImageAspectRatio(width: width, height: height),
+    _ => null,
+  };
+  if (dimensions != null) return dimensions;
   final aspectRatio = switch (image.phase) {
     ImageUploaded(:final uploaded) =>
       uploaded.aspectRatio ?? image.previewAspectRatio,
     _ => image.previewAspectRatio,
   };
-  if (aspectRatio != null && aspectRatio.height > 0) {
-    return (aspectRatio.width / aspectRatio.height).clamp(0.7, 1.6);
-  }
-
-  return 1;
+  return aspectRatio == null
+      ? null
+      : PostImageAspectRatio(
+          width: aspectRatio.width,
+          height: aspectRatio.height,
+        );
 }
 
 Widget _composerImagePreview(
@@ -1111,17 +1124,31 @@ Widget _composerImagePreview(
   required String? imageUrl,
 }) {
   final overlay = _previewLoadingOverlay(context, image);
-  return CraftskyImageAttachmentPreview(
-    bytes: image.previewBytes,
-    imageUrl: imageUrl,
-    aspectRatio: _previewAspectRatio(image),
-    unavailable: image.phase is ImageUnavailable,
-    busyLabel: overlay?.label,
-    busyProgress: overlay?.value,
-    imageKey: imageKey,
-    overlayKey: Key('composer-preview-overlay-${image.id}'),
-    progressKey: Key('composer-upload-progress-${image.id}'),
-    labelKey: Key('composer-upload-label-${image.id}'),
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final aspectRatio = _previewAspectRatio(image);
+      final maxHeight = computeResponsiveCarouselMaxHeight(
+        MediaQuery.sizeOf(context).height,
+      );
+      return CraftskyImageAttachmentPreview(
+        bytes: image.previewBytes,
+        imageUrl: imageUrl,
+        aspectRatio: 1,
+        frameHeight: computeBoundedImageHeight(
+          availableWidth: constraints.maxWidth,
+          aspectRatio: aspectRatio,
+          maxHeight: maxHeight,
+        ),
+        fit: BoxFit.contain,
+        unavailable: image.phase is ImageUnavailable,
+        busyLabel: overlay?.label,
+        busyProgress: overlay?.value,
+        imageKey: imageKey,
+        overlayKey: Key('composer-preview-overlay-${image.id}'),
+        progressKey: Key('composer-upload-progress-${image.id}'),
+        labelKey: Key('composer-upload-label-${image.id}'),
+      );
+    },
   );
 }
 

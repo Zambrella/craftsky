@@ -153,6 +153,11 @@ async function calls() {
 	}[];
 }
 async function verifyInstagram(page: Page) {
+	const exportHelp = page.getByRole('link', {
+		name: 'How to export your Instagram following',
+		exact: true
+	});
+	await expect(exportHelp).toHaveCount(0);
 	await page
 		.getByRole('button', { name: 'Create verification challenge', exact: true })
 		.click();
@@ -163,6 +168,7 @@ async function verifyInstagram(page: Page) {
 		.getByRole('button', { name: 'Check verification status', exact: true })
 		.click();
 	await expect(page.getByText('@alice_makes', { exact: true })).toBeVisible();
+	await expect(exportHelp).toHaveCount(0);
 	await page
 		.getByRole('button', {
 			name: 'Confirm this is my Instagram account',
@@ -172,6 +178,7 @@ async function verifyInstagram(page: Page) {
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Instagram account verified.' })
 	).toBeVisible();
+	await expect(exportHelp).toBeVisible();
 }
 test.beforeEach(async ({ context, page }) => {
 	await page.route('https://status.craftsky.social/app.json', (route) =>
