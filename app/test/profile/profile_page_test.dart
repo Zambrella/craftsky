@@ -1284,6 +1284,7 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Block account'));
       await tester.tap(find.text('Block account'));
       await tester.pumpAndSettle();
       expect(find.text('Block this account?'), findsOneWidget);
@@ -1748,6 +1749,7 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Report profile'));
       await tester.tap(find.text('Report profile'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Spam, misleading or off-topic content'));

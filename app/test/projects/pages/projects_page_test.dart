@@ -525,7 +525,7 @@ void main() {
         expect(controller.overlayFor(scope), isNotNull);
         final readsBeforePush = projectReads;
 
-        tester.widget<PostCard>(find.byType(PostCard).last).onTap!();
+        tester.widget<PostCard>(find.byType(PostCard).last).onOpenPost!(null);
         await tester.pumpAndSettle();
         expect(find.byType(PostThreadPage), findsOneWidget);
         expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
