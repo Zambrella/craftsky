@@ -24,7 +24,7 @@
 			<div class="identity">
 				{#if kind === 'activity'}<span class="activity-icon bone"></span>{/if}
 				<span
-					class="avatar bone"
+					class="skeleton-avatar bone"
 					class:person={kind === 'people'}
 					class:thumbnail={kind === 'management'}
 					class:comment={kind === 'comments'}
@@ -83,23 +83,23 @@
 		gap: 12px;
 		align-items: center;
 	}
-	.avatar {
+	.skeleton-avatar {
 		border: 0;
 		box-shadow: none;
 		width: 40px;
 		height: 40px;
 		flex-shrink: 0;
 	}
-	.avatar.person {
+	.skeleton-avatar.person {
 		width: 48px;
 		height: 48px;
 	}
-	.avatar.thumbnail {
+	.skeleton-avatar.thumbnail {
 		width: 72px;
 		height: 72px;
 		border-radius: 6px;
 	}
-	.avatar.comment {
+	.skeleton-avatar.comment {
 		width: 36px;
 		height: 36px;
 	}
@@ -173,7 +173,7 @@
 		justify-items: center;
 		text-align: center;
 	}
-	.profile .avatar {
+	.profile .skeleton-avatar {
 		width: 106px;
 		height: 106px;
 		border: 5px solid var(--paper);

@@ -1985,3 +1985,79 @@ test('blocked YouTube API retains an external fallback', async ({ page }) => {
 		page.getByRole('link', { name: 'Open in YouTube', exact: true })
 	).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ');
 });
+
+for (const example of [
+	{
+		kind: 'posts',
+		path: '/feed',
+		endpoint: /\/api\/appview\/v1\/feed\/timeline(?:\?|$)/,
+		avatar: '.skeleton-avatar'
+	},
+	{
+		kind: 'people',
+		path: '/profiles/did%3Aplc%3Abob/mutual-followers',
+		endpoint: /\/api\/appview\/v1\/profiles\/[^/]+\/mutual-followers(?:\?|$)/,
+		avatar: '.skeleton-avatar.person'
+	},
+	{
+		kind: 'profile',
+		path: '/profiles/did%3Aplc%3Abob',
+		endpoint: /\/api\/appview\/v1\/profiles\/(?:@|%40)?did[^/?]+(?:\?|$)/,
+		avatar: '.profile .skeleton-avatar'
+	},
+	{
+		kind: 'activity',
+		path: '/notifications',
+		endpoint: /\/api\/appview\/v1\/notifications(?:\?|$)/,
+		avatar: '.skeleton-avatar'
+	},
+	{
+		kind: 'management',
+		path: '/saved',
+		endpoint: /\/api\/appview\/v1\/saved-posts(?:\?|$)/,
+		avatar: '.skeleton-avatar.thumbnail'
+	},
+	{
+		kind: 'comments',
+		path: '/profiles/did%3Aplc%3Abob?tab=comments',
+		endpoint: /\/api\/appview\/v1\/profiles\/[^/]+\/comments(?:\?|$)/,
+		avatar: '.skeleton-avatar.comment'
+	}
+]) {
+	test(`${example.kind} skeleton avatars do not inherit profile rings`, async ({
+		page
+	}) => {
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => (release = resolve));
+		await page.route(example.endpoint, async (route) => {
+			const response = await route.fetch();
+			await pending;
+			await route.fulfill({ response });
+		});
+		await page.goto(example.path);
+		try {
+			await page.addStyleTag({
+				content: ':root { --profile-accent: #1535d6; }'
+			});
+			const skeleton = page
+				.locator('.skeletons')
+				.filter({ has: page.locator(example.avatar) });
+			await expect(skeleton).toBeVisible();
+			await expect(skeleton.locator('.avatar')).toHaveCount(0);
+			const avatar = skeleton.locator(example.avatar).first();
+			await expect(avatar).not.toHaveCSS(
+				'border-top-color',
+				'rgb(21, 53, 214)'
+			);
+			await expect(avatar).toHaveCSS('box-shadow', 'none');
+			await expect(avatar).toHaveCSS('outline-style', 'none');
+			if (example.kind !== 'profile')
+				await expect(avatar).toHaveCSS('border-top-width', '0px');
+		} finally {
+			release();
+		}
+		await expect(
+			page.locator('.skeletons').filter({ has: page.locator(example.avatar) })
+		).toHaveCount(0);
+	});
+}

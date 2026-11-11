@@ -2,8 +2,7 @@
 	import { appendPage } from '#lib/pagination.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
-	import { getContext, onMount, onDestroy } from 'svelte';
-	import Icon from '../shell/Icon.svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import {
 		newOperationKey,
 		type Author,
@@ -13,6 +12,8 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import ConnectionsSkeleton from './ConnectionsSkeleton.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
 	import { followerChart } from './native-settings.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
@@ -22,9 +23,6 @@
 		section,
 		profileId
 	}: { api: CraftskyAPI; section: string; profileId?: string } = $props();
-	const back = getContext<((event: MouseEvent) => void) | undefined>(
-		'craftsky-back'
-	);
 	function relationships(cursor?: string) {
 		return profileId && (kind === 'followers' || kind === 'following')
 			? api.profiles.profileRelationships(profileId, kind, { cursor })
@@ -32,6 +30,7 @@
 	}
 	const work = new Work('settings.Connections.action');
 	let loaded = $state(false);
+	let loadingMore = $state(false);
 	let items = $state<Author[]>([]),
 		cursor = $state<string | null>(null),
 		total = $state<number | null>(null);
@@ -62,6 +61,9 @@
 			: section === 'blocked'
 				? 'blocks'
 				: (section as 'followers' | 'following')
+	);
+	const initialListLoading = $derived(
+		work.loading && !loaded && ['followers', 'following'].includes(kind)
 	);
 	let filtered = $derived(
 		items.filter((p) =>
@@ -114,18 +116,23 @@
 			'settings.Connections.load'
 		);
 	}
-	function more() {
+	async function more() {
 		const next = cursor;
-		if (!next) return;
-		void work.run(
-			() => relationships(next),
-			(value) => {
-				items = appendPage(items, value.items, (item) => item.did);
-				cursor = value.cursor || null;
-			},
-			'',
-			'settings.Connections.more'
-		);
+		if (!next || loadingMore || work.busy || work.retry) return;
+		loadingMore = true;
+		try {
+			await work.run(
+				() => relationships(next),
+				(value) => {
+					items = appendPage(items, value.items, (item) => item.did);
+					cursor = value.cursor || null;
+				},
+				'',
+				'settings.Connections.more'
+			);
+		} finally {
+			loadingMore = false;
+		}
 	}
 	function remove(profile: Author) {
 		const id = profile.did;
@@ -153,12 +160,6 @@
 	onDestroy(() => work.dispose());
 </script>
 
-{#if profileId}<a
-		class="icon-button"
-		href={'/profiles/' + encodeURIComponent(profileId)}
-		aria-label="Back to profile"
-		onclick={back}><Icon name="back" /></a
-	>{/if}
 <h1 class="workspace-heading">
 	{section === 'growth'
 		? 'Growth'
@@ -168,7 +169,10 @@
 				? 'Blocked accounts'
 				: `${title(section)} (${total ?? 0})`}
 </h1>
-<Feedback {work} reload={load} />
+{#if initialListLoading}<ConnectionsSkeleton />{:else}<Feedback
+		{work}
+		reload={load}
+	/>{/if}
 {#if section === 'growth'}
 	<section class="growth-page">
 		{#if !work.loading && loaded && allowsPlus}<div class="follower-total">
@@ -327,8 +331,11 @@
 									: 'You are not following anyone'}
 				detail="Nothing here yet."
 			/>{/each}
-		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
-			>{/if}
+		{#if cursor}<LoadMore
+				loading={loadingMore}
+				disabled={work.busy || !!work.retry}
+				onclick={() => void more()}
+			/>{/if}
 	</section>
 {/if}
 
