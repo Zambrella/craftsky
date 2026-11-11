@@ -966,6 +966,8 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
   static const _collapsedLength = 300;
 
   bool _expanded = false;
+  final GlobalKey _visibleBodyKey = GlobalKey();
+  final GlobalKey _collapsedBodyKey = GlobalKey();
 
   @override
   void didUpdateWidget(covariant _ExpandablePostBody oldWidget) {
@@ -975,38 +977,70 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
     }
   }
 
+  void _toggleExpanded() {
+    final scrollable = _expanded
+        ? Scrollable.maybeOf(context, axis: Axis.vertical)
+        : null;
+    final position = scrollable?.position;
+    final visible = _visibleBodyKey.currentContext?.findRenderObject();
+    final collapsed = _collapsedBodyKey.currentContext?.findRenderObject();
+    final removedHeight =
+        visible is RenderBox &&
+            visible.hasSize &&
+            collapsed is RenderBox &&
+            collapsed.hasSize
+        ? visible.size.height - collapsed.size.height
+        : 0.0;
+    setState(() => _expanded = !_expanded);
+    if (_expanded ||
+        position == null ||
+        !position.hasContentDimensions ||
+        position.axisDirection != AxisDirection.down ||
+        removedHeight <= 0) {
+      return;
+    }
+    // Both changes take effect before the next layout/paint. Correcting after
+    // the frame would briefly paint the shortened post at the old offset.
+    final target = (position.pixels - removedHeight).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target != position.pixels) position.jumpTo(target);
+  }
+
   @override
   Widget build(BuildContext context) {
     final canCollapse =
         widget.collapse && widget.text.characters.length > _collapsedLength;
     final shouldCollapse = canCollapse && !_expanded;
-    var visibleText = shouldCollapse
-        ? widget.text.characters.take(_collapsedLength).toString()
-        : widget.text;
-    if (shouldCollapse) {
-      final cutoff = visibleText.length;
+    var collapsedText = widget.text.characters
+        .take(_collapsedLength)
+        .toString();
+    if (canCollapse) {
+      final cutoff = collapsedText.length;
       final crossingFacets = FacetedTextModel.fromRaw(
         text: widget.text,
         rawFacets: widget.facets,
       ).where((range) => range.charStart < cutoff && range.charEnd > cutoff);
       if (crossingFacets.isNotEmpty) {
-        visibleText = widget.text.substring(0, crossingFacets.first.charStart);
+        collapsedText = widget.text.substring(
+          0,
+          crossingFacets.first.charStart,
+        );
       }
     }
-    final body = FacetedText(
-      text: visibleText,
+    Widget textBody({required bool collapsed, required Key key}) => FacetedText(
+      key: key,
+      text: collapsed ? collapsedText : widget.text,
       facets: widget.facets,
       style: widget.style,
-      suffixText: canCollapse ? (shouldCollapse ? '… ' : ' ') : null,
+      suffixText: canCollapse ? (collapsed ? '… ' : ' ') : null,
       actionLabel: canCollapse
-          ? (shouldCollapse ? widget.showMoreLabel : widget.showLessLabel)
+          ? (collapsed ? widget.showMoreLabel : widget.showLessLabel)
           : null,
-      onAction: canCollapse
-          ? () => setState(() {
-              _expanded = !_expanded;
-            })
-          : null,
+      onAction: canCollapse ? _toggleExpanded : null,
     );
+    final body = textBody(collapsed: shouldCollapse, key: _visibleBodyKey);
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -1014,7 +1048,20 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
       onDoubleTap: widget.facets?.isNotEmpty ?? false
           ? null
           : widget.onDoubleTap,
-      child: body,
+      child: canCollapse && _expanded
+          ? Stack(
+              children: [
+                // Keep an exact, non-interactive collapsed layout ready so
+                // shrinking and its scroll correction can happen atomically.
+                ExcludeFocus(
+                  child: Offstage(
+                    child: textBody(collapsed: true, key: _collapsedBodyKey),
+                  ),
+                ),
+                body,
+              ],
+            )
+          : body,
     );
   }
 }

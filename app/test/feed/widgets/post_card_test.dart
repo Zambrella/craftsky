@@ -2731,6 +2731,79 @@ void main() {
       expect(likes, 0);
     });
 
+    for (final (leading, trailing) in [
+      (700.0, 2000.0),
+      (700.0, 0.0),
+      (0.0, 2000.0),
+    ]) {
+      testWidgets(
+        'Show less preserves its anchor '
+        'with $leading before and $trailing after',
+        (tester) async {
+          tester.view.physicalSize = const Size(390, 700);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final controller = ScrollController();
+          addTearDown(controller.dispose);
+          final text = List.generate(
+            120,
+            (index) => 'Line $index: knitting a colourful scarf.',
+          ).join('\n');
+          await _pump(
+            tester,
+            ListView.builder(
+              controller: controller,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+              itemCount: 3,
+              itemBuilder: (context, index) => switch (index) {
+                0 => SizedBox(height: leading),
+                1 => PostCard(post: _post(text: text), collapseBody: true),
+                _ => SizedBox(height: trailing),
+              },
+            ),
+          );
+          await tester.pumpAndSettle();
+          controller.jumpTo(leading);
+          await tester.pumpAndSettle();
+          expect(find.text('Show more').hitTestable(), findsOneWidget);
+          final beforeExpansion = controller.offset;
+          await tester.tap(find.text('Show more'));
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(controller.offset, beforeExpansion);
+          await Scrollable.ensureVisible(
+            tester.element(find.text('Show less')),
+            alignment: leading == 0 ? 1 : 0,
+          );
+          await tester.pumpAndSettle();
+          final expandedOffset = controller.offset;
+          final anchorY = tester.getBottomLeft(find.text('Show less')).dy;
+          await tester.tap(find.text('Show less'));
+          await tester.pump(const Duration(milliseconds: 350));
+          expect(find.text('Show more').hitTestable(), findsOneWidget);
+          if (leading > 0) {
+            expect(
+              tester.getBottomLeft(find.text('Show more')).dy,
+              closeTo(anchorY, 1),
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          expect(find.text('Show more').hitTestable(), findsOneWidget);
+          expect(controller.offset, lessThan(expandedOffset));
+          if (leading == 0) {
+            expect(controller.offset, 0);
+          } else {
+            expect(
+              tester.getBottomLeft(find.text('Show more')).dy,
+              closeTo(anchorY, 1),
+            );
+          }
+        },
+      );
+    }
+
     testWidgets('keeps facets before the collapsed cutoff active', (
       tester,
     ) async {
