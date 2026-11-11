@@ -157,12 +157,17 @@
 			(tier()?.givesAccess && tier()?.effectiveTier !== 'free') ||
 			!!draft.scheduleId) &&
 			!draft.edit &&
+			!draft.instagramImport &&
 			!draft.reply &&
 			!draft.quote &&
 			!draft.video
 	);
 	const canChooseSchedule = $derived(
-		!draft.edit && !draft.reply && !draft.quote && !draft.video
+		!draft.edit &&
+			!draft.instagramImport &&
+			!draft.reply &&
+			!draft.quote &&
+			!draft.video
 	);
 	const title = $derived(
 		draft.edit
@@ -537,7 +542,7 @@
 				}
 			}
 			if (seq !== generation || destroyed) return;
-			if (!next.reply && !next.quote && !next.edit) {
+			if (!next.reply && !next.quote && !next.edit && !next.instagramImport) {
 				void ownedApi.schedules
 					.list()
 					.then((capacity) => {
@@ -554,6 +559,7 @@
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
 			closeDestination =
+				(next.instagramImport ? '/settings/instagram' : undefined) ||
 				origin ||
 				(saved
 					? '/drafts'
@@ -1118,7 +1124,10 @@
 				AbortSignal.any([controller.signal, publicationController.signal])
 			);
 			if (seq !== generation || destroyed) return;
-			if (result.post) publications?.accept(result.post, context);
+			// Historical imports converge through indexed profile/search reads. The
+			// ordinary publication overlay prepends to home feeds and profile lists.
+			if (result.post && !draft.instagramImport)
+				publications?.accept(result.post, context);
 			if (result.edit)
 				publications?.watchEdit(pending.rkey!, result.edit, () =>
 					api.posts.get(pending.did!, pending.rkey!)
@@ -1126,7 +1135,9 @@
 			const destination =
 				pending.kind === 'edit'
 					? result.destination!
-					: origin || result.destination || closeDestination;
+					: draft.instagramImport
+						? '/settings/instagram'
+						: origin || result.destination || closeDestination;
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
 			await (lifecycle?.complete() ?? Promise.resolve()).catch((error) => {
@@ -1162,7 +1173,10 @@
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
 				await lifecycle?.rejected();
-				if (e instanceof APIError && e.status === 409)
+				if (e instanceof APIError && e.status === 409 && draft.instagramImport)
+					error =
+						'This Instagram post already has an import in progress or has been posted. Return to Instagram settings to check its status before trying again.';
+				else if (e instanceof APIError && e.status === 409)
 					error =
 						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
 				else if (e instanceof APIError && e.code === 'video_blob_missing')
@@ -1250,6 +1264,12 @@
 			}}
 		>
 			<div class="composer-scroll">
+				{#if draft.instagramImport}<p class="notice">
+						Imported from Instagram · {new Date(
+							draft.instagramImport.createdAt
+						).toLocaleDateString()}. This will appear on your profile and in
+						search using its original date, without adding it to the home feed.
+					</p>{/if}
 				{#if draft.pending}<section class="composer-pending">
 						<h2>Waiting for confirmation</h2>
 						<p>

@@ -471,7 +471,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		trustedProxyCIDRs:    deps.Config.InstagramTrustedProxyCIDRs,
 		integrationAvailable: deps.Config.InstagramIntegrationAvailable,
 		rateLimiter:          deps.InstagramRateLimiter, verification: deps.InstagramVerification,
-		account: deps.InstagramAccount, imports: deps.InstagramImports,
+		account: deps.InstagramAccount, imports: deps.InstagramImports, postImports: deps.InstagramPostImports,
 		suggestions: deps.InstagramSuggestions, profileStore: deps.ProfileStore,
 		handleResolver: deps.HandleResolver, logger: deps.Logger,
 	})
@@ -544,6 +544,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		savedPostService: savedPostService, profilePinStore: profilePinStore,
 		handleResolver: deps.HandleResolver,
 		pdsCommands:    deps.PDSCommands, appendCommands: deps.PDSAppendCommands, addressedCommands: deps.PDSAddressedCommands,
+		instagramAccounts: deps.InstagramAccount, instagramImports: deps.InstagramPostImports,
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
 		mediaLimits: mediaLimits, videoVerifier: deps.VideoCompletionVerifier, videoEnabled: deps.Config.VideoEnabled, videoCaptions: deps.VideoCaptionFetcher, videoObserver: observer, logger: deps.Logger,

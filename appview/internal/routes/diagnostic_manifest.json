@@ -1123,6 +1123,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/migrations/instagram/post-imports/lookup",
+    "category": "appview.migrations.instagram.post_imports.lookup",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/migrations/instagram/suggestions/{suggestionId}/accept",
     "category": "appview.migrations.instagram.suggestions.detail.accept",
     "public": false

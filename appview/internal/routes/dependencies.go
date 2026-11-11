@@ -155,6 +155,7 @@ type Dependencies struct {
 	InstagramSuggestions  *instagram.SuggestionService
 	InstagramAccount      *instagram.AccountStore
 	InstagramImports      *instagram.ImportService
+	InstagramPostImports  *instagram.PostImportStore
 
 	ProfileStore              *api.ProfileStore
 	FollowerGrowth            api.FollowerGrowthReader

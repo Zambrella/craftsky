@@ -22,6 +22,16 @@ describe('error parity and diagnostic evidence', () => {
 			"You're offline. Check your connection and try again."
 		],
 		[401, 'unauthorized', 'Please sign in again.'],
+		[
+			403,
+			'instagram_verification_required',
+			'Verify or reactivate your Instagram account in Settings before importing posts.'
+		],
+		[
+			409,
+			'instagram_post_already_imported',
+			'This Instagram post has already been imported. Check its status in Instagram settings.'
+		],
 		[404, 'not_found', 'That content is no longer available.'],
 		[
 			503,

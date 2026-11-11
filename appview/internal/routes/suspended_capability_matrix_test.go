@@ -402,6 +402,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/profile-link-previews",
 		"POST /v1/link-previews",
 		"POST /v1/migrations/instagram/imports",
+		"POST /v1/migrations/instagram/post-imports/lookup",
 		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept",
 		"POST /v1/migrations/instagram/verifications",
 		"POST /v1/migrations/instagram/verifications/{verificationId}/confirm",

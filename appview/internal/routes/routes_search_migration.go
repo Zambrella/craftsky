@@ -50,6 +50,7 @@ type migrationRouteBundle struct {
 	verification         *instagram.VerificationService
 	account              *instagram.AccountStore
 	imports              *instagram.ImportService
+	postImports          *instagram.PostImportStore
 	suggestions          *instagram.SuggestionService
 	profileStore         *api.ProfileStore
 	handleResolver       api.HandleResolver
@@ -87,6 +88,7 @@ func registerMigrationRoutes(routes migrationRouteBundle) {
 		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitConfirmationDevice, Identity: middleware.InstagramRateIdentityDevice, Window: time.Hour, Limit: routes.limits.ConfirmationDevicePerHour},
 	)))
 	integrationAvailable := func() bool { return routes.integrationAvailable }
+	routes.mux.Handle("POST /v1/migrations/instagram/post-imports/lookup", routes.middleware.wrap(mustPolicy("POST", "/v1/migrations/instagram/post-imports/lookup"), api.LookupInstagramPostImportsHandler(routes.account, routes.postImports)))
 	routes.mux.Handle("GET /v1/migrations/instagram/account", routes.middleware.wrap(mustPolicy("GET", "/v1/migrations/instagram/account"), api.GetInstagramAccountHandler(routes.account, integrationAvailable, routes.logger)))
 	routes.mux.Handle("DELETE /v1/migrations/instagram/account", routes.middleware.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/account"), api.DeleteInstagramAccountHandler(routes.account, routes.logger)))
 	routes.mux.Handle("PATCH /v1/migrations/instagram/settings", routes.middleware.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/settings"), api.PatchInstagramSettingsHandler(routes.account, integrationAvailable, routes.logger)))

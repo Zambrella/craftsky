@@ -186,6 +186,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/migrations/instagram/verifications/{verificationId}",
 		"DELETE /v1/migrations/instagram/verifications/{verificationId}",
 		"POST /v1/migrations/instagram/verifications/{verificationId}/confirm",
+		"POST /v1/migrations/instagram/post-imports/lookup",
 		"GET /v1/migrations/instagram/account",
 		"DELETE /v1/migrations/instagram/account",
 		"PATCH /v1/migrations/instagram/settings",
