@@ -112,6 +112,16 @@
 	let galleryOpen = $state(false);
 	let imageIndex = $state(0);
 	let inlineImageIndex = $state(0);
+	const detailHref = $derived.by(() => {
+		if (!post) return undefined;
+		const cid =
+			post.images && post.images.length > 1
+				? post.images[inlineImageIndex]?.cid
+				: undefined;
+		return (
+			postRoute(post) + (cid ? '?imageCid=' + encodeURIComponent(cid) : '')
+		);
+	});
 	let cardElement = $state<HTMLElement>();
 	let heart = $state<{ play: () => void; cancel: () => void }>();
 	let revision = 0;
@@ -356,7 +366,7 @@
 			!event.shiftKey &&
 			!event.altKey
 		) {
-			void goto(postRoute(post));
+			void goto(detailHref!);
 			return;
 		}
 		const target = (event.target as HTMLElement).closest<HTMLAnchorElement>(
@@ -486,6 +496,7 @@
 					post={publicPost(post)}
 					{detail}
 					member
+					{detailHref}
 					initialImageIndex={Math.max(
 						0,
 						post.images?.findIndex((image) => image.cid === initialImageCid) ??

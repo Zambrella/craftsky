@@ -661,7 +661,8 @@ class _ProjectPostSlivers extends ConsumerWidget {
           imageInteractionMode: PostCardImageInteractionMode.navigate,
           hideWhenAuthorProtected: true,
           allowProfilePinAction: true,
-          onTap: () => PostThreadRoute(
+          onOpenPost: (imageCid) => PostThreadRoute(
+            imageCid: imageCid,
             did: post.author.did,
             rkey: post.rkey,
           ).push<void>(context),

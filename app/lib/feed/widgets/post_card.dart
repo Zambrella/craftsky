@@ -92,6 +92,7 @@ class PostCard extends ConsumerWidget {
     super.key,
     this.onReply,
     this.onTap,
+    this.onOpenPost,
     this.onLike,
     this.onViewLikes,
     this.onRepost,
@@ -129,6 +130,9 @@ class PostCard extends ConsumerWidget {
   final Post post;
   final VoidCallback? onReply;
   final VoidCallback? onTap;
+
+  /// Opens the post with the currently selected carousel image, when present.
+  final ValueChanged<String?>? onOpenPost;
   final VoidCallback? onLike;
   final VoidCallback? onViewLikes;
   final VoidCallback? onRepost;
@@ -221,6 +225,20 @@ class PostCard extends ConsumerWidget {
     VoidCallback? onLike,
     ValueNotifier<int> imageSelection,
   ) {
+    final openPost = onOpenPost == null
+        ? onTap
+        : () {
+            final images = post.images;
+            final index = imageSelection.value;
+            final cid =
+                images != null &&
+                    images.length > 1 &&
+                    index >= 0 &&
+                    index < images.length
+                ? images[index].cid
+                : null;
+            onOpenPost!(cid);
+          };
     final guest = ref.watch(isGuestBrowsingProvider);
     void requireAccount() => unawaited(showGuestSignIn(context, ref));
     final auth = ref.watch(authSessionProvider).value;
@@ -330,7 +348,7 @@ class PostCard extends ConsumerWidget {
         collapse: collapseBody,
         showMoreLabel: l10n.postShowMore,
         showLessLabel: l10n.postShowLess,
-        onTap: onTap,
+        onTap: openPost,
         onDoubleTap: likeOnDoubleTap,
       );
     }
@@ -419,7 +437,7 @@ class PostCard extends ConsumerWidget {
         child: InkWell(
           key: const Key('post-card-tap-target'),
           borderRadius: borderRadius,
-          onTap: onTap,
+          onTap: openPost,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -486,7 +504,7 @@ class PostCard extends ConsumerWidget {
                           ),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: post.editedAt == null ? onTap : null,
+                            onTap: post.editedAt == null ? openPost : null,
                             onDoubleTap: post.editedAt == null
                                 ? likeOnDoubleTap
                                 : null,
@@ -550,7 +568,7 @@ class PostCard extends ConsumerWidget {
                           onImageTap: (index, heroTags) =>
                               switch (imageInteractionMode) {
                                 PostCardImageInteractionMode.navigate =>
-                                  onTap?.call(),
+                                  openPost?.call(),
                                 PostCardImageInteractionMode
                                     .fullscreenGallery =>
                                   unawaited(

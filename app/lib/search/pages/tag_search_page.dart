@@ -141,7 +141,8 @@ class _TagPostList extends StatelessWidget {
               collapseBody: true,
               imageInteractionMode: PostCardImageInteractionMode.navigate,
               hideWhenAuthorProtected: true,
-              onTap: () => PostThreadRoute(
+              onOpenPost: (imageCid) => PostThreadRoute(
+                imageCid: imageCid,
                 did: post.author.did,
                 rkey: post.rkey,
               ).push<void>(context),

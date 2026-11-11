@@ -197,3 +197,23 @@ test('compact navigation displays and announces capped unread counts', async ({
 	await expect(messages.locator('.bottom-count')).toHaveText('6');
 	await expect(messages).toHaveAccessibleDescription('6 unread conversations');
 });
+
+for (const target of ['body', 'date']) {
+	test(`opening a carousel post through its ${target} retains the selected image`, async ({
+		page
+	}) => {
+		await page.goto('/feed');
+		const card = page.locator('.member-post').first();
+		await card
+			.getByRole('button', { name: 'Show image 3 of 3', exact: true })
+			.click();
+		await expect(card.locator('.image-counter')).toHaveText('3/3');
+		if (target === 'body') await card.locator('.prose').first().click();
+		else
+			await card.getByRole('link', { name: 'Open post', exact: true }).click();
+		await expect(page).toHaveURL(/\?imageCid=bafyimage3$/);
+		await expect(
+			page.locator('.member-post').first().locator('.image-counter')
+		).toHaveText('3/3');
+	});
+}

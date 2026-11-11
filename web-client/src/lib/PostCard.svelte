@@ -28,7 +28,8 @@
 		field,
 		member = false,
 		onImageChange,
-		initialImageIndex = 0
+		initialImageIndex = 0,
+		detailHref
 	}: {
 		post: Post;
 		detail?: boolean;
@@ -38,17 +39,19 @@
 		member?: boolean;
 		onImageChange?: (index: number) => void;
 		initialImageIndex?: number;
+		detailHref?: string;
 	} = $props();
 	const editDescriptionId = $props.id();
 	const profileHref = (did: string) =>
 		member ? '/profiles/' + encodeURIComponent(did) : profilePath(did);
 	const postHref = () =>
-		member
+		detailHref ??
+		(member
 			? '/posts/' +
 				encodeURIComponent(post.author.did) +
 				'/' +
 				encodeURIComponent(post.rkey)
-			: postPath(post);
+			: postPath(post));
 	const authorCrafts = $derived.by(() => {
 		const entries = new Map<string, string>();
 		for (const value of post.author.crafts || []) {
