@@ -235,6 +235,87 @@ void _expectDestination(String suffix, WidgetTester tester) {
 }
 
 void main() {
+  for (final entry in ['text', 'image']) {
+    for (final imageState in ['original', 'reordered', 'removed']) {
+      testWidgets(
+        'feed $entry opens its selected image in details ($imageState)',
+        (tester) async {
+          final images = [
+            PostImage(
+              cid: 'first-image',
+              mime: 'image/jpeg',
+              size: 1,
+              alt: 'First',
+            ),
+            PostImage(
+              cid: 'second-image',
+              mime: 'image/jpeg',
+              size: 1,
+              alt: 'Second',
+            ),
+          ];
+          final feedPost = _post().copyWith(
+            text: 'Route media post',
+            images: images,
+          );
+          final detailPost = feedPost.copyWith(
+            images: switch (imageState) {
+              'reordered' => images.reversed.toList(),
+              'removed' => [images.first],
+              _ => images,
+            },
+          );
+          final repo = FakePostRepository(
+            onListTimeline: ({cursor, limit}) async => TimelinePage(
+              items: [TimelineItem(itemKey: 'selected-photo', post: feedPost)],
+            ),
+            onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+                PostCommentSection(
+                  post: detailPost,
+                  comments: const CommentPage(items: []),
+                  sort: CommentSort.oldest,
+                ),
+          );
+          final container = _container(signedIn: true, repo: repo);
+          addTearDown(container.dispose);
+          await _pumpRouter(
+            tester,
+            container,
+            initialLocation: '/feed',
+            size: const Size(390, 844),
+          );
+          tester
+              .widget<PageView>(
+                find.descendant(
+                  of: find.byType(PostImageCarousel),
+                  matching: find.byType(PageView),
+                ),
+              )
+              .controller!
+              .jumpToPage(1);
+          await tester.pumpAndSettle();
+          await tester.tap(
+            entry == 'text'
+                ? find.text('Route media post')
+                : find.byKey(const Key('post-image-carousel')),
+          );
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          final detail = tester.widget<PostThreadPage>(
+            find.byType(PostThreadPage),
+          );
+          expect(detail.initialImageCid, 'second-image');
+          expect(
+            tester
+                .widget<PostImageCarousel>(find.byType(PostImageCarousel))
+                .initialIndex,
+            imageState == 'original' ? 1 : 0,
+          );
+        },
+      );
+    }
+  }
+
   for (final size in [const Size(390, 844), const Size(1200, 800)]) {
     for (final imageState in ['original', 'reordered', 'removed']) {
       testWidgets(

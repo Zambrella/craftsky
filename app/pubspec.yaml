@@ -16,6 +16,7 @@ dependencies:
   characters: ^1.4.1
   cross_cache: 1.1.1
   crypto: ^3.0.7
+  cupertino_icons: ^2.0.0
   cupertino_ui: ^1.1.2
   dart_mappable: ^4.10.0
   device_info_plus: ^13.3.0
@@ -69,6 +70,7 @@ dependencies:
   sensors_plus: ^7.1.1
   sentry_flutter: ^10.0.0
   sentry_logging: 10.0.0
+  share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   skeletonizer: ^3.0.0
   sliver_tools: ^0.2.12

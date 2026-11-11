@@ -1,5 +1,33 @@
 import { test, expect } from '@playwright/test';
 
+test('profile bio links open mentions, tags and external confirmation', async ({
+	page
+}) => {
+	await page.goto('/profiles/alice.test');
+	const bio = page.locator('.profile-bio');
+	await expect(
+		bio.getByRole('link', { name: '@bob.test', exact: true })
+	).toHaveAttribute('href', '/profiles/bob.test');
+	await expect(
+		bio.getByRole('link', { name: '#編織', exact: true })
+	).toHaveAttribute('href', '/search/tags?tag=%E7%B7%A8%E7%B9%94');
+	await bio
+		.getByRole('link', { name: 'https://example.org/yarn', exact: true })
+		.click();
+	const dialog = page.getByRole('dialog', { name: 'Open link?' });
+	await expect(dialog).toBeVisible();
+	await expect(
+		dialog.getByRole('link', { name: 'Open link', exact: true })
+	).toHaveAttribute('href', 'https://example.org/yarn');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	await bio.getByRole('link', { name: '@bob.test', exact: true }).click();
+	await expect(page).toHaveURL(/profiles\/bob.test$/);
+	await expect(
+		page.getByRole('heading', { name: 'Bob', exact: true })
+	).toBeVisible();
+});
+
 // AT-004 / FR-003 / AC-004, AC-006: public profile tabs and multi-author
 // threads reuse the regular social UI without creating a viewer account.
 test('reads profiles, comment tabs and multi-author post threads as a guest', async ({

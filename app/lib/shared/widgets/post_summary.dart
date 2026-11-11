@@ -470,13 +470,7 @@ class _PostSummaryImage extends ConsumerWidget {
                 aspectRatio: image.aspectRatio,
                 maxHeight: maxHeight,
               );
-        final fit = isVideo
-            ? BoxFit.cover
-            : computePostImageFit(
-                availableWidth: constraints.maxWidth,
-                aspectRatio: image.aspectRatio,
-                maxHeight: maxHeight,
-              );
+        final fit = isVideo ? BoxFit.cover : BoxFit.contain;
         return ClipRRect(
           key: const Key('post-summary-image'),
           borderRadius: BorderRadius.circular(radii.r2),

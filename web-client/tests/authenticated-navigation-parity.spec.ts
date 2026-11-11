@@ -337,3 +337,230 @@ test('changing the mobile tag query reloads results within the same route', asyn
 	).toBeVisible();
 	expect(tags).toEqual(['sewing', 'crochet']);
 });
+
+for (const label of ['Followers', 'Following']) {
+	test(`visitor profile menu opens and paginates ${label}`, async ({
+		page
+	}) => {
+		await fetch('http://127.0.0.1:19847/__test/control', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ visual: true })
+		});
+		await page.goto('/profiles/did%3Aplc%3Abob');
+		await page.getByLabel('More profile actions', { exact: true }).click();
+		await page.getByRole('link', { name: label, exact: true }).click();
+		await expect(page).toHaveURL(
+			new RegExp('/profiles/did%3Aplc%3Abob/' + label.toLowerCase() + '$')
+		);
+		await expect(
+			page.getByRole('heading', { name: label + ' (2)', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(
+			page.getByRole('link').filter({ hasText: 'Martha Jones' })
+		).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Load more', exact: true })
+		).not.toBeVisible();
+		await page
+			.getByRole('link', { name: 'Back to profile', exact: true })
+			.click();
+		await expect(page).toHaveURL(/profiles\/did%3Aplc%3Abob$/);
+		await expect(
+			page.getByRole('heading', { name: 'Bob Maker', exact: true })
+		).toBeVisible();
+	});
+}
+
+for (const width of [1280, 390]) {
+	for (const kind of ['followers', 'following']) {
+		test(`profile ${kind} matches Settings layout at ${width}px`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			await page.route(
+				/\/api\/appview\/v1\/profiles\/[^/]+\/(followers|following)(?:\?|$)/,
+				(route) => route.fulfill({ json: { items: [maker], totalCount: 1 } })
+			);
+			const metrics = async () => {
+				await expect(
+					page.locator('.relationship-list .identity')
+				).toBeVisible();
+				return page.locator('.settings-workspace').evaluate((workspace) => {
+					const heading = workspace.querySelector('h1')!;
+					const back = workspace.querySelector('.settings-back')!;
+					const row = workspace.querySelector('.relationship-list .row')!;
+					const identity = row.querySelector('.identity')!;
+					const avatar = identity.querySelector('.avatar')!;
+					const style = (element: Element) => {
+						const css = getComputedStyle(element);
+						return {
+							display: css.display,
+							alignItems: css.alignItems,
+							gap: css.gap,
+							padding: css.padding,
+							fontSize: css.fontSize,
+							fontWeight: css.fontWeight
+						};
+					};
+					const headingBox = heading.getBoundingClientRect();
+					const backBox = back.getBoundingClientRect();
+					return {
+						heading: style(heading),
+						row: style(row),
+						identity: style(identity),
+						avatarWidth: avatar.getBoundingClientRect().width,
+						headingHeight: headingBox.height,
+						backOffset: backBox.top - headingBox.top
+					};
+				});
+			};
+			// Load the profile route first so Settings CSS cannot mask missing dependencies.
+			await page.goto(`/profiles/did%3Aplc%3Abob/${kind}`);
+			const profile = await metrics();
+			expect(profile.identity.display).toBe('flex');
+			expect(profile.backOffset).toBe(0);
+			await page.goto(`/settings/${kind}`);
+			expect(await metrics()).toEqual(profile);
+		});
+	}
+}
+
+for (const width of [1280, 390]) {
+	for (const kind of ['followers', 'following']) {
+		test(`profile and Settings ${kind} share loading states at ${width}px`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			const states: unknown[] = [];
+			for (const path of [
+				`/profiles/did%3Aplc%3Abob/${kind}`,
+				`/settings/${kind}`
+			]) {
+				let release!: () => void;
+				const pending = new Promise<void>((resolve) => (release = resolve));
+				const endpoint =
+					/\/api\/appview\/v1\/profiles\/[^/]+\/(followers|following)(?:\?|$)/;
+				await page.route(
+					endpoint,
+					async (route) => {
+						await pending;
+						await route.fulfill({
+							json: { items: [maker], totalCount: 2, cursor: 'next' }
+						});
+					},
+					{ times: 1 }
+				);
+				await page.goto(path);
+				try {
+					await page.addStyleTag({
+						content: '.settings-workspace { --profile-accent: #1535d6; }'
+					});
+					await expect(
+						page.getByRole('status', { name: 'Loading content' })
+					).toBeVisible();
+					await expect(page.locator('.skeletons .skeleton')).toHaveCount(6);
+					await expect(
+						page.locator('.skeletons .skeleton-avatar').first()
+					).toHaveCSS('border-top-width', '0px');
+					await expect(page.locator('.relationship-list')).toHaveCount(0);
+					states.push(
+						await page.locator('.settings-workspace').evaluate((workspace) => {
+							const heading = workspace.querySelector('h1')!;
+							const loading = workspace.querySelector('.skeletons')!;
+							const css = getComputedStyle(loading);
+							const shimmer = getComputedStyle(loading.querySelector('.bone')!);
+							return {
+								fontSize: css.fontSize,
+								lineHeight: css.lineHeight,
+								margin: css.margin,
+								color: css.color,
+								animation: shimmer.animationName,
+								duration: shimmer.animationDuration,
+								offset:
+									loading.getBoundingClientRect().top -
+									heading.getBoundingClientRect().bottom
+							};
+						})
+					);
+				} finally {
+					release();
+				}
+				await expect(
+					page.locator('.relationship-list .identity')
+				).toBeVisible();
+				await expect(
+					page.locator('.settings-workspace .skeletons')
+				).toHaveCount(0);
+				let finishMore!: () => void;
+				const morePending = new Promise<void>(
+					(resolve) => (finishMore = resolve)
+				);
+				await page.route(
+					endpoint,
+					async (route) => {
+						await morePending;
+						await route.fulfill({
+							json: {
+								items: [
+									{ ...maker, did: 'did:plc:carol', handle: 'carol.test' }
+								],
+								totalCount: 2
+							}
+						});
+					},
+					{ times: 1 }
+				);
+				const loadMore = page.getByRole('button', {
+					name: 'Load more',
+					exact: true
+				});
+				await expect(loadMore).toHaveCSS('border-top-width', '0px');
+				await expect(loadMore).toHaveCSS(
+					'background-color',
+					'rgba(0, 0, 0, 0)'
+				);
+				const centered = await loadMore.evaluate((button) => {
+					const buttonBox = button.getBoundingClientRect();
+					const listBox = button
+						.closest('.relationship-list')!
+						.getBoundingClientRect();
+					return Math.abs(
+						buttonBox.x + buttonBox.width / 2 - listBox.x - listBox.width / 2
+					);
+				});
+				expect(centered).toBeLessThan(1);
+				await loadMore.click();
+				try {
+					await expect(
+						page.getByRole('button', { name: 'Load more', exact: true })
+					).toHaveCount(0);
+					await expect(
+						page.getByRole('status', { name: 'Loading more accounts' })
+					).toBeVisible();
+					const spinner = page
+						.getByRole('status', { name: 'Loading more accounts' })
+						.locator('svg');
+					await expect(spinner).toHaveAttribute('width', '36');
+					await expect(spinner).not.toHaveCSS('animation-name', 'none');
+					await page.emulateMedia({ reducedMotion: 'reduce' });
+					await expect(spinner).toHaveCSS('animation-name', 'none');
+					await page.emulateMedia({ reducedMotion: 'no-preference' });
+					await expect(
+						page.locator('.relationship-list .identity')
+					).toHaveCount(1);
+				} finally {
+					finishMore();
+				}
+				await expect(page.locator('.relationship-list .identity')).toHaveCount(
+					2
+				);
+			}
+			expect(states[1]).toEqual(states[0]);
+			expect(states[0]).toMatchObject({
+				animation: expect.stringContaining('shimmer')
+			});
+		});
+	}
+}

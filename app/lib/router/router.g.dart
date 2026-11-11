@@ -414,6 +414,18 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       factory: $UserProfileRoute._fromState,
       routes: [
         GoRouteData.$route(
+          path: 'followers',
+          name: 'profile-followers',
+          hasOverriddenOnExit: false,
+          factory: $ProfileFollowersRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'following',
+          name: 'profile-following',
+          hasOverriddenOnExit: false,
+          factory: $ProfileFollowingRoute._fromState,
+        ),
+        GoRouteData.$route(
           path: 'mutual-followers',
           name: 'profile-mutual-followers',
           hasOverriddenOnExit: false,
@@ -1404,6 +1416,60 @@ mixin $UserProfileRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
+}
+
+mixin $ProfileFollowersRoute on GoRouteData {
+  static ProfileFollowersRoute _fromState(GoRouterState state) =>
+      ProfileFollowersRoute(
+        did: _decodeDidRouteParameter(state.pathParameters['did']!),
+      );
+
+  ProfileFollowersRoute get _self => this as ProfileFollowersRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}/followers',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ProfileFollowingRoute on GoRouteData {
+  static ProfileFollowingRoute _fromState(GoRouterState state) =>
+      ProfileFollowingRoute(
+        did: _decodeDidRouteParameter(state.pathParameters['did']!),
+      );
+
+  ProfileFollowingRoute get _self => this as ProfileFollowingRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}/following',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $ProfileMutualFollowersRoute on GoRouteData {

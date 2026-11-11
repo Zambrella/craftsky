@@ -129,27 +129,6 @@ class _InstagramMigrationBody extends ConsumerWidget {
                   ),
                 ),
                 SizedBox(height: spacing.sp4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: ChunkyButton(
-                    key: const Key('instagram-import-help'),
-                    onPressed: () => unawaited(
-                      confirmAndLaunchExternalLink(
-                        context,
-                        uri: Uri.https(
-                          'craftsky.social',
-                          '/instagram-import',
-                        ),
-                        launchUrl: ref.read(instagramHelpLauncherProvider),
-                        confirmOpenLink: (_, _) async => true,
-                      ),
-                    ),
-                    child: Text(
-                      AppLocalizations.of(context).instagramImportHelp,
-                    ),
-                  ),
-                ),
-                SizedBox(height: spacing.sp2),
                 account.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, _) => const SizedBox.shrink(),
@@ -162,6 +141,30 @@ class _InstagramMigrationBody extends ConsumerWidget {
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: ChunkyButton(
+                                key: const Key('instagram-import-help'),
+                                onPressed: () => unawaited(
+                                  confirmAndLaunchExternalLink(
+                                    context,
+                                    uri: Uri.https(
+                                      'craftsky.social',
+                                      '/instagram-import',
+                                    ),
+                                    launchUrl: ref.read(
+                                      instagramHelpLauncherProvider,
+                                    ),
+                                    confirmOpenLink: (_, _) async => true,
+                                  ),
+                                ),
+                                child: Text(
+                                  AppLocalizations.of(context)
+                                      .instagramImportHelp,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: spacing.sp2),
                             _ImportComposerCard(lease: lease),
                             SizedBox(height: spacing.sp4),
                             _ImportsCard(lease: lease),

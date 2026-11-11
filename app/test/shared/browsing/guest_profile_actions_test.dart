@@ -11,6 +11,7 @@ void main() {
       tester,
     ) async {
       var copied = false;
+      var shared = false;
       var prompts = 0;
       await tester.pumpWidget(
         MaterialApp(
@@ -23,7 +24,7 @@ void main() {
                 isFollowing: false,
                 isBusy: false,
                 onFollowToggle: () => prompts++,
-                onShare: () {},
+                onShare: () => shared = true,
                 onReport: () => prompts++,
                 onMuteToggle: () => prompts++,
                 onBlockToggle: () => prompts++,
@@ -40,9 +41,17 @@ void main() {
       expect(find.text('Settings'), findsNothing);
       await tester.tap(find.byType(ProfileMoreActionsButton));
       await tester.pumpAndSettle();
+      expect(find.text('Followers'), findsNothing);
+      expect(find.text('Following'), findsNothing);
       await tester.tap(find.text('Copy link'));
       await tester.pumpAndSettle();
       expect(copied, true);
+      await tester.tap(find.byType(ProfileMoreActionsButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(shared, isTrue);
+      expect(prompts, 1);
     },
   );
 }

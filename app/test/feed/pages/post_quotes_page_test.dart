@@ -77,7 +77,7 @@ void main() {
       );
 
       for (final card in tester.widgetList<PostCard>(find.byType(PostCard))) {
-        expect(card.onTap, isNotNull);
+        expect(card.onOpenPost, isNotNull);
         expect(card.onReply, isNotNull);
         expect(card.onLike, isNotNull);
         expect(card.onRepost, isNotNull);
@@ -149,7 +149,7 @@ void main() {
       router.pop();
       await tester.pumpAndSettle();
 
-      tester.widget<PostCard>(find.byType(PostCard)).onTap!();
+      tester.widget<PostCard>(find.byType(PostCard)).onOpenPost!(null);
       await tester.pumpAndSettle();
       expect(destinations.last.path, '/posts/did%3Aplc%3Adana/dana-one');
       expect(destinations.last.queryParameters, isEmpty);

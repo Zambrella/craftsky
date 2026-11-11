@@ -222,7 +222,10 @@
 		</div>{/if}
 	<div class="photo-preview">
 		<img
+			class="post-image-preview"
 			src={url}
+			width={media.width}
+			height={media.height}
 			alt={media.alt || `Image ${index + 1} preview`}
 			style={`transform:rotate(${editing ? rotation * 90 : 0}deg);clip-path:inset(${editing ? y : 0}% ${editing ? Math.max(0, 100 - x - width) : 0}% ${editing ? Math.max(0, 100 - y - height) : 0}% ${editing ? x : 0}%)`}
 		/>
@@ -358,11 +361,8 @@
 		gap: 12px;
 	}
 	.native-photo .photo-preview > img {
-		height: auto;
-		max-height: 420px;
-		border: 1px solid var(--ink);
-		border-radius: 0;
-		display: block;
+		outline: 1px solid var(--ink-4);
+		outline-offset: -1px;
 	}
 	.photo-controls {
 		display: flex;
@@ -483,13 +483,6 @@
 		display: grid;
 		gap: 0.7rem;
 		min-width: 0;
-	}
-	.media-card img {
-		width: 100%;
-		height: 220px;
-		object-fit: contain;
-		border-radius: 8px;
-		background: var(--paper-2);
 	}
 	.image-edit-dialog {
 		inset: 0;

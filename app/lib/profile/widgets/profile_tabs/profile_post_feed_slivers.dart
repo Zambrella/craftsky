@@ -109,7 +109,8 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: isOwnProfile,
                 showPinnedProfileAttribution: post.uri.value == pinnedPostUri,
-                onTap: () => PostThreadRoute(
+                onOpenPost: (imageCid) => PostThreadRoute(
+                  imageCid: imageCid,
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),

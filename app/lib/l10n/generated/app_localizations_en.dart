@@ -4817,6 +4817,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recordCopyLinkAction => 'Copy link';
 
   @override
+  String get recordShareLinkAction => 'Share';
+
+  @override
+  String get recordShareLinkFailed =>
+      'Could not open sharing options. Please try again.';
+
+  @override
   String get recordLinkCopied => 'Link copied';
 
   @override

@@ -46,6 +46,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -138,6 +139,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().last,
         );
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Report profile'));
         await tester.tap(find.text('Report profile'));
         await tester.pumpAndSettle();
         expect(find.text('Report profile'), findsOneWidget);
@@ -1285,6 +1287,7 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Block account'));
       await tester.tap(find.text('Block account'));
       await tester.pumpAndSettle();
       expect(find.text('Block this account?'), findsOneWidget);
@@ -1349,6 +1352,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().first,
         );
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Mute account'));
         await tester.tap(find.text('Mute account'));
         await tester.pumpAndSettle();
 
@@ -1749,6 +1753,7 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Report profile'));
       await tester.tap(find.text('Report profile'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Spam, misleading or off-topic content'));
@@ -2200,6 +2205,65 @@ void main() {
           matching: find.text('@alice.bsky.social'),
         ),
         findsOneWidget,
+      );
+      expect(messenger.calls, isEmpty);
+    });
+
+    testWidgets('tapping Share opens native sharing with the profile link', (
+      tester,
+    ) async {
+      const channel = MethodChannel('dev.fluttercommunity.plus/share');
+      MethodCall? share;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        share = call;
+        return 'dev.fluttercommunity.plus/share/dismissed';
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final messenger = RecordingMessenger();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            testMemberBrowsingOverride,
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(share?.method, 'share');
+      expect(
+        (share?.arguments as Map)['uri'],
+        'https://app.craftsky.social/profiles/did%3Aplc%3Aother',
       );
       expect(messenger.calls, isEmpty);
     });

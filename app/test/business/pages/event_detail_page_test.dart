@@ -327,6 +327,7 @@ void main() {
     await tester.tap(find.byTooltip('More actions'));
     await tester.pumpAndSettle();
     expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
     expect(find.text('Report event'), findsNothing);
   });
 

@@ -812,6 +812,18 @@ createServer(async (req, res) => {
 		);
 		if (relationships && method === 'GET') {
 			const kind = relationships[2];
+			if (
+				relationships[1].replace(/^@/, '') === 'did:plc:bob' &&
+				['followers', 'following'].includes(kind)
+			) {
+				const next = url.searchParams.get('cursor');
+				const items = next ? [visual.peers[1]] : [visual.peers[0]];
+				return send(200, {
+					items,
+					cursor: next ? null : 'profile-next',
+					totalCount: 2
+				});
+			}
 			const items =
 				kind === 'followers' || kind === 'mutual-followers'
 					? visual.peers.slice(0, 2)

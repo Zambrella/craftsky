@@ -14,52 +14,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 const _defaultFallbackHeight = 320.0;
-const _defaultMinHeight = 160.0;
-const _defaultMaxHeight = 420.0;
-const _largestResponsiveMaxHeight = 720.0;
-const _viewportHeightFraction = 0.7;
+const _defaultMaxHeight = 700.0;
+const _viewportHeightFraction = 0.65;
 
 typedef PostImageTapCallback = void Function(int index, List<Object> heroTags);
 
 double computeBoundedImageHeight({
   required double availableWidth,
   required PostImageAspectRatio? aspectRatio,
-  double minHeight = _defaultMinHeight,
   double maxHeight = _defaultMaxHeight,
   double fallbackHeight = _defaultFallbackHeight,
 }) {
   if (aspectRatio == null ||
       aspectRatio.width <= 0 ||
       aspectRatio.height <= 0) {
-    return fallbackHeight.clamp(minHeight, maxHeight);
+    return fallbackHeight.clamp(0, maxHeight);
   }
 
   final ratio = aspectRatio.width / aspectRatio.height;
   final rawHeight = availableWidth / ratio;
-  return rawHeight.clamp(minHeight, maxHeight);
+  return rawHeight.clamp(0, maxHeight);
 }
 
 double computeResponsiveCarouselMaxHeight(double viewportHeight) =>
     (viewportHeight * _viewportHeightFraction).clamp(
+      0,
       _defaultMaxHeight,
-      _largestResponsiveMaxHeight,
     );
-
-BoxFit computePostImageFit({
-  required double availableWidth,
-  required PostImageAspectRatio? aspectRatio,
-  required double maxHeight,
-}) {
-  if (aspectRatio == null ||
-      aspectRatio.width <= 0 ||
-      aspectRatio.height <= 0 ||
-      aspectRatio.width >= aspectRatio.height) {
-    return BoxFit.cover;
-  }
-  final naturalHeight =
-      availableWidth / (aspectRatio.width / aspectRatio.height);
-  return naturalHeight > maxHeight ? BoxFit.contain : BoxFit.cover;
-}
 
 class PostImageCarousel extends ConsumerStatefulWidget {
   const new({
@@ -217,11 +198,7 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                                     cacheManager: ref.watch(
                                       feedImageCacheManagerProvider,
                                     ),
-                                    fit: computePostImageFit(
-                                      availableWidth: constraints.maxWidth,
-                                      aspectRatio: image.aspectRatio,
-                                      maxHeight: maxHeight,
-                                    ),
+                                    fit: BoxFit.contain,
                                     width: double.infinity,
                                     height: height,
                                   ),

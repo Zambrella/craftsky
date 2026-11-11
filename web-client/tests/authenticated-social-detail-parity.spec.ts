@@ -1828,6 +1828,115 @@ for (const colorScheme of ['light', 'dark'] as const) {
 	});
 }
 
+for (const width of [390, 1280]) {
+	for (const thumbnail of [true, false]) {
+		test(`quoted YouTube previews use compact layout and inline playback at ${width}px (thumbnail: ${thumbnail})`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			let youtubeRequests = 0;
+			await page.route('https://www.youtube.com/iframe_api', (route) => {
+				youtubeRequests++;
+				return route.fulfill({
+					contentType: 'text/javascript',
+					body: 'window.YT = { Player: function() { this.destroy = function() {}; } }; window.onYouTubeIframeAPIReady();'
+				});
+			});
+			await page.route('https://www.youtube-nocookie.com/**', (route) => {
+				youtubeRequests++;
+				return route.fulfill({
+					contentType: 'text/html',
+					body: '<html><body>Fixture player</body></html>'
+				});
+			});
+			await page.route(
+				'https://fixture.craftsky.test/compact-thumbnail.svg',
+				(route) =>
+					route.fulfill({
+						contentType: 'image/svg+xml',
+						body: '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="blue"/></svg>'
+					})
+			);
+			const title =
+				'Happy Birthday Stash Hub - Mini fabric haul to celebrate with lots of sewing projects';
+			const quoted = post('quoted-youtube', {
+				external: {
+					uri: 'https://youtu.be/dQw4w9WgXcQ?t=90',
+					title,
+					description:
+						'This description should be hidden in the compact preview.',
+					...(thumbnail
+						? {
+								thumb: {
+									url: 'https://fixture.craftsky.test/compact-thumbnail.svg'
+								}
+							}
+						: {})
+				}
+			});
+			await timeline(
+				page,
+				post('quote-youtube', {
+					text: 'Some great tips in this video.',
+					quote: { uri: quoted.uri, cid: quoted.cid },
+					quoteView: { state: 'visible', post: quoted }
+				})
+			);
+			await page.goto('/feed');
+			const quote = page.getByRole('complementary', { name: 'Quoted post' });
+			const preview = quote.getByRole('button', {
+				name: 'Play YouTube video: ' + title,
+				exact: true
+			});
+			await expect(preview).toBeVisible();
+			await expect(preview.locator('.host')).toHaveText('youtu.be');
+			await expect(preview.locator('.description')).toHaveCount(0);
+			await expect(preview.locator('strong')).toHaveCSS(
+				'white-space',
+				'nowrap'
+			);
+			await expect(preview.locator('strong')).toHaveCSS(
+				'text-overflow',
+				'ellipsis'
+			);
+			if (thumbnail) {
+				const media = preview.locator('.preview-media');
+				await expect(media).toHaveCSS('width', '72px');
+				await expect(media).toHaveCSS('height', '72px');
+				await quote.screenshot({
+					path: test.info().outputPath('compact-youtube-preview.png')
+				});
+			} else await expect(preview.locator('img')).toHaveCount(0);
+			expect(youtubeRequests).toBe(0);
+			await expect(quote.locator('iframe')).toHaveCount(0);
+			await preview.click();
+			const dialog = page.getByRole('dialog', {
+				name: 'Play video from YouTube?',
+				exact: true
+			});
+			await expect(dialog).toBeVisible();
+			expect(youtubeRequests).toBe(0);
+			await expect(page).toHaveURL(/\/feed$/);
+			await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+			await expect(preview).toBeFocused();
+			await preview.click();
+			await dialog
+				.getByRole('button', { name: 'Allow once', exact: true })
+				.click();
+			await expect(
+				quote.getByTitle('YouTube video player: ' + title)
+			).toHaveAttribute(
+				'src',
+				/youtube-nocookie.com\/embed\/dQw4w9WgXcQ\?.*start=90/
+			);
+			await expect(
+				quote.getByRole('link', { name: 'Open in YouTube', exact: true })
+			).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ?t=90');
+			await expect(page).toHaveURL(/\/feed$/);
+		});
+	}
+}
+
 test('YouTube embeds require consent, retain timestamps, remember permission and handle playback errors', async ({
 	page
 }) => {
@@ -1985,3 +2094,79 @@ test('blocked YouTube API retains an external fallback', async ({ page }) => {
 		page.getByRole('link', { name: 'Open in YouTube', exact: true })
 	).toHaveAttribute('href', 'https://youtu.be/dQw4w9WgXcQ');
 });
+
+for (const example of [
+	{
+		kind: 'posts',
+		path: '/feed',
+		endpoint: /\/api\/appview\/v1\/feed\/timeline(?:\?|$)/,
+		avatar: '.skeleton-avatar'
+	},
+	{
+		kind: 'people',
+		path: '/profiles/did%3Aplc%3Abob/mutual-followers',
+		endpoint: /\/api\/appview\/v1\/profiles\/[^/]+\/mutual-followers(?:\?|$)/,
+		avatar: '.skeleton-avatar.person'
+	},
+	{
+		kind: 'profile',
+		path: '/profiles/did%3Aplc%3Abob',
+		endpoint: /\/api\/appview\/v1\/profiles\/(?:@|%40)?did[^/?]+(?:\?|$)/,
+		avatar: '.profile .skeleton-avatar'
+	},
+	{
+		kind: 'activity',
+		path: '/notifications',
+		endpoint: /\/api\/appview\/v1\/notifications(?:\?|$)/,
+		avatar: '.skeleton-avatar'
+	},
+	{
+		kind: 'management',
+		path: '/saved',
+		endpoint: /\/api\/appview\/v1\/saved-posts(?:\?|$)/,
+		avatar: '.skeleton-avatar.thumbnail'
+	},
+	{
+		kind: 'comments',
+		path: '/profiles/did%3Aplc%3Abob?tab=comments',
+		endpoint: /\/api\/appview\/v1\/profiles\/[^/]+\/comments(?:\?|$)/,
+		avatar: '.skeleton-avatar.comment'
+	}
+]) {
+	test(`${example.kind} skeleton avatars do not inherit profile rings`, async ({
+		page
+	}) => {
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => (release = resolve));
+		await page.route(example.endpoint, async (route) => {
+			const response = await route.fetch();
+			await pending;
+			await route.fulfill({ response });
+		});
+		await page.goto(example.path);
+		try {
+			await page.addStyleTag({
+				content: ':root { --profile-accent: #1535d6; }'
+			});
+			const skeleton = page
+				.locator('.skeletons')
+				.filter({ has: page.locator(example.avatar) });
+			await expect(skeleton).toBeVisible();
+			await expect(skeleton.locator('.avatar')).toHaveCount(0);
+			const avatar = skeleton.locator(example.avatar).first();
+			await expect(avatar).not.toHaveCSS(
+				'border-top-color',
+				'rgb(21, 53, 214)'
+			);
+			await expect(avatar).toHaveCSS('box-shadow', 'none');
+			await expect(avatar).toHaveCSS('outline-style', 'none');
+			if (example.kind !== 'profile')
+				await expect(avatar).toHaveCSS('border-top-width', '0px');
+		} finally {
+			release();
+		}
+		await expect(
+			page.locator('.skeletons').filter({ has: page.locator(example.avatar) })
+		).toHaveCount(0);
+	});
+}

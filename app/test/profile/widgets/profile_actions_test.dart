@@ -43,6 +43,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(opened, isTrue);
     });
+    for (final label in ['Followers', 'Following']) {
+      testWidgets('visitor menu opens $label', (tester) async {
+        String? opened;
+        await _pump(
+          tester,
+          ProfileActions(
+            actions: VisitorProfileActionSet(
+              isFollowing: false,
+              isBusy: false,
+              onFollowToggle: () {},
+              onShare: () {},
+              onReport: () {},
+              onMuteToggle: () {},
+              onBlockToggle: () {},
+              onViewFollowers: () => opened = 'Followers',
+              onViewFollowing: () => opened = 'Following',
+            ),
+          ),
+        );
+        await tester.tap(find.byType(CraftskyContextMenuButton));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(opened, label);
+      });
+    }
+
     testWidgets('self profile copy menu fits a narrow screen with large text', (
       tester,
     ) async {
@@ -59,6 +86,7 @@ void main() {
             onEdit: () {},
             onSettings: () {},
             onCopyLink: () {},
+            onShare: () {},
           ),
         ),
       );
@@ -66,6 +94,7 @@ void main() {
       await tester.tap(find.byType(CraftskyContextMenuButton));
       await tester.pumpAndSettle();
       expect(find.text('Copy link'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -74,17 +103,19 @@ void main() {
         '${own ? 'self' : 'visitor'} profile menu exposes copy link',
         (tester) async {
           var copied = false;
+          var shared = false;
           final actions = own
               ? SelfProfileActionSet(
                   onEdit: () {},
                   onSettings: () {},
+                  onShare: () => shared = true,
                   onCopyLink: () => copied = true,
                 )
               : VisitorProfileActionSet(
                   isFollowing: false,
                   isBusy: false,
                   onFollowToggle: () {},
-                  onShare: () {},
+                  onShare: () => shared = true,
                   onReport: () {},
                   onMuteToggle: () {},
                   onBlockToggle: () {},
@@ -96,6 +127,12 @@ void main() {
           await tester.tap(find.text('Copy link'));
           await tester.pumpAndSettle();
           expect(copied, isTrue);
+          await tester.tap(find.byType(CraftskyContextMenuButton));
+          await tester.pumpAndSettle();
+          expect(find.text('Share'), findsOneWidget);
+          await tester.tap(find.text('Share'));
+          await tester.pumpAndSettle();
+          expect(shared, isTrue);
         },
       );
     }
@@ -198,7 +235,7 @@ void main() {
         await tester.tap(find.byTooltip('More profile actions'));
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsOneWidget);
-        expect(find.text('Share card'), findsOneWidget);
+        expect(find.text('Share'), findsOneWidget);
         expect(find.text('Mute account'), findsOneWidget);
         expect(find.text('Block account'), findsOneWidget);
         expect(find.text('Report profile'), findsOneWidget);
@@ -208,7 +245,7 @@ void main() {
         expect(mutes, 1);
         await tester.tap(find.byTooltip('More profile actions'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Share card'));
+        await tester.tap(find.text('Share'));
         await tester.pumpAndSettle();
         expect(shares, 1);
 
@@ -288,7 +325,7 @@ void main() {
         find.byType(PopupMenuItem<CraftskyContextMenuItem>),
         findsNWidgets(4),
       );
-      expect(find.text('Share card'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
     });
 
     testWidgets('UT-013 block action exposes destructive button semantics', (

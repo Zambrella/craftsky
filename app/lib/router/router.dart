@@ -477,6 +477,14 @@ class AccountEligibilityRoute extends GoRouteData
       path: '${RouteLocations.profiles}/:did',
       name: 'user-profile',
       routes: [
+        TypedGoRoute<ProfileFollowersRoute>(
+          path: RouteLocations.followersChild,
+          name: 'profile-followers',
+        ),
+        TypedGoRoute<ProfileFollowingRoute>(
+          path: RouteLocations.followingChild,
+          name: 'profile-following',
+        ),
         TypedGoRoute<ProfileMutualFollowersRoute>(
           path: RouteLocations.mutualFollowersChild,
           name: 'profile-mutual-followers',
@@ -1130,6 +1138,34 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
         transition: $extra,
         child: ProfilePage(did: did),
       );
+}
+
+class ProfileFollowersRoute extends GoRouteData with $ProfileFollowersRoute {
+  const new({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+  });
+  final Did did;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      FollowListPage(kind: FollowListKind.followers, targetDid: did);
+}
+
+class ProfileFollowingRoute extends GoRouteData with $ProfileFollowingRoute {
+  const new({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+  });
+  final Did did;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      FollowListPage(kind: FollowListKind.following, targetDid: did);
 }
 
 class ProfileMutualFollowersRoute extends GoRouteData

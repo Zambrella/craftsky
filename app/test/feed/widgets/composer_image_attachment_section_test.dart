@@ -1,10 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,6 +20,77 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 );
 
 void main() {
+  for (final dimensions in [(600, 2400), (2400, 600), (800, 800)]) {
+    for (final viewport in [
+      const Size(390, 400),
+      const Size(390, 844),
+      const Size(1024, 1366),
+    ]) {
+      testWidgets(
+        'composer and card share image sizing for $dimensions at $viewport',
+        (tester) async {
+          tester.view.physicalSize = viewport;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final state = ValueNotifier(
+            ComposerImagesState(
+              images: [
+                _image('sizing').copyWith(
+                  phase: ScheduledImageReady(
+                    width: dimensions.$1,
+                    height: dimensions.$2,
+                  ),
+                ),
+              ],
+            ),
+          );
+          addTearDown(state.dispose);
+          await _pump(tester, state, useDetailsRoute: false);
+          final previewFinder = find.byType(CraftskyImageAttachmentPreview);
+          final previewSize = tester.getSize(previewFinder);
+          final preview = tester.widget<CraftskyImageAttachmentPreview>(
+            previewFinder,
+          );
+          expect(preview.fit, BoxFit.contain);
+          await tester.pumpWidget(
+            ProviderScope(
+              child: MaterialApp(
+                theme: AppTheme.lightThemeData,
+                home: Scaffold(
+                  body: Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: previewSize.width,
+                      child: PostImageCarousel(
+                        images: [
+                          PostImage(
+                            cid: 'sizing',
+                            mime: 'image/jpeg',
+                            size: 1,
+                            alt: '',
+                            aspectRatio: PostImageAspectRatio(
+                              width: dimensions.$1,
+                              height: dimensions.$2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            tester.getSize(find.byKey(const Key('post-image-frame'))).height,
+            closeTo(previewSize.height, 0.01),
+          );
+        },
+      );
+    }
+  }
   testWidgets(
     'empty attachments show Media without description or limit counts',
     (tester) async {

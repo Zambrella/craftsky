@@ -368,7 +368,10 @@ class _ProfileBody extends ConsumerWidget {
               isFollowing: false,
               isBusy: false,
               onFollowToggle: () => unawaited(showGuestSignIn(context, ref)),
-              onShare: () => unawaited(showProfileShareCard(context, profile)),
+              onShare: () =>
+                  shareRecordLink(context, RecordLinks.profile(profile.did)),
+              onShareCard: () =>
+                  unawaited(showProfileShareCard(context, profile)),
               onReport: () =>
                   unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
@@ -470,6 +473,8 @@ class _ProfileBody extends ConsumerWidget {
     if (isOwnProfile) {
       return SelfProfileActionSet(
         onShareCard: () => showProfileShareCard(context, profile),
+        onShare: () =>
+            shareRecordLink(context, RecordLinks.profile(profile.did)),
         onCopyLink: () =>
             copyRecordLink(context, RecordLinks.profile(profile.did)),
         onSendViaChat: () =>
@@ -482,6 +487,16 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
+      onViewFollowers: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowersRoute(did: profile.did).push<void>(context),
+            ),
+      onViewFollowing: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowingRoute(did: profile.did).push<void>(context),
+            ),
       messagingAction: relationship.hasBlock
           ? null
           : ProfileMessageButton(
@@ -527,7 +542,8 @@ class _ProfileBody extends ConsumerWidget {
           }),
         );
       },
-      onShare: () => unawaited(showProfileShareCard(context, profile)),
+      onShare: () => shareRecordLink(context, RecordLinks.profile(profile.did)),
+      onShareCard: () => unawaited(showProfileShareCard(context, profile)),
       onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(
