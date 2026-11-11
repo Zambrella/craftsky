@@ -6,7 +6,6 @@ import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
@@ -139,10 +138,6 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
           l10n: l10n,
           onTerms: () => _openLink(_termsUri),
           onPrivacy: () => _openLink(_privacyUri),
-        ),
-        TextButton(
-          onPressed: () => const SafetyRoute().push<void>(context),
-          child: Text(l10n.safetyTitle),
         ),
       ],
     );

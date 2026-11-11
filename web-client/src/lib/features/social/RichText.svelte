@@ -1,11 +1,23 @@
 <script lang="ts">
 	import { confirmExternalLink } from './prompt';
 	import { facetParts } from './model';
+	import { plainTextParts } from './plain-text';
 	import type { Facet } from '#lib/api/types.ts';
-	let { text, facets }: { text: string; facets?: Facet[] | null } = $props();
+	let {
+		text,
+		facets,
+		detectPlainText = false
+	}: {
+		text: string;
+		facets?: Facet[] | null;
+		detectPlainText?: boolean;
+	} = $props();
+	const parts = $derived(
+		detectPlainText ? plainTextParts(text) : facetParts(text, facets)
+	);
 </script>
 
-{#each facetParts(text, facets) as part}{#if part.href}<a
+{#each parts as part}{#if part.href}<a
 			href={part.href}
 			rel={part.external ? 'ugc nofollow noreferrer' : undefined}
 			onclick={(event) => {

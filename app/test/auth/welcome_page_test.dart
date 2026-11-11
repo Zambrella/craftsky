@@ -94,6 +94,7 @@ void main() {
     await tester.ensureVisible(find.text('Explore CraftSky'));
     await tester.tap(find.text('Explore CraftSky'));
     expect(explored, true);
+    expect(find.text('Safety and support'), findsNothing);
   });
 
   testWidgets('renders the craft icon scaffold background', (tester) async {

@@ -4,7 +4,6 @@
 </script>
 
 <div class="sidebar-about">
-	<a href="/safety">Safety and support</a>
 	<a href="https://craftsky.social/terms" target="_blank" rel="noreferrer"
 		>Terms</a
 	><a href="https://craftsky.social/privacy" target="_blank" rel="noreferrer"
