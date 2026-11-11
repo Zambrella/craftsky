@@ -36,6 +36,15 @@ same catalog. A searchable-field contract covers every project property,
 explicit exclusions, weights, visibility, and catalog version. Hashtag counts
 and discovery use all-time visible posts, with one count per post and tag.
 
+## Colour catalog alignment (2026-11-11)
+
+Add `navy`, `turquoise`, and `teal` to the open `project.common.colors`
+`knownValues` suggestions, matching application catalog version 2 and both
+clients. Retain the existing string and array limits. These values already
+validate as bounded strings; this additive documentation change requires no
+record migration or new NSID. Regenerate the embedded schema catalog alongside
+the Lexicon update.
+
 ## Alternatives and consequences
 
 An unordered craft list would make the detail variant ambiguous and require

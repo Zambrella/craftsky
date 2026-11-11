@@ -280,6 +280,27 @@
 		"parents": []
 	},
 	{
+		"id": "navy",
+		"family": "color",
+		"label": "Navy",
+		"craft": null,
+		"parents": []
+	},
+	{
+		"id": "turquoise",
+		"family": "color",
+		"label": "Turquoise",
+		"craft": null,
+		"parents": []
+	},
+	{
+		"id": "teal",
+		"family": "color",
+		"label": "Teal",
+		"craft": null,
+		"parents": []
+	},
+	{
 		"id": "purple",
 		"family": "color",
 		"label": "Purple",
