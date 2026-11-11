@@ -367,9 +367,8 @@ class _ProfileBody extends ConsumerWidget {
               isFollowing: false,
               isBusy: false,
               onFollowToggle: () => unawaited(showGuestSignIn(context, ref)),
-              onShare: () => context.showInfo(
-                AppLocalizations.of(context).profileShareComingSoon,
-              ),
+              onShare: () =>
+                  shareRecordLink(context, RecordLinks.profile(profile.did)),
               onReport: () =>
                   unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
@@ -468,9 +467,10 @@ class _ProfileBody extends ConsumerWidget {
     WidgetRef ref,
     ProfileRelationship relationship,
   ) {
-    final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
+        onShare: () =>
+            shareRecordLink(context, RecordLinks.profile(profile.did)),
         onCopyLink: () =>
             copyRecordLink(context, RecordLinks.profile(profile.did)),
         onSendViaChat: () =>
@@ -528,7 +528,7 @@ class _ProfileBody extends ConsumerWidget {
           }),
         );
       },
-      onShare: () => context.showInfo(l10n.profileShareComingSoon),
+      onShare: () => shareRecordLink(context, RecordLinks.profile(profile.did)),
       onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(

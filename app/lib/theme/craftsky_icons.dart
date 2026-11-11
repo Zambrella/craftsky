@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/widgets.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -193,6 +194,11 @@ abstract final class CraftskyIconsBold {
   static const IconData send = PhosphorIconsBold.paperPlaneTilt;
   static const IconData settings = PhosphorIconsBold.gear;
   static const IconData share = PhosphorIconsBold.shareNetwork;
+
+  /// The system share glyph follows the platform's familiar convention.
+  static IconData shareForPlatform(TargetPlatform platform) =>
+      platform == TargetPlatform.iOS ? CupertinoIcons.share : share;
+
   static const IconData switchAccount = PhosphorIconsBold.userSwitch;
   static const IconData textPost = PhosphorIconsBold.textAlignLeft;
   static const IconData ticket = PhosphorIconsBold.ticket;

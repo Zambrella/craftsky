@@ -8457,6 +8457,18 @@ abstract class AppLocalizations {
   /// **'Copy link'**
   String get recordCopyLinkAction;
 
+  /// Opens the native share sheet for the record link.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get recordShareLinkAction;
+
+  /// No description provided for @recordShareLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open sharing options. Please try again.'**
+  String get recordShareLinkFailed;
+
   /// No description provided for @recordLinkCopied.
   ///
   /// In en, this message translates to:
