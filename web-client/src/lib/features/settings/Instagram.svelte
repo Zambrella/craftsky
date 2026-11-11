@@ -414,19 +414,19 @@
 					onclick={verify}>Create verification challenge</button
 				>{/if}{/if}
 	</section>
-	<a
-		class="button import-help"
-		href="https://craftsky.social/instagram-import"
-		target="_blank"
-		rel="noopener noreferrer"
-		>How to export your Instagram following <SettingsIcon
-			name="external"
-			size={16}
-		/></a
-	>
 	{#if !account}<p class="muted">
 			Complete verification to import the accounts you follow.
 		</p>{:else}
+		<a
+			class="button import-help"
+			href="https://craftsky.social/instagram-import"
+			target="_blank"
+			rel="noopener noreferrer"
+			>How to export your Instagram following <SettingsIcon
+				name="external"
+				size={16}
+			/></a
+		>
 		<section class="panel stack">
 			<h2 class="section-heading">
 				<SettingsIcon name="followers" />Import accounts you follow
