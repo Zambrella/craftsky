@@ -45,6 +45,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -2151,7 +2152,23 @@ void main() {
       expect(messenger.calls.first.$2, 'Could not update follow state.');
     });
 
-    testWidgets('tapping Share dispatches a coming-soon info', (tester) async {
+    testWidgets('tapping Share opens native sharing with the profile link', (
+      tester,
+    ) async {
+      const channel = MethodChannel('dev.fluttercommunity.plus/share');
+      MethodCall? share;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        share = call;
+        return 'dev.fluttercommunity.plus/share/dismissed';
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -2186,9 +2203,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Share'));
       await tester.pumpAndSettle();
-      expect(messenger.calls.length, 1);
-      expect(messenger.calls.first.$1, 'info');
-      expect(messenger.calls.first.$2, 'Share coming soon.');
+      expect(share?.method, 'share');
+      expect(
+        (share?.arguments as Map)['uri'],
+        'https://app.craftsky.social/profiles/did%3Aplc%3Aother',
+      );
+      expect(messenger.calls, isEmpty);
     });
 
     testWidgets('tapping profile avatar opens the fullscreen image gallery', (

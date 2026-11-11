@@ -39,6 +39,7 @@ void main() {
             onEdit: () {},
             onSettings: () {},
             onCopyLink: () {},
+            onShare: () {},
           ),
         ),
       );
@@ -46,6 +47,7 @@ void main() {
       await tester.tap(find.byType(CraftskyContextMenuButton));
       await tester.pumpAndSettle();
       expect(find.text('Copy link'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -54,17 +56,19 @@ void main() {
         '${own ? 'self' : 'visitor'} profile menu exposes copy link',
         (tester) async {
           var copied = false;
+          var shared = false;
           final actions = own
               ? SelfProfileActionSet(
                   onEdit: () {},
                   onSettings: () {},
+                  onShare: () => shared = true,
                   onCopyLink: () => copied = true,
                 )
               : VisitorProfileActionSet(
                   isFollowing: false,
                   isBusy: false,
                   onFollowToggle: () {},
-                  onShare: () {},
+                  onShare: () => shared = true,
                   onReport: () {},
                   onMuteToggle: () {},
                   onBlockToggle: () {},
@@ -76,6 +80,12 @@ void main() {
           await tester.tap(find.text('Copy link'));
           await tester.pumpAndSettle();
           expect(copied, isTrue);
+          await tester.tap(find.byType(CraftskyContextMenuButton));
+          await tester.pumpAndSettle();
+          expect(find.text('Share'), findsOneWidget);
+          await tester.tap(find.text('Share'));
+          await tester.pumpAndSettle();
+          expect(shared, isTrue);
         },
       );
     }
