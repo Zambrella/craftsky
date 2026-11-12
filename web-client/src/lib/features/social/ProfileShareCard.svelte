@@ -4,8 +4,10 @@
 	import { label } from '#lib/public.ts';
 	import Icon from '../shell/Icon.svelte';
 	import { Work } from './work.svelte';
+	import { shareCardEffects } from './share-card-effects';
 	import {
 		renderProfileShareCard,
+		captureProfileShareCardEffects,
 		shareProfileCard
 	} from './profile-share-card';
 	let {
@@ -17,14 +19,22 @@
 	let dialog: HTMLDialogElement;
 	let file = $state<File>();
 	let url = $state('');
+	let exportedURL = $state('');
 	const work = new Work('social.Profile.action');
 	const id = $props.id();
 	function prepare() {
 		return work.run(
-			() => renderProfileShareCard(profile),
+			async () => {
+				const preview = await renderProfileShareCard(profile);
+				return {
+					preview,
+					exported: await captureProfileShareCardEffects(preview)
+				};
+			},
 			(value) => {
-				file = value;
-				url = URL.createObjectURL(value);
+				file = value.exported;
+				url = URL.createObjectURL(value.preview);
+				exportedURL = URL.createObjectURL(value.exported);
 			}
 		);
 	}
@@ -39,6 +49,7 @@
 	onDestroy(() => {
 		work.dispose();
 		if (url) URL.revokeObjectURL(url);
+		if (exportedURL) URL.revokeObjectURL(exportedURL);
 	});
 </script>
 
@@ -71,22 +82,24 @@
 			onclick={onClose}><Icon name="close" /></button
 		>
 	</header>
-	<div class="artwork" aria-busy={work.busy && !file}>
-		{#if url}<img
-				src={url}
-				width="1200"
-				height="1500"
-				alt={`${profile.displayName?.trim() || profile.handle}, @${profile.handle}. ${profile.crafts.map(label).join(', ')}. Scan to open this CraftSky profile.`}
-			/>
-		{:else}<div class="preparing" role="status">
-				{work.error ? 'Couldn’t prepare your card.' : 'Loading...'}
-			</div>{/if}
+	<div class="card-stage" use:shareCardEffects={!!url && !work.busy}>
+		<div class="artwork" aria-busy={work.busy && !file}>
+			{#if url}<img
+					src={url}
+					width="1200"
+					height="1500"
+					alt={`${profile.displayName?.trim() || profile.handle}, @${profile.handle}. ${profile.crafts.map(label).join(', ')}. Scan to open this CraftSky profile.`}
+				/>
+			{:else}<div class="preparing" role="status">
+					{work.error ? 'Couldn’t prepare your card.' : 'Loading...'}
+				</div>{/if}
+		</div>
 	</div>
 	<button
 		class="share-card-button"
 		disabled={work.busy}
 		onclick={() => {
-			if (file) void work.run(() => shareProfileCard(file!, url));
+			if (file) void work.run(() => shareProfileCard(file!, exportedURL));
 			else void prepare();
 		}}
 		aria-busy={work.busy}
@@ -108,7 +121,7 @@
 		max-width: none;
 		max-height: calc(100svh - 48px);
 		margin: auto;
-		padding: 0 8px 8px 0;
+		padding: 20px;
 		border: 0;
 		border-radius: 0;
 		background: transparent;
@@ -151,14 +164,34 @@
 		display: grid;
 		place-items: center;
 	}
+	.card-stage {
+		aspect-ratio: 4 / 5;
+		position: relative;
+	}
+	.card-stage:global(.motion-enabled) {
+		touch-action: none;
+		cursor: grab;
+	}
+	.card-stage:global(.dragging) {
+		cursor: grabbing;
+	}
 	.artwork {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		transform-origin: center;
+		box-shadow:
+			inset 1px 1px 2px #ffffff77,
+			inset -1px -1px 2px #07186199,
+			6px 7px #161210;
 		aspect-ratio: 4 / 5;
 		border-radius: 4.58% / 3.67%;
 		background: #1535d6;
-		box-shadow: 6px 7px #161210;
 		overflow: hidden;
 	}
 	.artwork img {
+		user-select: none;
+		pointer-events: none;
 		display: block;
 		width: 100%;
 		height: 100%;

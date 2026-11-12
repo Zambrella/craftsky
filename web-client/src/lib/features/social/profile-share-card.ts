@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { createShareCardShader } from './share-card-shader';
 import type { Profile } from '#lib/api/client.ts';
 import { label, origin, safeURL } from '#lib/public.ts';
 
@@ -73,6 +74,22 @@ function text(
 	ctx.fillText(value, 240, y);
 }
 
+function paintCraftSequence(
+	ctx: CanvasRenderingContext2D,
+	icons: HTMLImageElement[]
+) {
+	for (let row = 0; row < 10; row++)
+		for (let col = 0; col < 8; col++) {
+			ctx.drawImage(
+				icons[(row * 3 + col) % icons.length],
+				col * 70 - (row % 2) * 35,
+				row * 70 - 10,
+				30,
+				30
+			);
+		}
+}
+
 /** A single canvas is both the preview and export: no theme, zoom or DPR changes the PNG. */
 export async function renderProfileShareCard(
 	profile: Pick<Profile, 'did' | 'handle' | 'displayName' | 'avatar' | 'crafts'>
@@ -101,19 +118,10 @@ export async function renderProfileShareCard(
 	ctx.clip();
 	ctx.fillStyle = blue;
 	ctx.fillRect(0, 0, 480, 600);
-	// Static, faint craft sequence. The web card deliberately has no motion or shader.
+	// Neutral craft sequence remains consistent in the exported PNG.
 	ctx.globalAlpha = 0.08;
 	ctx.filter = 'invert(1)';
-	for (let row = 0; row < 10; row++)
-		for (let col = 0; col < 8; col++) {
-			ctx.drawImage(
-				icons[(row * 3 + col) % icons.length],
-				col * 70 - (row % 2) * 35,
-				row * 70 - 10,
-				30,
-				30
-			);
-		}
+	paintCraftSequence(ctx, icons);
 	ctx.globalAlpha = 1;
 	ctx.filter = 'none';
 	ctx.strokeStyle = '#ffffff77';
@@ -268,4 +276,74 @@ export async function shareProfileCard(file: File, url: string) {
 	link.href = url;
 	link.download = file.name;
 	link.click();
+}
+
+/** Foil affects only the repeating glyphs, never the identity, crafts or QR. */
+export async function createShareCardFoilMask() {
+	const icons = await Promise.all(
+		crafts.map((craft) => image(`/craft_icons/${craft}.svg`))
+	);
+	const canvas = document.createElement('canvas');
+	canvas.width = 480;
+	canvas.height = 600;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) throw new Error('Share card mask unavailable');
+	paintCraftSequence(ctx, icons);
+	for (const [x, y, width, height] of [
+		[172, 20, 144, 36],
+		[30, 180, 420, 62],
+		[32, 250, 416, 60],
+		[138, 318, 204, 204],
+		[90, 538, 300, 34]
+	])
+		ctx.clearRect(x, y, width, height);
+	ctx.globalCompositeOperation = 'destination-out';
+	ctx.beginPath();
+	ctx.arc(240, 120, 50, 0, Math.PI * 2);
+	ctx.fill();
+	return canvas;
+}
+
+/** Bake the resting foil and emboss into the fixed PNG before the share click.
+ * WebGL must be copied synchronously after drawing: its buffer is transient. */
+export async function captureProfileShareCardEffects(
+	base: File
+): Promise<File> {
+	const source = URL.createObjectURL(base);
+	let shader: ReturnType<typeof createShareCardShader>;
+	try {
+		const [artwork, mask] = await Promise.all([
+			image(source),
+			createShareCardFoilMask()
+		]);
+		const effect = document.createElement('canvas');
+		effect.width = shareCardSize.width;
+		effect.height = shareCardSize.height;
+		shader = createShareCardShader(effect, mask);
+		if (!shader) return base;
+		const canvas = document.createElement('canvas');
+		canvas.width = shareCardSize.width;
+		canvas.height = shareCardSize.height;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) throw new Error('Share card capture unavailable');
+		ctx.beginPath();
+		ctx.roundRect(0, 0, canvas.width, canvas.height, 55);
+		ctx.clip();
+		ctx.drawImage(artwork, 0, 0);
+		shader.draw(0, 0);
+		ctx.drawImage(effect, 0, 0);
+		const blob = await new Promise<Blob>((resolve, reject) =>
+			canvas.toBlob(
+				(value) =>
+					value
+						? resolve(value)
+						: reject(new Error('Share card PNG encoding failed')),
+				'image/png'
+			)
+		);
+		return new File([blob], base.name, { type: 'image/png' });
+	} finally {
+		shader?.destroy();
+		URL.revokeObjectURL(source);
+	}
 }

@@ -83,6 +83,47 @@ test('visitor and own profile export a fixed PNG, restore focus and preserve ima
 	expect(bytes.subarray(1, 4).toString()).toBe('PNG');
 	expect(bytes.readUInt32BE(16)).toBe(1200);
 	expect(bytes.readUInt32BE(20)).toBe(1500);
+	const exportedData = `data:image/png;base64,${bytes.toString('base64')}`;
+	const effects = await page.evaluate(
+		async ({ plain, exported }) => {
+			async function pixels(src: string) {
+				const img = new Image();
+				img.src = src;
+				await img.decode();
+				const canvas = document.createElement('canvas');
+				canvas.width = 1200;
+				canvas.height = 1500;
+				const ctx = canvas.getContext('2d')!;
+				ctx.drawImage(img, 0, 0);
+				return ctx.getImageData(0, 0, 1200, 1500).data;
+			}
+			const [base, decorated] = await Promise.all([
+				pixels(plain),
+				pixels(exported)
+			]);
+			let edgeChanges = 0,
+				foilChanges = 0,
+				qrChanges = 0;
+			for (let y = 0; y < 1500; y++)
+				for (let x = 0; x < 1200; x++) {
+					const index = (y * 1200 + x) * 4;
+					if (
+						!base
+							.slice(index, index + 4)
+							.some((value, channel) => value !== decorated[index + channel])
+					)
+						continue;
+					if (x < 15 || x > 1185 || y < 15 || y > 1485) edgeChanges++;
+					else foilChanges++;
+					if (x >= 350 && x < 850 && y >= 800 && y < 1300) qrChanges++;
+				}
+			return { edgeChanges, foilChanges, qrChanges };
+		},
+		{ plain: baseline, exported: exportedData }
+	);
+	expect(effects.edgeChanges).toBeGreaterThan(0);
+	expect(effects.foilChanges).toBeGreaterThan(0);
+	expect(effects.qrChanges).toBe(0);
 	await dialog.screenshot({
 		path: testInfo.outputPath('profile-share-card-desktop.png')
 	});
@@ -109,6 +150,11 @@ test('visitor and own profile export a fixed PNG, restore focus and preserve ima
 	dialog = await openCard(page);
 	await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
 	expect(await artwork(page)).toBe(baseline);
+	const secondDownload = page.waitForEvent('download');
+	await dialog.getByRole('button', { name: 'Share', exact: true }).click();
+	const secondPath = testInfo.outputPath('profile-share-card-mobile.png');
+	await (await secondDownload).saveAs(secondPath);
+	expect(await readFile(secondPath)).toEqual(bytes);
 	const cardBounds = await dialog.getByRole('img').boundingBox();
 	const buttonBounds = await dialog
 		.getByRole('button', { name: 'Share', exact: true })
@@ -241,4 +287,154 @@ test('avatar without CDN CORS headers renders through the restricted same-origin
 	});
 	// The avatar interior contains the supplied image, rather than lilac initials.
 	expect(pixel.slice(0, 3)).not.toEqual([201, 185, 229]);
+});
+
+test('web foil shader and pointer tilt preserve the PNG and settle after release', async ({
+	page
+}, testInfo) => {
+	const failures: string[] = [];
+	page.on('pageerror', (error) => failures.push(error.name));
+	const dialog = await openCard(page);
+	const stage = dialog.locator('.card-stage');
+	const card = dialog.locator('.artwork');
+	await expect(stage).toHaveAttribute('data-foil', 'webgl');
+	const original = await artwork(page);
+	const bounds = await stage.boundingBox();
+	const x = bounds!.x + bounds!.width / 2,
+		y = bounds!.y + bounds!.height / 2;
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + 85, y - 85, { steps: 8 });
+	await expect
+		.poll(() => card.evaluate((node) => node.style.transform))
+		.not.toBe('perspective(900px) rotateX(0deg) rotateY(0deg)');
+	await expect(stage).toHaveClass(/dragging/);
+	expect(await artwork(page)).toBe(original);
+	// Read within the render frame, before WebGL's default drawing buffer clears.
+	const material = await stage.evaluate(async (element) => {
+		const rect = element.getBoundingClientRect();
+		element.dispatchEvent(
+			new PointerEvent('pointermove', {
+				pointerType: 'mouse',
+				clientX: rect.right - 10,
+				clientY: rect.top + 10
+			})
+		);
+		return new Promise<{ visible: boolean; qrClear: boolean }>((resolve) =>
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => {
+					const canvas = element.querySelector('canvas')!;
+					const gl = canvas.getContext('webgl')!;
+					const bytes = new Uint8Array(canvas.width * canvas.height * 4);
+					gl.readPixels(
+						0,
+						0,
+						canvas.width,
+						canvas.height,
+						gl.RGBA,
+						gl.UNSIGNED_BYTE,
+						bytes
+					);
+					let visible = false,
+						qrClear = true;
+					for (let py = 0; py < canvas.height; py++)
+						for (let px = 0; px < canvas.width; px++) {
+							const alpha = bytes[(py * canvas.width + px) * 4 + 3];
+							if (alpha) visible = true;
+							const cx = (px / canvas.width) * 480,
+								cy = (1 - py / canvas.height) * 600;
+							if (cx > 145 && cx < 335 && cy > 325 && cy < 515 && alpha)
+								qrClear = false;
+						}
+					resolve({ visible, qrClear });
+				})
+			)
+		);
+	});
+	expect(material).toEqual({ visible: true, qrClear: true });
+	await dialog.screenshot({
+		path: testInfo.outputPath('profile-card-tilted.png')
+	});
+	await page.mouse.up();
+	await page.mouse.move(bounds!.x - 10, y);
+	await expect
+		.poll(() => card.evaluate((node) => node.style.transform))
+		.toBe('perspective(900px) rotateX(0deg) rotateY(0deg)');
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.mouse.move(x + 50, y - 50);
+	expect(await card.evaluate((node) => node.style.transform)).toBe(
+		'perspective(900px) rotateX(0deg) rotateY(0deg)'
+	);
+	expect(await artwork(page)).toBe(original);
+	await dialog.getByRole('button', { name: 'Close share card' }).click();
+	expect(failures).toEqual([]);
+});
+
+test('no WebGL falls back to the complete card and sharing still works', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		const original = HTMLCanvasElement.prototype.getContext;
+		HTMLCanvasElement.prototype.getContext = function (
+			this: HTMLCanvasElement,
+			type: string,
+			...args: unknown[]
+		) {
+			if (type === 'webgl') return null;
+			return Reflect.apply(original, this, [type, ...args]);
+		} as typeof original;
+	});
+	const dialog = await openCard(page);
+	await expect(dialog.locator('.card-stage')).toHaveAttribute(
+		'data-foil',
+		'static'
+	);
+	await expect(dialog.getByRole('img')).toBeVisible();
+	await expect(
+		dialog.getByRole('button', { name: 'Share', exact: true })
+	).toBeEnabled();
+});
+
+test('touch dragging captures movement and cancellation returns the card to rest', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const input = await page.context().newCDPSession(page);
+	await input.send('Emulation.setTouchEmulationEnabled', {
+		enabled: true,
+		maxTouchPoints: 1
+	});
+	const dialog = await openCard(page);
+	const stage = dialog.locator('.card-stage');
+	const bounds = await stage.boundingBox();
+	const x = bounds!.x + bounds!.width / 2,
+		y = bounds!.y + bounds!.height / 2;
+	await input.send('Input.dispatchTouchEvent', {
+		type: 'touchStart',
+		touchPoints: [{ x, y }]
+	});
+	await input.send('Input.dispatchTouchEvent', {
+		type: 'touchMove',
+		touchPoints: [{ x: x + 55, y: y - 55 }]
+	});
+	await expect(stage).toHaveClass(/dragging/);
+	await expect
+		.poll(() =>
+			dialog.locator('.artwork').evaluate((node) => node.style.transform)
+		)
+		.not.toBe('perspective(900px) rotateX(0deg) rotateY(0deg)');
+	await input.send('Input.dispatchTouchEvent', {
+		type: 'touchCancel',
+		touchPoints: []
+	});
+	await expect(stage).not.toHaveClass(/dragging/);
+	await expect
+		.poll(() =>
+			dialog.locator('.artwork').evaluate((node) => node.style.transform)
+		)
+		.toBe('perspective(900px) rotateX(0deg) rotateY(0deg)');
+	expect(
+		await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)
+	).toBe(true);
+	await input.detach();
 });
