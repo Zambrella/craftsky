@@ -165,6 +165,7 @@ class _Bucket extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final bucket = controller.bucket;
     return YarnRefreshScrollView.list(
+      anchorItems: true,
       onRefresh: onRefresh,
       // The controller retains errors rather than throwing to the refresh UI.
       showSuccess: false,

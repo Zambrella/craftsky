@@ -1,3 +1,4 @@
+import { reloadPages } from '#lib/pagination.ts';
 import { stageSharedLink, takeSharedLink } from './share';
 import { reportFailure } from '../diagnostics/client';
 import type { DiagnosticOperation } from '../diagnostics/privacy';
@@ -216,7 +217,7 @@ export class MessagesController {
 					if (draft.pending?.state === 'uncertain') void this.checkSend();
 				} else if (view === 'inbox') {
 					const [page, counts] = await Promise.all([
-						this.api.chat.conversations(this.state.bucket),
+						this.refreshedInbox(epoch),
 						this.api.chat.unread()
 					]);
 					if (!this.current(epoch)) return;
@@ -239,7 +240,39 @@ export class MessagesController {
 			if (this.current(epoch)) this.update({ loading: false });
 		}
 	}
-	refresh(): Promise<void> {
+	private refreshedInbox(epoch: number) {
+		const bucket = this.state.bucket;
+		return reloadPages(
+			async (cursor) => {
+				const page = await this.api.chat.conversations(bucket, { cursor });
+				if (!this.current(epoch))
+					throw new DOMException('Canceled', 'AbortError');
+				return page;
+			},
+			1,
+			(item) => item.id,
+			this.state.conversations.length
+		);
+	}
+	async refresh(): Promise<void> {
+		if (
+			this.state.view === 'inbox' &&
+			this.state.status?.capabilities.canRead
+		) {
+			const epoch = this.epoch;
+			try {
+				const result = await this.refreshedInbox(epoch);
+				if (this.current(epoch))
+					this.update({
+						conversations: result.items,
+						cursor: result.cursor,
+						error: ''
+					});
+			} catch (error) {
+				if (this.current(epoch)) this.failure(error, 'messages.navigate');
+			}
+			return;
+		}
 		return this.navigate(this.route.split('/').filter(Boolean), true);
 	}
 	async more(): Promise<void> {
@@ -772,7 +805,7 @@ export class MessagesController {
 				if (id) await this.refreshContent(epoch);
 				else if (this.state.view === 'inbox') {
 					const [page, counts] = await Promise.all([
-						this.api.chat.conversations(this.state.bucket),
+						this.refreshedInbox(epoch),
 						this.api.chat.unread()
 					]);
 					if (this.current(epoch))

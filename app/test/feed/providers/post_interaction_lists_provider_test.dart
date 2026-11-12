@@ -29,6 +29,26 @@ const _did = 'did:plc:alice';
 const _rkey = 'root';
 
 void main() {
+  test('quote refresh retains loaded depth', () async {
+    final repository = FakePostRepository(
+      onListQuotes: (did, rkey, {cursor, limit}) async => PostPage(
+        items: [_post(cursor == null ? 'first' : 'second')],
+        cursor: cursor == null ? 'next' : null,
+      ),
+    );
+    final container = _container(repository);
+    addTearDown(container.dispose);
+    final provider = postQuotesProvider(
+      Did.parse(_did),
+      RecordKey.parse(_rkey),
+    );
+    container.listen(provider, (_, _) {});
+    await container.read(provider.future);
+    await container.read(provider.notifier).loadMore();
+    container.invalidate(provider);
+    expect((await container.read(provider.future)).items, hasLength(2));
+  });
+
   setUpAll(initializeMappers);
 
   group('UT-004 account interaction lists', () {

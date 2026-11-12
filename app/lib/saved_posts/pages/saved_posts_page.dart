@@ -18,6 +18,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -236,8 +237,8 @@ class _FlatSavedBody extends ConsumerWidget {
               ),
             ),
           ),
-          SliverList.builder(
-            itemCount: items.length,
+          AnchoredSliverList(
+            identities: [for (final item in items) item.post.uri],
             itemBuilder: (context, index) {
               final item = items[index];
               return SavedPostRow(

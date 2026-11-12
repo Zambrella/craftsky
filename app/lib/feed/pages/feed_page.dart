@@ -20,6 +20,7 @@ import 'package:craftsky_app/projects/providers/preferred_project_crafts_provide
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
@@ -319,8 +320,8 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             ),
           )
         else
-          SliverList.builder(
-            itemCount: items.length,
+          AnchoredSliverList(
+            identities: [for (final item in items) item.itemKey],
             itemBuilder: (context, index) {
               if (hasMore &&
                   !isLoadingMore &&

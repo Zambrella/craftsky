@@ -119,11 +119,17 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
           final maxHeight = computeResponsiveCarouselMaxHeight(
             MediaQuery.sizeOf(context).height,
           );
-          final height = computeBoundedImageHeight(
-            availableWidth: constraints.maxWidth,
-            aspectRatio: current.aspectRatio,
-            maxHeight: maxHeight,
-          );
+          // Reserve one frame for the album. Changing the selected image must
+          // not change a feed row's height underneath the reader.
+          final height = widget.images
+              .map(
+                (image) => computeBoundedImageHeight(
+                  availableWidth: constraints.maxWidth,
+                  aspectRatio: image.aspectRatio,
+                  maxHeight: maxHeight,
+                ),
+              )
+              .reduce((a, b) => a > b ? a : b);
 
           return Listener(
             behavior: HitTestBehavior.opaque,

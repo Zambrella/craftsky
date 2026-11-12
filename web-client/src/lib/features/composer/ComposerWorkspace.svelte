@@ -113,7 +113,7 @@
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
 	let existingDraft = $state(false);
-	let closeDestination = $state('/feed');
+	let closeDestination = $state(origin || '/feed');
 	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
 	let context = $state<Post>();
@@ -370,6 +370,17 @@
 									: '';
 			const did = query.get(`${mode}Did`) || query.get('did');
 			const rkey = query.get(`${mode}Rkey`) || query.get('rkey');
+			// Closing remains available while initialization is pending or fails.
+			closeDestination =
+				origin ||
+				(saved
+					? '/drafts'
+					: scheduled
+						? '/scheduled'
+						: did && rkey
+							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+							: '/feed');
+			closeTarget = closeDestination;
 			if (saved) {
 				const value = await drafts.get(owner, saved);
 				if (!value)
@@ -554,16 +565,6 @@
 				notice =
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
-			closeDestination =
-				origin ||
-				(saved
-					? '/drafts'
-					: scheduled
-						? '/scheduled'
-						: did && rkey
-							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-							: '/feed');
-			closeTarget = closeDestination;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
 			externalFrozen =

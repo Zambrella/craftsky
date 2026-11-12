@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { appendPage } from '#lib/pagination.ts';
+	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
+	let feedElement = $state<HTMLElement>();
+
+	import { appendPage, reloadPages } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { getContext, onMount, onDestroy, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack, tick } from 'svelte';
 	import {
 		Publications,
 		publicationsContext,
@@ -50,7 +53,7 @@
 	const snapshot = historyView?.value;
 	let loadedPages = snapshot?.pages || 0;
 	let disposed = false;
-	let loaded = !!snapshot;
+	let loaded = $state(!!snapshot);
 	let work = $state(new Work('social.Feed.action'));
 	let profile = $state<Profile | undefined>(
 		snapshot?.profile ?? untrack(() => currentProfile?.())
@@ -93,54 +96,69 @@
 			return { ...item, key: item?.key ?? 'published:' + post.uri, post };
 		});
 	});
+	$effect.pre(() => {
+		void displayedItems;
+		if (!feedElement) return;
+		const restore = untrack(() => captureScrollAnchor(feedElement!));
+		void tick().then(restore);
+	});
 	async function load(more = false) {
 		const request = historyView?.beginLoad();
 		await work.run(
 			async () => {
 				if (!guest && !profile) profile = await api.profiles.me();
-				const options = {
-					limit: guest ? 20 : 30,
-					cursor: more ? cursor : undefined
-				};
-				if (!craft && !guest) {
-					const result = await (extendedNetwork
-						? api.posts.extendedNetwork(options)
-						: api.posts.timeline(options));
+				const fetchPage = async (nextCursor?: string | null) => {
+					const options = {
+						limit: guest ? 20 : 30,
+						cursor: nextCursor
+					};
+					if (!craft && !guest) {
+						const result = await (extendedNetwork
+							? api.posts.extendedNetwork(options)
+							: api.posts.timeline(options));
+						return {
+							items: result.items.map((item) => ({
+								key: item.itemKey,
+								post: item.post,
+								reason: item.reason?.by,
+								followedBy: item.followedBy
+							})),
+							cursor: result.cursor
+						};
+					}
+					const result = await api.search.browseProjects({
+						...options,
+						craftType: craft
+							? [
+									craft.includes('#')
+										? craft
+										: `social.craftsky.feed.defs#${craft}`
+								]
+							: undefined,
+						sort:
+							page.url.searchParams.get('sort') === 'popular'
+								? 'popular'
+								: 'chronological',
+						filters
+					});
 					return {
-						items: result.items.map((item) => ({
-							key: item.itemKey,
-							post: item.post,
-							reason: item.reason?.by,
-							followedBy: item.followedBy
+						items: result.items.map((post) => ({
+							key:
+								'uri' in post
+									? post.uri || crypto.randomUUID()
+									: crypto.randomUUID(),
+							post
 						})),
 						cursor: result.cursor
 					};
-				}
-				const result = await api.search.browseProjects({
-					...options,
-					craftType: craft
-						? [
-								craft.includes('#')
-									? craft
-									: `social.craftsky.feed.defs#${craft}`
-							]
-						: undefined,
-					sort:
-						page.url.searchParams.get('sort') === 'popular'
-							? 'popular'
-							: 'chronological',
-					filters
-				});
-				return {
-					items: result.items.map((post) => ({
-						key:
-							'uri' in post
-								? post.uri || crypto.randomUUID()
-								: crypto.randomUUID(),
-						post
-					})),
-					cursor: result.cursor
 				};
+				return more
+					? { ...(await fetchPage(cursor)), pages: loadedPages + 1 }
+					: reloadPages(
+							fetchPage,
+							Math.max(1, loadedPages),
+							(item) => item.key
+						);
 			},
 			(result) => {
 				if (request && !request.isCurrent()) return;
@@ -149,7 +167,7 @@
 					? appendPage(items, result.items, (item) => item.key)
 					: result.items;
 				cursor = result.cursor || null;
-				loadedPages = more ? loadedPages + 1 : 1;
+				loadedPages = result.pages;
 				loaded = true;
 				if (request)
 					request.save({ profile, items, cursor, pages: loadedPages });
@@ -189,7 +207,11 @@
 	});
 </script>
 
-<div class="feed-content" hidden={page.url.pathname.endsWith('/filters')}>
+<div
+	bind:this={feedElement}
+	class="feed-content"
+	hidden={page.url.pathname.endsWith('/filters')}
+>
 	<div class="workspace-heading">
 		<h1>Home</h1>
 		{#if craft || guest}<div class="heading-actions">
@@ -243,16 +265,19 @@
 
 	<Status
 		{work}
+		showLoading={!loaded}
 		skeleton="posts"
 		reload={() => load()}
-	/>{#each displayedItems as item (item.key)}<MemberPost
-			value={item.post}
-			reason={item.reason}
-			followedBy={item.followedBy}
-			{api}
-			{did}
-			onRemove={() => (items = items.filter((old) => old.key !== item.key))}
-		/>{:else}{#if !work.busy && !work.error}<EmptyState
+	/>{#each displayedItems as item (item.key)}<div data-scroll-anchor={item.key}>
+			<MemberPost
+				value={item.post}
+				reason={item.reason}
+				followedBy={item.followedBy}
+				{api}
+				{did}
+				onRemove={() => (items = items.filter((old) => old.key !== item.key))}
+			/>
+		</div>{:else}{#if !work.busy && !work.error}<EmptyState
 				title={craft
 					? label(craft)
 					: extendedNetwork

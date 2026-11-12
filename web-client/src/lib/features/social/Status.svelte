@@ -38,6 +38,13 @@
 
 <style>
 	.social-loading {
+		position: fixed;
+		inset-inline-end: 16px;
+		bottom: 88px;
+		z-index: 40;
+		margin: 0;
+		border-radius: 8px;
+		background: var(--paper-1);
 		display: flex;
 		align-items: center;
 		justify-content: center;

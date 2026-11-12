@@ -448,6 +448,7 @@ footer a {
 	margin-top: 16px;
 }
 .gallery {
+	max-height: var(--post-image-max-height);
 	display: flex;
 	align-items: stretch;
 	gap: 12px;
@@ -478,6 +479,10 @@ footer a {
 	max-height: var(--post-image-max-height);
 	object-fit: contain;
 	border-radius: 6px;
+}
+.gallery img {
+	height: 100%;
+	min-height: 0;
 }
 .gallery > a:focus-visible {
 	outline-offset: -4px;

@@ -217,3 +217,209 @@ for (const target of ['body', 'date']) {
 		).toHaveText('3/3');
 	});
 }
+
+test('mixed-ratio images keep the feed frame stable through lazy decoding and selection', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+		const response = await route.fetch();
+		const body = await response.json();
+		body.items[0].post.images = [
+			{ width: 400, height: 500 },
+			{ width: 1000, height: 100 }
+		].map((aspectRatio, index) => ({
+			cid: `mixed-${index}`,
+			mime: 'image/png',
+			size: 1,
+			alt: `Mixed photo ${index + 1}`,
+			fullsize: `https://fixture.craftsky.test/mixed-${index}.png`,
+			thumb: `https://fixture.craftsky.test/mixed-${index}.png`,
+			aspectRatio
+		}));
+		await route.fulfill({ response, json: body });
+	});
+	await page.goto('/feed');
+	const card = page.locator('.member-post').first();
+	const frame = card.getByRole('region', { name: 'Post images' });
+	await expect(frame).toBeVisible();
+	const before = (await frame.boundingBox())!;
+	await card
+		.getByRole('button', { name: 'Show image 2 of 2', exact: true })
+		.click();
+	await expect(card.locator('.image-counter')).toHaveText('2/2');
+	await expect(frame.locator('img').nth(1)).toHaveJSProperty('complete', true);
+	const after = (await frame.boundingBox())!;
+	expect(after.height).toBeCloseTo(before.height, 1);
+	expect(after.y).toBeCloseTo(before.y, 1);
+	expect(after.height).toBeLessThanOrEqual(
+		page.viewportSize()!.height * 0.65 + 1
+	);
+});
+
+for (const source of ['timeline', 'extended-network']) {
+	test(`${source} refresh preserves paginated rows and scroll position`, async ({
+		page
+	}) => {
+		let refreshing = false;
+		let finish!: () => void;
+		const delayed = new Promise<void>((resolve) => {
+			finish = resolve;
+		});
+		await page.route(`**/api/appview/v1/feed/${source}*`, async (route) => {
+			const response = await route.fetch({
+				url: route
+					.request()
+					.url()
+					.replace('/feed/extended-network', '/feed/timeline')
+			});
+			const body = await response.json();
+			const start = Number(
+				new URL(route.request().url()).searchParams.get('cursor') || 0
+			);
+			if (refreshing && start === 6) await delayed;
+			const template = body.items[0];
+			body.items = Array.from({ length: 3 }, (_, i) => {
+				const n = start + i;
+				const post = {
+					...template.post,
+					uri: `at://${template.post.author.did}/social.craftsky.feed.post/retained${n}`,
+					rkey: `retained${n}`,
+					text: `${refreshing ? 'Reloaded' : 'Retained'} feed post ${n}`
+				};
+				return { ...template, itemKey: `post:${post.uri}`, post };
+			});
+			body.cursor = start < 6 ? String(start + 3) : null;
+			await route.fulfill({ response, json: body });
+		});
+		await page.goto(
+			source === 'timeline' ? '/feed' : '/feed?source=extended-network'
+		);
+		await expect(page.locator('.member-post')).toHaveCount(3);
+		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(page.locator('.member-post')).toHaveCount(6);
+		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(page.locator('.member-post')).toHaveCount(9);
+		await page.locator('.member-post').nth(7).scrollIntoViewIfNeeded();
+		const before = await page.evaluate(() => window.scrollY);
+		expect(before).toBeGreaterThan(500);
+		refreshing = true;
+		const lastPage = page.waitForRequest(
+			(request) =>
+				request.url().includes(`/feed/${source}`) &&
+				new URL(request.url()).searchParams.get('cursor') === '6'
+		);
+		await page.evaluate(() =>
+			window.dispatchEvent(new Event('craftsky-refresh'))
+		);
+		await lastPage;
+		await expect(page.locator('.member-post')).toHaveCount(9);
+		expect(await page.evaluate(() => window.scrollY)).toBeCloseTo(before, 0);
+		finish();
+		await expect(page.locator('.member-post').nth(7)).toContainText(
+			'Reloaded feed post 7'
+		);
+		await expect(page.locator('.member-post')).toHaveCount(9);
+		expect(await page.evaluate(() => window.scrollY)).toBeCloseTo(before, 0);
+	});
+}
+
+for (const removeVisible of [false, true]) {
+	test(`feed anchors a surviving post after insertion and removal (${removeVisible})`, async ({
+		page
+	}) => {
+		let refreshed = false;
+		await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+			const response = await route.fetch();
+			const body = await response.json();
+			const template = body.items[0];
+			const old = Array.from({ length: 15 }, (_, i) => String(i));
+			const ids = refreshed
+				? [
+						'new-a',
+						'new-b',
+						...old.filter((id) => id !== (removeVisible ? '7' : '0'))
+					]
+				: old;
+			body.items = ids.map((id) => ({
+				...template,
+				itemKey: `anchor-${id}`,
+				post: {
+					...template.post,
+					uri: `at://${template.post.author.did}/social.craftsky.feed.post/anchor${id}`,
+					rkey: `anchor${id}`,
+					text: `Anchor post ${id}`
+				}
+			}));
+			body.cursor = null;
+			await route.fulfill({ response, json: body });
+		});
+		await page.goto('/feed');
+		const target = page.locator('[data-scroll-anchor="anchor-7"]');
+		await target.scrollIntoViewIfNeeded();
+		await page.evaluate(() => {
+			const node = document.querySelector('[data-scroll-anchor="anchor-7"]')!;
+			window.scrollBy(0, node.getBoundingClientRect().top + 50);
+		});
+		const survivor = page.locator('[data-scroll-anchor="anchor-8"]');
+		const before = (await survivor.boundingBox())!.y;
+		refreshed = true;
+		await page.evaluate(() =>
+			window.dispatchEvent(new Event('craftsky-refresh'))
+		);
+		await expect(
+			page.locator('[data-scroll-anchor="anchor-new-a"]')
+		).toHaveCount(1);
+		await expect
+			.poll(async () => (await survivor.boundingBox())!.y)
+			.toBeCloseTo(before, 0);
+	});
+}
+
+test('saved posts keep the reading position when an earlier removal finishes', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/saved-posts*', async (route) => {
+		const response = await route.fetch({
+			url: new URL('/api/appview/v1/feed/timeline', route.request().url()).href
+		});
+		const body = await response.json();
+		const template = body.items[0].post;
+		await route.fulfill({
+			json: {
+				items: Array.from({ length: 12 }, (_, i) => ({
+					savedAt: '2026-11-01T12:00:00Z',
+					post: {
+						...template,
+						viewerHasSaved: true,
+						uri: `at://${template.author.did}/social.craftsky.feed.post/save${i}`,
+						rkey: `save${i}`,
+						text: `Saved row ${i}`
+					}
+				}))
+			}
+		});
+	});
+	let finish!: () => void;
+	const pending = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	await page.route('**/api/appview/v1/posts/*/*/saves', async (route) => {
+		await pending;
+		await route.fulfill({ status: 204 });
+	});
+	await page.goto('/saved?all=true');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	const first = page.locator('.member-post').first();
+	await first.getByLabel('Saved post actions', { exact: true }).click();
+	await first
+		.getByRole('button', { name: 'Remove from saved posts', exact: true })
+		.click();
+	await page.locator('.member-post').nth(6).scrollIntoViewIfNeeded();
+	const survivor = page.locator('[data-scroll-anchor$="/save7"]');
+	const before = (await survivor.boundingBox())!.y;
+	finish();
+	await expect(page.locator('.member-post')).toHaveCount(11);
+	await expect
+		.poll(async () => (await survivor.boundingBox())!.y)
+		.toBeCloseTo(before, 0);
+});

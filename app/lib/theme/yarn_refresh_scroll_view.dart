@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:cupertino_ui/cupertino_ui.dart'
     show CupertinoSliverRefreshControl, RefreshIndicatorMode;
@@ -40,6 +41,7 @@ class YarnRefreshScrollView extends ConsumerWidget {
     this.headerSliverCount = 0,
     this.notificationPredicate = defaultScrollNotificationPredicate,
     this.showSuccess = true,
+    this.anchorItems = false,
     super.key,
   }) : children = null,
        padding = null;
@@ -52,6 +54,7 @@ class YarnRefreshScrollView extends ConsumerWidget {
     this.scrollViewKey,
     this.notificationPredicate = defaultScrollNotificationPredicate,
     this.showSuccess = true,
+    this.anchorItems = false,
     super.key,
   }) : slivers = const [],
        headerSliverCount = 0;
@@ -67,6 +70,7 @@ class YarnRefreshScrollView extends ConsumerWidget {
   // Retained-error providers can complete normally after a failed attempt.
   // Their error UI remains authoritative; those callers omit the check.
   final bool showSuccess;
+  final bool anchorItems;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,7 +83,15 @@ class YarnRefreshScrollView extends ConsumerWidget {
         : <Widget>[
             SliverPadding(
               padding: padding ?? MediaQuery.paddingOf(context),
-              sliver: SliverList.list(children: rows),
+              sliver: anchorItems
+                  ? AnchoredSliverList(
+                      identities: [
+                        for (var i = 0; i < rows.length; i++)
+                          rows[i].key ?? ('row', i),
+                      ],
+                      itemBuilder: (_, i) => rows[i],
+                    )
+                  : SliverList.list(children: rows),
             ),
           ];
     return _RefreshScrollSurface(

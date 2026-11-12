@@ -150,6 +150,75 @@ PaginationContractSubject<TimelineItem> _extendedPaginationSubject(
 void main() {
   setUpAll(initializeMappers);
 
+  for (final extended in [false, true]) {
+    test(
+      '${extended ? 'extended network' : 'timeline'} refresh retains pages '
+      'until the full range is ready',
+      () async {
+        var refreshing = false;
+        final finalPage = Completer<TimelinePage>();
+        final cursors = <String?>[];
+        Future<TimelinePage> fetch({String? cursor, int? limit}) async {
+          cursors.add(cursor);
+          if (refreshing && cursor == '40') return await finalPage.future;
+          final start = cursor == null ? 0 : int.parse(cursor);
+          return TimelinePage(
+            items: List.generate(
+              20,
+              (i) => _timelinePost(_samplePost(rkey: 'post${start + i}')),
+            ),
+            cursor: start < 40 ? '${start + 20}' : null,
+          );
+        }
+
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: fetch,
+                onListExtendedNetwork: fetch,
+              ),
+            ),
+          ],
+        );
+        final provider = extended ? extendedNetworkProvider : timelineProvider;
+        container.listen(provider, (_, _) {});
+        await container.read(provider.future);
+        if (extended) {
+          await container.read(extendedNetworkProvider.notifier).loadMore();
+          await container.read(extendedNetworkProvider.notifier).loadMore();
+        } else {
+          await container.read(timelineProvider.notifier).loadMore();
+          await container.read(timelineProvider.notifier).loadMore();
+        }
+        expect(container.read(provider).requireValue.items, hasLength(60));
+        refreshing = true;
+        cursors.clear();
+        container.invalidate(provider);
+        final refreshed = container.read(provider.future);
+        await Future<void>.delayed(Duration.zero);
+        expect(container.read(provider).value!.items, hasLength(60));
+        expect(cursors, [null, '20', '40']);
+        finalPage.complete(
+          TimelinePage(
+            items: List.generate(
+              20,
+              (i) => _timelinePost(_samplePost(rkey: 'post${40 + i}')),
+            ),
+          ),
+        );
+        expect((await refreshed).items, hasLength(60));
+        expect(container.read(provider).requireValue.cursor, isNull);
+      },
+    );
+  }
+
   paginationContract(
     name: 'timeline',
     firstItem: _timelinePost(_samplePost(rkey: 'page-a')),

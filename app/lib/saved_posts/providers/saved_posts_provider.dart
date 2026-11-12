@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
-
+import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -77,7 +78,7 @@ class SavedPosts extends _$SavedPosts {
     final repository = await ref.watch(
       accountSavedPostRepositoryProvider(key.account).future,
     );
-    final page = await repository.list(scope: key.scope, sort: key.sort);
+    final page = await _reload(repository, state.value?.items.length ?? 0);
     if (isSavedPostAccountBoundaryCurrent(ref, generation)) {
       _reconcilePage(page);
     }
@@ -138,7 +139,7 @@ class SavedPosts extends _$SavedPosts {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(key.account).future,
       );
-      final page = await repository.list(scope: key.scope, sort: key.sort);
+      final page = await _reload(repository, previous?.items.length ?? 0);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       _reconcilePage(page);
       state = AsyncData(SavedPostListState.fromPage(_withPostEdits(page)));
@@ -148,6 +149,29 @@ class SavedPosts extends _$SavedPosts {
           ? AsyncError(error, stackTrace)
           : AsyncData(previous.withIncrementalError(error));
     }
+  }
+
+  Future<SavedPostPage> _reload(
+    SavedPostRepository repository,
+    int count,
+  ) async {
+    final generation = captureSavedPostAccountBoundary(ref);
+    final page = await reloadLoadedRange<SavedPostItem, String>(
+      minimumItems: count,
+      key: (item) => item.post.uri,
+      fetch: (cursor) async {
+        final page = await repository.list(
+          scope: key.scope,
+          sort: key.sort,
+          cursor: cursor,
+        );
+        if (!isSavedPostAccountBoundaryCurrent(ref, generation)) {
+          throw const ApiCanceled();
+        }
+        return (items: page.items, cursor: page.cursor);
+      },
+    );
+    return SavedPostPage(items: page.items, cursor: page.cursor);
   }
 
   void removeConfirmed(AtUri uri) {

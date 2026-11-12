@@ -356,10 +356,13 @@ for (const label of ['Followers', 'Following']) {
 		await expect(
 			page.getByRole('heading', { name: label + ' (2)', exact: true })
 		).toBeVisible();
+		const paginatedMember = page
+			.getByRole('main')
+			.getByRole('link')
+			.filter({ hasText: 'Martha Jones' });
+		await expect(paginatedMember).toHaveCount(0);
 		await page.getByRole('button', { name: 'Load more', exact: true }).click();
-		await expect(
-			page.getByRole('link').filter({ hasText: 'Martha Jones' })
-		).toBeVisible();
+		await expect(paginatedMember).toBeVisible();
 		await expect(
 			page.getByRole('button', { name: 'Load more', exact: true })
 		).not.toBeVisible();

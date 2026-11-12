@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'post_comment_section_provider.g.dart';
@@ -45,13 +46,71 @@ class PostCommentSection extends _$PostCommentSection {
     });
     final accountOperation = ContentReadGuard.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
-    final section = await repo.commentSection(
-      did,
-      rkey,
-      sort: sort,
-      focus: focus,
+    final previous = state.value;
+    model.PostCommentSection? first;
+    final comments = await reloadLoadedRange<model.CommentItem, String>(
+      minimumItems: previous?.comments.items.length ?? 0,
+      key: (item) => item.post.uri,
+      fetch: (cursor) async {
+        final section = await repo.commentSection(
+          did,
+          rkey,
+          sort: sort,
+          focus: cursor == null ? focus : null,
+          cursor: cursor,
+        );
+        accountOperation.requireCurrent(discarded: const ApiCanceled());
+        first ??= section;
+        return (items: section.comments.items, cursor: section.comments.cursor);
+      },
     );
-    accountOperation.requireCurrent(discarded: const ApiCanceled());
+    final previousBranches = {
+      for (final item in previous?.comments.items ?? <model.CommentItem>[])
+        item.post.uri: item.replies,
+    };
+    final refreshed = <model.CommentItem>[];
+    for (final item in comments.items) {
+      final old = previousBranches[item.post.uri];
+      if (old == null) {
+        refreshed.add(item);
+      } else if (!old.loaded) {
+        refreshed.add(
+          item.copyWith(
+            replies: const model.ReplyPage(loaded: false, items: []),
+          ),
+        );
+      } else {
+        final replies = await reloadLoadedRange<model.ReplyItem, String>(
+          minimumItems: old.items.length,
+          key: (reply) => reply.post.uri,
+          fetch: (cursor) async {
+            final page = await repo.listCommentBranchReplies(
+              item.post.author.did,
+              item.post.rkey,
+              cursor: cursor,
+              limit: 10,
+            );
+            accountOperation.requireCurrent(discarded: const ApiCanceled());
+            return (items: page.items, cursor: page.cursor);
+          },
+        );
+        refreshed.add(
+          item.copyWith(
+            replies: model.ReplyPage(
+              loaded: true,
+              items: replies.items,
+              cursor: replies.cursor,
+            ),
+          ),
+        );
+      }
+    }
+    final section = first!.copyWith(
+      comments: first!.comments.copyWith(
+        items: refreshed,
+        cursor: comments.cursor,
+      ),
+    );
     return applyPostCommentSectionInteractionOverlays(ref, section);
   }
 
