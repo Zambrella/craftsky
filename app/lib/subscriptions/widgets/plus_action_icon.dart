@@ -19,7 +19,7 @@ class PlusActionIcon extends StatelessWidget {
       );
     }
     return SizedBox.square(
-      dimension: size + 6,
+      dimension: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -29,8 +29,8 @@ class PlusActionIcon extends StatelessWidget {
             child: Icon(icon, size: size),
           ),
           PositionedDirectional(
-            end: 0,
-            bottom: 0,
+            end: -6,
+            bottom: -6,
             child: PlusTierIcon(
               size: 12,
               color: Theme.of(context).colorScheme.primary,
