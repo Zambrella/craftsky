@@ -1507,6 +1507,8 @@ test('closing a comment while its post is loading returns to the post without a 
 	await page.goto('/feed');
 	await page.getByText(value.text, { exact: true }).click();
 	await expect(page).toHaveURL(/\/posts\//);
+	// Only hold the editor request, after the post page has finished loading.
+	await expect(page.locator('.comment-compose')).toBeVisible();
 	let release!: () => void;
 	const pending = new Promise<void>((resolve) => (release = resolve));
 	let requested!: () => void;
