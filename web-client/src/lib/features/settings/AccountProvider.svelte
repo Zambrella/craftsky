@@ -58,21 +58,25 @@
 	<dl>
 		<div>
 			<dt>Handle</dt>
-			<dd>{current?.handle || session.handle}</dd>
-			<button
-				class="copy"
-				aria-label="Copy handle"
-				onclick={() => copy(current?.handle || session.handle)}>Copy</button
-			>
+			<dd>
+				<span>{current?.handle || session.handle}</span>
+				<button
+					class="copy"
+					aria-label="Copy handle"
+					onclick={() => copy(current?.handle || session.handle)}>Copy</button
+				>
+			</dd>
 		</div>
 		<div>
 			<dt>Account ID (DID)</dt>
-			<dd>{session.did}</dd>
-			<button
-				class="copy"
-				aria-label="Copy account ID"
-				onclick={() => copy(session.did)}>Copy</button
-			>
+			<dd>
+				<span>{session.did}</span>
+				<button
+					class="copy"
+					aria-label="Copy account ID"
+					onclick={() => copy(session.did)}>Copy</button
+				>
+			</dd>
 		</div>
 		{#if current?.hostingProvider}<div>
 				<dt>Hosting provider</dt>
@@ -124,9 +128,6 @@
 		display: block;
 	}
 	dl > div {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 4px 12px;
 		margin: 16px 0;
 	}
 	dt {
@@ -134,8 +135,11 @@
 		color: var(--ink-3);
 	}
 	dd {
-		grid-column: 1;
-		margin: 0;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 12px;
+		align-items: center;
+		margin: 4px 0 0;
 		overflow-wrap: anywhere;
 		user-select: text;
 	}
@@ -145,7 +149,6 @@
 	}
 	.copy {
 		grid-column: 2;
-		grid-row: 1 / span 2;
 		align-self: center;
 		min-width: 48px;
 		min-height: 48px;
