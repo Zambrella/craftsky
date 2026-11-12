@@ -589,6 +589,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileSettingsAction => 'Settings';
 
   @override
+  String get profileShareCardAction => 'Share card';
+
+  @override
+  String get profileShareCardTitle => 'Your share card';
+
+  @override
+  String get profileShareCardScan => 'Meet me on CraftSky';
+
+  @override
+  String get profileShareCardQrLabel => 'Scan to open this CraftSky profile';
+
+  @override
   String get profileShareAction => 'Share';
 
   @override
@@ -1805,7 +1817,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowToggleError => 'Could not update follow state.';
 
   @override
-  String get profileShareComingSoon => 'Share coming soon.';
+  String get profileShareCardLoading => 'Loading...';
+
+  @override
+  String get profileShareCardFailed =>
+      'Couldn’t share your card. Please try again.';
 
   @override
   String get profileReportAction => 'Report profile';

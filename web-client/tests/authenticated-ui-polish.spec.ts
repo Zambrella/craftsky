@@ -257,3 +257,59 @@ test('verified Instagram account has no verify-another action', async ({
 		page.getByRole('button', { name: 'Create verification challenge' })
 	).toHaveCount(0);
 });
+
+test('profile picture opens fullscreen and follow progress stays in its button', async ({
+	page
+}) => {
+	const person = {
+		did: 'did:plc:bob',
+		handle: 'bob.test',
+		displayName: 'Bob Maker',
+		avatar: 'https://fixture.craftsky.test/avatar.png',
+		crafts: [],
+		isCraftskyProfile: true,
+		viewerIsFollowing: false
+	};
+	await page.route('**/api/appview/v1/profiles/%40did%3Aplc%3Abob', (r) =>
+		r.fulfill({ json: person })
+	);
+	await page.route(
+		'**/api/appview/v1/profiles/%40did%3Aplc%3Abob/posts*',
+		(r) => r.fulfill({ json: { items: [] } })
+	);
+	let finish!: () => void;
+	const pending = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	await page.route(
+		'**/api/appview/v1/profiles/%40did%3Aplc%3Abob/follows',
+		async (r) => {
+			await pending;
+			await r.fulfill({ json: { ...person, viewerIsFollowing: true } });
+		}
+	);
+	await page.goto('/profiles/did%3Aplc%3Abob');
+	const picture = page
+		.getByRole('button', { name: 'View profile picture' })
+		.first();
+	await picture.click();
+	const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+	await expect(gallery).toBeVisible();
+	await expect(gallery.locator('img')).toHaveAttribute('src', person.avatar);
+	await page.keyboard.press('Escape');
+	await expect(gallery).toHaveCount(0);
+	await expect(picture).toBeFocused();
+	const follow = page.getByRole('button', { name: 'Follow', exact: true });
+	await follow.click();
+	try {
+		await expect(follow).toBeDisabled();
+		await expect(follow).toHaveAttribute('aria-busy', 'true');
+		await expect(follow.locator('.follow-spinner')).toBeVisible();
+		await expect(page.locator('.social-loading')).toHaveCount(0);
+	} finally {
+		finish();
+	}
+	await expect(
+		page.getByRole('button', { name: 'Unfollow', exact: true })
+	).toBeEnabled();
+});

@@ -24,7 +24,7 @@ aliases = {
     "drafts": "notePencil", "settings": "gear", "menu": "list", "plus": "plus",
     "close": "x", "clear": "xCircle", "instagramMatch": "userFocus", "back": "arrowLeft", "chevron": "caretRight", "down": "caretDown",
     "mute": "speakerSlash", "block": "prohibit", "report": "flag", "copy": "link",
-    "heart": "heart", "comment": "chatCircle", "share": "shareNetwork", "repost": "repeat",
+    "heart": "heart", "comment": "chatCircle", "share": "shareNetwork", "shareCard": "qrCode", "repost": "repeat",
     "more": "dotsThree", "refresh": "arrowsClockwise", "filter": "funnelSimple",
     "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "check": "check", "edit": "pencilSimple",
     "external": "arrowSquareOut", "link": "link", "pin": "pushPin", "shield": "shieldCheck",

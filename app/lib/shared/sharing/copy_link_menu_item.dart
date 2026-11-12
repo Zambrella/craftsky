@@ -1,6 +1,7 @@
 import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/sharing/native_share_origin.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/services.dart';
@@ -58,19 +59,7 @@ CraftskyContextMenuItem shareLinkMenuItem(BuildContext context, String url) {
 Future<void> shareRecordLink(BuildContext context, String url) async {
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context);
-  final renderObject = context.findRenderObject();
-  final screen = Offset.zero & MediaQuery.sizeOf(context);
-  Rect? origin;
-  if (renderObject is RenderBox && renderObject.hasSize) {
-    final visible =
-        (renderObject.localToGlobal(Offset.zero) & renderObject.size).intersect(
-          screen,
-        );
-    if (!visible.isEmpty) origin = visible;
-  }
-  // Rows may have scrolled offscreen while their menu was open. Keep the iPad
-  // popover's source rectangle inside the visible view in that case.
-  origin ??= Rect.fromCenter(center: screen.center, width: 1, height: 1);
+  final origin = nativeShareOrigin(context);
   try {
     await SharePlus.instance.share(
       ShareParams(uri: Uri.parse(url), sharePositionOrigin: origin),

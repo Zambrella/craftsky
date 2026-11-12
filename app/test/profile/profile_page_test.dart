@@ -22,6 +22,7 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/sharing/profile_share_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -138,6 +139,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().last,
         );
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Report profile'));
         await tester.tap(find.text('Report profile'));
         await tester.pumpAndSettle();
         expect(find.text('Report profile'), findsOneWidget);
@@ -1350,6 +1352,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().first,
         );
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Mute account'));
         await tester.tap(find.text('Mute account'));
         await tester.pumpAndSettle();
 
@@ -2152,6 +2155,58 @@ void main() {
       expect(messenger.calls.length, 1);
       expect(messenger.calls.first.$1, 'error');
       expect(messenger.calls.first.$2, 'Could not update follow state.');
+    });
+
+    testWidgets('tapping Share card opens the profile artwork', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final messenger = RecordingMessenger();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            testMemberBrowsingOverride,
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share card'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your share card'), findsOneWidget);
+      expect(find.text('Meet me on CraftSky'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileShareCard),
+          matching: find.text('@alice.bsky.social'),
+        ),
+        findsOneWidget,
+      );
+      expect(messenger.calls, isEmpty);
     });
 
     testWidgets('tapping Share opens native sharing with the profile link', (

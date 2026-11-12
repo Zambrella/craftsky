@@ -83,6 +83,7 @@ class ChunkyButton extends ButtonStyleButton {
     super.clipBehavior = Clip.none,
     super.statesController,
     this.backgroundColor,
+    this.disabledBackgroundColor,
     this.foregroundColor,
     this.variant = ChunkyButtonVariant.primary,
     this.variantProgress,
@@ -94,6 +95,9 @@ class ChunkyButton extends ButtonStyleButton {
 
   /// Surface color at rest. Defaults to `colorScheme.primary` (cobalt).
   final Color? backgroundColor;
+
+  /// Optional disabled surface, useful for visible in-progress actions.
+  final Color? disabledBackgroundColor;
 
   /// Label/icon color. Defaults to `colorScheme.onPrimary`.
   final Color? foregroundColor;
@@ -234,7 +238,8 @@ class ChunkyButton extends ButtonStyleButton {
           shadowOffset: restShadowOffset,
           shadowColor: shadowColor,
           restSurfaceColor: disabled
-              ? colors.onSurface.withValues(alpha: 0.12)
+              ? disabledBackgroundColor ??
+                    colors.onSurface.withValues(alpha: 0.12)
               : surface,
           hoverSurfaceColor: hoverSurface,
           pressedSurfaceColor: pressedSurface,

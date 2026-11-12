@@ -41,7 +41,7 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   bool materializeImagesFromState = true,
 }) async {
   final trimmedText = text.trim();
-  final facets = existingText?.trim() == trimmedText
+  final facets = existingText == trimmedText
       ? existingFacets ?? const <Map<String, dynamic>>[]
       : await generateFacets(trimmedText);
   final preserved = _preserveProjectExtensions(project, existingProject);

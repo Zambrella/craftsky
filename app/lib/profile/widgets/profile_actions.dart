@@ -28,11 +28,13 @@ final class SelfProfileActionSet extends ProfileActionSet {
     this.onCopyLink,
     this.onShare,
     this.onSendViaChat,
+    this.onShareCard,
   });
 
   final FutureOr<void> Function()? onShare;
   final FutureOr<void> Function()? onCopyLink;
   final FutureOr<void> Function()? onSendViaChat;
+  final FutureOr<void> Function()? onShareCard;
 
   final VoidCallback onEdit;
   final VoidCallback onSettings;
@@ -49,6 +51,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onBlockToggle,
     this.onCopyLink,
     this.onSendViaChat,
+    this.onShareCard,
     this.onViewFollowers,
     this.onViewFollowing,
     this.isFollowingBusy = false,
@@ -68,6 +71,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
   final bool isBlockingBusy;
   final VoidCallback onFollowToggle;
   final FutureOr<void> Function() onShare;
+  final FutureOr<void> Function()? onShareCard;
   final FutureOr<void> Function()? onCopyLink;
   final FutureOr<void> Function()? onSendViaChat;
   final VoidCallback onReport;
@@ -150,17 +154,27 @@ class _SelfActions extends StatelessWidget {
           icon: CraftskyIconsBold.settings,
           tooltip: l10n.profileSettingsAction,
         ),
-        if (actions.onCopyLink != null) ...[
+        if (actions.onCopyLink != null ||
+            actions.onShareCard != null ||
+            actions.onShare != null ||
+            actions.onSendViaChat != null) ...[
           CraftskyContextMenuButton(
             tooltip: l10n.profileMoreActions,
             groups: [
               CraftskyContextMenuGroup(
                 items: [
-                  CraftskyContextMenuItem(
-                    text: l10n.recordCopyLinkAction,
-                    icon: CraftskyIcons.link,
-                    onPressed: actions.onCopyLink,
-                  ),
+                  if (actions.onShareCard != null)
+                    CraftskyContextMenuItem(
+                      text: l10n.profileShareCardAction,
+                      icon: CraftskyIcons.shareCard,
+                      onPressed: actions.onShareCard,
+                    ),
+                  if (actions.onCopyLink != null)
+                    CraftskyContextMenuItem(
+                      text: l10n.recordCopyLinkAction,
+                      icon: CraftskyIcons.link,
+                      onPressed: actions.onCopyLink,
+                    ),
                   if (actions.onShare != null)
                     CraftskyContextMenuItem(
                       text: l10n.recordShareLinkAction,
@@ -267,6 +281,12 @@ class ProfileMoreActionsButton extends StatelessWidget {
                 text: l10n.chatSendViaChat,
                 icon: CraftskyIcons.send,
                 onPressed: actions.onSendViaChat,
+              ),
+            if (actions.onShareCard != null)
+              CraftskyContextMenuItem(
+                text: l10n.profileShareCardAction,
+                icon: CraftskyIcons.shareCard,
+                onPressed: actions.onShareCard,
               ),
           ],
         ),
