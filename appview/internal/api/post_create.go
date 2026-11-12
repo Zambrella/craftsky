@@ -693,7 +693,7 @@ func syntheticPostRow(
 		CID:       string(cid),
 		Text:      req.Text,
 		Sponsored: req.Sponsored,
-		Tags:      postutil.MergeTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
+		Tags:      postutil.LimitTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
 		Langs:     append([]string(nil), req.Langs...),
 		CreatedAt: now,
 		IndexedAt: now,

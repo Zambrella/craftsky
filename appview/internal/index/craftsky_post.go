@@ -168,7 +168,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		project = nil
 	}
 	topLevelFacets := postutil.DecodeFacets(rawRecord.Facets)
-	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
+	tags := postutil.LimitTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
 	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, topLevelFacets), projectMentionDIDs(project))
 	mentions = filterTerminalProjectionMentions(ctx, mentions)
 	externalImportSource := recognizedExternalImportSource(&rec)

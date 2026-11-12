@@ -19,6 +19,23 @@ void main() {
     expect(rawFacetsForPlainText('#$overlong'), isEmpty);
   });
 
+  test('ten distinct hashtags retain duplicates, links and mentions', () async {
+    final generator = FacetGenerator(
+      mentionResolver: _MapMentionResolver({'alice.test': 'did:plc:alice'}),
+    );
+    final first = List.generate(10, (index) => '#tag$index').join(' ');
+    final facets = await generator.generate(
+      '$first #overflow #TAG0 @alice.test https://example.com',
+    );
+    expect(facets, hasLength(13));
+    final tags = facets
+        .expand((facet) => facet['features'] as List)
+        .whereType<Map<String, dynamic>>()
+        .where((feature) => feature['tag'] != null)
+        .map((feature) => feature['tag']);
+    expect(tags, [...List.generate(10, (index) => 'tag$index'), 'TAG0']);
+  });
+
   group('FacetGenerator', () {
     test(
       'UT-002 computes UTF-8 byte offsets after emoji and multibyte text',

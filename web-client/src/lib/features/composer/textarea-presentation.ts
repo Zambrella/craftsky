@@ -5,6 +5,7 @@ export function textareaPresentation(
 	node: HTMLTextAreaElement,
 	options: {
 		value: string;
+		precedingHashtags?: string[];
 		position: (point: { left: number; top: number }) => void;
 	}
 ) {
@@ -55,7 +56,7 @@ export function textareaPresentation(
 			layer.style.height = node.offsetHeight + 'px';
 		}
 		mirror.replaceChildren(
-			...facetSegments(options.value).map((part) => {
+			...facetSegments(options.value, options.precedingHashtags).map((part) => {
 				const span = document.createElement('span');
 				span.textContent = part.text;
 				span.style.color = part.facet ? 'var(--primary)' : 'var(--ink)';

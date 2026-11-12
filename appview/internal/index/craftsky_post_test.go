@@ -2300,3 +2300,52 @@ func TestCraftskyPost_DurableAmbiguityRejection(t *testing.T) {
 		t.Fatalf("source must remain retained: source=%+v err=%v", retained, err)
 	}
 }
+
+func TestCraftskyPost_SharedHashtagBudget(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:budget")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	facet := func(tag string) map[string]any {
+		return map[string]any{"index": map[string]int{"byteStart": 0, "byteEnd": 2}, "features": []any{map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": tag}}}
+	}
+	structured := []string{"BODY"}
+	for i := range 8 {
+		structured = append(structured, fmt.Sprintf("structured%d", i))
+	}
+	record := map[string]any{
+		"$type": "social.craftsky.feed.post", "text": "#body", "facets": []any{facet("body")}, "sponsored": false, "createdAt": fixedCreatedAt,
+		"project": map[string]any{"common": map[string]any{
+			"craftType": "social.craftsky.feed.defs#sewing", "tags": structured,
+			"pattern":   map[string]any{"name": "#pattern", "nameFacets": []any{facet("pattern")}},
+			"materials": []any{map[string]any{"text": "#overflow", "facets": []any{facet("overflow")}}},
+		}},
+	}
+	uri := syntax.ATURI("at://did:plc:budget/social.craftsky.feed.post/budget")
+	for _, action := range []string{"create", "update"} {
+		if action == "update" {
+			record["project"].(map[string]any)["common"].(map[string]any)["tags"] = structured[1:]
+		}
+		body, err := json.Marshal(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		event := tap.Event{URI: uri, DID: "did:plc:budget", Rkey: "budget", Collection: "social.craftsky.feed.post", CID: syntax.CID(action), Action: action, Record: body}
+		for range 2 {
+			if err := idx.Handle(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var tags, projectTags []string
+		var retained bool
+		if err := pool.QueryRow(ctx, `SELECT p.tags, pp.project_tags, p.record->'project'->'common'->'materials'->0->>'text' = '#overflow' FROM craftsky_posts p JOIN craftsky_project_posts pp USING(uri) WHERE uri=$1`, uri).Scan(&tags, &projectTags, &retained); err != nil {
+			t.Fatal(err)
+		}
+		if len(tags) != 10 || !slices.Equal(tags, projectTags) || !retained {
+			t.Fatalf("tags=%v project=%v source retained=%v", tags, projectTags, retained)
+		}
+		if slices.Contains(tags, "overflow") {
+			t.Fatalf("duplicate source unexpectedly freed a slot: %v", tags)
+		}
+	}
+}
