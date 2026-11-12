@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
-  "publicationStatus": "approved",
+  "publicationStatus": "blocked",
   "generatedFrom": "online-safety/policies",
   "policies": [
     {
       "route": "/terms",
       "source": "online-safety/policies/terms-of-service.md",
       "artifact": "web/terms.html",
-      "version": "1.0",
-      "effectiveDate": "10 November 2026",
-      "approvalStatus": "Approved",
-      "approvedBy": "Douglas Todd, 10 November 2026 (private beta publication)",
-      "sourceDigest": "sha256:4cacb6de2975b8d4b7c800b2026fd89f2836de1f1be12edd89a9e3950373e719",
-      "artifactDigest": "sha256:36b5a8a10d0fcdcb8827f4121f7a9befdb9d51e4dc29311d673a7a1324e69bab",
+      "version": "1.1",
+      "effectiveDate": "To be set before publication",
+      "approvalStatus": "Draft",
+      "approvedBy": "Pending approval of version 1.1; version 1.0 was approved for private beta on 10 November 2026",
+      "sourceDigest": "sha256:435fb1183f96eeb5fff1d7d6418d70cc999259e9b3ff43c18be79f9e69be8b8a",
+      "artifactDigest": "sha256:f8f643622fee53b37450815b4b25c9e46a86ed9ad4be889b6098d198127f3547",
       "presentTenseClaims": [
         {
           "control": "BR-005",
