@@ -7,7 +7,6 @@ const profileColourCatalogue = <String>[
   'rose',
   'amber',
   'lime',
-  'teal',
   'ink',
   'terracotta',
   'denim',
@@ -37,6 +36,13 @@ const profileBackgroundCatalogue = <String>[
   'animated-grain',
   'animated-marble',
   'animated-textile',
+  'animated-ribbons',
+  'animated-silk',
+  'animated-bloom',
+  'animated-sunbeams',
+  'animated-lagoon',
+  'animated-nebula',
+  'animated-prism',
 ];
 
 const profileShaderBackgrounds = <String, int>{
@@ -46,6 +52,13 @@ const profileShaderBackgrounds = <String, int>{
   'animated-grain': 3,
   'animated-marble': 4,
   'animated-textile': 5,
+  'animated-ribbons': 6,
+  'animated-silk': 7,
+  'animated-bloom': 8,
+  'animated-sunbeams': 9,
+  'animated-lagoon': 10,
+  'animated-nebula': 11,
+  'animated-prism': 12,
 };
 
 const profileCraftBackgrounds = <String, String>{
@@ -179,19 +192,6 @@ const profileColourBundles = <String, ProfileColourBundle>{
     darkHover: '#A2DF83',
     darkPressed: '#77BC59',
     softContainer: '#DDF9D8',
-    textureTint: '#FFFFFF',
-    textureOpacity: 0.18,
-  ),
-  'teal': ProfileColourBundle(
-    base: '#007663',
-    foreground: '#FFFFFF',
-    hover: '#006454',
-    pressed: '#005146',
-    darkAccent: '#5BD0BC',
-    darkForeground: '#171513',
-    darkHover: '#73DCCB',
-    darkPressed: '#43B9A5',
-    softContainer: '#D8F9F3',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
   ),

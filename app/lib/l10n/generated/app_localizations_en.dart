@@ -2211,9 +2211,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColourGreen => 'Green';
 
   @override
-  String get profileCustomisationColourTeal => 'Teal';
-
-  @override
   String get profileCustomisationColourInk => 'Ink';
 
   @override
@@ -2254,6 +2251,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileCustomisationBackgroundTextile => 'Woven';
+
+  @override
+  String get profileCustomisationBackgroundRibbons => 'Ribbon bands';
+
+  @override
+  String get profileCustomisationBackgroundSilk => 'Liquid silk';
+
+  @override
+  String get profileCustomisationBackgroundBloom => 'Light bloom';
+
+  @override
+  String get profileCustomisationBackgroundSunbeams => 'Sunbeams';
+
+  @override
+  String get profileCustomisationBackgroundLagoon => 'Lagoon';
+
+  @override
+  String get profileCustomisationBackgroundNebula => 'Nebula';
+
+  @override
+  String get profileCustomisationBackgroundPrism => 'Prism';
 
   @override
   String get profileCustomisationBackgroundDither => 'Dither';

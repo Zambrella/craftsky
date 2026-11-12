@@ -66,7 +66,6 @@ export const colours: Record<string, string> = {
 	rose: '#d61535',
 	amber: '#766200',
 	lime: '#23770f',
-	teal: '#007663',
 	ink: '#161210',
 	terracotta: '#9a442d',
 	denim: '#365b80',
@@ -94,7 +93,14 @@ export const backgrounds = [
 	'animated-weave',
 	'animated-grain',
 	'animated-marble',
-	'animated-textile'
+	'animated-textile',
+	'animated-ribbons',
+	'animated-silk',
+	'animated-bloom',
+	'animated-sunbeams',
+	'animated-lagoon',
+	'animated-nebula',
+	'animated-prism'
 ];
 export const businessTypes = [
 	'dyer',

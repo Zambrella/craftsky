@@ -320,7 +320,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await _tapChoice(tester, 'Teal');
+    await _tapChoice(tester, 'Seafoam');
     await tester.scrollUntilVisible(
       find.widgetWithText(ChunkyButton, 'Save'),
       300,
@@ -332,7 +332,7 @@ void main() {
 
     expect(calls, 1);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    save.complete(const ProfileCustomisation(colour: 'teal'));
+    save.complete(const ProfileCustomisation(colour: 'seafoam'));
     await tester.pumpAndSettle();
   });
 
@@ -394,10 +394,10 @@ void main() {
       tester
           .widgetList<FocusTraversalOrder>(find.byType(FocusTraversalOrder))
           .map((widget) => (widget.order as NumericFocusOrder).order)
-          .where((order) => order < 50),
+          .where((order) => order < 80),
       orderedEquals(<double>[
-        ...List.generate(14, (index) => 10.0 + index),
-        ...List.generate(18, (index) => 30.0 + index),
+        ...List.generate(13, (index) => 10.0 + index),
+        ...List.generate(25, (index) => 30.0 + index),
       ]),
     );
     await tester.scrollUntilVisible(
@@ -411,7 +411,7 @@ void main() {
         matching: find.byType(FocusTraversalOrder),
       ),
     );
-    expect((saveOrder.order as NumericFocusOrder).order, 50);
+    expect((saveOrder.order as NumericFocusOrder).order, 80);
     semantics.dispose();
   });
 

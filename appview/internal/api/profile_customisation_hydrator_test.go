@@ -29,7 +29,7 @@ func (f fakeCustomisationTiers) EffectiveTiers(_ context.Context, _ []syntax.DID
 func TestCustomisationHydratorSuppressesSavedChoicesForFreeIdentities(t *testing.T) {
 	reader := &fakeProfileCustomisationBatchReader{values: map[syntax.DID]api.ProfileCustomisation{
 		"did:plc:free": {Colour: "orchid", Background: "skewdark"},
-		"did:plc:plus": {Colour: "teal", Background: "x2"},
+		"did:plc:plus": {Colour: "seafoam", Background: "x2"},
 	}}
 	hydrator := api.NewIdentityCustomisationHydrator(reader, fakeCustomisationTiers{
 		"did:plc:free": subscriptions.TierFree, "did:plc:plus": subscriptions.TierPlus,
@@ -45,7 +45,7 @@ func TestCustomisationHydratorSuppressesSavedChoicesForFreeIdentities(t *testing
 		t.Fatal(err)
 	}
 	assertCustomisationMap(t, body.Items[0]["customisation"], "cobalt", "none")
-	assertCustomisationMap(t, body.Items[1]["customisation"], "teal", "x2")
+	assertCustomisationMap(t, body.Items[1]["customisation"], "seafoam", "x2")
 	if reader.values["did:plc:free"].Colour != "orchid" {
 		t.Fatal("saved choice changed during public suppression")
 	}
@@ -102,7 +102,7 @@ func TestProfileCustomisationResponseBuildersIncludeCompleteDefaults(t *testing.
 func TestIdentityCustomisationHydratorDecoratesNestedMembersInOneBatch(t *testing.T) {
 	ctx := context.Background()
 	reader := &fakeProfileCustomisationBatchReader{values: map[syntax.DID]api.ProfileCustomisation{
-		"did:plc:alice": {Colour: "teal", Background: "x2"},
+		"did:plc:alice": {Colour: "seafoam", Background: "x2"},
 		"did:plc:bob":   api.DefaultProfileCustomisation,
 	}}
 	hydrator := api.NewIdentityCustomisationHydrator(reader)
@@ -127,12 +127,12 @@ func TestIdentityCustomisationHydratorDecoratesNestedMembersInOneBatch(t *testin
 		t.Fatalf("decode hydrated JSON: %v", err)
 	}
 	profile := body["profile"].(map[string]any)
-	assertCustomisationMap(t, profile["customisation"], "teal", "x2")
+	assertCustomisationMap(t, profile["customisation"], "seafoam", "x2")
 	items := body["items"].([]any)
 	bob := items[0].(map[string]any)["author"].(map[string]any)
 	assertCustomisationMap(t, bob["customisation"], "cobalt", "none")
 	aliceAgain := items[1].(map[string]any)["author"].(map[string]any)
-	assertCustomisationMap(t, aliceAgain["customisation"], "teal", "x2")
+	assertCustomisationMap(t, aliceAgain["customisation"], "seafoam", "x2")
 	outside := items[2].(map[string]any)["author"].(map[string]any)
 	if _, ok := outside["customisation"]; ok {
 		t.Fatalf("non-member identity gained customisation: %v", outside)

@@ -815,7 +815,7 @@ void main() {
           followerCount: 7,
           avatar: 'https://example.com/cleared-avatar.jpg',
           banner: 'https://example.com/cleared-banner.jpg',
-          customisation: const ProfileCustomisation(colour: 'teal'),
+          customisation: const ProfileCustomisation(colour: 'seafoam'),
         );
         final repo = FakeProfileRepository(
           onFetch: (_) async => profile,

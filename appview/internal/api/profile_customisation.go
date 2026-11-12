@@ -36,7 +36,6 @@ var (
 		"rose",
 		"amber",
 		"lime",
-		"teal",
 		"ink",
 		"terracotta",
 		"denim",
@@ -65,6 +64,13 @@ var (
 		"animated-grain",
 		"animated-marble",
 		"animated-textile",
+		"animated-ribbons",
+		"animated-silk",
+		"animated-bloom",
+		"animated-sunbeams",
+		"animated-lagoon",
+		"animated-nebula",
+		"animated-prism",
 	}
 )
 

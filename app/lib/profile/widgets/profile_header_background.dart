@@ -62,6 +62,7 @@ class ProfileHeaderBackground extends StatelessWidget {
           (_, _, final style?) => ProfileShaderBackground(
             key: textureKey,
             style: style,
+            accent: profileColour(bundle.base),
           ),
           _ => null,
         },

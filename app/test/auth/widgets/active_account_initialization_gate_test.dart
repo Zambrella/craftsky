@@ -266,7 +266,7 @@ void main() {
           registry.activeLease!.session,
           displayName: 'Updated profile',
           avatarUrl: 'https://example.com/new.jpg',
-          customisation: const ProfileCustomisation(colour: 'teal'),
+          customisation: const ProfileCustomisation(colour: 'seafoam'),
         );
     await tester.pump();
     await update;

@@ -16,7 +16,6 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"rose",
 		"amber",
 		"lime",
-		"teal",
 		"ink",
 		"terracotta",
 		"denim",
@@ -45,6 +44,13 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"animated-grain",
 		"animated-marble",
 		"animated-textile",
+		"animated-ribbons",
+		"animated-silk",
+		"animated-bloom",
+		"animated-sunbeams",
+		"animated-lagoon",
+		"animated-nebula",
+		"animated-prism",
 	})
 
 	wantDefault := api.ProfileCustomisation{
@@ -69,6 +75,20 @@ func TestProfileCustomisationCatalogueFallsBackPerField(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("effective customisation = %+v, want %+v", got, want)
+	}
+}
+
+func TestRetiredProfileCustomisationChoicesFallBackIndependently(t *testing.T) {
+	t.Parallel()
+	got := api.EffectiveProfileCustomisation(api.ProfileCustomisation{Colour: "teal", Background: "x2"})
+	if got != (api.ProfileCustomisation{Colour: "cobalt", Background: "x2"}) {
+		t.Fatalf("retired colour fallback = %+v", got)
+	}
+	for _, background := range []string{"animated-dust", "animated-satin", "animated-opal"} {
+		got = api.EffectiveProfileCustomisation(api.ProfileCustomisation{Colour: "seafoam", Background: background})
+		if got != (api.ProfileCustomisation{Colour: "seafoam", Background: "none"}) {
+			t.Fatalf("retired background %q fallback = %+v", background, got)
+		}
 	}
 }
 

@@ -312,6 +312,9 @@
 {#if profile ? profile.did !== session?.did : ![session?.did, session?.handle].includes(id)}<div
 		class="profile-navigation"
 		class:collapsed={headerCollapsed}
+		class:reference-background={(profileShaderStyle(
+			profile?.customisation?.profileBackground
+		) ?? -1) >= 6}
 		style={profile ? profileStyle(profile.customisation) : undefined}
 	>
 		<a
@@ -346,6 +349,7 @@
 		<div class="profile-band">
 			{#if profileShaderStyle(profile.customisation?.profileBackground) !== undefined}<ProfileShaderBackground
 					style={profileShaderStyle(profile.customisation?.profileBackground)!}
+					colour={profile.customisation?.colour ?? 'cobalt'}
 				/>{/if}
 			{#if texture(profile.customisation)}<span
 					class="profile-texture"
@@ -785,6 +789,10 @@
 		box-shadow: none;
 		color: var(--profile-foreground, white);
 		border-radius: 50%;
+	}
+	.profile-navigation.reference-background:not(.collapsed) .icon-button {
+		background: var(--paper);
+		color: var(--ink);
 	}
 	.profile-navigation.collapsed .icon-button {
 		color: var(--ink);

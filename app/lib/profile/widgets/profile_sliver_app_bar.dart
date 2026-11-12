@@ -244,14 +244,29 @@ class _ProfileLeadingAction extends StatelessWidget {
     final bundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
+    final needsBackplate =
+        (profileShaderBackgrounds[customisation.background] ?? -1) >= 6;
     final foregroundColor = Color.lerp(
-      profileColour(bundle.foreground),
+      needsBackplate
+          ? theme.colorScheme.onSurface
+          : profileColour(bundle.foreground),
       theme.colorScheme.onSurface,
       collapsed,
     );
     final style = ButtonStyle(
-      backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+      backgroundColor: WidgetStatePropertyAll(
+        needsBackplate
+            ? Color.lerp(
+                theme.extension<BrandSwatchTheme>()!.paper,
+                Colors.transparent,
+                collapsed,
+              )
+            : Colors.transparent,
+      ),
       foregroundColor: WidgetStatePropertyAll(foregroundColor),
+      shape: needsBackplate
+          ? const WidgetStatePropertyAll(CircleBorder())
+          : null,
     );
 
     if (showDrawer) {

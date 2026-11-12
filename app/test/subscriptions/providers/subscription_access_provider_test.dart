@@ -41,7 +41,7 @@ void main() {
           lease,
           displayName: 'Updated name',
           avatarUrl: 'new.jpg',
-          customisation: const ProfileCustomisation(colour: 'teal'),
+          customisation: const ProfileCustomisation(colour: 'seafoam'),
         );
     await container.pump();
     expect(api.accessCalls, 1);

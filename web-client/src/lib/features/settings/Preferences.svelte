@@ -476,6 +476,7 @@
 				>
 					{#if profileShaderStyle(background) !== undefined}<ProfileShaderBackground
 							style={profileShaderStyle(background)!}
+							{colour}
 						/>{/if}
 					{#if pattern}<div
 							class="preview-pattern"

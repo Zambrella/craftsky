@@ -8,9 +8,14 @@ import 'package:visibility_detector/visibility_detector.dart';
 /// A cached fragment program, with a separate shader instance for each header.
 /// Only this decoration repaints; profile text and controls stay outside it.
 class ProfileShaderBackground extends StatefulWidget {
-  const new({required this.style, super.key});
+  const new({
+    required this.style,
+    this.accent = const Color(0xFF1535D6),
+    super.key,
+  });
 
   final int style;
+  final Color accent;
 
   /// Preload before displaying a profile or taking a deterministic capture.
   static Future<void> prepareAssets() async {
@@ -119,6 +124,7 @@ class _ProfileShaderBackgroundState extends State<ProfileShaderBackground>
               shader: _shader,
               clock: _clock,
               style: widget.style,
+              accent: widget.accent,
             ),
           ),
         ),
@@ -128,12 +134,17 @@ class _ProfileShaderBackgroundState extends State<ProfileShaderBackground>
 }
 
 class _ProfileShaderPainter extends CustomPainter {
-  new({required this.shader, required this.clock, required this.style})
-    : super(repaint: clock);
+  new({
+    required this.shader,
+    required this.clock,
+    required this.style,
+    required this.accent,
+  }) : super(repaint: clock);
 
   final ui.FragmentShader? shader;
   final Animation<double> clock;
   final int style;
+  final Color accent;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -144,7 +155,10 @@ class _ProfileShaderPainter extends CustomPainter {
         ..setFloat(0, size.width)
         ..setFloat(1, size.height)
         ..setFloat(2, clock.value * math.pi * 2)
-        ..setFloat(3, style.toDouble());
+        ..setFloat(3, style.toDouble())
+        ..setFloat(4, accent.r)
+        ..setFloat(5, accent.g)
+        ..setFloat(6, accent.b);
       canvas.drawRect(bounds, Paint()..shader = effect);
     } else {
       canvas.drawRect(
@@ -161,5 +175,7 @@ class _ProfileShaderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ProfileShaderPainter oldDelegate) =>
-      oldDelegate.shader != shader || oldDelegate.style != style;
+      oldDelegate.shader != shader ||
+      oldDelegate.style != style ||
+      oldDelegate.accent != accent;
 }

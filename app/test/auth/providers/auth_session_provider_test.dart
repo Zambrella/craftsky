@@ -52,7 +52,7 @@ void main() {
             registry.activeLease!.session,
             displayName: 'Updated name',
             avatarUrl: 'new.jpg',
-            customisation: const ProfileCustomisation(colour: 'teal'),
+            customisation: const ProfileCustomisation(colour: 'seafoam'),
           );
       await container.pump();
       expect(container.read(authSessionProvider).requireValue, same(auth));

@@ -59,18 +59,6 @@
 		"softContainer": "#DDF9D8",
 		"textureTint": "#FFFFFF"
 	},
-	"teal": {
-		"base": "#007663",
-		"foreground": "#FFFFFF",
-		"hover": "#006454",
-		"pressed": "#005146",
-		"darkAccent": "#5BD0BC",
-		"darkForeground": "#171513",
-		"darkHover": "#73DCCB",
-		"darkPressed": "#43B9A5",
-		"softContainer": "#D8F9F3",
-		"textureTint": "#FFFFFF"
-	},
 	"ink": {
 		"base": "#161210",
 		"foreground": "#FFFFFF",

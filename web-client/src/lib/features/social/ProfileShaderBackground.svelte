@@ -1,14 +1,21 @@
 <script lang="ts">
 	import { mountProfileShader } from './profile-background-shader.ts';
-	let { style }: { style: number } = $props();
+	import palettes from './palette.json';
+	let { style, colour = 'cobalt' }: { style: number; colour?: string } =
+		$props();
+	const accent = $derived(
+		Object.hasOwn(palettes, colour)
+			? palettes[colour as keyof typeof palettes].base
+			: palettes.cobalt.base
+	);
 	let canvas = $state<HTMLCanvasElement>();
 	$effect(() => {
-		if (canvas) return mountProfileShader(canvas, style);
+		if (canvas) return mountProfileShader(canvas, style, accent);
 	});
 </script>
 
 <span class="shader-background" aria-hidden="true">
-	{#key style}
+	{#key `${style}:${colour}`}
 		<canvas bind:this={canvas} hidden></canvas>
 	{/key}
 </span>

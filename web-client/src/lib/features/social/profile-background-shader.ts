@@ -16,6 +16,20 @@ export function profileShaderStyle(background?: string): number | undefined {
 			return 4;
 		case 'animated-textile':
 			return 5;
+		case 'animated-ribbons':
+			return 6;
+		case 'animated-silk':
+			return 7;
+		case 'animated-bloom':
+			return 8;
+		case 'animated-sunbeams':
+			return 9;
+		case 'animated-lagoon':
+			return 10;
+		case 'animated-nebula':
+			return 11;
+		case 'animated-prism':
+			return 12;
 		default:
 			return undefined;
 	}
@@ -39,7 +53,11 @@ ${source
 	.replaceAll('fragColor', 'gl_FragColor')}`;
 
 /** Optional, bounded decoration; an unavailable GPU retains the CSS still. */
-function createShader(canvas: HTMLCanvasElement, style: number) {
+function createShader(
+	canvas: HTMLCanvasElement,
+	style: number,
+	accent: string
+) {
 	const gl = canvas.getContext('webgl', {
 		alpha: true,
 		antialias: false,
@@ -100,6 +118,13 @@ function createShader(canvas: HTMLCanvasElement, style: number) {
 		gl.enableVertexAttribArray(position);
 		gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 		gl.uniform1f(gl.getUniformLocation(program, 'uStyle'), style);
+		const rgb = /^#[0-9a-f]{6}$/i.test(accent) ? accent : '#1535D6';
+		gl.uniform3f(
+			gl.getUniformLocation(program, 'uAccent'),
+			parseInt(rgb.slice(1, 3), 16) / 255,
+			parseInt(rgb.slice(3, 5), 16) / 255,
+			parseInt(rgb.slice(5, 7), 16) / 255
+		);
 		const size = gl.getUniformLocation(program, 'uSize'),
 			phase = gl.getUniformLocation(program, 'uPhase');
 		canvas.hidden = false;
@@ -122,8 +147,12 @@ function createShader(canvas: HTMLCanvasElement, style: number) {
 }
 
 /** Animate only visible, foreground headers; reduced motion draws phase zero. */
-export function mountProfileShader(canvas: HTMLCanvasElement, style: number) {
-	const shader = createShader(canvas, style);
+export function mountProfileShader(
+	canvas: HTMLCanvasElement,
+	style: number,
+	accent = '#1535D6'
+) {
+	const shader = createShader(canvas, style, accent);
 	if (!shader) {
 		canvas.hidden = true;
 		return () => {};

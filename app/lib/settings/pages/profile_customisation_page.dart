@@ -155,7 +155,7 @@ class _LoadedCustomisationPageState
               ),
               const SizedBox(height: 28),
               FocusTraversalOrder(
-                order: const NumericFocusOrder(50),
+                order: const NumericFocusOrder(80),
                 child: ChunkyButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
@@ -284,7 +284,6 @@ Map<String, String> _colourLabels(AppLocalizations l10n) => {
   'rose': l10n.profileCustomisationColourRose,
   'amber': l10n.profileCustomisationColourAmber,
   'lime': l10n.profileCustomisationColourGreen,
-  'teal': l10n.profileCustomisationColourTeal,
   'ink': l10n.profileCustomisationColourInk,
   'terracotta': l10n.profileCustomisationColourTerracotta,
   'denim': l10n.profileCustomisationColourDenim,
@@ -303,6 +302,13 @@ Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'animated-grain': l10n.profileCustomisationBackgroundGrain,
   'animated-marble': l10n.profileCustomisationBackgroundMarble,
   'animated-textile': l10n.profileCustomisationBackgroundTextile,
+  'animated-ribbons': l10n.profileCustomisationBackgroundRibbons,
+  'animated-silk': l10n.profileCustomisationBackgroundSilk,
+  'animated-bloom': l10n.profileCustomisationBackgroundBloom,
+  'animated-sunbeams': l10n.profileCustomisationBackgroundSunbeams,
+  'animated-lagoon': l10n.profileCustomisationBackgroundLagoon,
+  'animated-nebula': l10n.profileCustomisationBackgroundNebula,
+  'animated-prism': l10n.profileCustomisationBackgroundPrism,
   'bayerdark': l10n.profileCustomisationBackgroundDither,
   'cubedark': l10n.profileCustomisationBackgroundGrid,
   'dotcrossdark': l10n.profileCustomisationBackgroundCrossStitch,

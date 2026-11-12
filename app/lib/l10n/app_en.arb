@@ -1887,9 +1887,6 @@
   "profileCustomisationColourGreen": "Green",
   "@profileCustomisationColourGreen": { "description": "Label for the green profile colour stored under the stable lime key." },
 
-  "profileCustomisationColourTeal": "Teal",
-  "@profileCustomisationColourTeal": { "description": "Label for the teal profile colour." },
-
   "profileCustomisationColourInk": "Ink",
   "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
 
@@ -1931,6 +1928,27 @@
 
   "profileCustomisationBackgroundTextile": "Woven",
   "@profileCustomisationBackgroundTextile": { "description": "Label for the animated textured woven gradient background." },
+
+  "profileCustomisationBackgroundRibbons": "Ribbon bands",
+  "@profileCustomisationBackgroundRibbons": { "description": "Label for the animated ribbon bands reference-inspired background." },
+
+  "profileCustomisationBackgroundSilk": "Liquid silk",
+  "@profileCustomisationBackgroundSilk": { "description": "Label for the animated liquid silk reference-inspired background." },
+
+  "profileCustomisationBackgroundBloom": "Light bloom",
+  "@profileCustomisationBackgroundBloom": { "description": "Label for the animated light bloom reference-inspired background." },
+
+  "profileCustomisationBackgroundSunbeams": "Sunbeams",
+  "@profileCustomisationBackgroundSunbeams": { "description": "Label for the animated sunbeams reference-inspired background." },
+
+  "profileCustomisationBackgroundLagoon": "Lagoon",
+  "@profileCustomisationBackgroundLagoon": { "description": "Label for the animated lagoon reference-inspired background." },
+
+  "profileCustomisationBackgroundNebula": "Nebula",
+  "@profileCustomisationBackgroundNebula": { "description": "Label for the animated nebula reference-inspired background." },
+
+  "profileCustomisationBackgroundPrism": "Prism",
+  "@profileCustomisationBackgroundPrism": { "description": "Label for the animated prism reference-inspired background." },
 
   "profileCustomisationBackgroundDither": "Dither",
   "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },

@@ -64,7 +64,7 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 	}
 
 	aliceFirst := api.ProfileCustomisation{
-		Colour:     "teal",
+		Colour:     "seafoam",
 		Background: "x2",
 	}
 	got, err = store.Put(ctx, alice, aliceFirst)

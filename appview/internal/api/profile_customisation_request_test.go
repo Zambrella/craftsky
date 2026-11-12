@@ -95,7 +95,7 @@ func TestProfileCustomisationRequestRejectsInvalidBodies(t *testing.T) {
 		},
 		{
 			name:      "duplicate field",
-			body:      `{"colour":"cobalt","colour":"teal","profileBackground":"none"}`,
+			body:      `{"colour":"cobalt","colour":"seafoam","profileBackground":"none"}`,
 			wantCode:  "malformed_body",
 			wantField: "_",
 		},

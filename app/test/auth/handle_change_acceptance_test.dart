@@ -47,7 +47,7 @@ void main() {
             cachedDisplayName: 'Needle Friend',
             cachedAvatarUrl: 'https://cdn.example/member.jpg',
             cachedCustomisation: const ProfileCustomisation(
-              colour: 'teal',
+              colour: 'seafoam',
               background: 'cubedark',
             ),
           );

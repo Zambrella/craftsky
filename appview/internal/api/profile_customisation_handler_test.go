@@ -39,7 +39,7 @@ func TestPutProfileCustomisationHandlerReturnsAuthoritativeValue(t *testing.T) {
 	store := &fakeProfileCustomisationWriter{}
 	handler := api.PutProfileCustomisationHandler(store)
 	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/customisation", strings.NewReader(
-		`{"colour":"teal","profileBackground":"x2"}`,
+		`{"colour":"seafoam","profileBackground":"x2"}`,
 	))
 	req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:alice")))
 	response := httptest.NewRecorder()

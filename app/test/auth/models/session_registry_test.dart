@@ -238,7 +238,7 @@ void main() {
           sessionGeneration: 11,
           lastUsedOrdinal: 19,
           cachedCustomisation: const ProfileCustomisation(
-            colour: 'teal',
+            colour: 'seafoam',
           ),
         ),
       },
@@ -258,7 +258,7 @@ void main() {
     });
     expect(
       restored.sessions[AccountKey('did:plc:bob').did]?.cachedCustomisation,
-      const ProfileCustomisation(colour: 'teal'),
+      const ProfileCustomisation(colour: 'seafoam'),
     );
     final diagnostic = '$restored ${restored.sessions.values.join(' ')}';
     expect(diagnostic, isNot(contains('secret-token')));
@@ -474,13 +474,13 @@ void main() {
       displayName: 'Alice',
       crafts: const ['knitting', 'crochet'],
       avatarUrl: 'https://example.test/alice.jpg',
-      customisation: const ProfileCustomisation(colour: 'teal'),
+      customisation: const ProfileCustomisation(colour: 'seafoam'),
     );
 
     expect(updated.sessions[lease.account.did]?.cachedDisplayName, 'Alice');
     expect(
       updated.sessions[lease.account.did]?.cachedCustomisation.colour,
-      'teal',
+      'seafoam',
     );
     expect(
       updated.updateCachedIdentity(

@@ -39,7 +39,7 @@ void main() {
           height: 80,
           child: ProfileHeaderBackground(
             customisation: ProfileCustomisation(
-              colour: 'teal',
+              colour: 'seafoam',
               background: 'x2',
             ),
           ),
@@ -93,7 +93,7 @@ void main() {
           height: 80,
           child: ProfileHeaderBackground(
             customisation: ProfileCustomisation(
-              colour: 'teal',
+              colour: 'seafoam',
               background: 'craft-crochet',
             ),
           ),

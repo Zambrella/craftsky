@@ -188,6 +188,21 @@ describe('native settings catalogues and future values', () => {
 		}
 	});
 
+	it('retires removed choices without losing the other supported selection', () => {
+		expect(
+			effectiveCustomisation({ colour: 'teal', profileBackground: 'x2' })
+		).toEqual({ colour: 'cobalt', background: 'x2' });
+		for (const profileBackground of [
+			'animated-dust',
+			'animated-satin',
+			'animated-opal'
+		]) {
+			expect(
+				effectiveCustomisation({ colour: 'seafoam', profileBackground })
+			).toEqual({ colour: 'seafoam', background: 'none' });
+		}
+	});
+
 	it('resolves unknown customisation values to safe native defaults', () => {
 		expect(
 			effectiveCustomisation({

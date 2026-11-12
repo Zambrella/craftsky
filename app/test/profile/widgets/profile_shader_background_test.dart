@@ -12,6 +12,7 @@ const _captureKey = Key('shader-capture');
 
 Widget _subject(
   String background, {
+  String colour = 'terracotta',
   bool reduceMotion = false,
   bool enabled = true,
 }) => MediaQuery(
@@ -28,7 +29,7 @@ Widget _subject(
             height: 120,
             child: ProfileHeaderBackground(
               customisation: ProfileCustomisation(
-                colour: 'terracotta',
+                colour: colour,
                 background: background,
               ),
             ),
@@ -92,6 +93,27 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'bright reference styles follow the accent and respect reduced motion',
+    (tester) async {
+      await tester.runAsync(ProfileShaderBackground.prepareAssets);
+      await tester.pumpWidget(
+        _subject('animated-ribbons', colour: 'cobalt', reduceMotion: true),
+      );
+      await tester.pump();
+      final cobalt = await _pixels(tester);
+      await tester.pump(const Duration(seconds: 3));
+      expect(await _pixels(tester), orderedEquals(cobalt));
+      await tester.pumpWidget(
+        _subject('animated-ribbons', colour: 'seafoam', reduceMotion: true),
+      );
+      await tester.pump();
+      expect(await _pixels(tester), isNot(orderedEquals(cobalt)));
+      expect(tester.binding.transientCallbackCount, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('reduced motion and disabled tickers keep a still background', (
     tester,

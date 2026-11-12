@@ -3928,12 +3928,6 @@ abstract class AppLocalizations {
   /// **'Green'**
   String get profileCustomisationColourGreen;
 
-  /// Label for the teal profile colour.
-  ///
-  /// In en, this message translates to:
-  /// **'Teal'**
-  String get profileCustomisationColourTeal;
-
   /// Label for the profile colour that uses the CraftSky theme Ink colour.
   ///
   /// In en, this message translates to:
@@ -4017,6 +4011,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Woven'**
   String get profileCustomisationBackgroundTextile;
+
+  /// Label for the animated ribbon bands reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Ribbon bands'**
+  String get profileCustomisationBackgroundRibbons;
+
+  /// Label for the animated liquid silk reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Liquid silk'**
+  String get profileCustomisationBackgroundSilk;
+
+  /// Label for the animated light bloom reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Light bloom'**
+  String get profileCustomisationBackgroundBloom;
+
+  /// Label for the animated sunbeams reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunbeams'**
+  String get profileCustomisationBackgroundSunbeams;
+
+  /// Label for the animated lagoon reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Lagoon'**
+  String get profileCustomisationBackgroundLagoon;
+
+  /// Label for the animated nebula reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Nebula'**
+  String get profileCustomisationBackgroundNebula;
+
+  /// Label for the animated prism reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Prism'**
+  String get profileCustomisationBackgroundPrism;
 
   /// Label for the bayerdark profile texture.
   ///

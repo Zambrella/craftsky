@@ -192,7 +192,7 @@ void main() {
       did: 'did:plc:alice',
       handle: 'alice.test',
       crafts: const [],
-      customisation: const ProfileCustomisation(colour: 'teal'),
+      customisation: const ProfileCustomisation(colour: 'seafoam'),
     );
     final registry = SessionRegistry.empty().upsertAndActivate(
       token: 'alice-token',
@@ -218,7 +218,7 @@ void main() {
           .widget<AccountAvatar>(find.byType(AccountAvatar))
           .customisation
           .colour,
-      'teal',
+      'seafoam',
     );
     final initialFetches = fetches;
     tier = SubscriptionTier.free;
@@ -252,7 +252,7 @@ void main() {
           handle: 'alice.test',
           avatar: 'https://example.test/alice.jpg',
           customisation: const ProfileCustomisation(
-            colour: 'teal',
+            colour: 'seafoam',
           ),
           crafts: const [],
         ),
@@ -284,7 +284,7 @@ void main() {
             .sessions[AccountKey('did:plc:alice').did]
             ?.cachedCustomisation
             .colour,
-        'teal',
+        'seafoam',
       );
     },
   );
