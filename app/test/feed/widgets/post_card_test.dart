@@ -53,6 +53,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -621,7 +622,7 @@ void main() {
       expect(
         find.descendant(
           of: icon,
-          matching: find.byIcon(CraftskyIcons.plusTier),
+          matching: find.byType(PlusTierIcon),
         ),
         subscriptionsEnabled ? findsOneWidget : findsNothing,
       );

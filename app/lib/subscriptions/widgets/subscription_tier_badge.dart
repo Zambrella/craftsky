@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -60,8 +60,7 @@ class SubscriptionTierBadge extends StatelessWidget {
                       :final value,
                     )
                     when value.effectiveTier == SubscriptionTier.plus) ...[
-                  Icon(
-                    CraftskyIcons.plusTier,
+                  PlusTierIcon(
                     size: 14,
                     color: Theme.of(context).colorScheme.primary,
                   ),

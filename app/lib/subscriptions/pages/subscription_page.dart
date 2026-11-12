@@ -33,7 +33,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -934,8 +934,8 @@ class _TierCard extends StatelessWidget {
         ? theme.colorScheme.tertiary
         : BrandColors.butterDeep;
     final tierIcon = tier == SubscriptionTier.plus
-        ? CraftskyIcons.plusTier
-        : Icons.storefront_outlined;
+        ? PlusTierIcon(color: accent)
+        : Icon(Icons.storefront_outlined, color: accent);
     final price = model.tierPrices[tier];
     return Semantics(
       container: true,
@@ -969,7 +969,7 @@ class _TierCard extends StatelessWidget {
                         shape: BoxShape.circle,
                         border: Border.all(color: accent, width: 1.5),
                       ),
-                      child: Icon(tierIcon, color: accent),
+                      child: tierIcon,
                     ),
                     const SizedBox(width: 12),
                     Expanded(

@@ -163,13 +163,15 @@
 								: 'Make more with CraftSky'}
 						</h2>
 						<p>
-							{paid
-								? 'Review your access and subscription details.'
-								: 'Unlock scheduling, saved folders and more with Plus or Business.'}
-						</p>
-						<span class="callout-action"
-							>{paid ? 'View subscription' : 'Explore subscriptions'}</span
-						></a
+							{#if paid}
+								Review your access and subscription details.
+							{:else}
+								Unlock scheduling, saved folders and more with <strong
+									>Plus</strong
+								>
+								or <strong>Business</strong>.
+							{/if}
+						</p></a
 					>{/if}
 				{#each shownGroups as group}<section class="settings-group">
 						<h2 class="section-label">{group.title}</h2>

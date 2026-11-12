@@ -5,7 +5,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -76,8 +76,7 @@ class PlusFeatureLock extends StatelessWidget {
                   PositionedDirectional(
                     end: 0,
                     top: 0,
-                    child: Icon(
-                      CraftskyIcons.plusTier,
+                    child: PlusTierIcon(
                       size: 16,
                       color: Theme.of(context).colorScheme.primary,
                     ),

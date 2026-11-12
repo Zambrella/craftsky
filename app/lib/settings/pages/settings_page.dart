@@ -27,6 +27,7 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -386,6 +387,26 @@ class _SubscriptionCallout extends StatelessWidget {
     final description = hasPaidAccess
         ? l10n.settingsSubscriptionCalloutActiveDescription
         : l10n.settingsSubscriptionCalloutDescription;
+    final tierNames = RegExp(
+      [
+        l10n.subscriptionsTierPlus,
+        l10n.subscriptionsTierBusiness,
+      ].map(RegExp.escape).join('|'),
+    );
+    final descriptionSpans = <InlineSpan>[];
+    var offset = 0;
+    for (final match in tierNames.allMatches(description)) {
+      descriptionSpans
+        ..add(TextSpan(text: description.substring(offset, match.start)))
+        ..add(
+          TextSpan(
+            text: match.group(0),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        );
+      offset = match.end;
+    }
+    descriptionSpans.add(TextSpan(text: description.substring(offset)));
     final action = hasPaidAccess
         ? l10n.settingsSubscriptionCalloutView
         : l10n.settingsSubscriptionCalloutExplore;
@@ -422,8 +443,7 @@ class _SubscriptionCallout extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        CraftskyIcons.plusTier,
+                      PlusTierIcon(
                         color: colors.primary,
                         size: 28,
                       ),
@@ -434,29 +454,9 @@ class _SubscriptionCallout extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(minHeight: 48),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      borderRadius: BorderRadius.circular(radius),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        action,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colors.onPrimary,
-                        ),
-                      ),
-                    ),
+                  Text.rich(
+                    TextSpan(children: descriptionSpans),
+                    style: theme.textTheme.bodyMedium,
                   ),
                 ],
               ),

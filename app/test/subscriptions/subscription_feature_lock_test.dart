@@ -8,15 +8,14 @@ import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:phosphor_icons/phosphor_icons.dart';
 
 void main() {
-  testWidgets('Plus sparkle overlays the action icon', (tester) async {
+  testWidgets('Plus needle mark overlays the action icon', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -25,14 +24,13 @@ void main() {
       ),
     );
     final icon = tester.getRect(find.byIcon(Icons.folder));
-    final sparkle = tester.getRect(find.byIcon(CraftskyIcons.plusTier));
-    expect(icon.overlaps(sparkle), isTrue);
-    expect(CraftskyIcons.plusTier, PhosphorIconsFill.sparkle);
-    final sparkleIcon = tester.widget<Icon>(
-      find.byIcon(CraftskyIcons.plusTier),
+    final plusMark = tester.getRect(find.byType(PlusTierIcon));
+    expect(icon.overlaps(plusMark), isTrue);
+    final plusIcon = tester.widget<PlusTierIcon>(
+      find.byType(PlusTierIcon),
     );
     expect(
-      sparkleIcon.color,
+      plusIcon.color,
       Theme.of(tester.element(find.byType(PlusActionIcon))).colorScheme.primary,
     );
     expect(
@@ -99,7 +97,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(actions, 0);
     expect(
-      find.byIcon(CraftskyIcons.plusTier),
+      find.byType(PlusTierIcon),
       subscriptionsEnabled ? findsOneWidget : findsNothing,
     );
     expect(find.byType(CraftskyDialog), findsOneWidget);
@@ -239,7 +237,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(actions, 1);
       expect(find.byType(CraftskyDialog), findsNothing);
-      expect(find.byIcon(CraftskyIcons.plusTier), findsNothing);
+      expect(find.byType(PlusTierIcon), findsNothing);
     },
     skip: !subscriptionsEnabled,
   );
@@ -273,7 +271,7 @@ void main() {
           ),
         ),
       );
-      expect(find.byIcon(CraftskyIcons.plusTier), findsOneWidget);
+      expect(find.byType(PlusTierIcon), findsOneWidget);
       expect(
         find.bySemanticsLabel('Scheduled posts requires Plus'),
         findsOneWidget,
@@ -339,7 +337,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Learn about subscriptions'), findsNothing);
-      expect(find.byIcon(CraftskyIcons.plusTier), findsNothing);
+      expect(find.byType(PlusTierIcon), findsNothing);
     },
     skip: subscriptionsEnabled,
   );
