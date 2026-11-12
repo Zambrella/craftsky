@@ -56,6 +56,7 @@ const profile = (owner) => ({
 	did: owner,
 	handle: owner.endsWith('bob') ? 'bob.test' : 'alice.test',
 	displayName: owner.endsWith('bob') ? 'Bob Maker' : 'Alice Maker',
+	...(control.shareAvatar ? { avatar: control.shareAvatar } : {}),
 	description: 'Making a little every day.',
 	crafts: [
 		'social.craftsky.feed.defs#knitting',
