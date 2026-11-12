@@ -1,3 +1,4 @@
+import { acceptedHashtags, hashtagsInText } from './facet-input';
 import { UserFacingError } from '#lib/user-facing-error.ts';
 import { graphemeCount as textLength } from '#lib/text.ts';
 import {
@@ -223,9 +224,14 @@ export function validLanguage(value: string): boolean {
 /** UTF-8 byte offsets required by AT Protocol, including text before emoji. */
 export async function buildFacets(
 	text: string,
-	resolve: (handle: string) => Promise<string>
+	resolve: (handle: string) => Promise<string>,
+	precedingHashtags: string[] = []
 ): Promise<Facet[]> {
 	const facets: Facet[] = [];
+	const accepted = acceptedHashtags([
+		...precedingHashtags,
+		...hashtagsInText(text)
+	]);
 	const encoder = new TextEncoder();
 	const re =
 		/(https?:\/\/[^\s<>]+)|(?:^|[\s(])(@[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,})|(?:^|[\s(])(#[\p{L}\p{N}_]+)/gu;
@@ -245,7 +251,8 @@ export async function buildFacets(
 			feature = { $type: 'app.bsky.richtext.facet#mention', did };
 		} else {
 			const tag = token.slice(1);
-			if (!validateText(tag, 64, 640)) continue;
+			if (!validateText(tag, 64, 640) || !accepted.has(tag.toLowerCase()))
+				continue;
 			feature = { $type: 'app.bsky.richtext.facet#tag', tag };
 		}
 		facets.push({
@@ -263,17 +270,66 @@ export async function buildFacets(
 export async function projectFacets(
 	project: JsonObject,
 	before: JsonObject | undefined,
-	resolve: (handle: string) => Promise<string>
+	resolve: (handle: string) => Promise<string>,
+	precedingHashtags: string[] = []
 ): Promise<JsonObject> {
 	const next = JSON.parse(JSON.stringify(project)) as JsonObject;
 	const common = record(next.common);
 	const previous = record(before?.common);
 	const pattern = record(common.pattern);
 	const oldPattern = record(previous.pattern);
+	const prefix = [...precedingHashtags];
+	if (Array.isArray(common.tags)) {
+		const accepted = acceptedHashtags([
+			...prefix,
+			...common.tags.filter((tag): tag is string => typeof tag === 'string')
+		]);
+		common.tags = common.tags.filter(
+			(tag) => typeof tag === 'string' && accepted.has(tag.trim().toLowerCase())
+		);
+		prefix.push(...(common.tags as string[]));
+	}
+	async function fieldFacets(
+		text: string,
+		existing: unknown,
+		unchanged: boolean
+	) {
+		const generated = await buildFacets(
+			text,
+			unchanged ? async () => '' : resolve,
+			prefix
+		);
+		prefix.push(...hashtagsInText(text));
+		if (!unchanged || !Array.isArray(existing)) return generated;
+		// Retain unchanged mention/link/extension identities and refresh only tags.
+		const retained = (existing as Facet[]).flatMap((facet) => {
+			const features = facet.features.filter(
+				(feature) => feature.$type !== 'app.bsky.richtext.facet#tag'
+			);
+			return features.length ? [{ ...facet, features }] : [];
+		});
+		return [
+			...retained,
+			...generated.filter(
+				(facet) =>
+					facet.features.some(
+						(feature) => feature.$type === 'app.bsky.richtext.facet#tag'
+					) &&
+					!retained.some(
+						(other) =>
+							facet.index.byteStart < other.index.byteEnd &&
+							facet.index.byteEnd > other.index.byteStart
+					)
+			)
+		].sort((a, b) => a.index.byteStart - b.index.byteStart);
+	}
 	for (const field of ['name', 'designer', 'publisher']) {
 		const text = str(pattern[field]);
-		if (before && text === str(oldPattern[field])) continue;
-		const facets = await buildFacets(text, resolve);
+		const facets = await fieldFacets(
+			text,
+			pattern[`${field}Facets`],
+			!!before && text === str(oldPattern[field])
+		);
 		if (facets.length)
 			pattern[`${field}Facets`] = facets as unknown as JsonObject[];
 		else delete pattern[`${field}Facets`];
@@ -288,8 +344,11 @@ export async function projectFacets(
 				oldMaterials[
 					typeof item.existingIndex === 'number' ? item.existingIndex : index
 				];
-			if (before && str(item.text) === str(source?.text)) continue;
-			const facets = await buildFacets(str(item.text), resolve);
+			const facets = await fieldFacets(
+				str(item.text),
+				item.facets,
+				!!before && str(item.text) === str(source?.text)
+			);
 			if (facets.length) item.facets = facets as unknown as JsonObject[];
 			else delete item.facets;
 		}

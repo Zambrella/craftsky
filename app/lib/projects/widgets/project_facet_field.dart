@@ -19,6 +19,7 @@ class ProjectFacetField extends StatefulWidget {
     this.textCapitalization = TextCapitalization.words,
     this.initialDisplayText,
     this.allowedTokenKinds,
+    this.precedingHashtags,
     this.normalizeValue,
     this.onChanged,
   });
@@ -34,6 +35,7 @@ class ProjectFacetField extends StatefulWidget {
   final TextCapitalization textCapitalization;
   final String? initialDisplayText;
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
+  final List<String> Function()? precedingHashtags;
   final String? Function(String value)? normalizeValue;
   final ValueChanged<String>? onChanged;
 
@@ -76,6 +78,7 @@ class _ProjectFacetFieldState extends State<ProjectFacetField> {
           enabled: field.widget.enabled,
           textInputAction: TextInputAction.next,
           allowedTokenKinds: widget.allowedTokenKinds,
+          precedingHashtags: widget.precedingHashtags,
           onChanged: (value) {
             field.didChange(widget.normalizeValue?.call(value) ?? value);
             widget.onChanged?.call(value);

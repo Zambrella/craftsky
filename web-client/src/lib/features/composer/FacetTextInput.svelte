@@ -22,6 +22,7 @@
 		allowed = ['mention', 'hashtag'],
 		className = '',
 		hint = '',
+		precedingHashtags = [],
 		maximum,
 		maximumBytes,
 		onsubmit = () => {}
@@ -36,6 +37,7 @@
 		allowed?: ActiveFacetToken['kind'][];
 		className?: string;
 		hint?: string;
+		precedingHashtags?: string[];
 		maximum?: number;
 		maximumBytes?: number;
 		onsubmit?: () => void;
@@ -224,6 +226,7 @@
 		bind:this={editor}
 		use:textareaPresentation={{
 			value,
+			precedingHashtags,
 			position: (next) => {
 				if (next.left !== caret.left || next.top !== caret.top) caret = next;
 			}

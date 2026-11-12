@@ -4,6 +4,44 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'one budget covers every project field and refreshes unchanged facets',
+    () async {
+      final caption = List.generate(8, (index) => '#tag$index').join(' ');
+      const project = Project(
+        common: ProjectCommon(
+          craftType: 'social.craftsky.feed.defs#sewing',
+          tags: ['TAG0', 'structured'],
+          pattern: ProjectPattern(name: '#pattern'),
+          materials: [ProjectMaterial(text: '#material')],
+        ),
+      );
+      Future<ProjectComposerSubmitArguments> submit(
+        String text,
+        Project value,
+      ) => buildProjectComposerSubmitArguments(
+        text: text,
+        langs: const ['en'],
+        project: value,
+        existingProject: value,
+        imagesState: const ComposerImagesState(images: []),
+        generateFacets: (
+          _, {
+          includeMentions = true,
+          includeLinks = true,
+          includeTags = true,
+        }) async => [],
+      );
+      final result = await submit(caption, project);
+      expect(result.facets, hasLength(8));
+      expect(result.project.common.pattern!.nameFacets, hasLength(1));
+      expect(result.project.common.materials!.single.facets, isNull);
+      final reopened = await submit('', result.project);
+      expect(reopened.project.common.materials!.single.facets, hasLength(1));
+      expect(project.common.pattern!.nameFacets, isNull);
+    },
+  );
+
   test('scheduled project duration can be changed or cleared', () async {
     const existing = Project(
       common: ProjectCommon(
@@ -118,18 +156,28 @@ void main() {
               includeLinks = true,
               includeTags = true,
             }) async => [
-              {'type': 'tag', 'tag': 'craft', 'text': text},
+              {
+                'index': {'byteStart': 3, 'byteEnd': 9},
+                'features': [
+                  {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'craft'},
+                ],
+              },
             ],
       );
 
       expect(args.text, 'Hi #craft');
       expect(args.langs, langs);
       expect(args.reply, isNull);
-      expect(args.project, same(project));
+      expect(args.project.toCreateMap(), project.toCreateMap());
       expect(args.images, hasLength(1));
       expect(args.images!.single.alt, 'Finished hoop');
       expect(args.facets, [
-        {'type': 'tag', 'tag': 'craft', 'text': 'Hi #craft'},
+        {
+          'index': {'byteStart': 3, 'byteEnd': 9},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'craft'},
+          ],
+        },
       ]);
     },
   );
@@ -160,12 +208,28 @@ void main() {
           }) async {
             if (includeTags && text == '#hitchhiker') {
               return [
-                {'feature': 'tag', 'tag': 'hitchhiker'},
+                {
+                  'index': {'byteStart': 0, 'byteEnd': 11},
+                  'features': [
+                    {
+                      r'$type': 'app.bsky.richtext.facet#tag',
+                      'tag': 'hitchhiker',
+                    },
+                  ],
+                },
               ];
             }
             if (includeMentions && text == '@alice.craftsky.social') {
               return [
-                {'feature': 'mention', 'did': 'did:plc:alice'},
+                {
+                  'index': {'byteStart': 0, 'byteEnd': 22},
+                  'features': [
+                    {
+                      r'$type': 'app.bsky.richtext.facet#mention',
+                      'did': 'did:plc:alice',
+                    },
+                  ],
+                },
               ];
             }
             return [];
@@ -174,23 +238,51 @@ void main() {
 
     final pattern = args.project.common.pattern!;
     expect(pattern.nameFacets, [
-      {'feature': 'tag', 'tag': 'hitchhiker'},
+      {
+        'index': {'byteStart': 0, 'byteEnd': 11},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'hitchhiker'},
+        ],
+      },
     ]);
     expect(pattern.designerFacets, [
-      {'feature': 'mention', 'did': 'did:plc:alice'},
+      {
+        'index': {'byteStart': 0, 'byteEnd': 22},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#mention', 'did': 'did:plc:alice'},
+        ],
+      },
     ]);
     expect(pattern.publisherFacets, isNull);
   });
 
   test('AT-007 preserves stored facets for unchanged project text', () async {
     const bodyFacets = [
-      {'feature': 'mention', 'did': 'did:plc:alice'},
+      {
+        'index': {'byteStart': 6, 'byteEnd': 20},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#mention', 'did': 'did:plc:alice'},
+        ],
+      },
     ];
     const nameFacets = [
-      {'feature': 'tag', 'tag': 'cardigan'},
+      {
+        'index': {'byteStart': 0, 'byteEnd': 9},
+        'features': [
+          {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'cardigan'},
+        ],
+      },
     ];
     const designerFacets = [
-      {'feature': 'mention', 'did': 'did:plc:designer'},
+      {
+        'index': {'byteStart': 0, 'byteEnd': 17},
+        'features': [
+          {
+            r'$type': 'app.bsky.richtext.facet#mention',
+            'did': 'did:plc:designer',
+          },
+        ],
+      },
     ];
     const project = Project(
       common: ProjectCommon(
@@ -227,6 +319,15 @@ void main() {
   test(
     'regenerates facets when trimming changes stored text offsets',
     () async {
+      String? generatedText;
+      const expectedFacets = [
+        {
+          'index': {'byteStart': 3, 'byteEnd': 9},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'craft'},
+          ],
+        },
+      ];
       final args = await buildProjectComposerSubmitArguments(
         text: ' \nHi #craft\n ',
         langs: langs,
@@ -246,14 +347,14 @@ void main() {
               includeMentions = true,
               includeLinks = true,
               includeTags = true,
-            }) async => [
-              {'text': text},
-            ],
+            }) async {
+              generatedText = text;
+              return expectedFacets;
+            },
       );
       expect(args.text, 'Hi #craft');
-      expect(args.facets, [
-        {'text': 'Hi #craft'},
-      ]);
+      expect(generatedText, 'Hi #craft');
+      expect(args.facets, expectedFacets);
     },
   );
 }

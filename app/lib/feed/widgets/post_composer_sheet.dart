@@ -74,6 +74,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
@@ -1793,14 +1794,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     if (widget.scheduledPost != null &&
         text == _initialText &&
         stored is List<dynamic>) {
-      return stored
-          .whereType<Map<dynamic, dynamic>>()
-          .map(
-            (facet) => facet.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ),
-          )
-          .toList(growable: false);
+      return budgetedFacets(
+        text,
+        stored
+            .whereType<Map<dynamic, dynamic>>()
+            .map(
+              (facet) => facet.map(
+                (key, value) => MapEntry(key.toString(), value),
+              ),
+            )
+            .toList(growable: false),
+        acceptedHashtags(hashtagsInText(text)),
+      );
     }
     return await ref.read(facetGeneratorProvider).generate(text);
   }

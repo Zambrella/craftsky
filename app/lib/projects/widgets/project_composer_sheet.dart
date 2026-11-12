@@ -79,6 +79,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
@@ -1290,6 +1291,28 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         : selectOptions;
   }
 
+  List<String> _hashtagPrefix({
+    bool pattern = false,
+    bool designer = false,
+    bool publisher = false,
+  }) => [
+    ...hashtagsInText(_bodyController.text),
+    ...?(widget.publishedEdit == null
+            ? _existingScheduledProject()
+            : ProjectMapper.fromMap(
+                Map<String, dynamic>.from(
+                  widget.publishedEdit!.seed.editable['project']! as Map,
+                ),
+              ))
+        ?.common
+        .tags,
+    if (pattern || designer || publisher)
+      ...hashtagsInText(_patternNameController.text),
+    if (designer || publisher)
+      ...hashtagsInText(_patternDesignerController.text),
+    if (publisher) ...hashtagsInText(_patternPublisherController.text),
+  ];
+
   Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
     ..._initialFormValues,
     ..._detailFormValues,
@@ -1387,7 +1410,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
               _patternDetailsFormKey,
               _patternDetailFieldNames,
             ),
-            child: _patternDetailFields(l10n),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([
+                _patternDesignerController,
+                _patternPublisherController,
+              ]),
+              builder: (context, child) => _patternDetailFields(l10n),
+            ),
           ),
         ),
       ),
@@ -1473,6 +1502,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternDesignerLabel,
           hintText: l10n.projectComposerPatternDesignerHint,
           controller: _patternDesignerController,
+          precedingHashtags: () => _hashtagPrefix(pattern: true),
           focusNode: _patternDesignerFocusNode,
           allowedTokenKinds: const {ActiveFacetTokenKind.mention},
         ),
@@ -1485,6 +1515,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternPublisherLabel,
           hintText: l10n.projectComposerPatternPublisherHint,
           controller: _patternPublisherController,
+          precedingHashtags: () => _hashtagPrefix(designer: true),
           focusNode: _patternPublisherFocusNode,
           allowedTokenKinds: const {ActiveFacetTokenKind.mention},
         ),
@@ -1673,6 +1704,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternNameLabel,
           hintText: l10n.projectComposerPatternNameHint,
           controller: _patternNameController,
+          precedingHashtags: _hashtagPrefix,
           textCapitalization: TextCapitalization.none,
           focusNode: _patternNameFocusNode,
           enabled: controlsEnabled,
@@ -1704,6 +1736,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ProjectMaterialsField(
+          precedingHashtags: () => _hashtagPrefix(publisher: true),
           name: ProjectComposerFields.materials,
           label: l10n.projectComposerMaterialsLabel,
           inputHintText: l10n.projectComposerMaterialsAddHint,

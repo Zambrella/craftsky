@@ -64,6 +64,7 @@
 	import ProjectEditor from './ProjectEditor.svelte';
 	import PhotoAttachments from './PhotoAttachments.svelte';
 	import VideoAttachment from './VideoAttachment.svelte';
+	import { hashtagsInText } from './facet-input';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
 	import ComposerTarget from './ComposerTarget.svelte';
@@ -824,7 +825,8 @@
 			payload.project = await projectFacets(
 				value.project,
 				undefined,
-				async (handle) => (await api.search.resolveMention(handle, signal)).did
+				async (handle) => (await api.search.resolveMention(handle, signal)).did,
+				hashtagsInText(value.text)
 			);
 		const media: JsonObject[] = [];
 		for (const image of value.images) {
@@ -994,7 +996,8 @@
 						working.project,
 						working.edit ? record(working.edit.editable.project) : undefined,
 						async (handle) =>
-							(await api.search.resolveMention(handle, signal)).did
+							(await api.search.resolveMention(handle, signal)).did,
+						hashtagsInText(working.text)
 					);
 				let body: JsonObject;
 				if (working.edit) {
@@ -1269,6 +1272,7 @@
 							{api}
 							owner={session.id + ':' + session.did}
 							disabled={locked}
+							precedingHashtags={hashtagsInText(draft.text)}
 							project={draft.project}
 							part="main"
 							onchange={(value) => (draft.project = value)}
@@ -1425,6 +1429,7 @@
 							{api}
 							owner={session.id + ':' + session.did}
 							disabled={locked}
+							precedingHashtags={hashtagsInText(draft.text)}
 							project={draft.project}
 							part="details"
 							onchange={(value) => (draft.project = value)}

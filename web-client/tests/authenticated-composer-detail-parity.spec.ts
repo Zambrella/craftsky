@@ -1300,3 +1300,41 @@ for (const width of [402, 1280]) {
 		await expect(descriptions.nth(0)).toHaveValue('First photo description');
 	});
 }
+
+test('project composers share ten hashtag slots and repaint when an earlier tag is removed', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	const caption = page.locator('textarea.post-text');
+	const pattern = page.getByRole('textbox', {
+		name: 'Pattern tag or name',
+		exact: true
+	});
+	const first = Array.from({ length: 9 }, (_, i) => `#tag${i}`).join(' ');
+	await caption.fill(first);
+	await pattern.fill('#tenth #overflow #TAG0');
+	const paint = page
+		.locator('.facet-input')
+		.filter({ has: pattern })
+		.locator('.facet-text-paint');
+	const tenth = paint.locator('span').filter({ hasText: /^#tenth$/ });
+	const overflow = paint.locator('span').filter({ hasText: /^#overflow$/ });
+	const duplicate = paint.locator('span').filter({ hasText: /^#TAG0$/ });
+	const color = (locator: typeof tenth) =>
+		locator.evaluate((node) => getComputedStyle(node).color);
+	await expect
+		.poll(async () => (await color(tenth)) !== (await color(overflow)))
+		.toBe(true);
+	expect(await color(duplicate)).toBe(await color(tenth));
+	await caption.fill(first.replace('#tag8', ''));
+	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await expect(page).toHaveURL(/\/feed$/);
+	await page.goto('/drafts');
+	await page
+		.getByRole('link', { name: 'Continue editing', exact: true })
+		.click();
+	await expect(caption).toHaveValue(first.replace('#tag8', ''));
+	await expect(pattern).toHaveValue('#tenth #overflow #TAG0');
+	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+});

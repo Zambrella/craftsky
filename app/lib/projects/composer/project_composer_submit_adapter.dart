@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 
 typedef ProjectFacetGenerator = Future<List<Map<String, dynamic>>> Function(
   String text, {
@@ -44,10 +45,58 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
       ? existingFacets ?? const <Map<String, dynamic>>[]
       : await generateFacets(trimmedText);
   final preserved = _preserveProjectExtensions(project, existingProject);
-  final projectWithPatternFacets = await _projectWithPatternFacets(
+  final generatedProject = await _projectWithPatternFacets(
     preserved,
     generateFacets,
     existingProject: existingProject,
+  );
+  final common = generatedProject.common;
+  final pattern = common.pattern;
+  final accepted = acceptedHashtags([
+    ...hashtagsInText(trimmedText),
+    ...?common.tags,
+    ...hashtagsInText(pattern?.name ?? ''),
+    ...hashtagsInText(pattern?.designer ?? ''),
+    ...hashtagsInText(pattern?.publisher ?? ''),
+    for (final material in common.materials ?? const <ProjectMaterial>[])
+      ...hashtagsInText(material.text),
+  ]);
+  List<Map<String, dynamic>>? fieldFacets(
+    String text,
+    List<Map<String, dynamic>>? facets,
+  ) {
+    final limited = budgetedFacets(text, facets, accepted);
+    return limited.isEmpty ? null : limited;
+  }
+
+  final limitedFacets = budgetedFacets(trimmedText, facets, accepted);
+  final projectWithPatternFacets = generatedProject.copyWith.common(
+    tags: common.tags
+        ?.where((tag) => accepted.contains(tag.trim().toLowerCase()))
+        .toList(),
+    pattern: pattern?.copyWith(
+      nameFacets: fieldFacets(
+        pattern.name ?? '',
+        pattern.nameFacets,
+      ),
+      designerFacets: fieldFacets(
+        pattern.designer ?? '',
+        pattern.designerFacets,
+      ),
+      publisherFacets: fieldFacets(
+        pattern.publisher ?? '',
+        pattern.publisherFacets,
+      ),
+    ),
+    materials: common.materials
+        ?.map(
+          (material) => ProjectMaterial(
+            text: material.text,
+            facets: fieldFacets(material.text, material.facets),
+            extraFields: material.extraFields,
+          ),
+        )
+        .toList(),
   );
   return ProjectComposerSubmitArguments(
     text: trimmedText,
@@ -57,7 +106,7 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
     images: materializeImagesFromState
         ? imagesState.toCreatePostImages()
         : null,
-    facets: facets.isEmpty ? null : facets,
+    facets: limitedFacets.isEmpty ? null : limitedFacets,
   );
 }
 
