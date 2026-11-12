@@ -67,7 +67,14 @@ export const colours: Record<string, string> = {
 	amber: '#766200',
 	lime: '#23770f',
 	teal: '#007663',
-	ink: '#161210'
+	ink: '#161210',
+	terracotta: '#9a442d',
+	denim: '#365b80',
+	forest: '#286044',
+	plum: '#744369',
+	seafoam: '#246b60',
+	'dusty-pink': '#975165',
+	chocolate: '#694634'
 };
 export const backgrounds = [
 	'none',
@@ -81,7 +88,13 @@ export const backgrounds = [
 	'craft-knitting',
 	'craft-crochet',
 	'craft-quilting',
-	'craft-embroidery'
+	'craft-embroidery',
+	'animated-flow',
+	'animated-waves',
+	'animated-weave',
+	'animated-grain',
+	'animated-marble',
+	'animated-textile'
 ];
 export const businessTypes = [
 	'dyer',

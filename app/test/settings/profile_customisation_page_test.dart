@@ -144,7 +144,6 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
-    expect(find.widgetWithText(ChunkyButton, 'Save'), findsOneWidget);
     final cobaltChip = tester.widget<ChoiceChip>(
       find.widgetWithText(ChoiceChip, 'Cobalt'),
     );
@@ -152,7 +151,7 @@ void main() {
       cobaltChip.color?.resolve({WidgetState.selected}),
       profileColour(profileColourBundles['cobalt']!.base),
     );
-    await _tapChoice(tester, 'Ink');
+    await _tapChoice(tester, 'Terracotta');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
       find.widgetWithText(ChoiceChip, 'Crochet'),
@@ -172,7 +171,7 @@ void main() {
       find.byKey(const Key('profile-avatar-border')),
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
-    expect(border.top.color, const Color(0xFF161210));
+    expect(border.top.color, const Color(0xFF9A442D));
     expect(border.top.width, 5);
     expect(
       find.byKey(const Key('profile-header-background-texture')),
@@ -190,7 +189,7 @@ void main() {
     expect(
       submitted,
       const ProfileCustomisation(
-        colour: 'ink',
+        colour: 'terracotta',
         background: 'craft-crochet',
       ),
     );
@@ -394,28 +393,11 @@ void main() {
     expect(
       tester
           .widgetList<FocusTraversalOrder>(find.byType(FocusTraversalOrder))
-          .map((widget) => (widget.order as NumericFocusOrder).order),
+          .map((widget) => (widget.order as NumericFocusOrder).order)
+          .where((order) => order < 50),
       orderedEquals(<double>[
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        40,
+        ...List.generate(14, (index) => 10.0 + index),
+        ...List.generate(18, (index) => 30.0 + index),
       ]),
     );
     await tester.scrollUntilVisible(
@@ -429,7 +411,7 @@ void main() {
         matching: find.byType(FocusTraversalOrder),
       ),
     );
-    expect((saveOrder.order as NumericFocusOrder).order, 40);
+    expect((saveOrder.order as NumericFocusOrder).order, 50);
     semantics.dispose();
   });
 

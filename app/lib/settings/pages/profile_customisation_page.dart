@@ -150,12 +150,12 @@ class _LoadedCustomisationPageState
                 values: profileBackgroundCatalogue,
                 selected: draft.background,
                 labels: _backgroundLabels(l10n),
-                orderStart: 20,
+                orderStart: 30,
                 onSelected: notifier.selectBackground,
               ),
               const SizedBox(height: 28),
               FocusTraversalOrder(
-                order: const NumericFocusOrder(40),
+                order: const NumericFocusOrder(50),
                 child: ChunkyButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
@@ -286,10 +286,23 @@ Map<String, String> _colourLabels(AppLocalizations l10n) => {
   'lime': l10n.profileCustomisationColourGreen,
   'teal': l10n.profileCustomisationColourTeal,
   'ink': l10n.profileCustomisationColourInk,
+  'terracotta': l10n.profileCustomisationColourTerracotta,
+  'denim': l10n.profileCustomisationColourDenim,
+  'forest': l10n.profileCustomisationColourForest,
+  'plum': l10n.profileCustomisationColourPlum,
+  'seafoam': l10n.profileCustomisationColourSeafoam,
+  'dusty-pink': l10n.profileCustomisationColourDustyPink,
+  'chocolate': l10n.profileCustomisationColourChocolate,
 };
 
 Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'none': l10n.profileCustomisationNone,
+  'animated-flow': l10n.profileCustomisationBackgroundFlow,
+  'animated-waves': l10n.profileCustomisationBackgroundWaves,
+  'animated-weave': l10n.profileCustomisationBackgroundWeave,
+  'animated-grain': l10n.profileCustomisationBackgroundGrain,
+  'animated-marble': l10n.profileCustomisationBackgroundMarble,
+  'animated-textile': l10n.profileCustomisationBackgroundTextile,
   'bayerdark': l10n.profileCustomisationBackgroundDither,
   'cubedark': l10n.profileCustomisationBackgroundGrid,
   'dotcrossdark': l10n.profileCustomisationBackgroundCrossStitch,

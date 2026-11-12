@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ProfileShaderBackground from './ProfileShaderBackground.svelte';
+	import { profileShaderStyle } from './profile-background-shader.ts';
 	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
@@ -342,6 +344,9 @@
 		style={profileStyle(profile.customisation)}
 	>
 		<div class="profile-band">
+			{#if profileShaderStyle(profile.customisation?.profileBackground) !== undefined}<ProfileShaderBackground
+					style={profileShaderStyle(profile.customisation?.profileBackground)!}
+				/>{/if}
 			{#if texture(profile.customisation)}<span
 					class="profile-texture"
 					style:mask-image={texture(profile.customisation)}

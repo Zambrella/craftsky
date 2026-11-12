@@ -65,6 +65,12 @@ export const notificationLabels: Record<string, string> = {
 };
 export const backgroundLabels: Record<string, string> = {
 	none: 'None',
+	'animated-flow': 'Aurora',
+	'animated-waves': 'Colour pools',
+	'animated-weave': 'Sunset',
+	'animated-grain': 'Pigment',
+	'animated-marble': 'Marble',
+	'animated-textile': 'Woven',
 	bayerdark: 'Dither',
 	cubedark: 'Grid',
 	dotcrossdark: 'Cross stitch',

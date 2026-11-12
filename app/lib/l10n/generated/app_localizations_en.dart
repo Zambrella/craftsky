@@ -2217,6 +2217,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColourInk => 'Ink';
 
   @override
+  String get profileCustomisationColourTerracotta => 'Terracotta';
+
+  @override
+  String get profileCustomisationColourDenim => 'Denim';
+
+  @override
+  String get profileCustomisationColourForest => 'Forest';
+
+  @override
+  String get profileCustomisationColourPlum => 'Plum';
+
+  @override
+  String get profileCustomisationColourSeafoam => 'Seafoam';
+
+  @override
+  String get profileCustomisationColourDustyPink => 'Dusty pink';
+
+  @override
+  String get profileCustomisationColourChocolate => 'Chocolate';
+
+  @override
+  String get profileCustomisationBackgroundFlow => 'Aurora';
+
+  @override
+  String get profileCustomisationBackgroundWaves => 'Colour pools';
+
+  @override
+  String get profileCustomisationBackgroundWeave => 'Sunset';
+
+  @override
+  String get profileCustomisationBackgroundGrain => 'Pigment';
+
+  @override
+  String get profileCustomisationBackgroundMarble => 'Marble';
+
+  @override
+  String get profileCustomisationBackgroundTextile => 'Woven';
+
+  @override
   String get profileCustomisationBackgroundDither => 'Dither';
 
   @override

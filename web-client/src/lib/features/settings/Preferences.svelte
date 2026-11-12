@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ProfileShaderBackground from '../social/ProfileShaderBackground.svelte';
+	import { profileShaderStyle } from '../social/profile-background-shader.ts';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
 
@@ -65,7 +67,7 @@
 		}
 	);
 	let pattern = $derived(
-		background === 'none'
+		background === 'none' || profileShaderStyle(background) !== undefined
 			? ''
 			: background.startsWith('craft-')
 				? `/profile_backgrounds/${background}.svg`
@@ -472,6 +474,9 @@
 					aria-label="Profile customisation preview"
 					style={`--chosen-colour:${colours[colour]}`}
 				>
+					{#if profileShaderStyle(background) !== undefined}<ProfileShaderBackground
+							style={profileShaderStyle(background)!}
+						/>{/if}
 					{#if pattern}<div
 							class="preview-pattern"
 							aria-hidden="true"
@@ -498,7 +503,11 @@
 									name="colour"
 									bind:group={colour}
 									{value}
-								/>{value === 'lime' ? 'Green' : title(value)}</label
+								/>{value === 'lime'
+									? 'Green'
+									: value === 'dusty-pink'
+										? 'Dusty pink'
+										: title(value)}</label
 							>{/each}
 					</div>
 				</fieldset>

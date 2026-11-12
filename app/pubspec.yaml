@@ -126,6 +126,7 @@ flutter:
     - assets/fonts/DMSerifDisplay-OFL.txt
   shaders:
     - shaders/share_card_emboss.frag
+    - shaders/profile_background.frag
   fonts:
     - family: Outfit
       fonts:

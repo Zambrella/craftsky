@@ -38,6 +38,13 @@ var (
 		"lime",
 		"teal",
 		"ink",
+		"terracotta",
+		"denim",
+		"forest",
+		"plum",
+		"seafoam",
+		"dusty-pink",
+		"chocolate",
 	}
 	ProfileBackgroundCatalogue = []string{
 		"none",
@@ -52,6 +59,12 @@ var (
 		"craft-crochet",
 		"craft-quilting",
 		"craft-embroidery",
+		"animated-flow",
+		"animated-waves",
+		"animated-weave",
+		"animated-grain",
+		"animated-marble",
+		"animated-textile",
 	}
 )
 

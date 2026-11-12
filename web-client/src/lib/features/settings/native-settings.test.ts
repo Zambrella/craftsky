@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { profileStyle } from '../social/model.ts';
+import palettes from '../social/palette.json';
 import type {
 	BillingState,
 	BillingSubscription,
 	BillingLicense
 } from '#lib/api/types.ts';
-import { imageBody, productBody, type Product } from './model.ts';
+import { colours, imageBody, productBody, type Product } from './model.ts';
 import {
 	canAssignLicense,
 	characterCount,
@@ -172,6 +174,20 @@ describe('native record text limits', () => {
 });
 
 describe('native settings catalogues and future values', () => {
+	it('keeps every selectable colour when loading preferences and rendering profiles', () => {
+		expect(Object.keys(colours)).toEqual(Object.keys(palettes));
+		for (const [colour, hex] of Object.entries(colours)) {
+			const customisation = { colour, profileBackground: 'craft-knitting' };
+			expect(effectiveCustomisation(customisation)).toEqual({
+				colour,
+				background: 'craft-knitting'
+			});
+			expect(profileStyle(customisation)).toContain(
+				`--profile-accent:${hex.toUpperCase()};`
+			);
+		}
+	});
+
 	it('resolves unknown customisation values to safe native defaults', () => {
 		expect(
 			effectiveCustomisation({

@@ -21,7 +21,7 @@ void main() {
   test('every craft background key maps to a bundled craft icon', () {
     expect(
       profileCraftBackgrounds.keys,
-      profileBackgroundCatalogue.skip(7),
+      profileBackgroundCatalogue.skip(7).take(5),
     );
     for (final craft in profileCraftBackgrounds.values) {
       expect(CraftIcon.assetPathFor(craft), isNotNull);

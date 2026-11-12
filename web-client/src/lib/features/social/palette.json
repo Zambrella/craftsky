@@ -82,5 +82,89 @@
 		"darkPressed": "#CFC6BB",
 		"softContainer": "#EFE7D6",
 		"textureTint": "#FFFFFF"
+	},
+	"terracotta": {
+		"base": "#9A442D",
+		"foreground": "#FFFFFF",
+		"hover": "#863B27",
+		"pressed": "#723221",
+		"darkAccent": "#ECA68E",
+		"darkForeground": "#171513",
+		"darkHover": "#EFB29E",
+		"darkPressed": "#D0927D",
+		"softContainer": "#F4DDD4",
+		"textureTint": "#FFFFFF"
+	},
+	"denim": {
+		"base": "#365B80",
+		"foreground": "#FFFFFF",
+		"hover": "#2F4F6F",
+		"pressed": "#28435F",
+		"darkAccent": "#9FBDDC",
+		"darkForeground": "#171513",
+		"darkHover": "#ACC6E1",
+		"darkPressed": "#8CA6C2",
+		"softContainer": "#DFE8F2",
+		"textureTint": "#FFFFFF"
+	},
+	"forest": {
+		"base": "#286044",
+		"foreground": "#FFFFFF",
+		"hover": "#23543B",
+		"pressed": "#1E4732",
+		"darkAccent": "#97C8A9",
+		"darkForeground": "#171513",
+		"darkHover": "#A6D0B5",
+		"darkPressed": "#85B095",
+		"softContainer": "#DDEDE2",
+		"textureTint": "#FFFFFF"
+	},
+	"plum": {
+		"base": "#744369",
+		"foreground": "#FFFFFF",
+		"hover": "#653A5B",
+		"pressed": "#56324E",
+		"darkAccent": "#CCA4C4",
+		"darkForeground": "#171513",
+		"darkHover": "#D3B1CC",
+		"darkPressed": "#B490AC",
+		"softContainer": "#EEDFEB",
+		"textureTint": "#FFFFFF"
+	},
+	"seafoam": {
+		"base": "#246B60",
+		"foreground": "#FFFFFF",
+		"hover": "#1F5D54",
+		"pressed": "#1B4F47",
+		"darkAccent": "#9BD4C6",
+		"darkForeground": "#171513",
+		"darkHover": "#A9DACE",
+		"darkPressed": "#88BBAE",
+		"softContainer": "#DDF0EA",
+		"textureTint": "#FFFFFF"
+	},
+	"dusty-pink": {
+		"base": "#975165",
+		"foreground": "#FFFFFF",
+		"hover": "#834658",
+		"pressed": "#703C4B",
+		"darkAccent": "#DFAABC",
+		"darkForeground": "#171513",
+		"darkHover": "#E3B6C5",
+		"darkPressed": "#C496A5",
+		"softContainer": "#F3E0E7",
+		"textureTint": "#FFFFFF"
+	},
+	"chocolate": {
+		"base": "#694634",
+		"foreground": "#FFFFFF",
+		"hover": "#5B3D2D",
+		"pressed": "#4E3426",
+		"darkAccent": "#D2B29A",
+		"darkForeground": "#171513",
+		"darkHover": "#D8BDA8",
+		"darkPressed": "#B99D88",
+		"softContainer": "#EDE1D5",
+		"textureTint": "#FFFFFF"
 	}
 }

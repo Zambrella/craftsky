@@ -18,6 +18,13 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"lime",
 		"teal",
 		"ink",
+		"terracotta",
+		"denim",
+		"forest",
+		"plum",
+		"seafoam",
+		"dusty-pink",
+		"chocolate",
 	})
 	assertCatalogue(t, "backgrounds", api.ProfileBackgroundCatalogue, []string{
 		"none",
@@ -32,6 +39,12 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"craft-crochet",
 		"craft-quilting",
 		"craft-embroidery",
+		"animated-flow",
+		"animated-waves",
+		"animated-weave",
+		"animated-grain",
+		"animated-marble",
+		"animated-textile",
 	})
 
 	wantDefault := api.ProfileCustomisation{

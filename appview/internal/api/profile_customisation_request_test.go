@@ -11,18 +11,22 @@ import (
 func TestProfileCustomisationRequestAcceptsCompleteSupportedValue(t *testing.T) {
 	t.Parallel()
 
-	got, err := api.DecodeProfileCustomisationPut(strings.NewReader(
-		`{"colour":"ink","profileBackground":"cubedark"}`,
-	))
-	if err != nil {
-		t.Fatalf("DecodeProfileCustomisationPut: %v", err)
-	}
-	want := api.ProfileCustomisation{
-		Colour:     "ink",
-		Background: "cubedark",
-	}
-	if got != want {
-		t.Fatalf("request = %+v, want %+v", got, want)
+	for _, colour := range api.ProfileColourCatalogue {
+		for _, background := range api.ProfileBackgroundCatalogue {
+			got, err := api.DecodeProfileCustomisationPut(strings.NewReader(
+				`{"colour":"` + colour + `","profileBackground":"` + background + `"}`,
+			))
+			if err != nil {
+				t.Fatalf("DecodeProfileCustomisationPut(%q): %v", colour, err)
+			}
+			want := api.ProfileCustomisation{Colour: colour, Background: background}
+			if got != want {
+				t.Fatalf("request = %+v, want %+v", got, want)
+			}
+			if effective := api.EffectiveProfileCustomisation(got); effective != want {
+				t.Fatalf("effective customisation = %+v, want %+v", effective, want)
+			}
+		}
 	}
 }
 

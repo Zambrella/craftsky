@@ -3940,6 +3940,84 @@ abstract class AppLocalizations {
   /// **'Ink'**
   String get profileCustomisationColourInk;
 
+  /// Label for the terracotta profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Terracotta'**
+  String get profileCustomisationColourTerracotta;
+
+  /// Label for the denim profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Denim'**
+  String get profileCustomisationColourDenim;
+
+  /// Label for the forest profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Forest'**
+  String get profileCustomisationColourForest;
+
+  /// Label for the plum profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Plum'**
+  String get profileCustomisationColourPlum;
+
+  /// Label for the seafoam profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Seafoam'**
+  String get profileCustomisationColourSeafoam;
+
+  /// Label for the dusty pink profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Dusty pink'**
+  String get profileCustomisationColourDustyPink;
+
+  /// Label for the chocolate profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Chocolate'**
+  String get profileCustomisationColourChocolate;
+
+  /// Label for the animated aurora gradient profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Aurora'**
+  String get profileCustomisationBackgroundFlow;
+
+  /// Label for the animated colour pools profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour pools'**
+  String get profileCustomisationBackgroundWaves;
+
+  /// Label for the animated sunset gradient profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunset'**
+  String get profileCustomisationBackgroundWeave;
+
+  /// Label for the animated textured pigment gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Pigment'**
+  String get profileCustomisationBackgroundGrain;
+
+  /// Label for the animated textured marble gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Marble'**
+  String get profileCustomisationBackgroundMarble;
+
+  /// Label for the animated textured woven gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Woven'**
+  String get profileCustomisationBackgroundTextile;
+
   /// Label for the bayerdark profile texture.
   ///
   /// In en, this message translates to:

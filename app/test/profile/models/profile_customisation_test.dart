@@ -23,6 +23,13 @@ void main() {
         'lime',
         'teal',
         'ink',
+        'terracotta',
+        'denim',
+        'forest',
+        'plum',
+        'seafoam',
+        'dusty-pink',
+        'chocolate',
       ]);
       expect(profileBackgroundCatalogue, [
         'none',
@@ -37,10 +44,16 @@ void main() {
         'craft-crochet',
         'craft-quilting',
         'craft-embroidery',
+        'animated-flow',
+        'animated-waves',
+        'animated-weave',
+        'animated-grain',
+        'animated-marble',
+        'animated-textile',
       ]);
 
-      expect(profileColourCatalogue.toSet(), hasLength(7));
-      expect(profileBackgroundCatalogue.toSet(), hasLength(12));
+      expect(profileColourCatalogue.toSet(), hasLength(14));
+      expect(profileBackgroundCatalogue.toSet(), hasLength(18));
       expect(profileCraftBackgrounds, {
         'craft-sewing': 'sewing',
         'craft-knitting': 'knitting',
@@ -57,7 +70,7 @@ void main() {
 
   test('colour keys resolve to the approved local theme bundles', () {
     expect(profileColourBundles.keys, profileColourCatalogue);
-    expect(profileColourBundles, {
+    expect(Map.fromEntries(profileColourBundles.entries.take(7)), {
       'cobalt': const ProfileColourBundle(
         base: '#1535D6',
         foreground: '#FFFFFF',

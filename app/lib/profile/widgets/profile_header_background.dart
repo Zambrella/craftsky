@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_shader_background.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -39,8 +40,12 @@ class ProfileHeaderBackground extends StatelessWidget {
       child: ColoredBox(
         key: backgroundKey,
         color: profileColour(bundle.base),
-        child: switch ((asset, craft)) {
-          (final asset?, _) => Image.asset(
+        child: switch ((
+          asset,
+          craft,
+          profileShaderBackgrounds[customisation.background],
+        )) {
+          (final asset?, _, _) => Image.asset(
             asset,
             key: textureKey,
             fit: BoxFit.none,
@@ -49,10 +54,14 @@ class ProfileHeaderBackground extends StatelessWidget {
             colorBlendMode: BlendMode.srcIn,
             filterQuality: FilterQuality.none,
           ),
-          (_, final craft?) => _CraftIconTile(
+          (_, final craft?, _) => _CraftIconTile(
             key: textureKey,
             craft: craft,
             color: tint,
+          ),
+          (_, _, final style?) => ProfileShaderBackground(
+            key: textureKey,
+            style: style,
           ),
           _ => null,
         },

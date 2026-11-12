@@ -1893,6 +1893,45 @@
   "profileCustomisationColourInk": "Ink",
   "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
 
+  "profileCustomisationColourTerracotta": "Terracotta",
+  "@profileCustomisationColourTerracotta": { "description": "Label for the terracotta profile colour." },
+
+  "profileCustomisationColourDenim": "Denim",
+  "@profileCustomisationColourDenim": { "description": "Label for the denim profile colour." },
+
+  "profileCustomisationColourForest": "Forest",
+  "@profileCustomisationColourForest": { "description": "Label for the forest profile colour." },
+
+  "profileCustomisationColourPlum": "Plum",
+  "@profileCustomisationColourPlum": { "description": "Label for the plum profile colour." },
+
+  "profileCustomisationColourSeafoam": "Seafoam",
+  "@profileCustomisationColourSeafoam": { "description": "Label for the seafoam profile colour." },
+
+  "profileCustomisationColourDustyPink": "Dusty pink",
+  "@profileCustomisationColourDustyPink": { "description": "Label for the dusty pink profile colour." },
+
+  "profileCustomisationColourChocolate": "Chocolate",
+  "@profileCustomisationColourChocolate": { "description": "Label for the chocolate profile colour." },
+
+  "profileCustomisationBackgroundFlow": "Aurora",
+  "@profileCustomisationBackgroundFlow": { "description": "Label for the animated aurora gradient profile background." },
+
+  "profileCustomisationBackgroundWaves": "Colour pools",
+  "@profileCustomisationBackgroundWaves": { "description": "Label for the animated colour pools profile background." },
+
+  "profileCustomisationBackgroundWeave": "Sunset",
+  "@profileCustomisationBackgroundWeave": { "description": "Label for the animated sunset gradient profile background." },
+
+  "profileCustomisationBackgroundGrain": "Pigment",
+  "@profileCustomisationBackgroundGrain": { "description": "Label for the animated textured pigment gradient background." },
+
+  "profileCustomisationBackgroundMarble": "Marble",
+  "@profileCustomisationBackgroundMarble": { "description": "Label for the animated textured marble gradient background." },
+
+  "profileCustomisationBackgroundTextile": "Woven",
+  "@profileCustomisationBackgroundTextile": { "description": "Label for the animated textured woven gradient background." },
+
   "profileCustomisationBackgroundDither": "Dither",
   "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },
 
