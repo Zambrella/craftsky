@@ -1499,6 +1499,38 @@ test('post hover only advertises navigation and closing a comment does not leave
 	await expect(page).toHaveURL(/\/feed$/);
 });
 
+test('closing a comment while its post is loading returns to the post without a composer history entry', async ({
+	page
+}) => {
+	const value = post();
+	await timeline(page, value);
+	await page.goto('/feed');
+	await page.getByText(value.text, { exact: true }).click();
+	await expect(page).toHaveURL(/\/posts\//);
+	let release!: () => void;
+	const pending = new Promise<void>((resolve) => (release = resolve));
+	let requested!: () => void;
+	const started = new Promise<void>((resolve) => (requested = resolve));
+	await page.route(
+		/\/api\/appview\/v1\/posts\/[^/]+\/[^/?]+$/,
+		async (route) => {
+			requested();
+			await pending;
+			await route.fulfill({ json: value });
+		}
+	);
+	try {
+		await page.locator('.comment-compose').click();
+		await started;
+		await page.getByRole('link', { name: 'Close editor', exact: true }).click();
+		await expect(page).toHaveURL(/\/posts\//);
+		await page.getByRole('link', { name: 'Back', exact: true }).click();
+		await expect(page).toHaveURL(/\/feed$/);
+	} finally {
+		release();
+	}
+});
+
 test('likes rows keep avatar and identity centred, contiguous and highlighted on hover', async ({
 	page
 }) => {
