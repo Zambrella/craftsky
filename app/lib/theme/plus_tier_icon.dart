@@ -18,15 +18,23 @@ class PlusTierIcon extends StatelessWidget {
     final dimension = size ?? iconTheme.size ?? 24;
     final foreground =
         color ?? iconTheme.color ?? Theme.of(context).colorScheme.onSurface;
-    return SvgPicture.string(
-      _svg,
+    return SizedBox(
       width: dimension,
       height: dimension,
-      colorFilter: ColorFilter.mode(
-        foreground.withValues(alpha: foreground.a * (iconTheme.opacity ?? 1)),
-        BlendMode.srcIn,
+      child: Center(
+        child: SvgPicture.string(
+          _svg,
+          width: dimension,
+          height: dimension,
+          colorFilter: ColorFilter.mode(
+            foreground.withValues(
+              alpha: foreground.a * (iconTheme.opacity ?? 1),
+            ),
+            BlendMode.srcIn,
+          ),
+          excludeFromSemantics: true,
+        ),
       ),
-      excludeFromSemantics: true,
     );
   }
 }

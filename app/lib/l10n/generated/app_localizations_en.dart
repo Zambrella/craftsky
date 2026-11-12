@@ -4314,11 +4314,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionsPlusBenefits =>
-      'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.';
+      'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.';
 
   @override
   String get subscriptionsBusinessBenefits =>
-      'Everything in Plus, plus featured products, a profile action button, business details and events.';
+      'Everything in Plus, Featured products, Profile action button, Business details and events.';
 
   @override
   String get subscriptionsViewDetails => 'View details';

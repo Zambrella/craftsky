@@ -182,8 +182,8 @@
 				</div>
 				<p class="muted">
 					{tier === 'business'
-						? 'Everything in Plus, plus featured products, a profile action button, business details and events.'
-						: 'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.'}
+						? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
+						: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
 				</p>
 				{#each billing.subscriptions.filter( (subscription) => billing!.licenses.some((license) => license.tier === tier && license.subscriptionId === subscription.id) ) as subscription}{@const managementURL =
 						storeManagementURL(subscription.store)}

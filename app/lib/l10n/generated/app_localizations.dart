@@ -7626,13 +7626,13 @@ abstract class AppLocalizations {
   /// Short Plus feature summary shown on every Plus subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.'**
+  /// **'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'**
   String get subscriptionsPlusBenefits;
 
   /// Short Business feature summary shown on every Business subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Everything in Plus, plus featured products, a profile action button, business details and events.'**
+  /// **'Everything in Plus, Featured products, Profile action button, Business details and events.'**
   String get subscriptionsBusinessBenefits;
 
   /// Open a tier paywall or its subscription management details.

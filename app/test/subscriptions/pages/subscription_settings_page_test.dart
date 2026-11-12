@@ -119,11 +119,11 @@ void main() {
     expect(find.text('Assigned to @bob.test'), findsOneWidget);
     expect(find.text('Business'), findsWidgets);
     expect(
-      find.textContaining('Schedule posts, organise saves'),
+      find.textContaining('Schedule posts, Saved folders'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Everything in Plus, plus featured products'),
+      find.textContaining('Everything in Plus, Featured products'),
       findsOneWidget,
     );
     expect(find.text('Status unavailable'), findsOneWidget);
@@ -155,10 +155,10 @@ void main() {
     );
 
     expect(
-      find.textContaining('pin posts and track follower growth'),
+      find.textContaining('Pinned posts, Follower growth'),
       findsOneWidget,
     );
-    expect(find.textContaining('business details and events'), findsOneWidget);
+    expect(find.textContaining('Business details and events'), findsOneWidget);
   });
 
   testWidgets('AT-014 pending reconciliation offers refresh, not checkout', (
