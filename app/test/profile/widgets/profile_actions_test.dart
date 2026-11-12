@@ -23,6 +23,26 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 
 void main() {
   group('ProfileActions', () {
+    testWidgets('own profile opens Share card from the context menu', (
+      tester,
+    ) async {
+      var opened = false;
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: SelfProfileActionSet(
+            onEdit: () {},
+            onSettings: () {},
+            onShareCard: () => opened = true,
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share card'));
+      await tester.pumpAndSettle();
+      expect(opened, isTrue);
+    });
     for (final label in ['Followers', 'Following']) {
       testWidgets('visitor menu opens $label', (tester) async {
         String? opened;

@@ -1084,6 +1084,30 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get profileSettingsAction;
 
+  /// Profile context-menu action opening the downloadable QR profile card.
+  ///
+  /// In en, this message translates to:
+  /// **'Share card'**
+  String get profileShareCardAction;
+
+  /// Heading above the profile share card overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Your share card'**
+  String get profileShareCardTitle;
+
+  /// Caption beneath the profile QR code on a share card.
+  ///
+  /// In en, this message translates to:
+  /// **'Meet me on CraftSky'**
+  String get profileShareCardScan;
+
+  /// Accessibility label for the QR image linking to the displayed profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan to open this CraftSky profile'**
+  String get profileShareCardQrLabel;
+
   /// Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action.
   ///
   /// In en, this message translates to:
@@ -3190,11 +3214,17 @@ abstract class AppLocalizations {
   /// **'Could not update follow state.'**
   String get profileFollowToggleError;
 
-  /// Snackbar shown when tapping Share while share wiring isn't implemented yet.
+  /// Share card button label while preparing or sharing the card image.
   ///
   /// In en, this message translates to:
-  /// **'Share coming soon.'**
-  String get profileShareComingSoon;
+  /// **'Loading...'**
+  String get profileShareCardLoading;
+
+  /// Retry message when creating or sharing a profile card image fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t share your card. Please try again.'**
+  String get profileShareCardFailed;
 
   /// Tooltip/action label for reporting a visitor profile.
   ///

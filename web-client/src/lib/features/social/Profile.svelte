@@ -8,6 +8,7 @@
 	import { notify } from './toasts.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
+	import ProfileShareCard from './ProfileShareCard.svelte';
 	import RichText from './RichText.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
@@ -75,6 +76,8 @@
 		}
 	>();
 	let loadedTab: string | undefined = snapshot?.tab;
+	let shareCard = $state<Profile>();
+	let shareReturnFocus = $state<HTMLElement>();
 	let hydrated = $state(false);
 	let profile = $state<Profile | undefined>(snapshot?.profile);
 	const avatarURL = $derived(safeURL(profile?.avatar ?? undefined));
@@ -463,6 +466,17 @@
 					<div class="menu-items">
 						<button
 							data-public-action
+							onclick={(event) => {
+								shareReturnFocus =
+									event.currentTarget
+										.closest('details')
+										?.querySelector('summary') ?? undefined;
+								shareCard = profile;
+							}}><Icon name="shareCard" />Share card</button
+						>
+
+						<button
+							data-public-action
 							disabled={work.busy}
 							onclick={() =>
 								void work.run(
@@ -680,6 +694,13 @@
 		</div>
 	</div>{/if}
 
+{#if shareCard && shareCard.did === profile?.did}
+	<ProfileShareCard
+		profile={shareCard}
+		returnFocus={shareReturnFocus}
+		onClose={() => (shareCard = undefined)}
+	/>
+{/if}
 {#if avatarOpen && avatarURL}<ImageGallery
 		images={[
 			{
