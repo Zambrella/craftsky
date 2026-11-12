@@ -6,6 +6,7 @@ import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:flutter/foundation.dart';
 
 /// One bucket for one captured account activation; never marks or accepts read.
@@ -78,8 +79,15 @@ final class ChatInboxController extends ChangeNotifier {
     final snapshot = ++_snapshot;
     _publish(() => loading = true);
     try {
-      final page = await _operation.step(
-        () => _repository.conversations(bucket: bucket),
+      final page = await reloadLoadedRange<ChatConversation, ChatCursor>(
+        minimumItems: items.length,
+        key: (item) => item.id,
+        fetch: (cursor) async {
+          final page = await _operation.step(
+            () => _repository.conversations(bucket: bucket, cursor: cursor),
+          );
+          return (items: page.items, cursor: page.cursor);
+        },
       );
       if (snapshot != _snapshot) return;
       _publish(() {

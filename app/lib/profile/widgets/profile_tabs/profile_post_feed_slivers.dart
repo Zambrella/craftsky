@@ -12,6 +12,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -90,8 +91,8 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
             child: emptyState,
           )
         else
-          SliverList.builder(
-            itemCount: posts.length,
+          AnchoredSliverList(
+            identities: [for (final post in posts) post.uri],
             itemBuilder: (context, index) {
               if (hasMore &&
                   !isLoadingMore &&

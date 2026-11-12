@@ -395,3 +395,69 @@ it('does not repeatedly report the same failed polling cycle', async () => {
 	expect(reportFailure).toHaveBeenCalledExactlyOnceWith(cause, 'messages.sync');
 	expect(controller.state.error).not.toContain('PRIVATE_CANARY');
 });
+
+it('inbox refresh reloads its loaded range atomically and retains it if a continuation fails', async () => {
+	const { api, controller } = setup();
+	let fail = false;
+	let finish!: () => void;
+	let refreshing = false;
+	let delayed = Promise.resolve();
+	vi.mocked(api.chat.conversations).mockImplementation(
+		async (_bucket, options) => {
+			if (refreshing && options?.cursor) {
+				await delayed;
+				if (fail) throw new APIError(503, 'unavailable', 'Offline');
+			}
+			return options?.cursor
+				? { items: [conversation('older')] }
+				: { items: [conversation('newest')], cursor: 'next' };
+		}
+	);
+	await controller.navigate([]);
+	await controller.more();
+	expect(controller.state.conversations.map((item) => item.id)).toEqual([
+		'newest',
+		'older'
+	]);
+	refreshing = true;
+	delayed = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	const request = controller.refresh();
+	await Promise.resolve();
+	expect(controller.state.conversations).toHaveLength(2);
+	finish();
+	await request;
+	expect(controller.state.conversations).toHaveLength(2);
+	fail = true;
+	await controller.refresh();
+	expect(controller.state.conversations).toHaveLength(2);
+	controller.dispose();
+});
+
+it('refresh reloads restricted inbox status without requesting private conversations', async () => {
+	const { api, controller } = setup();
+	const restricted: ChatStatus = {
+		...ready,
+		state: 'restricted',
+		capabilities: {
+			canRead: false,
+			canSend: false,
+			canReport: false,
+			canSetPolicy: false
+		}
+	};
+	vi.mocked(api.chat.status)
+		.mockResolvedValueOnce(restricted)
+		.mockResolvedValueOnce({
+			...restricted,
+			enabled: false,
+			state: 'disabled'
+		});
+	await controller.navigate([]);
+	expect(controller.state.status?.state).toBe('restricted');
+	await controller.refresh();
+	expect(controller.state.status?.state).toBe('disabled');
+	expect(api.chat.conversations).not.toHaveBeenCalled();
+	controller.dispose();
+});

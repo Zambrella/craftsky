@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
+	let inboxNode = $state<HTMLElement>();
+
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
@@ -361,6 +364,12 @@
 			}
 		}
 	}
+	$effect.pre(() => {
+		void viewState?.conversations;
+		if (!inboxNode) return;
+		const restore = untrack(() => captureScrollAnchor(inboxNode!));
+		void tick().then(restore);
+	});
 </script>
 
 <section
@@ -644,8 +653,10 @@
 						: 'No messages yet.'}
 				</p>
 			</div>{/if}
-		<ul class="conversation-list">
-			{#each viewState.conversations as conversation (conversation.id)}<li>
+		<ul bind:this={inboxNode} class="conversation-list">
+			{#each viewState.conversations as conversation (conversation.id)}<li
+					data-scroll-anchor={conversation.id}
+				>
 					<a class="conversation-row" href={conversationURL(conversation.id)}
 						><span class="avatar"
 							>{#if safeAvatar(conversation.peer.avatar)}<img
@@ -753,7 +764,9 @@
 				>{/if}
 		{:else}<h2 class="list-heading">Recent conversations</h2>
 			<ul class="conversation-list">
-				{#each viewState.conversations as conversation (conversation.id)}<li>
+				{#each viewState.conversations as conversation (conversation.id)}<li
+						data-scroll-anchor={conversation.id}
+					>
 						{#if sharedLink}<button
 								class="conversation-row recipient"
 								disabled={viewState.busy}

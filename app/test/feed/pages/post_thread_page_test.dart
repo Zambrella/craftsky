@@ -1077,6 +1077,8 @@ void main() {
         final repository = FakePostRepository(
           onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
               section,
+          onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+              throw const ApiNetworkError('offline'),
           onDelete: (did, rkey) => pending.future,
         );
         await _pumpThreadRoute(

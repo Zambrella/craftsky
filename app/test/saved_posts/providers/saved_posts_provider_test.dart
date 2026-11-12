@@ -15,6 +15,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('saved refresh retains loaded depth and old rows '
+      'after a continuation failure', () async {
+    final account = AccountKey('did:plc:alice');
+    final key = SavedPostListKey(
+      account: account,
+      scope: const SavedPostScope.unfiled(),
+      sort: SavedPostSort.newest,
+    );
+    final repository = _CollectionRepository()
+      ..enqueueList(
+        key,
+        null,
+        SavedPostPage(items: [_item('one')], cursor: 'next'),
+      )
+      ..enqueueList(key, 'next', SavedPostPage(items: [_item('two')]));
+    final container = ProviderContainer.test(
+      overrides: [
+        accountSavedPostRepositoryProvider(account)
+            .overrideWith((ref) async => repository),
+      ],
+    );
+    final provider = savedPostsProvider(key);
+    container.listen(provider, (_, _) {});
+    await container.read(provider.future);
+    await container.read(provider.notifier).loadMore();
+    repository
+      ..enqueueList(
+        key,
+        null,
+        SavedPostPage(items: [_item('one')], cursor: 'next'),
+      )
+      ..enqueueList(key, 'next', SavedPostPage(items: [_item('two')]));
+    await container.read(provider.notifier).refresh();
+    expect(container.read(provider).requireValue.items, hasLength(2));
+    final failed = Completer<SavedPostPage>();
+    repository
+      ..enqueueList(
+        key,
+        null,
+        SavedPostPage(items: [_item('one')], cursor: 'next'),
+      )
+      ..enqueueList(key, 'next', failed.future);
+    final refresh = container.read(provider.notifier).refresh();
+    await Future<void>.delayed(Duration.zero);
+    failed.completeError(StateError('offline'));
+    await refresh;
+    expect(container.read(provider).requireValue.items, hasLength(2));
+    expect(container.read(provider).requireValue.incrementalError, isNotNull);
+  });
+
   setUpAll(initializeMappers);
 
   test('IT-003 isolates resources and restarts folder pages safely', () async {

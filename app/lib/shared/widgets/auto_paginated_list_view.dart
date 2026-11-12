@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -14,10 +15,12 @@ class AutoPaginatedListView extends StatelessWidget {
     required this.hasLoadMoreError,
     required this.onNearEnd,
     required this.itemBuilder,
+    this.identities,
     super.key,
   });
 
   final int itemCount;
+  final List<Object>? identities;
   final Widget emptyState;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
@@ -29,6 +32,22 @@ class AutoPaginatedListView extends StatelessWidget {
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     if (itemCount == 0) return emptyState;
+    Widget buildItem(BuildContext context, int index) {
+      if (index < itemCount) return itemBuilder(context, index);
+      return Padding(
+        padding: EdgeInsets.all(spacing.sp4),
+        child: Center(
+          child: isLoadingMore
+              ? const StitchProgressIndicator()
+              : TextButton.icon(
+                  onPressed: onNearEnd,
+                  icon: const Icon(CraftskyIconsBold.refresh),
+                  label: Text(AppLocalizations.of(context).retryButton),
+                ),
+        ),
+      );
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.metrics.extentAfter < autoLoadMoreExtent &&
@@ -38,25 +57,28 @@ class AutoPaginatedListView extends StatelessWidget {
         }
         return false;
       },
-      child: ListView.builder(
-        padding: EdgeInsets.only(bottom: spacing.sp5),
-        itemCount: itemCount + (isLoadingMore || hasLoadMoreError ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index < itemCount) return itemBuilder(context, index);
-          return Padding(
-            padding: EdgeInsets.all(spacing.sp4),
-            child: Center(
-              child: isLoadingMore
-                  ? const StitchProgressIndicator()
-                  : TextButton.icon(
-                      onPressed: onNearEnd,
-                      icon: const Icon(CraftskyIconsBold.refresh),
-                      label: Text(AppLocalizations.of(context).retryButton),
-                    ),
+      child: identities == null
+          ? ListView.builder(
+              padding: EdgeInsets.only(bottom: spacing.sp5),
+              itemCount:
+                  itemCount + (isLoadingMore || hasLoadMoreError ? 1 : 0),
+              itemBuilder: buildItem,
+            )
+          : CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.only(bottom: spacing.sp5),
+                  sliver: AnchoredSliverList(
+                    identities: [
+                      ...identities!,
+                      if (isLoadingMore || hasLoadMoreError)
+                        const ValueKey('pagination-footer'),
+                    ],
+                    itemBuilder: buildItem,
+                  ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
     );
   }
 }

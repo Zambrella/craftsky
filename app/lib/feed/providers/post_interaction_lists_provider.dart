@@ -13,6 +13,7 @@ import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'post_interaction_lists_provider.g.dart';
@@ -39,7 +40,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
     if (audience != null && ownership.context != audience) {
       throw const ContentReadDiscarded();
     }
-    final page = await _list();
+    final page = await _reload(state.value?.items.length ?? 0);
     if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -96,13 +97,33 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
     final ownership = ContentReadGuard.capture(ref);
     state = const AsyncLoading<PostInteractionAccountsState>();
     try {
-      final page = await _list();
+      final page = await _reload(current.items.length);
       if (!_isCurrent(generation, ownership)) return;
       state = AsyncData(_accountState(page));
     } on Object catch (error, stackTrace) {
       if (!_isCurrent(generation, ownership)) return;
       state = AsyncError<PostInteractionAccountsState>(error, stackTrace);
     }
+  }
+
+  Future<ProfileAccountPage> _reload(int count) async {
+    final operation = ContentReadGuard.capture(ref);
+    var total = 0;
+    final result = await reloadLoadedRange<ProfileAccountSummary, String>(
+      minimumItems: count,
+      key: (item) => item.did,
+      fetch: (cursor) async {
+        final page = await _list(cursor: cursor);
+        operation.requireCurrent(discarded: const ApiCanceled());
+        total = page.totalCount;
+        return (items: page.items, cursor: page.cursor);
+      },
+    );
+    return ProfileAccountPage(
+      items: result.items,
+      cursor: result.cursor,
+      totalCount: total,
+    );
   }
 
   Future<ProfileAccountPage> _list({String? cursor}) => switch (kind) {
@@ -160,7 +181,7 @@ class PostQuotes extends _$PostQuotes {
     if (audience != null && ownership.context != audience) {
       throw const ContentReadDiscarded();
     }
-    final page = await _list();
+    final page = await _reload(state.value?.items.length ?? 0);
     if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -237,13 +258,27 @@ class PostQuotes extends _$PostQuotes {
     final ownership = ContentReadGuard.capture(ref);
     state = const AsyncLoading<PostQuotesState>();
     try {
-      final page = await _list();
+      final page = await _reload(current.items.length);
       if (!_isCurrent(generation, ownership)) return;
       state = AsyncData(_quoteState(ref, did, rkey, page));
     } on Object catch (error, stackTrace) {
       if (!_isCurrent(generation, ownership)) return;
       state = AsyncError<PostQuotesState>(error, stackTrace);
     }
+  }
+
+  Future<PostPage> _reload(int count) async {
+    final operation = ContentReadGuard.capture(ref);
+    final result = await reloadLoadedRange<Post, String>(
+      minimumItems: count,
+      key: (item) => item.uri,
+      fetch: (cursor) async {
+        final page = await _list(cursor: cursor);
+        operation.requireCurrent(discarded: const ApiCanceled());
+        return (items: page.items, cursor: page.cursor);
+      },
+    );
+    return PostPage(items: result.items, cursor: result.cursor);
   }
 
   Future<PostPage> _list({String? cursor}) => ref

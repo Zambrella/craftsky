@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
+	let feedElement = $state<HTMLElement>();
+
 	import { appendPage, reloadPages } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { getContext, onMount, onDestroy, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack, tick } from 'svelte';
 	import {
 		Publications,
 		publicationsContext,
@@ -92,6 +95,12 @@
 			const item = byUri.get(post.uri)?.shift();
 			return { ...item, key: item?.key ?? 'published:' + post.uri, post };
 		});
+	});
+	$effect.pre(() => {
+		void displayedItems;
+		if (!feedElement) return;
+		const restore = untrack(() => captureScrollAnchor(feedElement!));
+		void tick().then(restore);
 	});
 	async function load(more = false) {
 		const request = historyView?.beginLoad();
@@ -198,7 +207,11 @@
 	});
 </script>
 
-<div class="feed-content" hidden={page.url.pathname.endsWith('/filters')}>
+<div
+	bind:this={feedElement}
+	class="feed-content"
+	hidden={page.url.pathname.endsWith('/filters')}
+>
 	<div class="workspace-heading">
 		<h1>Home</h1>
 		{#if craft || guest}<div class="heading-actions">
@@ -255,14 +268,16 @@
 		showLoading={!loaded}
 		skeleton="posts"
 		reload={() => load()}
-	/>{#each displayedItems as item (item.key)}<MemberPost
-			value={item.post}
-			reason={item.reason}
-			followedBy={item.followedBy}
-			{api}
-			{did}
-			onRemove={() => (items = items.filter((old) => old.key !== item.key))}
-		/>{:else}{#if !work.busy && !work.error}<EmptyState
+	/>{#each displayedItems as item (item.key)}<div data-scroll-anchor={item.key}>
+			<MemberPost
+				value={item.post}
+				reason={item.reason}
+				followedBy={item.followedBy}
+				{api}
+				{did}
+				onRemove={() => (items = items.filter((old) => old.key !== item.key))}
+			/>
+		</div>{:else}{#if !work.busy && !work.error}<EmptyState
 				title={craft
 					? label(craft)
 					: extendedNetwork

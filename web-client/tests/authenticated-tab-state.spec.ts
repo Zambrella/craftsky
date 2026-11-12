@@ -531,11 +531,21 @@ test('extended network deep links retain their own pages, connection attribution
 	await expect.poll(() => page.evaluate(() => scrollY)).toBe(networkY);
 	expect(networkRequests).toBe(2);
 	expect(followingRequests).toBe(1);
+	const refreshedContinuation = page.waitForResponse((response) => {
+		const url = new URL(response.url());
+		return (
+			url.pathname.endsWith('/feed/extended-network') &&
+			url.searchParams.get('cursor') === 'network-next'
+		);
+	});
 	await page.evaluate(() =>
 		window.dispatchEvent(new Event('craftsky-refresh'))
 	);
-	await expect(page.locator('.member-post')).toHaveCount(12);
-	expect(networkRequests).toBe(3);
+	await refreshedContinuation;
+	await expect(page.locator('.member-post')).toHaveCount(24);
+	await expect.poll(() => page.evaluate(() => scrollY)).toBe(networkY);
+	expect(networkRequests).toBe(4);
+	expect(followingRequests).toBe(1);
 });
 
 test('extended network retries initial and subsequent pages without losing loaded posts', async ({
