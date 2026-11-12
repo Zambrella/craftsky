@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
+import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -18,6 +23,35 @@ import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
+  testWidgets('reconciliation retains feed position beyond the first page', (
+    tester,
+  ) async {
+    await _pumpFeed(
+      tester,
+      posts: List.generate(60, _photoPost),
+      onLoad: () {},
+      paginated: true,
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FeedPage)),
+    );
+    final notifier = container.read(timelineProvider.notifier);
+    await notifier.loadMore();
+    await notifier.loadMore();
+    await tester.pumpAndSettle();
+    final scrollView =
+        find.byType(CustomScrollView).evaluate().single.widget
+            as CustomScrollView;
+    final controller = scrollView.controller!..jumpTo(18000);
+    await tester.pumpAndSettle();
+    final before = controller.offset;
+    container.invalidate(timelineProvider);
+    await tester.pumpAndSettle();
+    expect(container.read(timelineProvider).requireValue.items, hasLength(60));
+    expect(controller.offset, closeTo(before, 0.01));
+  });
+
   testWidgets('pinching the first feed image cannot pull to refresh', (
     tester,
   ) async {
@@ -131,10 +165,17 @@ Future<void> _pumpFeed(
   WidgetTester tester, {
   required List<Post> posts,
   required VoidCallback onLoad,
+  bool paginated = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        yarnRefreshFileProvider.overrideWith(
+          (ref) => Completer<Never>().future,
+        ),
+        likeAnimationFileProvider.overrideWith(
+          (ref) => Completer<Never>().future,
+        ),
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -146,9 +187,14 @@ Future<void> _pumpFeed(
           FakePostRepository(
             onListTimeline: ({cursor, limit}) async {
               onLoad();
+              final start = cursor == null ? 0 : int.parse(cursor);
+              final visible = paginated ? posts.skip(start).take(20) : posts;
               return TimelinePage(
+                cursor: paginated && start + 20 < posts.length
+                    ? '${start + 20}'
+                    : null,
                 items: [
-                  for (final post in posts)
+                  for (final post in visible)
                     TimelineItem(itemKey: 'post:${post.uri}', post: post),
                 ],
               );

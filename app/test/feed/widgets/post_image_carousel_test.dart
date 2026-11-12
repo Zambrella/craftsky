@@ -43,6 +43,38 @@ List<PostImage> _images(String prefix) {
 }
 
 void main() {
+  testWidgets('swiping a mixed-ratio album preserves its frame height', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'portrait',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'Portrait',
+            aspectRatio: const PostImageAspectRatio(width: 4, height: 5),
+          ),
+          PostImage(
+            cid: 'landscape',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'Landscape',
+            aspectRatio: const PostImageAspectRatio(width: 10, height: 1),
+          ),
+        ],
+      ),
+    );
+    final frame = find.byKey(const Key('post-image-frame'));
+    final height = tester.getSize(frame).height;
+    await tester.drag(find.byType(PageView), const Offset(-320, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('2/2'), findsOneWidget);
+    expect(tester.getSize(frame).height, height);
+  });
+
   group('computeBoundedImageHeight', () {
     test('uses stable fallback when aspect ratio is missing', () {
       final height = computeBoundedImageHeight(

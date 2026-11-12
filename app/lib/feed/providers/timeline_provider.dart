@@ -37,12 +37,29 @@ class Timeline extends _$Timeline {
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
-    final page = await repo.listTimeline(limit: timelinePageLimit);
+    final loadedCount = state.value?.items.length ?? 0;
+    var page = await repo.listTimeline(limit: timelinePageLimit);
     if (!accountOperation.isCurrent) {
       throw const ApiCanceled();
     }
+    var items = _dedupe(page.items);
+    // Reconciliation refreshes must retain the loaded range so the mounted
+    // scroll view does not shrink and clamp the reader's position.
+    final visitedCursors = <String>{};
+    while (items.length < loadedCount &&
+        page.cursor != null &&
+        visitedCursors.add(page.cursor!)) {
+      page = await repo.listTimeline(
+        cursor: page.cursor,
+        limit: timelinePageLimit,
+      );
+      if (!accountOperation.isCurrent) {
+        throw const ApiCanceled();
+      }
+      items = _appendDeduped(items, page.items);
+    }
     return TimelineState(
-      items: _dedupe(_applyTimelineOverlays(ref, page.items)),
+      items: _dedupe(_applyTimelineOverlays(ref, items)),
       cursor: page.cursor,
     );
   }
@@ -128,12 +145,29 @@ class ExtendedNetwork extends _$ExtendedNetwork {
       ..watch(followProfileProjectionRevisionProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
-    final page = await repo.listExtendedNetwork(limit: timelinePageLimit);
+    final loadedCount = state.value?.items.length ?? 0;
+    var page = await repo.listExtendedNetwork(limit: timelinePageLimit);
     if (!accountOperation.isCurrent) {
       throw const ApiCanceled();
     }
+    var items = _dedupe(page.items);
+    // Reconciliation refreshes must retain the loaded range so the mounted
+    // scroll view does not shrink and clamp the reader's position.
+    final visitedCursors = <String>{};
+    while (items.length < loadedCount &&
+        page.cursor != null &&
+        visitedCursors.add(page.cursor!)) {
+      page = await repo.listExtendedNetwork(
+        cursor: page.cursor,
+        limit: timelinePageLimit,
+      );
+      if (!accountOperation.isCurrent) {
+        throw const ApiCanceled();
+      }
+      items = _appendDeduped(items, page.items);
+    }
     return TimelineState(
-      items: _dedupe(_applyExtendedNetworkOverlays(ref, page.items)),
+      items: _dedupe(_applyExtendedNetworkOverlays(ref, items)),
       cursor: page.cursor,
     );
   }

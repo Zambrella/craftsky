@@ -19,6 +19,17 @@
 	const pictures = $derived(
 		images.filter((image) => !!safeURL(image.fullsize))
 	);
+	// Reserve the tallest frame before images decode or selection changes.
+	const frameAspectRatio = $derived(
+		Math.min(
+			...pictures.map((picture) => {
+				const ratio = picture.aspectRatio;
+				return ratio && ratio.width > 0 && ratio.height > 0
+					? ratio.width / ratio.height
+					: 1;
+			})
+		)
+	);
 	const displayURLs = $derived(
 		pictures.map((picture) =>
 			safeURL(detail ? picture.fullsize : picture.thumb || picture.fullsize)
@@ -205,6 +216,7 @@
 {#if pictures.length}<div class="post-images" class:interactive>
 		<div
 			class="gallery"
+			style:aspect-ratio={frameAspectRatio}
 			class:dragging
 			bind:this={gallery}
 			role="region"

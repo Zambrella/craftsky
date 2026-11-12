@@ -15,3 +15,24 @@ export function appendPage<T, K>(
 	}
 	return result;
 }
+
+/** Build a refreshed range before publishing it, preserving loaded page depth. */
+export async function reloadPages<T, K>(
+	fetch: (
+		cursor?: string | null
+	) => Promise<{ items: T[]; cursor?: string | null }>,
+	pages: number,
+	key: (item: T) => K
+): Promise<{ items: T[]; cursor: string | null; pages: number }> {
+	let page = await fetch();
+	let items = appendPage([], page.items, key);
+	let loaded = 1;
+	const visited = new Set<string>();
+	while (loaded < pages && page.cursor && !visited.has(page.cursor)) {
+		visited.add(page.cursor);
+		page = await fetch(page.cursor);
+		items = appendPage(items, page.items, key);
+		loaded++;
+	}
+	return { items, cursor: page.cursor || null, pages: loaded };
+}
