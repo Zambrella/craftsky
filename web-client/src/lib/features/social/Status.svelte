@@ -5,16 +5,18 @@
 	let {
 		work,
 		skeleton,
-		reload
+		reload,
+		showLoading = true
 	}: {
 		work: Work;
+		showLoading?: boolean;
 		skeleton?:
 			'posts' | 'people' | 'profile' | 'activity' | 'management' | 'comments';
 		reload?: () => void;
 	} = $props();
 </script>
 
-{#if work.busy}{#if skeleton && !work.hasLoaded}<Skeleton
+{#if showLoading && work.busy}{#if skeleton && !work.hasLoaded}<Skeleton
 			kind={skeleton}
 		/>{:else}<p role="status" class="social-loading">
 			<span aria-hidden="true"></span>Loading…

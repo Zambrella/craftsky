@@ -107,7 +107,7 @@ void main() {
       );
 
       final args = await buildProjectComposerSubmitArguments(
-        text: 'Hi #craft',
+        text: ' \nHi #craft\n\t ',
         langs: langs,
         project: project,
         imagesState: images,
@@ -224,4 +224,36 @@ void main() {
     expect(args.project.common.pattern?.nameFacets, nameFacets);
     expect(args.project.common.pattern?.designerFacets, designerFacets);
   });
+  test(
+    'regenerates facets when trimming changes stored text offsets',
+    () async {
+      final args = await buildProjectComposerSubmitArguments(
+        text: ' \nHi #craft\n ',
+        langs: langs,
+        project: const Project(
+          common: ProjectCommon(
+            craftType: 'social.craftsky.feed.defs#embroidery',
+          ),
+        ),
+        imagesState: const ComposerImagesState(images: []),
+        existingText: ' \nHi #craft\n ',
+        existingFacets: const [
+          {'stale': true},
+        ],
+        generateFacets:
+            (
+              text, {
+              includeMentions = true,
+              includeLinks = true,
+              includeTags = true,
+            }) async => [
+              {'text': text},
+            ],
+      );
+      expect(args.text, 'Hi #craft');
+      expect(args.facets, [
+        {'text': 'Hi #craft'},
+      ]);
+    },
+  );
 }

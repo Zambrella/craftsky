@@ -875,6 +875,7 @@
 			publicationController.signal
 		]);
 		const working = $state.snapshot(draft as unknown) as Draft;
+		working.text = working.text.trim();
 		previews?.pause();
 		busy = true;
 		error = '';
