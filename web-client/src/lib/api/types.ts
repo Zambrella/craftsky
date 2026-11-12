@@ -552,6 +552,10 @@ export interface EligibilityStatus {
 export interface WhoAmI {
 	did: DID;
 	handle: string;
+	pdsUrl?: string;
+	hostingProvider?: string;
+	accountManagementUrl?: string;
+	passwordChangeUrl?: string;
 	[key: string]: Json | undefined;
 }
 export interface LoginResponse {

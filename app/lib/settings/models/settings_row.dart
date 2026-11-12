@@ -34,6 +34,8 @@ enum SettingsRowId {
   privacyPolicy,
   clearImageCache,
   version,
+  manageProvider,
+  changeProviderPassword,
   deleteAccount,
   signOut,
 }

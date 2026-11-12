@@ -3856,5 +3856,19 @@
   "@chatConversationReportDisclosure": {"description": "Names the destination of conversation reports."},
   "reportContactEmailLabel": "Contact email (optional)",
   "reportContactEmailHelp": "Only CraftSky moderators can see this. Add it if you would like us to contact you about your report.",
-  "reportContactEmailInvalid": "Enter a valid email address."
+  "reportContactEmailInvalid": "Enter a valid email address.",
+  "accountProviderTitle": "Bluesky / account provider",
+  "accountProviderExplanation": "Your handle, password and email belong to your shared AT Protocol account. Changes made with your provider also affect other apps that use this account.",
+  "accountHandleLabel": "Handle",
+  "accountDidLabel": "Account ID (DID)",
+  "accountHostingLabel": "Hosting provider",
+  "accountManageProvider": "Manage account with provider",
+  "accountChangePassword": "Change password in Bluesky",
+  "accountProviderAvailability": "Available settings vary by provider. You may need to sign in again. In Bluesky account settings, select Password to change it.",
+  "accountProviderUnavailable": "Hosting details are unavailable. Try again to load your provider links.",
+  "accountCraftskyTitle": "CraftSky account",
+  "accountDeleteBoundary": "Deleting your CraftSky account removes your CraftSky data. It does not delete your Bluesky or AT Protocol account.",
+  "accountDeleteCraftskyAction": "Delete CraftSky account",
+  "accountCopyDetail": "Copy account detail",
+  "accountProviderAvailabilityGeneric": "Available settings vary by provider. You may need to sign in again."
 }

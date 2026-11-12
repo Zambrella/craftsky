@@ -702,3 +702,64 @@ test('Instagram keeps the native private confirmation choice and describes all r
 		writes.every((value) => value.headers['x-craftsky-account-id'] === alice.id)
 	).toBe(true);
 });
+
+for (const bluesky of [true, false]) {
+	test(`account provider links and deletion boundary for Bluesky=${bluesky}`, async ({
+		page
+	}) => {
+		await page.route('**/api/appview/v1/whoami', (route) =>
+			readJSON(route, {
+				did: alice.did,
+				handle: 'alice.example',
+				pdsUrl: bluesky
+					? 'https://morel.host.bsky.network'
+					: 'https://pds.example',
+				hostingProvider: bluesky ? 'Bluesky' : 'pds.example',
+				accountManagementUrl: bluesky
+					? 'https://bsky.social/account'
+					: 'https://pds.example/account',
+				...(bluesky
+					? { passwordChangeUrl: 'https://bsky.app/settings/account' }
+					: {})
+			})
+		);
+		await page.goto('/settings/account');
+		const section = page.getByRole('region', {
+			name: 'Bluesky / account provider'
+		});
+		await expect(
+			section.getByText('alice.example', { exact: true })
+		).toBeVisible();
+		await expect(section.getByText(alice.did, { exact: true })).toBeVisible();
+		const manage = section.getByRole('link', {
+			name: 'Manage account with provider'
+		});
+		await expect(manage).toHaveAttribute(
+			'href',
+			bluesky ? 'https://bsky.social/account' : 'https://pds.example/account'
+		);
+		await expect(manage).toHaveAttribute('target', '_blank');
+		const password = section.getByRole('link', {
+			name: 'Change password in Bluesky'
+		});
+		if (bluesky)
+			await expect(password).toHaveAttribute(
+				'href',
+				'https://bsky.app/settings/account'
+			);
+		else await expect(password).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Delete CraftSky account', exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByText(
+				'Deleting your CraftSky account removes your CraftSky data.',
+				{ exact: false }
+			)
+		).toBeVisible();
+		await page.setViewportSize({ width: 320, height: 800 });
+		await expect
+			.poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+			.toBe(320);
+	});
+}
