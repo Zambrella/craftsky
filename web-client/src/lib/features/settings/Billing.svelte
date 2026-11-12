@@ -164,6 +164,13 @@
 			</p>{/if}
 		{#each ['plus', 'business'] as tierValue}{@const tier = tierValue as
 				'plus' | 'business'}{@const status = tierState(billing, tier)}
+			{@const active = status === 'active' || status === 'cancelled'}
+			{@const subscriptions = billing.subscriptions.filter((subscription) =>
+				billing!.licenses.some(
+					(license) =>
+						license.tier === tier && license.subscriptionId === subscription.id
+				)
+			)}
 			<section
 				class="panel tier-card"
 				class:business-tier={tier === 'business'}
@@ -177,29 +184,42 @@
 					>
 					<div>
 						<h2>{title(tier)}</h2>
-						<p class="tier-status">{tierStateLabel[status]}</p>
+						{#if active}
+							{#each subscriptions as subscription}
+								{@const end =
+									subscription.endsAt || subscription.currentPeriodEndsAt}
+								<p class="muted renewal">
+									{#if end}{subscription.autoRenewalStatus === 'will_renew'
+											? 'Renews on'
+											: 'Access until'}
+										{dateTime(end)}{:else}{tierStateLabel[status]}{/if}
+								</p>
+							{/each}
+						{:else}
+							<p class="tier-status">{tierStateLabel[status]}</p>
+						{/if}
 					</div>
 				</div>
-				<p class="muted">
-					{tier === 'business'
-						? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
-						: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
-				</p>
-				{#each billing.subscriptions.filter( (subscription) => billing!.licenses.some((license) => license.tier === tier && license.subscriptionId === subscription.id) ) as subscription}{@const managementURL =
+				{#if !active}<p class="muted">
+						{tier === 'business'
+							? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
+							: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
+					</p>{/if}
+				{#each subscriptions as subscription}{@const managementURL =
 						storeManagementURL(subscription.store)}
-					{#if subscription.currentPeriodEndsAt}<p class="muted">
+					{#if !active && subscription.currentPeriodEndsAt}<p class="muted">
 							Current period ends {dateTime(subscription.currentPeriodEndsAt)}
 						</p>{/if}
-					{#if subscription.endsAt}<p class="muted">
+					{#if !active && subscription.endsAt}<p class="muted">
 							Access ends {dateTime(subscription.endsAt)}
 						</p>{/if}
-					{#if subscription.autoRenewalStatus}<p class="muted">
+					{#if !active && subscription.autoRenewalStatus}<p class="muted">
 							Renewal: {title(subscription.autoRenewalStatus)}
 						</p>{/if}
 					{#if subscription.pendingPayment}<p class="notice">
 							Payment is pending. Open your mobile store to resolve payment.
 						</p>{/if}
-					{#if managementURL}<a
+					{#if !active && managementURL}<a
 							class="action"
 							href={managementURL}
 							target="_blank"
@@ -210,12 +230,18 @@
 						>{/if}
 				{/each}
 
-				{#each billing.licenses.filter((value) => value.tier === tier) as license}<form
+				{#each billing.licenses.filter((value) => value.tier === tier) as license}
+					{@const subscription = subscriptions.find(
+						(value) => value.id === license.subscriptionId
+					)}
+					{@const managementURL =
+						subscription && storeManagementURL(subscription.store)}
+					<form
 						class="license stack"
 						onsubmit={(event) => assign(license, event)}
 					>
 						<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
-							<h3>CraftSky {title(license.tier)}</h3>
+							{#if !active}<h3>CraftSky {title(license.tier)}</h3>{/if}
 							<p>
 								{license.assignedDid ? 'Assigned to:' : 'Unassigned'}
 								{#if license.assignedDid}<strong
@@ -229,13 +255,30 @@
 											: license.assignedDid}</strong
 									>{/if}
 							</p>
-							{#if license.assignedAt}<p class="muted">
+							{#if active && managementURL}<a
+									class="action flat-action"
+									href={managementURL}
+									target="_blank"
+									rel="noopener noreferrer"
+									>Manage in {subscription!.store === 'app_store'
+										? 'App Store'
+										: 'Google Play'}</a
+								>{/if}
+							{#if !active && license.assignedAt}<p class="muted">
 									Assigned {dateTime(license.assignedAt)}
 								</p>{/if}{#if license.anomaly && license.anomaly !== 'none'}<p
 									class="error"
 								>
 									This license needs attention: {title(license.anomaly)}
-								</p>{:else if canAssignLicense(billing, license)}<SingleSelect
+								</p>{:else if canAssignLicense(billing, license)}
+								{#if !accounts.some((account) => account.did !== license.assignedDid && !billing!.licenses.some((assigned) => assigned.assignedDid === account.did))}
+									<p class="muted">
+										There’s no other signed-in account available to assign this
+										licence to. Add another account using the account switcher,
+										or enter its DID below.
+									</p>
+								{/if}
+								<SingleSelect
 									label="Account"
 									value={targets[license.id]}
 									required
@@ -277,8 +320,10 @@
 									>
 								</details>
 								<div class="actions">
-									<button class="primary" disabled={work.busy}
-										>Assign license</button
+									<button
+										class:primary={!license.assignedDid}
+										class:flat-action={!!license.assignedDid}
+										disabled={work.busy}>Assign license</button
 									><button
 										type="button"
 										disabled={work.busy}
@@ -292,7 +337,7 @@
 							{/if}
 							{#if license.assignedDid}<button
 									type="button"
-									class="danger"
+									class="flat-action danger"
 									disabled={work.busy}
 									onclick={() => unassign(license)}>Unassign</button
 								>{/if}
@@ -306,6 +351,18 @@
 {/if}
 
 <style>
+	.license .actions {
+		gap: 4px;
+	}
+	.flat-action {
+		background: transparent;
+		border-color: transparent;
+		box-shadow: none;
+		color: var(--primary);
+	}
+	button.flat-action.danger {
+		color: var(--red-ink);
+	}
 	.billing-refresh {
 		display: flex;
 		justify-content: flex-end;
@@ -370,5 +427,8 @@
 	}
 	.license:last-child {
 		border: 0;
+	}
+	.renewal {
+		margin: 0;
 	}
 </style>

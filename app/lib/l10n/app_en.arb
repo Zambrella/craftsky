@@ -3429,6 +3429,8 @@
   "@subscriptionsRepurchase": { "description": "Safe repurchase action after lapse.", "placeholders": { "tier": { "type": "String" } } },
   "subscriptionsAssign": "Assign license",
   "@subscriptionsAssign": { "description": "License assignment action." },
+  "subscriptionsNoAssignmentTargets": "There’s no other account available to assign this licence to. Add another account using the account switcher, then try again.",
+  "@subscriptionsNoAssignmentTargets": { "description": "Helpful empty state when no signed-in account is eligible to receive a licence assignment." },
   "subscriptionsUnassign": "Remove assignment",
   "@subscriptionsUnassign": { "description": "License unassignment action." },
   "subscriptionsRestore": "Restore purchases",

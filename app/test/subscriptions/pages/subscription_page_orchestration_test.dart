@@ -216,7 +216,7 @@ void main() {
       expect(
         find.ancestor(
           of: find.byKey(const ValueKey('subscription-action-progress')),
-          matching: find.byType(ChunkyButton),
+          matching: find.byType(TextButton),
         ),
         findsOneWidget,
       );
@@ -801,10 +801,10 @@ void main() {
       await tester.pumpWidget(app(const SubscriptionPage()));
       await _pumpUntilActionProgress(tester);
 
-      final purchaseButton = tester.widget<ChunkyButton>(
+      final purchaseButton = tester.widget<TextButton>(
         find.ancestor(
           of: _actionProgress(),
-          matching: find.byType(ChunkyButton),
+          matching: find.byType(TextButton),
         ),
       );
       expect(purchaseButton.onPressed, isNull);

@@ -4473,6 +4473,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get subscriptionsAssign => 'Assign license';
 
   @override
+  String get subscriptionsNoAssignmentTargets =>
+      'There’s no other account available to assign this licence to. Add another account using the account switcher, then try again.';
+
+  @override
   String get subscriptionsUnassign => 'Remove assignment';
 
   @override

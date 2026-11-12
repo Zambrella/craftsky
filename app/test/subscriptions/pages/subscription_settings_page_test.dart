@@ -102,6 +102,10 @@ void main() {
         access: _access(SubscriptionTier.plus),
         billingAvailability: BillingAvailability.available,
         billingState: _ownerState(unknownBusinessStatus: true),
+        tierPrices: const {
+          SubscriptionTier.plus: '£2.49',
+          SubscriptionTier.business: '£8.99',
+        },
         assignedAccountLabels: {
           Did.parse('did:plc:bob'): '@bob.test',
         },
@@ -117,10 +121,12 @@ void main() {
     expect(find.text('Plus'), findsWidgets);
     expect(find.textContaining('Renews on'), findsOneWidget);
     expect(find.text('Assigned to @bob.test'), findsOneWidget);
+    expect(find.text('£2.49 / month'), findsNothing);
+    expect(find.text('£8.99 / month'), findsOneWidget);
     expect(find.text('Business'), findsWidgets);
     expect(
       find.textContaining('Schedule posts, Saved folders'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.textContaining('Everything in Plus, Featured products'),

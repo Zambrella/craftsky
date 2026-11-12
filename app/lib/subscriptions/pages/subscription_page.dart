@@ -603,6 +603,8 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (candidates.isEmpty)
+            Text(AppLocalizations.of(context).subscriptionsNoAssignmentTargets),
           for (final candidate in candidates)
             AccountSwitcherRowTile(
               row: candidate,
@@ -937,6 +939,9 @@ class _TierCard extends StatelessWidget {
         ? PlusTierIcon(color: accent)
         : Icon(Icons.storefront_outlined, color: accent);
     final price = model.tierPrices[tier];
+    final isActive =
+        presentation == SubscriptionTierPresentation.active ||
+        presentation == SubscriptionTierPresentation.canceledAccessible;
     return Semantics(
       container: true,
       label: l10n.subscriptionsActionSemantic(
@@ -978,85 +983,96 @@ class _TierCard extends StatelessWidget {
                         children: [
                           Text(tierLabel, style: theme.textTheme.titleLarge),
                           const SizedBox(height: 2),
-                          Text(
-                            price == null
-                                ? l10n.subscriptionsPriceUnavailable
-                                : l10n.subscriptionsTierPrice(price),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
+                          if (isActive) ...[
+                            if (summary != null)
+                              Text(
+                                summary,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            if (license != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                _assignmentLabel(l10n, license),
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ],
+                          ] else
+                            Text(
+                              price == null
+                                  ? l10n.subscriptionsPriceUnavailable
+                                  : l10n.subscriptionsTierPrice(price),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                if (summary != null) Text(summary),
-                if (summary != null) const SizedBox(height: 8),
-                Text(
-                  tier == SubscriptionTier.plus
-                      ? l10n.subscriptionsPlusBenefits
-                      : l10n.subscriptionsBusinessBenefits,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                if (license?.assignedDid != null) ...[
-                  const SizedBox(height: 6),
-                  Text(_assignmentLabel(l10n, license!)),
-                ],
-                if (action != null) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      key: ValueKey('subscription-view-details-${tier.name}'),
-                      label: action.$1,
-                      onPressed: action.$2,
-                      isLoading:
-                          purchaseIsLoading ||
-                          (pendingOperation?.kind ==
-                              PendingSubscriptionOperationKind.customerCenter),
-                    ),
+                if (!isActive) ...[
+                  const SizedBox(height: 10),
+                  if (summary != null) Text(summary),
+                  if (summary != null) const SizedBox(height: 8),
+                  Text(
+                    tier == SubscriptionTier.plus
+                        ? l10n.subscriptionsPlusBenefits
+                        : l10n.subscriptionsBusinessBenefits,
+                    style: theme.textTheme.bodyMedium,
                   ),
+                  if (license?.assignedDid != null) ...[
+                    const SizedBox(height: 6),
+                    Text(_assignmentLabel(l10n, license!)),
+                  ],
                 ],
-                if (canAssign) ...[
+                if (action != null ||
+                    canAssign ||
+                    canReassign ||
+                    canUnassign) ...[
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      label: l10n.subscriptionsAssign,
-                      onPressed: model.onAssign == null
-                          ? null
-                          : () => model.onAssign!(license),
-                      isLoading: assignmentIsLoading,
-                    ),
-                  ),
-                ],
-                if (canReassign) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      label: l10n.subscriptionsReassign,
-                      onPressed: model.onAssign == null
-                          ? null
-                          : () => model.onAssign!(license),
-                      isLoading: assignmentIsLoading,
-                    ),
-                  ),
-                ],
-                if (canUnassign) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _TextActionButton(
-                      label: l10n.subscriptionsUnassign,
-                      onPressed: model.onUnassign == null
-                          ? null
-                          : () => model.onUnassign!(license),
-                      isLoading: unassignmentIsLoading,
-                    ),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 0,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (action != null)
+                        _ActionButton(
+                          key: ValueKey(
+                            'subscription-view-details-${tier.name}',
+                          ),
+                          label: action.$1,
+                          flat: action.$1 == l10n.subscriptionsViewDetails,
+                          onPressed: action.$2,
+                          isLoading:
+                              purchaseIsLoading ||
+                              pendingOperation?.kind ==
+                                  PendingSubscriptionOperationKind
+                                      .customerCenter,
+                        ),
+                      if (canAssign || canReassign)
+                        _ActionButton(
+                          label: canReassign
+                              ? l10n.subscriptionsReassign
+                              : l10n.subscriptionsAssign,
+                          flat: canReassign,
+                          onPressed: model.onAssign == null
+                              ? null
+                              : () => model.onAssign!(license!),
+                          isLoading: assignmentIsLoading,
+                        ),
+                      if (canUnassign)
+                        _TextActionButton(
+                          label: l10n.subscriptionsUnassign,
+                          isDestructive: true,
+                          onPressed: model.onUnassign == null
+                              ? null
+                              : () => model.onUnassign!(license!),
+                          isLoading: unassignmentIsLoading,
+                        ),
+                    ],
                   ),
                 ],
                 for (final secondary in secondaryLicenses)
@@ -1184,6 +1200,7 @@ class _TierCard extends StatelessWidget {
             label: license.assignedDid == null
                 ? l10n.subscriptionsAssign
                 : l10n.subscriptionsReassign,
+            flat: license.assignedDid != null,
             onPressed: model.onAssign == null
                 ? null
                 : () => model.onAssign!(license),
@@ -1192,11 +1209,11 @@ class _TierCard extends StatelessWidget {
         ),
       ],
       if (canUnassign) ...[
-        const SizedBox(height: 8),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: _TextActionButton(
             label: l10n.subscriptionsUnassign,
+            isDestructive: true,
             onPressed: model.onUnassign == null
                 ? null
                 : () => model.onUnassign!(license),
@@ -1298,21 +1315,29 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.flat = false,
     super.key,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+  final bool flat;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: ChunkyButton(
-      onPressed: isLoading ? null : onPressed,
-      child: _ActionButtonChild(label: label, isLoading: isLoading),
-    ),
-  );
+  Widget build(BuildContext context) => flat
+      ? _TextActionButton(
+          label: label,
+          onPressed: onPressed,
+          isLoading: isLoading,
+        )
+      : Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ChunkyButton(
+            onPressed: isLoading ? null : onPressed,
+            child: _ActionButtonChild(label: label, isLoading: isLoading),
+          ),
+        );
 }
 
 class _PrimaryActionButton extends StatelessWidget {
@@ -1338,16 +1363,23 @@ class _TextActionButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.isDestructive = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+  final bool isDestructive;
 
   @override
   Widget build(BuildContext context) => TextButton(
     onPressed: isLoading ? null : onPressed,
-    style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+    style: TextButton.styleFrom(
+      minimumSize: const Size(48, 48),
+      foregroundColor: isDestructive
+          ? Theme.of(context).colorScheme.error
+          : null,
+    ),
     child: _ActionButtonChild(label: label, isLoading: isLoading),
   );
 }

@@ -7869,6 +7869,12 @@ abstract class AppLocalizations {
   /// **'Assign license'**
   String get subscriptionsAssign;
 
+  /// Helpful empty state when no signed-in account is eligible to receive a licence assignment.
+  ///
+  /// In en, this message translates to:
+  /// **'There’s no other account available to assign this licence to. Add another account using the account switcher, then try again.'**
+  String get subscriptionsNoAssignmentTargets;
+
   /// License unassignment action.
   ///
   /// In en, this message translates to:
