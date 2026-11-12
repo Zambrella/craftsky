@@ -28,6 +28,24 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../test_support/serialized_sentry_transport.dart';
 
+class _RecordingReporter implements ErrorReporter {
+  final captures =
+      <({Object error, StackTrace? stackTrace, ReportContext context})>[];
+
+  @override
+  bool get enabled => true;
+
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    captures.add((error: error, stackTrace: stackTrace, context: context));
+    return null;
+  }
+}
+
 class _Paths extends PathProviderPlatform {
   new(this.path);
   final String path;
@@ -124,6 +142,7 @@ void main() {
     'and permits retry after cancellation or failure',
     (tester) async {
       final transport = SerializedTransport();
+      final reporter = _RecordingReporter();
       await tester.runAsync(
         () => Sentry.init((options) {
           options
@@ -166,7 +185,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           ProfileShareCardDialog(profile: _profile()),
-          reporter: const SentryErrorReporter(),
+          reporter: reporter,
         ),
       );
       await tester.runAsync(() async {
@@ -233,6 +252,18 @@ void main() {
       );
       expect(image!.existsSync(), isFalse);
       expect(tester.takeException(), isNull);
+      // SDK enrichment may perform process/file I/O on Linux. Keep it outside
+      // the widget fake-async zone while replaying the UI's exact cause/context.
+      final captured = reporter.captures.single;
+      expect(captured.error, isA<PlatformException>());
+      expect(captured.stackTrace, isNotNull);
+      await tester.runAsync(
+        () => const SentryErrorReporter().captureException(
+          captured.error,
+          context: captured.context,
+          stackTrace: captured.stackTrace,
+        ),
+      );
       final serialized = transport.payloads.join();
       expect(serialized, contains('profile.share_card.share_failed'));
       expect(serialized, contains('PlatformException'));
