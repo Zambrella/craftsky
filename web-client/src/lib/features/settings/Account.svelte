@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AccountProvider from './AccountProvider.svelte';
 	import { APIError } from '#lib/api/client.ts';
 	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { usePrompt } from '../social/prompt';
@@ -272,6 +273,12 @@
 	</nav>
 {:else if !work.loading && section === 'account' && eligibility}
 	<div class="native-list">
+		{#key session.id ?? session.did}<AccountProvider {api} {session} />{/key}
+		<h2 class="section-label">CraftSky account</h2>
+		<p class="account-type">
+			Deleting your CraftSky account removes your CraftSky data. It does not
+			delete your Bluesky or AT Protocol account.
+		</p>
 		{#if profile}<h2 class="section-label">Account type</h2>
 			<p class="account-type">
 				{businessAccess ? 'Business' : 'Regular'}
@@ -282,7 +289,7 @@
 			disabled={work.busy}
 			onclick={beginDeletion}
 			><SettingsIcon name="delete" bold /><span class="tile-copy"
-				>Delete account</span
+				>Delete CraftSky account</span
 			></button
 		>
 	</div>

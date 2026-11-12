@@ -5316,4 +5316,51 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportContactEmailInvalid => 'Enter a valid email address.';
+
+  @override
+  String get accountProviderTitle => 'Bluesky / account provider';
+
+  @override
+  String get accountProviderExplanation =>
+      'Your handle, password and email belong to your shared AT Protocol account. Changes made with your provider also affect other apps that use this account.';
+
+  @override
+  String get accountHandleLabel => 'Handle';
+
+  @override
+  String get accountDidLabel => 'Account ID (DID)';
+
+  @override
+  String get accountHostingLabel => 'Hosting provider';
+
+  @override
+  String get accountManageProvider => 'Manage account with provider';
+
+  @override
+  String get accountChangePassword => 'Change password in Bluesky';
+
+  @override
+  String get accountProviderAvailability =>
+      'Available settings vary by provider. You may need to sign in again. In Bluesky account settings, select Password to change it.';
+
+  @override
+  String get accountProviderUnavailable =>
+      'Hosting details are unavailable. Try again to load your provider links.';
+
+  @override
+  String get accountCraftskyTitle => 'CraftSky account';
+
+  @override
+  String get accountDeleteBoundary =>
+      'Deleting your CraftSky account removes your CraftSky data. It does not delete your Bluesky or AT Protocol account.';
+
+  @override
+  String get accountDeleteCraftskyAction => 'Delete CraftSky account';
+
+  @override
+  String get accountCopyDetail => 'Copy account detail';
+
+  @override
+  String get accountProviderAvailabilityGeneric =>
+      'Available settings vary by provider. You may need to sign in again.';
 }

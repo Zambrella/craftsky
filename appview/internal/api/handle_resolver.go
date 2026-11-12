@@ -171,3 +171,46 @@ func localHandleForDID(did string) string {
 	}
 	return slug + ".craftsky.test"
 }
+
+// AccountInfoResolver exposes public hosting details without OAuth credentials.
+type AccountInfoResolver interface {
+	ResolveAccountInfo(context.Context, syntax.DID) (WhoAmIResponse, error)
+}
+
+func (r DirectoryHandleResolver) ResolveAccountInfo(ctx context.Context, did syntax.DID) (WhoAmIResponse, error) {
+	id, err := r.Directory.LookupDID(ctx, did)
+	if err != nil {
+		return WhoAmIResponse{}, fmt.Errorf("%w: lookup: %w", ErrHandleUnavailable, err)
+	}
+	handle := id.Handle
+	if handle == "" {
+		handle = syntax.HandleInvalid
+	}
+	return accountHostingInfo(did, handle, id.PDSEndpoint()), nil
+}
+
+func (r *ObservedHandleResolver) ResolveAccountInfo(ctx context.Context, did syntax.DID) (WhoAmIResponse, error) {
+	started := time.Now()
+	info, err := resolveAccountInfo(ctx, r.resolver, did)
+	r.observer.ObserveIdentityResolution(r.mode, "did_to_handle", identityResolutionResult(err), time.Since(started))
+	return info, err
+}
+
+func (r DevHandleResolver) ResolveAccountInfo(ctx context.Context, did syntax.DID) (WhoAmIResponse, error) {
+	if r.Primary != nil {
+		info, err := resolveAccountInfo(ctx, r.Primary, did)
+		if err == nil {
+			return info, nil
+		}
+	}
+	handle, err := r.ResolveHandle(ctx, did)
+	return WhoAmIResponse{DID: did, Handle: handle}, err
+}
+
+func resolveAccountInfo(ctx context.Context, resolver HandleResolver, did syntax.DID) (WhoAmIResponse, error) {
+	if hosting, ok := resolver.(AccountInfoResolver); ok {
+		return hosting.ResolveAccountInfo(ctx, did)
+	}
+	handle, err := resolver.ResolveHandle(ctx, did)
+	return WhoAmIResponse{DID: did, Handle: handle}, err
+}

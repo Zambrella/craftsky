@@ -26,6 +26,10 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 	accountCreationMethod := "com.atproto.server." + "createAccount"
 
 	allowedLiveOrigins := map[string]map[string]bool{
+		// Provider-link expectations are inert: Go uses a fake identity directory,
+		// and Flutter injects a recording launcher. Neither contacts Bluesky.
+		"appview/internal/api/account_hosting_test.go":                {"https://bsky.social": true},
+		"app/test/settings/account_provider_section_test.dart":        {"https://bsky.social": true},
 		"appview/internal/app/config_test.go":                         {"https://bsky.social": true},
 		"appview/internal/auth/auth_request_admission_test.go":        {"https://auth.bsky.app": true, "https://bsky.social": true},
 		"appview/internal/auth/store_test.go":                         {"https://auth.bsky.app": true, "https://bsky.social": true},

@@ -8,6 +8,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
+import 'package:craftsky_app/settings/widgets/account_provider_section.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
@@ -84,12 +85,31 @@ class AccountPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
               ],
+              if (auth is SignedIn)
+                AccountProviderSection(
+                  did: auth.did.value,
+                  handle: auth.handle.value,
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.accountCraftskyTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(l10n.accountDeleteBoundary),
+                  ],
+                ),
+              ),
               SettingsRowTile(
                 descriptor: const SettingsRowDescriptor(
                   id: SettingsRowId.deleteAccount,
                   kind: SettingsRowKind.destructiveAction,
                 ),
-                label: l10n.deleteAccountAction,
+                label: l10n.accountDeleteCraftskyAction,
                 leading: CraftskyIconsBold.deleteForever,
                 isLoading: actions.isRunning(_AccountAction.delete),
                 onTap: did == null || actions.isBusy
