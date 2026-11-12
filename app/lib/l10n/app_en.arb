@@ -1561,8 +1561,10 @@
   "profileFollowToggleError": "Could not update follow state.",
   "@profileFollowToggleError": { "description": "Snackbar shown when a follow or unfollow request fails and the previous state is restored." },
 
-  "profileShareComingSoon": "Share coming soon.",
-  "@profileShareComingSoon": { "description": "Snackbar shown when tapping Share while share wiring isn't implemented yet." },
+  "profileShareCardLoading": "Loading...",
+  "@profileShareCardLoading": { "description": "Share card button label while preparing or sharing the card image." },
+  "profileShareCardFailed": "Couldn’t share your card. Please try again.",
+  "@profileShareCardFailed": { "description": "Retry message when creating or sharing a profile card image fails." },
 
   "profileReportAction": "Report profile",
   "@profileReportAction": { "description": "Tooltip/action label for reporting a visitor profile." },

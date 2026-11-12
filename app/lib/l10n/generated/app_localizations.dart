@@ -3214,11 +3214,17 @@ abstract class AppLocalizations {
   /// **'Could not update follow state.'**
   String get profileFollowToggleError;
 
-  /// Snackbar shown when tapping Share while share wiring isn't implemented yet.
+  /// Share card button label while preparing or sharing the card image.
   ///
   /// In en, this message translates to:
-  /// **'Share coming soon.'**
-  String get profileShareComingSoon;
+  /// **'Loading...'**
+  String get profileShareCardLoading;
+
+  /// Retry message when creating or sharing a profile card image fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t share your card. Please try again.'**
+  String get profileShareCardFailed;
 
   /// Tooltip/action label for reporting a visitor profile.
   ///

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -7,14 +9,44 @@ import 'package:craftsky_app/profile/sharing/profile_share_card.dart';
 import 'package:craftsky_app/profile/sharing/profile_share_card_dialog.dart';
 import 'package:craftsky_app/profile/sharing/profile_share_card_image.dart';
 import 'package:craftsky_app/profile/sharing/share_card_motion.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as raster;
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+import '../../test_support/serialized_sentry_transport.dart';
+
+class _Paths extends PathProviderPlatform {
+  new(this.path);
+  final String path;
+  @override
+  Future<String> getTemporaryPath() async => path;
+}
+
+Future<void> _advanceUntil(
+  WidgetTester tester,
+  bool Function() complete,
+) async {
+  for (var attempt = 0; attempt < 200 && !complete(); attempt++) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+  }
+  expect(complete(), isTrue);
+}
 
 Profile _profile({String? name = 'Rowan Ellis', List<String>? crafts}) =>
     Profile(
@@ -24,22 +56,29 @@ Profile _profile({String? name = 'Rowan Ellis', List<String>? crafts}) =>
       crafts: crafts ?? ['sewing', 'knitting', 'quilting'],
     );
 
-Widget _app(Widget child, {ThemeData? theme, double scale = 1}) =>
-    ProviderScope(
-      child: MaterialApp(
-        theme: theme ?? AppTheme.lightThemeData,
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: MediaQueryData(
-            disableAnimations: true,
-            textScaler: TextScaler.linear(scale),
-            boldText: scale > 1,
-          ),
-          child: Scaffold(body: Center(child: child)),
-        ),
+Widget _app(
+  Widget child, {
+  ThemeData? theme,
+  double scale = 1,
+  ErrorReporter? reporter,
+}) => ProviderScope(
+  overrides: [
+    if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
+  ],
+  child: MaterialApp(
+    theme: theme ?? AppTheme.lightThemeData,
+    localizationsDelegates: appLocalizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: MediaQuery(
+      data: MediaQueryData(
+        disableAnimations: true,
+        textScaler: TextScaler.linear(scale),
+        boldText: scale > 1,
       ),
-    );
+      child: Scaffold(body: Center(child: child)),
+    ),
+  ),
+);
 
 Future<Uint8List> _capture(WidgetTester tester, GlobalKey key) async {
   await tester.runAsync(() async {
@@ -79,6 +118,127 @@ Future<Uint8List> _capture(WidgetTester tester, GlobalKey key) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(CraftFoilSurface.prepareAssets);
+
+  testWidgets(
+    'Share exports PNG, prevents duplicate taps '
+    'and permits retry after cancellation or failure',
+    (tester) async {
+      final transport = SerializedTransport();
+      await tester.runAsync(
+        () => Sentry.init((options) {
+          options
+            ..dsn = 'https://public@example.invalid/1'
+            ..transport = transport;
+          configureDiagnosticOptions(options, enableLogs: false);
+        }),
+      );
+      addTearDown(Sentry.close);
+      final directory = Directory.systemTemp.createTempSync(
+        'card-dialog-test-',
+      );
+      final original = PathProviderPlatform.instance;
+      PathProviderPlatform.instance = _Paths(directory.path);
+      addTearDown(() {
+        PathProviderPlatform.instance = original;
+        directory.deleteSync(recursive: true);
+      });
+      const channel = MethodChannel('dev.fluttercommunity.plus/share');
+      var calls = 0;
+      var response = Completer<String>();
+      File? image;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls++;
+            final args = call.arguments as Map;
+            image = File((args['paths'] as List).single as String);
+            final decoded = raster.decodePng(image!.readAsBytesSync())!;
+            expect(decoded.width, 1200);
+            expect(decoded.height, 1500);
+            expect(args['mimeTypes'], ['image/png']);
+            expect(args['originWidth'], greaterThan(0));
+            expect(args['originHeight'], greaterThan(0));
+            return await response.future;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      await tester.pumpWidget(
+        _app(
+          ProfileShareCardDialog(profile: _profile()),
+          reporter: const SentryErrorReporter(),
+        ),
+      );
+      await tester.runAsync(() async {
+        final context = tester.element(find.byType(ProfileShareCard));
+        await precacheImage(const AssetImage(shareCardLogo), context);
+        await precacheImage(
+          const AssetImage(shareCardTransparentLogo),
+          context,
+        );
+      });
+      await tester.pumpAndSettle();
+      final button = find.byKey(const Key('share-card-share'));
+      await tester.ensureVisible(button);
+      final idleSize = tester.getSize(button);
+      final idleContent = find.descendant(
+        of: button,
+        matching: find.byType(Row),
+      );
+      expect(
+        tester.getCenter(idleContent).dx,
+        closeTo(tester.getCenter(button).dx, 1),
+      );
+      await tester.tap(button);
+      await _advanceUntil(tester, () => calls == 1);
+      expect(tester.getSize(button), idleSize);
+      expect(find.text('Loading...'), findsOneWidget);
+      expect(find.text('Share'), findsNothing);
+      expect(tester.widget<ChunkyButton>(button).onPressed, isNull);
+      expect(
+        tester.widget<ChunkyButton>(button).disabledBackgroundColor,
+        BrandColors.paper,
+      );
+      expect(
+        find.descendant(
+          of: button,
+          matching: find.byType(StitchProgressIndicator),
+        ),
+        findsNothing,
+      );
+      expect(image!.existsSync(), isTrue);
+      response.complete('');
+      await _advanceUntil(
+        tester,
+        () => tester.widget<ChunkyButton>(button).onPressed != null,
+      );
+      expect(image!.existsSync(), isFalse);
+      expect(
+        find.text('Couldn’t share your card. Please try again.'),
+        findsNothing,
+      );
+      response = Completer<String>();
+      await tester.tap(button);
+      await _advanceUntil(tester, () => calls == 2);
+      response.completeError(
+        PlatformException(code: 'unavailable', message: 'PRIVATE_CARD_PAYLOAD'),
+      );
+      await _advanceUntil(
+        tester,
+        () => tester.widget<ChunkyButton>(button).onPressed != null,
+      );
+      expect(
+        find.text('Couldn’t share your card. Please try again.'),
+        findsOneWidget,
+      );
+      expect(image!.existsSync(), isFalse);
+      expect(tester.takeException(), isNull);
+      final serialized = transport.payloads.join();
+      expect(serialized, contains('profile.share_card.share_failed'));
+      expect(serialized, contains('PlatformException'));
+      expect(serialized, isNot(contains('PRIVATE_CARD_PAYLOAD')));
+    },
+  );
 
   testWidgets('bundled edge emboss shader compiles for the Flutter engine', (
     tester,
@@ -218,9 +378,7 @@ void main() {
         14,
       );
       await tester.ensureVisible(find.byKey(const Key('share-card-share')));
-      await tester.tap(find.byKey(const Key('share-card-share')));
-      await tester.pumpAndSettle();
-      expect(find.text('Share coming soon.'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

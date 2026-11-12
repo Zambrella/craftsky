@@ -7,7 +7,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
-/// Prepares the fixed 1200x1500 PNG for the future native share sheet.
+/// Prepares the fixed 1200x1500 PNG for the native share sheet.
 /// Use the card's inner [ProfileShareCard.artworkKey], and pause motion before
 /// capture. Screen scaling, perspective, shadow and controls are excluded.
 Future<Uint8List> captureProfileShareCard(GlobalKey artworkKey) async {

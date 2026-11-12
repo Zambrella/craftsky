@@ -1817,7 +1817,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileFollowToggleError => 'Could not update follow state.';
 
   @override
-  String get profileShareComingSoon => 'Share coming soon.';
+  String get profileShareCardLoading => 'Loading...';
+
+  @override
+  String get profileShareCardFailed =>
+      'Couldn’t share your card. Please try again.';
 
   @override
   String get profileReportAction => 'Report profile';
