@@ -23,6 +23,8 @@
 		type BusinessEvent
 	} from '#lib/api/client.ts';
 	import Avatar from '#lib/Avatar.svelte';
+	import { safeURL } from '#lib/public.ts';
+	import ImageGallery from './ImageGallery.svelte';
 	import CraftBadge from '#lib/CraftBadge.svelte';
 	import MemberPost from './MemberPost.svelte';
 	import ReportForm from '../moderation/ReportForm.svelte';
@@ -58,6 +60,8 @@
 	const guest = $derived(api.audience === 'guest');
 	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const work = new Work('social.Profile.action');
+	const followWork = new Work('social.Profile.action');
+	let avatarOpen = $state(false);
 
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
@@ -76,6 +80,7 @@
 	let shareReturnFocus = $state<HTMLElement>();
 	let hydrated = $state(false);
 	let profile = $state<Profile | undefined>(snapshot?.profile);
+	const avatarURL = $derived(safeURL(profile?.avatar ?? undefined));
 	if (snapshot) publications?.observeProfile(snapshot.profile);
 	const displayedStats = $derived(
 		profile ? publications?.profileStats(profile) || profile : undefined
@@ -155,6 +160,7 @@
 	onDestroy(() => {
 		generation++;
 		work.dispose();
+		followWork.dispose();
 		contentWork.dispose();
 	});
 	const profileDid = $derived(profile?.did);
@@ -236,7 +242,7 @@
 		if (!profile) return;
 		const key = newOperationKey(),
 			following = profile.viewerIsFollowing;
-		void work.run(
+		void followWork.run(
 			() =>
 				following
 					? api.profiles.unfollow(id, key)
@@ -321,7 +327,14 @@
 <svelte:window onscroll={updateHeader} />
 {#if profile && headerCollapsed}<div class="profile-compact-header">
 		<div class="compact-profile-identity">
-			<Avatar author={profile} /><CompactIdentity author={profile} />
+			{#if avatarURL}<button
+					class="avatar-trigger"
+					aria-label="View profile picture"
+					onclick={() => (avatarOpen = true)}
+					><Avatar author={profile} /></button
+				>{:else}<Avatar author={profile} />{/if}<CompactIdentity
+				author={profile}
+			/>
 		</div>
 	</div>{/if}
 <Status {work} skeleton="profile" />{#if profile}<div
@@ -336,15 +349,21 @@
 				></span>{/if}
 		</div>
 		<div class="profile-identity" bind:this={identityElement}>
-			<Avatar
-				author={{
-					did: profile.did,
-					handle: profile.handle,
-					displayName: profile.displayName || undefined,
-					avatar: profile.avatar || undefined
-				}}
-				large
-			/>
+			{#if avatarURL}<button
+					class="avatar-trigger"
+					aria-label="View profile picture"
+					onclick={() => (avatarOpen = true)}
+					><Avatar author={profile} large /></button
+				>{:else}
+				<Avatar
+					author={{
+						did: profile.did,
+						handle: profile.handle,
+						displayName: profile.displayName || undefined,
+						avatar: profile.avatar || undefined
+					}}
+					large
+				/>{/if}
 			<h1>
 				{profile.displayName ||
 					(profile.handle ? '@' + profile.handle : 'Account unavailable')}
@@ -363,6 +382,7 @@
 			</ul>
 		</div>
 		<div class="profile-meta stack">
+			<Status work={followWork} showLoading={false} />
 			{#if !profile.isCraftskyProfile}<p class="muted non-member">
 					Non CraftSky profile
 				</p>{/if}
@@ -410,9 +430,18 @@
 				{:else}{#if !profile.blocking && !profile.blockedBy}<button
 							class="button"
 							class:following={profile.viewerIsFollowing}
-							disabled={work.busy || !!work.retry}
+							disabled={work.busy ||
+								followWork.busy ||
+								!!work.retry ||
+								!!followWork.retry}
+							aria-busy={followWork.busy}
 							onclick={follow}
-							>{profile.viewerIsFollowing ? 'Unfollow' : 'Follow'}</button
+							>{#if followWork.busy}<span
+									class="follow-spinner"
+									aria-hidden="true"
+								></span>{/if}{profile.viewerIsFollowing
+								? 'Unfollow'
+								: 'Follow'}</button
 						><a
 							class="icon-button message-action"
 							href={'/messages/new?did=' + encodeURIComponent(profile.did)}
@@ -495,27 +524,39 @@
 							{/if}
 							<div class="profile-menu-divider"></div>
 							{#if !profile.blocking && !profile.blockedBy}<button
-									disabled={work.busy || !!work.retry}
+									disabled={work.busy ||
+										followWork.busy ||
+										!!work.retry ||
+										!!followWork.retry}
 									onclick={() => relationship('mute')}
 									><Icon name="mute" />{profile.muted
 										? 'Unmute account'
 										: 'Mute account'}</button
 								>{/if}<button
 								class="destructive"
-								disabled={work.busy || !!work.retry}
+								disabled={work.busy ||
+									followWork.busy ||
+									!!work.retry ||
+									!!followWork.retry}
 								onclick={() => relationship('block')}
 								><Icon name="block" />{profile.blocking
 									? 'Unblock account'
 									: 'Block account'}</button
 							><button
 								data-public-action
-								disabled={work.busy || !!work.retry}
+								disabled={work.busy ||
+									followWork.busy ||
+									!!work.retry ||
+									!!followWork.retry}
 								onclick={() => {
 									reportLink = undefined;
 									reportOpen = true;
 								}}><Icon name="report" />Report profile</button
 							>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
-										disabled={work.busy || !!work.retry}
+										disabled={work.busy ||
+											followWork.busy ||
+											!!work.retry ||
+											!!followWork.retry}
 										onclick={() => {
 											reportLink = link.uri.split('/').pop();
 											reportOpen = true;
@@ -660,8 +701,45 @@
 		onClose={() => (shareCard = undefined)}
 	/>
 {/if}
+{#if avatarOpen && avatarURL}<ImageGallery
+		images={[
+			{
+				fullsize: avatarURL,
+				alt: `${profile?.displayName || profile?.handle || 'Account'} profile picture`
+			}
+		]}
+		onclose={() => (avatarOpen = false)}
+	/>{/if}
 
 <style>
+	.avatar-trigger {
+		display: inline-flex;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		box-shadow: none;
+		cursor: zoom-in;
+	}
+	.follow-spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: follow-spin 1s linear infinite;
+	}
+	@keyframes follow-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.follow-spinner {
+			animation: none;
+		}
+	}
+
 	.profile-content {
 		min-height: calc(100dvh - 106px);
 	}

@@ -1791,7 +1791,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   Future<List<Map<String, dynamic>>> _facetsForSubmission(String text) async {
     final stored = widget.scheduledPost?.payload['facets'];
     if (widget.scheduledPost != null &&
-        text == _initialText.trim() &&
+        text == _initialText &&
         stored is List<dynamic>) {
       return stored
           .whereType<Map<dynamic, dynamic>>()
