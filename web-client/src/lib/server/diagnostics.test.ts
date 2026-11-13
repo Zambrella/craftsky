@@ -6,6 +6,19 @@ afterEach(() => vi.restoreAllMocks());
 const id = '12345678-1234-4123-8123-123456789012';
 
 describe('protected Worker diagnostics', () => {
+	it('keeps validated auth failure correlation available to browser diagnostics', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const failure = new UpstreamError(503, 'unavailable');
+		failure.requestId = id;
+		const response = safeFailure(failure);
+		expect(response.headers.get('X-Request-ID')).toBe(id);
+		expect(await response.json()).toMatchObject({ requestId: id });
+
+		failure.requestId = 'PRIVATE_IDENTIFIER';
+		const untrusted = safeFailure(failure);
+		expect(untrusted.headers.get('X-Request-ID')).toBeNull();
+		expect(await untrusted.text()).not.toContain('PRIVATE_IDENTIFIER');
+	});
 	it('preserves cause types and deployed coordinates, excludes private prose and paths', () => {
 		const sink = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const cause = new SyntaxError('PRIVATE_BODY');

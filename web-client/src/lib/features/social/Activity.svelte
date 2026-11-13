@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { contextMenu } from './context-menu';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import {
 		notificationBadgeContext,
@@ -58,7 +59,8 @@
 				await api.notifications.seen();
 			}
 			finish?.(true);
-		} catch {
+		} catch (error) {
+			void reportFailure(error, 'social.Activity.seen');
 			// Seen is background bookkeeping; restore/reconcile the badge if it fails.
 		} finally {
 			finish?.(false);

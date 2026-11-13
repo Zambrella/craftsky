@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import type { CraftskyAPI, PostPresentation } from '#lib/api/client.ts';
 	import { Work } from './work.svelte';
@@ -33,7 +34,9 @@
 					displayLabel: '#' + tag,
 					payload: { tag }
 				})
-				.catch(() => {});
+				.catch(
+					(error) => void reportFailure(error, 'social.Search.saveRecent')
+				);
 	});
 	onDestroy(() => work.dispose());
 </script>

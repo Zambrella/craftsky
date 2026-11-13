@@ -6,7 +6,10 @@ import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'owner_business_events_provider.g.dart';
@@ -61,6 +64,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
     final generation = _generation;
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final read = _captureRead(ownership, current.items);
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
@@ -92,7 +96,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
           incrementalError: null,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
@@ -104,6 +108,15 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         await _restartAfterInvalidCursor(current);
         return;
       }
+      reportConsumedFailure(
+        error,
+        stack,
+        reporter: reporter,
+        feature: 'BusinessEvents',
+        operation: 'events.owner_load_more',
+        accountDid: ownership?.session.account.did.value,
+        fallbackKind: AppErrorKind.backgroundLoadFailed,
+      );
       state = AsyncData(
         current.copyWith(isLoadingMore: false, incrementalError: error),
       );
@@ -121,6 +134,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
     final generation = ++_generation;
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final read = _captureRead(ownership, current.items);
     state = AsyncData(
       current.copyWith(
@@ -148,7 +162,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         return;
       }
       state = AsyncData(result.state);
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
@@ -156,6 +170,15 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         state = AsyncData(_retainedState(current, read));
         return;
       }
+      reportConsumedFailure(
+        error,
+        stack,
+        reporter: reporter,
+        feature: 'BusinessEvents',
+        operation: 'events.owner_refresh',
+        accountDid: ownership?.session.account.did.value,
+        fallbackKind: AppErrorKind.backgroundLoadFailed,
+      );
       state = AsyncData(
         current.copyWith(
           isLoadingMore: false,

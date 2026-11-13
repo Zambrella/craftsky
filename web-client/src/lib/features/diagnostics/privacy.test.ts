@@ -1,7 +1,8 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import * as sdk from '@sentry/browser';
 import { serializeEnvelope, type Envelope, type Transport } from '@sentry/core';
 import { APIError } from '#lib/api/client.ts';
+import { inspectVideo, prepareImage } from '../composer/media.ts';
 import { diagnosticOptions } from './options.ts';
 import { safeEvent, privateTransport } from './privacy.ts';
 const canary = 'PROTECTED_PRIVATE_CANARY_123';
@@ -13,10 +14,42 @@ const makeError = () => {
 	return error;
 };
 afterEach(async () => {
+	vi.unstubAllGlobals();
 	await sdk.close(1);
 	sdk.getCurrentScope().clearAttachments();
 	sdk.getCurrentScope().clearBreadcrumbs();
 	sdk.getCurrentScope().setUser(null);
+});
+
+it('retains unexpected image decoder causes and code coordinates in the SDK envelope', async () => {
+	const bodies: string[] = [];
+	const client = sdk.init(
+		diagnosticOptions(
+			sdk,
+			'https://public@o1.ingest.sentry.io/1',
+			() => true,
+			async (_request, init) => {
+				bodies.push(String(init?.body));
+				return new Response('', { status: 200 });
+			}
+		)
+	)!;
+	const cause = new RangeError(canary);
+	cause.stack = `RangeError: ${canary}\n at decode (https://app.craftsky.social/_app/immutable/chunks/media.ABC.js?private=${canary}:8:2)`;
+	vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(cause));
+	const failure = await prepareImage(new Blob(['image']), canary).catch(
+		(error) => error
+	);
+	sdk.captureException(failure, {
+		contexts: { diagnostic: { operation: 'composer.addImages' } }
+	});
+	await client.flush(1000);
+	expect(bodies).toHaveLength(1);
+	expect(bodies[0]).toContain('UserFacingError');
+	expect(bodies[0]).toContain('RangeError');
+	expect(bodies[0]).toContain('composer.addImages');
+	expect(bodies[0]).toContain('/_app/immutable/chunks/media.ABC.js');
+	expect(bodies[0]).not.toContain(canary);
 });
 describe('diagnostic source selection and serialization', () => {
 	it('retains release, debug IDs, handled state and AppView correlation in serialized SDK output', async () => {
@@ -141,6 +174,10 @@ describe('diagnostic source selection and serialization', () => {
 		sdk.captureException(new APIError(403, 'not_allowed', canary));
 		sdk.captureException(new TypeError('Failed to fetch'));
 		sdk.captureException(new DOMException(canary, 'AbortError'));
+		const invalidVideo = await inspectVideo({
+			size: 300_000_001
+		} as File).catch((error) => error);
+		sdk.captureException(invalidVideo);
 		await client.flush(1000);
 		expect(sent).toEqual([]);
 	});

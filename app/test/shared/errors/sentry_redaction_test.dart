@@ -9,7 +9,7 @@ void main() {
         'severity': 'error',
         'feature': 'feed',
         'classification': 'api.server_error',
-        'appViewRequestId': 'req_123',
+        'appViewRequestId': '50000000-0000-4000-8000-000000000005',
         'appViewError': 'internal_error',
         'httpStatus': 500,
         'httpMethod': 'GET',
@@ -30,7 +30,7 @@ void main() {
         'severity': 'error',
         'feature': 'feed',
         'classification': 'api.server_error',
-        'appViewRequestId': 'req_123',
+        'appViewRequestId': '50000000-0000-4000-8000-000000000005',
         'appViewError': 'internal_error',
         'httpStatus': 500,
         'httpMethod': 'GET',
@@ -42,10 +42,12 @@ void main() {
         'feature': 'did:plc:alice',
         'endpointCategory': 'https://api.example.test/v1/feed?cursor=secret',
         'classification': 'Bearer secret',
-        'appViewRequestId': 'req_123',
+        'appViewRequestId': '50000000-0000-4000-8000-000000000005',
       });
 
-      expect(sanitized, {'appViewRequestId': 'req_123'});
+      expect(sanitized, {
+        'appViewRequestId': '50000000-0000-4000-8000-000000000005',
+      });
     });
 
     test('REG-002 drops every notification and account sentinel field', () {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AccountProvider from './AccountProvider.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { APIError } from '#lib/api/client.ts';
 	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { usePrompt } from '../social/prompt';
@@ -109,7 +110,10 @@
 						: Promise.resolve(null),
 					browser<{ pending: boolean; jobId?: string; did?: string }>('status'),
 					eligible.state === 'eligible'
-						? api.billing.access().catch(() => null)
+						? api.billing.access().catch((error) => {
+								void reportFailure(error, 'settings.Account.access');
+								return null;
+							})
 						: Promise.resolve(null)
 				]);
 				return [me, eligible, status, access] as const;

@@ -33,10 +33,10 @@ class ErrorMappingInterceptor extends Interceptor {
       ),
       DioExceptionType.badResponse => _mapBadResponse(err),
       DioExceptionType.cancel => ApiCanceled(details: details),
+      // Only known transport failures above establish an offline condition.
+      // Adapter and certificate failures remain actionable with their cause.
       DioExceptionType.badCertificate || DioExceptionType.unknown =>
-        err.error is Exception
-            ? ApiNetworkError(err.message ?? 'network_error', details: details)
-            : ApiServerError(err.message ?? 'server_error', details: details),
+        ApiServerError(err.message ?? 'server_error', details: details),
     };
   }
 
@@ -60,18 +60,14 @@ class ErrorMappingInterceptor extends Interceptor {
 
     final envelopeRequestId = field(
       'requestId',
-      RegExp(r'^[A-Za-z0-9_-]{1,160}$'),
+      _requestId,
     );
     final headerRequestIds = err.response?.headers['x-request-id'];
     final headerRequestId = headerRequestIds?.length == 1
         ? headerRequestIds!.single
         : null;
     final validHeaderRequestId =
-        headerRequestId != null &&
-            RegExp(
-              '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
-              r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-            ).hasMatch(headerRequestId)
+        headerRequestId != null && _requestId.hasMatch(headerRequestId)
         ? headerRequestId
         : null;
     final code = field('error', RegExp(r'^[a-z][a-z0-9_]{0,79}$'));
@@ -122,4 +118,9 @@ class ErrorMappingInterceptor extends Interceptor {
           : const {},
     );
   }
+
+  static final _requestId = RegExp(
+    '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
+    r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  );
 }

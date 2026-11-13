@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 enum DraftRepositoryFailureReason {
   invalidRequest,
@@ -18,11 +19,21 @@ enum DraftValidationFailure {
   mediaType,
 }
 
-final class DraftRepositoryException implements Exception {
-  const new(this.reason, {this.validationFailure});
+final class DraftRepositoryException
+    implements Exception, DiagnosticFailureCause {
+  const new(
+    this.reason, {
+    this.validationFailure,
+    this.diagnosticCause,
+    this.diagnosticStack,
+  });
 
   final DraftRepositoryFailureReason reason;
   final DraftValidationFailure? validationFailure;
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
 
   @override
   String toString() => 'DraftRepositoryException(${reason.name})';

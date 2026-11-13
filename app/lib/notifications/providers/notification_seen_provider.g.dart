@@ -68,7 +68,7 @@ final class AccountNotificationSeenProvider
 }
 
 String _$accountNotificationSeenHash() =>
-    r'33e354c6d7e9c8c5246d67a260fe58d20531d507';
+    r'94c4dc00040af2c69d27cd0b89941879f4291c64';
 
 final class AccountNotificationSeenFamily extends $Family
     with
@@ -137,4 +137,4 @@ final class NotificationSeenProvider
   }
 }
 
-String _$notificationSeenHash() => r'8c369605100e2b46d62687f155e8d4eba5e666e8';
+String _$notificationSeenHash() => r'fc6f779957bbef6e459ba93fc78e8e22eb503067';

@@ -9,7 +9,7 @@ void main() {
       'severity': 'WARNING',
       'operation': 'synthetic.read',
       'cause': 'StateError',
-      'appViewRequestId': 'product-probe',
+      'appViewRequestId': '80000000-0000-4000-8000-000000000008',
       'stack': [
         for (var i = 0; i < 240; i++) {'function': 'frame$i'},
       ],

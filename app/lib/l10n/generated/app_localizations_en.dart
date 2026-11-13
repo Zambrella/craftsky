@@ -547,6 +547,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'CraftSky is having trouble right now. Please try again.';
 
   @override
+  String get errorRateLimited =>
+      'Too many requests. Please wait a moment and try again.';
+
+  @override
   String get errorSessionExpired => 'Please sign in again.';
 
   @override

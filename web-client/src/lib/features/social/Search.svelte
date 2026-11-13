@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -192,7 +193,9 @@
 		if (term && !guest)
 			void api.search
 				.saveRecent({ type: 'query', displayLabel: term, payload: { q: term } })
-				.catch(() => {});
+				.catch(
+					(error) => void reportFailure(error, 'social.Search.saveRecent')
+				);
 	});
 	$effect(() => {
 		// Even selecting the active/default tab can create a new history entry.
@@ -267,7 +270,7 @@
 					crafts: author.crafts ?? []
 				}
 			})
-			.catch(() => {});
+			.catch((error) => void reportFailure(error, 'social.Search.saveRecent'));
 	}
 </script>
 

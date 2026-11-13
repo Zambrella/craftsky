@@ -1,4 +1,5 @@
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum RevenueCatPlatform { ios, android, macos, windows, linux }
 
@@ -20,6 +21,7 @@ Future<RevenueCatService> bootstrapRevenueCat({
   required bool useTestStore,
   required bool isDebug,
   required RevenueCatConfigurator configurator,
+  SubscriptionDiagnostics diagnostics = const SubscriptionDiagnostics(),
 }) async {
   final publicKey = switch (platform) {
     RevenueCatPlatform.ios || RevenueCatPlatform.android
@@ -38,7 +40,8 @@ Future<RevenueCatService> bootstrapRevenueCat({
           ? RevenueCatSdkLogLevel.debug
           : RevenueCatSdkLogLevel.info,
     );
-  } on Object {
+  } on Object catch (error, stack) {
+    diagnostics.report(error, stack, operation: 'billing.configure');
     return const UnavailableRevenueCatService();
   }
 }

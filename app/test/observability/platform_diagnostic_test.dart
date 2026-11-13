@@ -70,7 +70,9 @@ void main() {
               feature: 'Post',
               operation: 'read',
               classification: 'post.failed',
-              safeDiagnostics: const {'appViewRequestId': 'normal-request'},
+              safeDiagnostics: const {
+                'appViewRequestId': 'a0000000-0000-4000-8000-00000000000a',
+              },
               workflow: PublicRecordContext(
                 actorDid: 'did:plc:actor',
                 recordUri: 'at://did:plc:actor/${'x' * 10000}',
@@ -84,7 +86,10 @@ void main() {
         utf8.encode(lines.single).length,
         greaterThan(8192),
       );
-      expect(selected['appViewRequestId'], 'normal-request');
+      expect(
+        selected['appViewRequestId'],
+        'a0000000-0000-4000-8000-00000000000a',
+      );
       expect(
         (selected['diagnostic'] as Map<String, dynamic>)['recordUri'],
         '[OMITTED: console identifier]',
@@ -125,7 +130,7 @@ void main() {
             operation: 'read',
             classification: 'post.read',
             safeDiagnostics: {
-              'appViewRequestId': 'brief-request',
+              'appViewRequestId': 'b0000000-0000-4000-8000-00000000000b',
               'failureStage': 'load',
             },
             workflow: PrivateOperationalFailureContext(
@@ -142,7 +147,7 @@ void main() {
     expect(decoded['cause'].toString(), contains('StateError'));
     expect(decoded['stack'].toString(), contains('loadPost'));
     expect(decoded['operation'], 'read');
-    expect(decoded['appViewRequestId'], 'brief-request');
+    expect(decoded['appViewRequestId'], 'b0000000-0000-4000-8000-00000000000b');
     expect(
       decoded['diagnostic'].toString(),
       contains('40000000-0000-4000-8000-000000000001'),

@@ -18,6 +18,9 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -207,6 +210,8 @@ class ProductsController extends _$ProductsController {
 
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
+    final accountDid = ownership?.session.account.did.value ?? _ownerDid.value;
     final lease =
         ownership?.session ??
         AccountSessionLease(
@@ -255,13 +260,22 @@ class ProductsController extends _$ProductsController {
           operationKey: operationKey,
           expectedCid: current.declaration.expectedCid,
         );
-      } on PdsMutationAmbiguousException catch (error) {
+      } on PdsMutationAmbiguousException catch (error, stack) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return false;
         switch (decision) {
           case PdsMutationRetryDecision.obsolete:
             return false;
           case PdsMutationRetryDecision.exhausted:
+            reportConsumedFailure(
+              error,
+              stack,
+              reporter: reporter,
+              feature: 'Products',
+              operation: 'products.save',
+              accountDid: accountDid,
+              outcome: DiagnosticOutcome.terminal,
+            );
             state = AsyncData(
               current.copyWith(status: ProductsStatus.ambiguous),
             );
@@ -269,8 +283,16 @@ class ProductsController extends _$ProductsController {
           case PdsMutationRetryDecision.retry:
             continue;
         }
-      } on ApiBadRequest catch (error) {
+      } on ApiBadRequest catch (error, stack) {
         if (!accountOperation.isCurrent) return false;
+        reportConsumedFailure(
+          error,
+          stack,
+          reporter: reporter,
+          feature: 'Products',
+          operation: 'products.save',
+          accountDid: accountDid,
+        );
         commandController.markFailed(commandToken);
         state = AsyncData(
           current.copyWith(
@@ -282,8 +304,16 @@ class ProductsController extends _$ProductsController {
           ),
         );
         return false;
-      } on Object {
+      } on Object catch (error, stack) {
         if (!accountOperation.isCurrent) return false;
+        reportConsumedFailure(
+          error,
+          stack,
+          reporter: reporter,
+          feature: 'Products',
+          operation: 'products.save',
+          accountDid: accountDid,
+        );
         commandController.markFailed(commandToken);
         state = AsyncData(current.copyWith(status: ProductsStatus.error));
         return false;

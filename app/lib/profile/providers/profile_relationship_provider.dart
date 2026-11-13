@@ -16,7 +16,9 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -99,6 +101,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     if (baseline != null) seed(baseline);
     final previous = state;
     final lease = _captureLease();
+    final reporter = ref.read(errorReporterProvider);
     state = _optimistic(previous, action).copyWith(
       pendingAction: action,
       lastError: null,
@@ -108,9 +111,11 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
 
     final repositoryProvider = accountRelationshipRepositoryProvider(account);
     final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
+    var dispatched = false;
     try {
       final repository = await ref.read(repositoryProvider.future);
       if (!_isCurrent(lease)) return;
+      dispatched = true;
       final result = await _apply(repository, action);
       if (!_isCurrent(lease)) return;
       state = result.copyWith(
@@ -121,8 +126,18 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       );
       _invalidateAffectedSurfaces(refreshRecentMembers: true);
       _scheduleReconciliation(lease);
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       if (!_isCurrent(lease)) return;
+      if (dispatched) {
+        reportConsumedFailure(
+          error,
+          stack,
+          reporter: reporter,
+          feature: 'Relationships',
+          operation: 'relationship.${action.name}',
+          accountDid: account.did.value,
+        );
+      }
       state = previous.copyWith(pendingAction: null, lastError: error);
       _invalidateAffectedSurfaces();
     } finally {

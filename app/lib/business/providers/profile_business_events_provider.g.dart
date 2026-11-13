@@ -53,7 +53,7 @@ final class ProfileBusinessEventsProvider
 }
 
 String _$profileBusinessEventsHash() =>
-    r'a495e1dbf077107cb426d6a66212196fb6f4a26b';
+    r'0bdc62bb24c66322012a02895717dd8a9bab760f';
 
 final class ProfileBusinessEventsFamily extends $Family
     with

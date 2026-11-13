@@ -124,7 +124,7 @@ func TestLocalReleaseAndVersionWiringIsPresent(t *testing.T) {
 	assertFileContains(t, filepath.Join(repositoryRoot, ".github", "workflows", "backend-ci.yml"),
 		"pull_request:",
 		"name: PR checks",
-		"flutter analyze",
+		"dart analyze --fatal-infos",
 		"./scripts/appview-check",
 	)
 	assertFileContains(t, filepath.Join(repositoryRoot, "appview", "Dockerfile"),

@@ -8,6 +8,8 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -20,7 +22,45 @@ import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/recording_error_reporter.dart';
+
 void main() {
+  test('consumed billing load reports its original failure once', () async {
+    final error = Exception('PRIVATE_BILLING_PAYLOAD');
+    final reporter = RecordingErrorReporter();
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(_registry()),
+        ),
+        errorReporterProvider.overrideWithValue(reporter),
+        revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+        subscriptionRepositoryProvider.overrideWith(
+          (_, _) async => _Api(
+            'did:plc:alice',
+            SubscriptionTier.plus,
+            ownerError: error,
+          ),
+        ),
+      ],
+    );
+    final subscription = container.listen(
+      subscriptionPageModelProvider,
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+
+    final model = await container.read(subscriptionPageModelProvider.future);
+
+    expect(model.operationNotice, SubscriptionOperationNotice.providerFailure);
+    expect(reporter.errors, [same(error)]);
+    expect(
+      reporter.contexts.single.workflow,
+      isA<PrivateOperationalFailureContext>(),
+    );
+  });
+
   for (final phase in ['registry', 'access', 'billing']) {
     test(
       'closed subscription page cancels pending $phase work '

@@ -48,7 +48,6 @@ void main() {
     ).readAsStringSync();
 
     expect(source, isNot(contains('setLogHandler')));
-    expect(source, isNot(contains('PlatformException')));
     expect(source, isNot(contains('CustomerInfo')));
     expect(source, isNot(contains('logOut')));
   });

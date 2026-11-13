@@ -2,6 +2,7 @@
 // CRAFTSKY_DEBUG_LOGS enables FINE output only in debug builds.
 import 'dart:async';
 
+import 'package:craftsky_app/application_startup.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
@@ -31,40 +32,36 @@ Future<void> main() async {
     () async {
       final binding = WidgetsFlutterBinding.ensureInitialized();
       FlutterNativeSplash.preserve(widgetsBinding: binding);
-      try {
-        SharedPreferences.setPrefix('craftsky.');
-        final reporting = ErrorReportingController(
-          preferences: await SharedPreferences.getInstance(),
-          config: SentryConfig.fromEnvironment(),
-          adapter: const SentryFlutterBootstrapAdapter(),
-          closeSdk: closeSentrySdk,
-        );
-        reporter = reporting;
-        await reporting.initialize();
-        MediaKit.ensureInitialized();
-        await bootstrap(
-          binding,
-          reporter: reporting,
-          errorReporting: reporting,
-        );
-      } on Object catch (error, stack) {
-        FlutterNativeSplash.remove();
-        _log.severe('Application startup failed', error, stack);
-        await reporter.captureException(
-          error,
-          stackTrace: stack,
-          context: const ReportContext(
-            feature: 'main',
-            operation: 'bootstrap',
-            classification: 'app.startup',
-          ),
-        );
-      }
+      var preferencesConfigured = false;
+      await runApplicationStartup(
+        removeSplash: FlutterNativeSplash.remove,
+        reporter: () => reporter,
+        initialize: () async {
+          if (!preferencesConfigured) {
+            SharedPreferences.setPrefix('craftsky.');
+            preferencesConfigured = true;
+          }
+          final reporting = ErrorReportingController(
+            preferences: await SharedPreferences.getInstance(),
+            config: SentryConfig.fromEnvironment(),
+            adapter: const SentryFlutterBootstrapAdapter(),
+            closeSdk: closeSentrySdk,
+          );
+          reporter = reporting;
+          await reporting.initialize();
+          MediaKit.ensureInitialized();
+          await bootstrap(
+            binding,
+            reporter: reporting,
+            errorReporting: reporting,
+          );
+        },
+      );
     },
     (error, stack) {
       _log.severe('Unhandled application error', error, stack);
       unawaited(
-        reporter.captureException(
+        GuardedErrorReporter(reporter).captureException(
           error,
           stackTrace: stack,
           context: const ReportContext(

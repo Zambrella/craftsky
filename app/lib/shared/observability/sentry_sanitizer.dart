@@ -19,7 +19,6 @@ final class SentrySanitizer {
     'feature',
     'operation',
     'classification',
-    'appViewRequestId',
     'appViewError',
     'httpStatus',
     'authState',
@@ -65,6 +64,14 @@ final class SentrySanitizer {
           entry.key: entry.value,
     };
     final code = context['appViewError'];
+    final requestId = context['appViewRequestId'];
+    if (requestId is String &&
+        RegExp(
+          '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
+          r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(requestId)) {
+      selected['appViewRequestId'] = requestId;
+    }
     if (code is String && RegExp(r'^[a-z][a-z0-9_]{0,79}$').hasMatch(code)) {
       selected['appViewError'] = code;
     }

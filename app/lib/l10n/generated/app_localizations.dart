@@ -1006,6 +1006,12 @@ abstract class AppLocalizations {
   /// **'CraftSky is having trouble right now. Please try again.'**
   String get errorServiceUnavailable;
 
+  /// Recovery guidance when an API request is rate limited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests. Please wait a moment and try again.'**
+  String get errorRateLimited;
+
   /// Safe generic error message shown when the user's session is no longer valid.
   ///
   /// In en, this message translates to:

@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/save_composer_snapshot.dart';
 import 'package:craftsky_app/drafts/composer/standard_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
@@ -74,6 +75,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
@@ -265,6 +267,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
+      reporter: ref.read(errorReporterProvider),
     );
     _videoController =
         widget.videoController ??
@@ -1336,7 +1339,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
               ownership: owner,
               allowVideoBlobRecovery: allowBlobRecovery,
             );
-        if (created == null) throw const VideoPublicationException(null);
+        if (created == null) throw const ComposerSubmissionFailure();
         _submissionSucceeded = true;
       },
       onProgress: (progress) {
@@ -1653,6 +1656,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       isCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
     );
     await _submissionCoordinator.run(
+      accountDid: submissionOwner?.session.account.did.value,
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) throw DiagnosticStateError('composer disposed');
@@ -1757,14 +1761,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     expectedOwner: widget.draftOwner,
     activeOwner: ref.read(sessionRegistryProvider).value?.activeLease,
     save: (owner) {
-      return ref
-          .read(draftSaveControllerProvider(owner).notifier)
-          .save(
-            _draftWriteRequest(
-              owner,
-              ref.read(composerImagesProvider(_composerId)),
-            ),
-          );
+      return saveComposerSnapshot(
+        container: ProviderScope.containerOf(context, listen: false),
+        owner: owner,
+        request: _draftWriteRequest(
+          owner,
+          ref.read(composerImagesProvider(_composerId)),
+        ),
+      );
     },
   );
 

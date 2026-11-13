@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import {
 		FieldValidationError,
 		presentFieldErrors,
@@ -159,7 +160,7 @@
 			async () => {
 				if (!media.blob) {
 					if (!selection.original)
-						throw new UserFacingError('Choose an image first.');
+						throw new InputError('Choose an image first.');
 					return { ...selection.original, alt: media.alt };
 				}
 				const prepared = await prepareImage(media.blob, media.name);
@@ -345,6 +346,7 @@
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
+			void reportFailure(error, 'settings.Business.saveProfile');
 			work.error = userErrorMessage(error);
 		}
 	}
@@ -553,6 +555,7 @@
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
+			void reportFailure(error, 'settings.Business.saveEvent');
 			work.error = userErrorMessage(error);
 		}
 	}

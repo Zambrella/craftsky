@@ -70,6 +70,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -125,7 +126,7 @@ final class ProviderLogger extends ProviderObserver {
     };
     final workflow = accountDid == null
         ? null
-        : PublicRecordContext(actorDid: accountDid);
+        : PrivateOperationalFailureContext(accountDid: accountDid);
     final appError = AppErrorMapper.map(
       error,
       fallbackKind: AppErrorKind.backgroundLoadFailed,
@@ -157,7 +158,7 @@ final class ProviderLogger extends ProviderObserver {
     }
 
     unawaited(
-      reporter.captureException(
+      GuardedErrorReporter(reporter).captureException(
         error,
         stackTrace: stackTrace,
         context: diagnosticContext,
@@ -246,6 +247,7 @@ Future<void> bootstrap(
         const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
     isDebug: kDebugMode,
     configurator: const NativeRevenueCatConfigurator(),
+    diagnostics: SubscriptionDiagnostics(reporter: reporter),
   );
 
   // Default locale for intl date/number formatting.

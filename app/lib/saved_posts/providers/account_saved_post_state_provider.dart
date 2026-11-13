@@ -7,6 +7,8 @@ import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_viewer_state.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'account_saved_post_state_provider.g.dart';
@@ -75,6 +77,7 @@ class AccountSavedPostState extends _$AccountSavedPostState {
     String? folderId,
     SavedPostMutation mutation,
   ) async {
+    final reporter = ref.read(errorReporterProvider);
     final generation = captureSavedPostAccountBoundary(ref);
     seedIfAbsent(post);
     final currentMap = state.requireValue;
@@ -90,8 +93,10 @@ class AccountSavedPostState extends _$AccountSavedPostState {
     // Own the disposable repository only while this mutation is in flight.
     final repositoryProvider = accountSavedPostRepositoryProvider(account);
     final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
+    var dispatched = false;
     try {
       final repository = await ref.read(repositoryProvider.future);
+      dispatched = true;
       final result = await repository.save(post, folderId: folderId);
       if (!_isCurrent(post.uri, previous.revision, mutation, generation)) {
         return;
@@ -106,9 +111,21 @@ class AccountSavedPostState extends _$AccountSavedPostState {
           savedAt: result.savedAt,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!_isCurrent(post.uri, previous.revision, mutation, generation)) {
         return;
+      }
+      if (dispatched) {
+        reportConsumedFailure(
+          error,
+          stackTrace,
+          reporter: reporter,
+          feature: 'SavedPosts',
+          operation: mutation == SavedPostMutation.move
+              ? 'savedPosts.move'
+              : 'savedPosts.save',
+          accountDid: account.did.value,
+        );
       }
       _put(
         post.uri,
@@ -120,6 +137,7 @@ class AccountSavedPostState extends _$AccountSavedPostState {
   }
 
   Future<void> unsave(Post post) async {
+    final reporter = ref.read(errorReporterProvider);
     final generation = captureSavedPostAccountBoundary(ref);
     seedIfAbsent(post);
     final currentMap = state.requireValue;
@@ -141,8 +159,10 @@ class AccountSavedPostState extends _$AccountSavedPostState {
     // Own the disposable repository only while this mutation is in flight.
     final repositoryProvider = accountSavedPostRepositoryProvider(account);
     final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
+    var dispatched = false;
     try {
       final repository = await ref.read(repositoryProvider.future);
+      dispatched = true;
       await repository.unsave(post);
       if (!_isCurrent(
         post.uri,
@@ -160,7 +180,7 @@ class AccountSavedPostState extends _$AccountSavedPostState {
           revision: previous.revision + 1,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!_isCurrent(
         post.uri,
         previous.revision,
@@ -168,6 +188,16 @@ class AccountSavedPostState extends _$AccountSavedPostState {
         generation,
       )) {
         return;
+      }
+      if (dispatched) {
+        reportConsumedFailure(
+          error,
+          stackTrace,
+          reporter: reporter,
+          feature: 'SavedPosts',
+          operation: 'savedPosts.unsave',
+          accountDid: account.did.value,
+        );
       }
       _put(
         post.uri,

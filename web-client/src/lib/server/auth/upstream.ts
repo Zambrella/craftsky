@@ -1,5 +1,6 @@
 import { logServerFailure, type ServerOperation } from '../diagnostics';
 import { env } from 'node:process';
+import { appViewRequestId } from '#lib/api/request-id.ts';
 export class UpstreamError extends Error {
 	readonly name = 'UpstreamError';
 	requestId?: string;
@@ -179,6 +180,7 @@ export function safeFailure(
 	const known = error instanceof UpstreamError;
 	const status =
 		known && error.status >= 400 && error.status <= 599 ? error.status : 503;
+	const requestId = known ? appViewRequestId(error.requestId) : undefined;
 	logServerFailure(
 		error,
 		operation,
@@ -190,12 +192,14 @@ export function safeFailure(
 	return Response.json(
 		{
 			error: known ? error.code : 'unavailable',
-			message: 'This request could not be completed. Please try again.'
+			message: 'This request could not be completed. Please try again.',
+			...(requestId ? { requestId } : {})
 		},
 		{
 			status,
 			headers: {
 				'cache-control': 'no-store',
+				...(requestId ? { 'X-Request-ID': requestId } : {}),
 				...(known && error.retryAfter
 					? { 'retry-after': error.retryAfter }
 					: {})

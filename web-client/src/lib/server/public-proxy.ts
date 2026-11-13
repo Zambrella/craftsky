@@ -1,6 +1,7 @@
 import { isHttpError, json } from '@sveltejs/kit';
 import { publicReadPath } from '#lib/api/public-path.ts';
 import { publicAPI } from './api';
+import { appViewRequestId } from '#lib/api/request-id.ts';
 
 /** No caller headers/cookies enter this boundary; publicAPI also caps the
  * upstream body, redirects and timeout. Private proxy access stays protected. */
@@ -19,13 +20,19 @@ export async function publicReadResponse(
 			{ status: 400, headers }
 		);
 	}
+	const publicFetch: typeof fetch = async (input, init) => {
+		const response = await fetcher(input, init);
+		const requestId = appViewRequestId(response.headers.get('X-Request-ID'));
+		if (requestId) headers['X-Request-ID'] = requestId;
+		return response;
+	};
 	try {
 		if (/\/video-captions\/[^/?]+$/.test(canonical))
 			return new Response(
-				await publicAPI<string>(fetcher, canonical, 'caption'),
+				await publicAPI<string>(publicFetch, canonical, 'caption'),
 				{ headers: { ...headers, 'content-type': 'text/vtt; charset=utf-8' } }
 			);
-		return json(await publicAPI(fetcher, canonical), { headers });
+		return json(await publicAPI(publicFetch, canonical), { headers });
 	} catch (error) {
 		if (!isHttpError(error)) throw error;
 		const status = error.status;
@@ -41,7 +48,13 @@ export async function publicReadResponse(
 							? 'rate_limited'
 							: 'unavailable';
 		return json(
-			{ error: code, message: error.body.message },
+			{
+				error: code,
+				message: error.body.message,
+				...(headers['X-Request-ID']
+					? { requestId: headers['X-Request-ID'] }
+					: {})
+			},
 			{ status, headers }
 		);
 	}

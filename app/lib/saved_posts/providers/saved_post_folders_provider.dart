@@ -9,6 +9,9 @@ import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_prov
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -133,6 +136,7 @@ class SavedPostFolders extends _$SavedPostFolders {
   }
 
   Future<void> loadMore() async {
+    final reporter = ref.read(errorReporterProvider);
     final generation = captureSavedPostAccountBoundary(ref);
     final current = state.value;
     if (current == null || current.cursor == null || current.isLoadingMore) {
@@ -141,18 +145,30 @@ class SavedPostFolders extends _$SavedPostFolders {
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
     );
+    var dispatched = false;
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(account).future,
       );
+      dispatched = true;
       final page = await repository.listFolders(cursor: current.cursor);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       state = AsyncData(current.appendPage(page));
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       if (error is ApiBadRequest && error.code == 'invalid_cursor') {
         await _restart(current, generation);
       } else {
+        if (dispatched) {
+          reportConsumedFailure(
+            error,
+            stackTrace,
+            reporter: reporter,
+            feature: 'SavedPosts',
+            operation: 'savedPosts.folders.loadMore',
+            accountDid: account.did.value,
+          );
+        }
         state = AsyncData(
           current.copyWith(isLoadingMore: false, incrementalError: error),
         );
@@ -170,12 +186,15 @@ class SavedPostFolders extends _$SavedPostFolders {
   }
 
   Future<SavedPostFolder?> create(String name) async {
+    final reporter = ref.read(errorReporterProvider);
+    var dispatched = false;
     final generation = captureSavedPostAccountBoundary(ref);
     _clearMutationFailure();
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(account).future,
       );
+      dispatched = true;
       final folder = await repository.createFolder(name);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return null;
       final current = state.value;
@@ -185,10 +204,14 @@ class SavedPostFolders extends _$SavedPostFolders {
         await _restart(awaitingRestart, generation);
       }
       return folder;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       _recordMutationFailure(
         error,
+        stackTrace,
         operation: SavedPostOperation.createFolder,
+        diagnosticOperation: 'savedPosts.folders.createFolder',
+        reporter: reporter,
+        dispatched: dispatched,
         generation: generation,
       );
       return null;
@@ -196,6 +219,8 @@ class SavedPostFolders extends _$SavedPostFolders {
   }
 
   Future<SavedPostFolder?> rename(String id, String name) async {
+    final reporter = ref.read(errorReporterProvider);
+    var dispatched = false;
     final generation = captureSavedPostAccountBoundary(ref);
     _clearMutationFailure();
     String normalized;
@@ -208,6 +233,7 @@ class SavedPostFolders extends _$SavedPostFolders {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(account).future,
       );
+      dispatched = true;
       final folder = await repository.renameFolder(id, normalized);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return null;
       final current = state.value;
@@ -219,10 +245,14 @@ class SavedPostFolders extends _$SavedPostFolders {
         await _restart(awaitingRestart, generation);
       }
       return folder;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       _recordMutationFailure(
         error,
+        stackTrace,
         operation: SavedPostOperation.renameFolder,
+        diagnosticOperation: 'savedPosts.folders.renameFolder',
+        reporter: reporter,
+        dispatched: dispatched,
         generation: generation,
       );
       return null;
@@ -230,12 +260,15 @@ class SavedPostFolders extends _$SavedPostFolders {
   }
 
   Future<bool> delete(String id, {required bool deleteSaves}) async {
+    final reporter = ref.read(errorReporterProvider);
+    var dispatched = false;
     final generation = captureSavedPostAccountBoundary(ref);
     _clearMutationFailure();
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(account).future,
       );
+      dispatched = true;
       await repository.deleteFolder(id, deleteSaves: deleteSaves);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return false;
       ref
@@ -259,10 +292,14 @@ class SavedPostFolders extends _$SavedPostFolders {
         await _restart(awaitingRestart, generation);
       }
       return true;
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       _recordMutationFailure(
         error,
+        stackTrace,
         operation: SavedPostOperation.deleteFolder,
+        diagnosticOperation: 'savedPosts.folders.deleteFolder',
+        reporter: reporter,
+        dispatched: dispatched,
         generation: generation,
       );
       return false;
@@ -278,10 +315,13 @@ class SavedPostFolders extends _$SavedPostFolders {
     SavedPostFolderListState? previous,
     int generation,
   ) async {
+    final reporter = ref.read(errorReporterProvider);
+    var dispatched = false;
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(account).future,
       );
+      dispatched = true;
       final page = await repository.listFolders();
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       state = AsyncData(
@@ -291,6 +331,16 @@ class SavedPostFolders extends _$SavedPostFolders {
       );
     } on Object catch (error, stackTrace) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
+      if (previous != null && dispatched) {
+        reportConsumedFailure(
+          error,
+          stackTrace,
+          reporter: reporter,
+          feature: 'SavedPosts',
+          operation: 'savedPosts.folders.refresh',
+          accountDid: account.did.value,
+        );
+      }
       state = previous == null
           ? AsyncError(error, stackTrace)
           : AsyncData(
@@ -309,11 +359,28 @@ class SavedPostFolders extends _$SavedPostFolders {
   }
 
   void _recordMutationFailure(
-    Object error, {
+    Object error,
+    StackTrace stackTrace, {
     required SavedPostOperation operation,
+    required String diagnosticOperation,
+    required ErrorReporter reporter,
+    required bool dispatched,
     required int generation,
   }) {
     if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
+    if (dispatched) {
+      reportConsumedFailure(
+        error,
+        stackTrace,
+        reporter: reporter,
+        feature: 'SavedPosts',
+        operation: diagnosticOperation,
+        accountDid: account.did.value,
+        outcome: error is SavedPostFolderNameException
+            ? DiagnosticOutcome.expected
+            : DiagnosticOutcome.automatic,
+      );
+    }
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
