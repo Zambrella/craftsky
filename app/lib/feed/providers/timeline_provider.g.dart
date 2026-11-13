@@ -36,7 +36,7 @@ final class TimelineProvider
   Timeline create() => Timeline();
 }
 
-String _$timelineHash() => r'258c971307bae5d74d5a113244ad09ca9c96a6e7';
+String _$timelineHash() => r'689a88a901e3f255d73dae5bfc6d71ade080d081';
 
 /// Cursor-accumulating authenticated home timeline provider.
 
@@ -86,7 +86,7 @@ final class ExtendedNetworkProvider
   ExtendedNetwork create() => ExtendedNetwork();
 }
 
-String _$extendedNetworkHash() => r'7a878812c2746a32649272bd2d96fbaf63f91ee1';
+String _$extendedNetworkHash() => r'0088d45754d0024519473a2d4192d1a6ced36254';
 
 /// Retained chronological feed of indexed second-degree connections.
 

@@ -59,7 +59,7 @@ final class AccountNotificationPreferencesNotifierProvider
 }
 
 String _$accountNotificationPreferencesNotifierHash() =>
-    r'b83f8bd40b651632714259e62f797652cc8c2d03';
+    r'345d908aabed18e3ec8f623a00e9c5c534f5411e';
 
 final class AccountNotificationPreferencesNotifierFamily extends $Family
     with
@@ -149,7 +149,7 @@ final class NotificationPreferencesNotifierProvider
 }
 
 String _$notificationPreferencesNotifierHash() =>
-    r'c5567087f667340ffe0646aea67d2e6c3a32af3d';
+    r'27c25cab556234bc8264c076611ce714f0464ae0';
 
 abstract class _$NotificationPreferencesNotifier
     extends $AsyncNotifier<NotificationPreferences> {

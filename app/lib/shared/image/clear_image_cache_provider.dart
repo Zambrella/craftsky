@@ -11,15 +11,17 @@ class ClearImageCache extends _$ClearImageCache {
   FutureOr<void> build() => null;
 
   Future<void> clear() async {
+    final operationRef = ref;
     final profileCache = ref.read(profileImageCacheManagerProvider);
     final feedCache = ref.read(feedImageCacheManagerProvider);
 
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       await Future.wait(<Future<void>>[
         profileCache.emptyCache(),
         feedCache.emptyCache(),
       ]);
     });
+    if (operationRef.mounted) state = result;
   }
 }

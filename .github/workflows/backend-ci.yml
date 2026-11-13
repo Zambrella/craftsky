@@ -201,7 +201,7 @@ jobs:
 
       - name: Analyze
         working-directory: app
-        run: flutter analyze
+        run: dart analyze --fatal-infos
 
       - name: Set up Rive native test runtime
         working-directory: app

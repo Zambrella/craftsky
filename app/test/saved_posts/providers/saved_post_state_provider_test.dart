@@ -16,6 +16,55 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  for (final mutation in ['save', 'unsave']) {
+    test(
+      '$mutation retains its repository until the request completes',
+      () async {
+        final account = AccountKey('did:plc:alice');
+        final repository = _ControlledSavedPostRepository()
+          ..saveCompleter = Completer<SavedPostState>()
+          ..unsaveCompleter = Completer<void>();
+        var disposed = false;
+        final container = ProviderContainer.test(
+          overrides: [
+            accountSavedPostRepositoryProvider(account)
+                .overrideWith((ref) async {
+                  ref.onDispose(() => disposed = true);
+                  return repository;
+                }),
+          ],
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(
+          accountSavedPostStateProvider(account).notifier,
+        );
+        final post = _post(saved: mutation == 'unsave');
+        final pending = mutation == 'save'
+            ? notifier.save(post, null)
+            : notifier.unsave(post);
+
+        await container.pump();
+        final disposedWhilePending = disposed;
+        if (mutation == 'save') {
+          repository.saveCompleter!.complete(repository.saveResult);
+        } else {
+          repository.unsaveCompleter!.complete();
+        }
+        await pending;
+        await container.pump();
+
+        expect(disposedWhilePending, isFalse);
+        expect(disposed, isTrue);
+        final saved = container
+            .read(accountSavedPostStateProvider(account))
+            .requireValue
+            .forUri(post.uri);
+        expect(saved.isSaved, mutation == 'save');
+        expect(saved.isPending, isFalse);
+      },
+    );
+  }
+
   test('UT-004 reduces and projects account URI saved state', () async {
     final alice = AccountKey('did:plc:alice');
     final bob = AccountKey('did:plc:bob');
@@ -251,12 +300,13 @@ final class _ControlledSavedPostRepository implements SavedPostRepository {
   SavedPostState saveResult = SavedPostState(
     savedAt: DateTime.utc(2026, 7, 21, 11),
   );
+  Completer<SavedPostState>? saveCompleter;
   Completer<void>? unsaveCompleter;
   int unsaveCalls = 0;
 
   @override
-  Future<SavedPostState> save(Post post, {required String? folderId}) async =>
-      saveResult;
+  Future<SavedPostState> save(Post post, {required String? folderId}) =>
+      saveCompleter?.future ?? Future.value(saveResult);
 
   @override
   Future<void> unsave(Post post) {

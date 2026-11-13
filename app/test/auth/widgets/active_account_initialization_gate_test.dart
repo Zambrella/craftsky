@@ -81,6 +81,7 @@ final class _RetryPreferencesRepository
 }
 
 final class _RecordingAuthController extends AuthController {
+  @visibleForTesting
   int signOutCalls = 0;
 
   @override

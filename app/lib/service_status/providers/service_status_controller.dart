@@ -234,6 +234,8 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     return const ServiceStatusState();
   }
 
+  // UI watches state, republished by version, audience and platform listeners.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   StatusPresentation get presentation {
     if (maintenanceActive) return StatusPresentation.maintenance;
     final version = ref.read(statusRuntimeVersionProvider).value;
@@ -258,10 +260,14 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     return StatusPresentation.none;
   }
 
+  // Shared snapshot for state-watching hosts and imperative Back dispatch.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   bool get blockingActive =>
       presentation == StatusPresentation.maintenance ||
       presentation == StatusPresentation.updateRequired;
 
+  // Shared snapshot for state-watching hosts and imperative Back dispatch.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   StatusMessage? get announcement => presentation == StatusPresentation.message
       ? state.document?.message
       : null;
@@ -375,6 +381,8 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     return true;
   }
 
+  // State-watching hosts rebuild when the expiry timer publishes fresh state.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   bool get maintenanceActive {
     if (state.document?.maintenance == null || _acceptedAt == null) {
       return false;

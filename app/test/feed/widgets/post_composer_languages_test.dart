@@ -20,6 +20,7 @@ final class _Primary extends Notifier<String> {
   @override
   String build() => 'en';
 
+  @visibleForTesting
   String get value => state;
 
   set value(String value) => state = value;

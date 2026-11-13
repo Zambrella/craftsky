@@ -45,72 +45,80 @@ class AccountDeletionController extends _$AccountDeletionController {
       final fence = AccountDeletionLeaseFence.capture(sessions);
       accountDid = fence.account.did.value;
       stage = 'client';
-      final dio = await ref.read(accountDioProvider(fence.account).future);
-      final client = AccountDeletionApiClient(dio);
-      stage = 'create_intent';
-      final intent = await client.createIntent();
-      workflowRef = intent.jobId;
-      stage = 'stage_intent';
+      final target = accountDioProvider(fence.account);
+      final subscription = ref.listen(target, (_, _) {});
       try {
-        await ref
-            .read(sessionRegistryProvider.notifier)
-            .stageAccountDeletion(
-              fence.pending(
-                jobId: intent.jobId,
-                confirmationDid: intent.confirmationDid,
-                expiresAt: intent.expiresAt,
+        final dio = await ref.read(target.future);
+        final client = AccountDeletionApiClient(dio);
+        stage = 'create_intent';
+        final intent = await client.createIntent();
+        workflowRef = intent.jobId;
+        stage = 'stage_intent';
+        try {
+          await ref
+              .read(sessionRegistryProvider.notifier)
+              .stageAccountDeletion(
+                fence.pending(
+                  jobId: intent.jobId,
+                  confirmationDid: intent.confirmationDid,
+                  expiresAt: intent.expiresAt,
+                ),
+              );
+        } on Object {
+          try {
+            await client.cancelIntent(jobId: intent.jobId);
+          } on Object catch (error, stack) {
+            _log.warning(
+              DiagnosticMessage(
+                'Account deletion intent rollback failed',
+                context: _failureContext(
+                  error,
+                  'rollback_intent',
+                  accountDid,
+                  intent.jobId,
+                ),
               ),
+              error,
+              stack,
             );
-      } on Object {
-        try {
-          await client.cancelIntent(jobId: intent.jobId);
-        } on Object catch (error, stack) {
-          _log.warning(
-            DiagnosticMessage(
-              'Account deletion intent rollback failed',
-              context: _failureContext(
-                error,
-                'rollback_intent',
-                accountDid,
-                intent.jobId,
-              ),
-            ),
-            error,
-            stack,
-          );
-          // Best effort: the short-lived unaccepted intent also expires.
+            // Best effort: the short-lived unaccepted intent also expires.
+          }
+          rethrow;
         }
-        rethrow;
-      }
-      stage = 'invalidate_state';
-      await ref.read(accountStateInvalidatorProvider)();
-      stage = 'launch_browser';
-      final launched = await ref.read(authUrlLauncherProvider)(intent.authUrl);
-      if (!launched) {
-        try {
-          await client.cancelIntent(jobId: intent.jobId);
-        } on Object catch (error, stack) {
-          _log.warning(
-            DiagnosticMessage(
-              'Account deletion intent rollback failed',
-              context: _failureContext(
-                error,
-                'rollback_intent',
-                accountDid,
-                intent.jobId,
+        stage = 'invalidate_state';
+        await ref.read(accountStateInvalidatorProvider)();
+        stage = 'launch_browser';
+        final launched = await ref.read(authUrlLauncherProvider)(
+          intent.authUrl,
+        );
+        if (!launched) {
+          try {
+            await client.cancelIntent(jobId: intent.jobId);
+          } on Object catch (error, stack) {
+            _log.warning(
+              DiagnosticMessage(
+                'Account deletion intent rollback failed',
+                context: _failureContext(
+                  error,
+                  'rollback_intent',
+                  accountDid,
+                  intent.jobId,
+                ),
               ),
-            ),
-            error,
-            stack,
-          );
-          // Best effort: the short-lived unaccepted intent also expires.
+              error,
+              stack,
+            );
+            // Best effort: the short-lived unaccepted intent also expires.
+          }
+          await ref
+              .read(sessionRegistryProvider.notifier)
+              .clearAccountDeletion(intent.jobId);
+          throw const AccountDeletionFlowException('browserLaunchFailed');
         }
-        await ref
-            .read(sessionRegistryProvider.notifier)
-            .clearAccountDeletion(intent.jobId);
-        throw const AccountDeletionFlowException('browserLaunchFailed');
+        jobId = intent.jobId;
+      } finally {
+        subscription.close();
       }
-      jobId = intent.jobId;
     });
     if (result.hasError) {
       final context = _failureContext(
@@ -161,14 +169,15 @@ class AccountDeletionController extends _$AccountDeletionController {
         .value
         ?.pendingAccountDeletion;
     if (pending == null || pending.jobId != jobId) return;
+    final target = accountDioProvider(pending.lease.session.account);
+    final subscription = ref.listen(target, (_, _) {});
     try {
-      final dio = await ref.read(
-        accountDioProvider(pending.lease.session.account).future,
-      );
+      final dio = await ref.read(target.future);
       await AccountDeletionApiClient(dio).cancelIntent(jobId: jobId);
     } on Object {
       // Best effort. The server expires and replaces abandoned intents.
     } finally {
+      subscription.close();
       await ref
           .read(sessionRegistryProvider.notifier)
           .clearAccountDeletion(jobId);
@@ -194,12 +203,18 @@ class AccountDeletionController extends _$AccountDeletionController {
         throw const AccountDeletionFlowException('confirmationDidMismatch');
       }
       final fence = AccountDeletionLeaseFence.fromPending(pending);
-      final dio = await ref.read(accountDioProvider(fence.account).future);
-      await AccountDeletionApiClient(dio).accept(
-        jobId: jobId,
-        reauthProof: reauthProof,
-        confirmationDid: pending.confirmationDid,
-      );
+      final target = accountDioProvider(fence.account);
+      final subscription = ref.listen(target, (_, _) {});
+      try {
+        final dio = await ref.read(target.future);
+        await AccountDeletionApiClient(dio).accept(
+          jobId: jobId,
+          reauthProof: reauthProof,
+          confirmationDid: pending.confirmationDid,
+        );
+      } finally {
+        subscription.close();
+      }
       final coordinator = AccountDeletionAcceptanceCoordinator(
         readRegistry: () => ref.read(sessionRegistryProvider.future),
         invalidateActiveState: ref.read(accountStateInvalidatorProvider),
@@ -212,6 +227,8 @@ class AccountDeletionController extends _$AccountDeletionController {
           if (hasFallback) {
             await ref.read(accountHomeResetProvider)();
           } else {
+            // The app's router config retains the destination router.
+            // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
             ref.read(goRouterProvider).go(const WelcomeRoute().location);
           }
         },

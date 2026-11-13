@@ -407,6 +407,8 @@ Future<void> _pumpDialog(
       NativeReferenceFrame(
         child: ProviderScope(
           overrides: [
+            // This override belongs to the test harness's root ProviderScope.
+            // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
             accountSavedPostRepositoryProvider(
               account,
             ).overrideWith((ref) async => repository),

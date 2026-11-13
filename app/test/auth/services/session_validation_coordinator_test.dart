@@ -72,6 +72,70 @@ Dio _whoamiDio({required String did, required String handle}) {
 
 void main() {
   test(
+    'validation owns its account transport until the request completes',
+    () async {
+      final initial = _registryFixture();
+      final started = Completer<void>();
+      final finish = Completer<void>();
+      var disposed = false;
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.invalid'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            started.complete();
+            await finish.future;
+            handler.resolve(
+              Response<Object?>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {'did': 'did:plc:alice', 'handle': 'new.example'},
+              ),
+            );
+          },
+        ),
+      );
+      addTearDown(() => dio.close(force: true));
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
+          ),
+          accountDioProvider.overrideWith((ref, account) async {
+            ref.onDispose(() => disposed = true);
+            return dio;
+          }),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final operation = container.read(sessionValidationLauncherProvider)(
+        initial.activeLease!.session,
+      );
+      try {
+        await started.future;
+        await container.pump();
+        expect(
+          disposed,
+          isFalse,
+          reason: 'the pending validation still uses this transport',
+        );
+      } finally {
+        finish.complete();
+        await operation;
+      }
+      await container.pump();
+      expect(disposed, isTrue);
+      expect(
+        container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .sessions[initial.activeDid]!
+            .handle,
+        'new.example',
+      );
+    },
+  );
+
+  test(
     'UT-007 matching DID persists a handle-only mutation before success',
     () async {
       final initial = _registryFixture();

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
@@ -22,27 +23,32 @@ class AccountNotifications extends _$AccountNotifications {
 
   @override
   Future<NotificationsState> build(AccountKey account) async {
+    final buildRef = ref;
     final generation = ++_generation;
-    final category = ref.watch(notificationFilterProvider);
+    final category = buildRef.watch(notificationFilterProvider);
     if (category != _loadedCategory) {
       _loadedPageCount = 1;
       _loadedCategory = category;
     }
-    final repo = await ref.watch(
+    // This watch owns the disposable repository for the retained list.
+    // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+    final repo = await buildRef.watch(
       accountNotificationRepositoryProvider(account).future,
     );
-    final registry = ref.read(sessionRegistryProvider).requireValue;
+    if (!buildRef.mounted) throw AccountOperationCanceled();
+    final registry = buildRef.read(sessionRegistryProvider).requireValue;
     final owner = registry.leaseFor(account);
     final (items, cursor, pageCount) = await _reloadPages(
       repo,
       category,
       _loadedPageCount,
     );
-    if (ref.mounted && generation == _generation) {
-      _loadedPageCount = pageCount;
+    if (!buildRef.mounted || generation != _generation) {
+      throw AccountOperationCanceled();
     }
+    _loadedPageCount = pageCount;
     return NotificationsState(
-      items: _filterAndDedupe(ref.read, items),
+      items: _filterAndDedupe(buildRef.read, items),
       category: category,
       cursor: cursor,
       renderToken: ++_nextRenderToken,
@@ -51,35 +57,48 @@ class AccountNotifications extends _$AccountNotifications {
   }
 
   Future<void> loadMore() async {
+    final operationRef = ref;
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     final generation = _generation;
-    final category = ref.read(notificationFilterProvider);
+    final category = operationRef.read(notificationFilterProvider);
     if (!current.hasMore) return;
     state = const AsyncLoading<NotificationsState>();
     final next = await AsyncValue.guard(() async {
-      final repo = await ref.read(
+      // build's watch owns this repository throughout pagination.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+      final repo = await operationRef.read(
         accountNotificationRepositoryProvider(account).future,
       );
+      if (!operationRef.mounted ||
+          generation != _generation ||
+          operationRef.read(notificationFilterProvider) != category) {
+        throw AccountOperationCanceled();
+      }
       final page = await repo.list(
         cursor: current.cursor,
         category: category,
         limit: notificationsPageLimit,
       );
+      if (!operationRef.mounted ||
+          generation != _generation ||
+          operationRef.read(notificationFilterProvider) != category) {
+        throw AccountOperationCanceled();
+      }
       return NotificationsState(
         category: category,
         items: _appendDeduped(
           current.items,
-          _filterAndDedupe(ref.read, page.items),
+          _filterAndDedupe(operationRef.read, page.items),
         ),
         cursor: page.cursor,
         renderToken: current.renderToken,
         owner: current.owner,
       );
     });
-    if (ref.mounted &&
+    if (operationRef.mounted &&
         generation == _generation &&
-        ref.read(notificationFilterProvider) == category) {
+        operationRef.read(notificationFilterProvider) == category) {
       if (next.hasValue) _loadedPageCount++;
       state = next;
     }
@@ -98,10 +117,15 @@ class Notifications extends _$Notifications {
 
   @override
   Future<NotificationsState> build() async {
+    final buildRef = ref;
     final generation = ++_generation;
-    final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
-    final repo = ref.watch(notificationRepositoryProvider);
-    final category = ref.watch(notificationFilterProvider);
+    final owner = buildRef
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final repo = buildRef.watch(notificationRepositoryProvider);
+    final category = buildRef.watch(notificationFilterProvider);
     if (category != _loadedCategory) {
       _loadedPageCount = 1;
       _loadedCategory = category;
@@ -111,11 +135,12 @@ class Notifications extends _$Notifications {
       category,
       _loadedPageCount,
     );
-    if (ref.mounted && generation == _generation) {
-      _loadedPageCount = pageCount;
+    if (!buildRef.mounted || generation != _generation) {
+      throw AccountOperationCanceled();
     }
+    _loadedPageCount = pageCount;
     return NotificationsState(
-      items: _filterAndDedupe(ref.read, items),
+      items: _filterAndDedupe(buildRef.read, items),
       category: category,
       cursor: cursor,
       renderToken: ++_nextRenderToken,
@@ -124,26 +149,32 @@ class Notifications extends _$Notifications {
   }
 
   Future<void> loadMore() async {
+    final operationRef = ref;
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     final generation = _generation;
-    final category = ref.read(notificationFilterProvider);
+    final category = operationRef.read(notificationFilterProvider);
     if (!current.hasMore) return;
 
     state = const AsyncLoading<NotificationsState>();
 
     final next = await AsyncValue.guard(() async {
-      final repo = ref.read(notificationRepositoryProvider);
+      final repo = operationRef.read(notificationRepositoryProvider);
       final page = await repo.list(
         cursor: current.cursor,
         category: category,
         limit: notificationsPageLimit,
       );
+      if (!operationRef.mounted ||
+          generation != _generation ||
+          operationRef.read(notificationFilterProvider) != category) {
+        throw AccountOperationCanceled();
+      }
       return NotificationsState(
         category: category,
         items: _appendDeduped(
           current.items,
-          _filterAndDedupe(ref.read, page.items),
+          _filterAndDedupe(operationRef.read, page.items),
         ),
         cursor: page.cursor,
         renderToken: current.renderToken,
@@ -151,9 +182,9 @@ class Notifications extends _$Notifications {
       );
     });
 
-    if (!ref.mounted ||
+    if (!operationRef.mounted ||
         generation != _generation ||
-        ref.read(notificationFilterProvider) != category) {
+        operationRef.read(notificationFilterProvider) != category) {
       return;
     }
     if (next.hasValue) _loadedPageCount++;

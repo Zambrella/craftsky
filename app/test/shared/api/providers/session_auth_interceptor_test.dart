@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,25 @@ class _CapturingHandler extends RequestInterceptorHandler {
 }
 
 void main() {
+  test('cold device lookup holds the first authenticated request', () async {
+    final device = Completer<String>();
+    final options = RequestOptions(path: '/v1/whoami');
+    final handler = _CapturingHandler();
+    SessionAuthInterceptor.fixed(
+      token: 'member-token',
+      readDeviceId: () => device.future,
+    ).onRequest(options, handler);
+
+    await _pumpEventLoop();
+    expect(handler.continued, isFalse);
+    device.complete('device-id');
+    await _pumpEventLoop();
+
+    expect(handler.continued, isTrue);
+    expect(options.headers['X-Craftsky-Device-Id'], 'device-id');
+    expect(options.headers['Authorization'], 'Bearer member-token');
+  });
+
   test(
     'IT-008 public reads omit all credentials even on an account client',
     () async {

@@ -2,6 +2,9 @@
 # https://pub.dev/packages/very_good_analysis
 include: package:very_good_analysis/analysis_options.yaml
 
+plugins:
+  riverpod_lint: 3.2.0
+
 analyzer:
   exclude:
     - build/**

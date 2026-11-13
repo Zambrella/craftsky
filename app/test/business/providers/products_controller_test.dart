@@ -28,6 +28,41 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../test_support/member_browsing_context.dart';
 
 void main() {
+  for (final fail in [false, true]) {
+    test(
+      'discarded conflict reload cannot overwrite a rebuild (error=$fail)',
+      () async {
+        final repository = _Repository()
+          ..error = const ApiBadRequest('pds_record_conflict');
+        final reload = Completer<Profile>();
+        final container = _container(
+          repository,
+          _profile('bafy-current'),
+          loader: () => reload.future,
+        );
+        addTearDown(container.dispose);
+        final initial = await container.read(productsControllerProvider.future);
+        final controller = container.read(productsControllerProvider.notifier);
+        await controller.replaceProducts(initial.products);
+        final pending = controller.reloadAfterConflict();
+        container.invalidate(productsControllerProvider);
+        await container.read(productsControllerProvider.future);
+        if (fail) {
+          reload.completeError(const ApiNetworkError('offline'));
+        } else {
+          reload.complete(_profile('bafy-stale', tagline: 'Discarded reload'));
+        }
+        await expectLater(pending, completes);
+        final current = container.read(productsControllerProvider);
+        expect(current.hasError, isFalse);
+        expect(
+          current.requireValue.declaration.expectedCid.toString(),
+          'bafy-current',
+        );
+      },
+    );
+  }
+
   test(
     'IT-007 saves one complete declaration with current CID and order',
     () async {

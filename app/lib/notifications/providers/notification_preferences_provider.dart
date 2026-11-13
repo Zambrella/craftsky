@@ -35,6 +35,8 @@ class AccountNotificationPreferencesNotifier
 
   @override
   Future<NotificationPreferences> build(AccountKey account) async {
+    // This watch owns the account repository for the retained preferences.
+    // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
     final repository = await ref.watch(
       accountNotificationPreferencesRepositoryProvider(account).future,
     );
@@ -54,6 +56,7 @@ class AccountNotificationPreferencesNotifier
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
   Future<bool> _edit(NotificationPreferencePatch patch) async {
+    final operationRef = ref;
     final current = state.value;
     final previous = current?.known[patch.category];
     if (current == null || previous == null) return false;
@@ -64,11 +67,14 @@ class AccountNotificationPreferencesNotifier
       current.replace(patch.category, _applyPreference(previous, patch)),
     );
     try {
-      final repository = await ref.read(
+      // build's watch owns this same account repository throughout the edit.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+      final repository = await operationRef.read(
         accountNotificationPreferencesRepositoryProvider(account).future,
       );
+      if (!operationRef.mounted) return false;
       final server = await repository.patch(patch);
-      if (_generations[key] != generation || !ref.mounted) return true;
+      if (_generations[key] != generation || !operationRef.mounted) return true;
       final now = state.value;
       final serverValue = server.known[patch.category];
       if (now != null && serverValue != null) {
@@ -85,7 +91,7 @@ class AccountNotificationPreferencesNotifier
       }
       return true;
     } on Object {
-      if (_generations[key] == generation && ref.mounted) {
+      if (_generations[key] == generation && operationRef.mounted) {
         final now = state.value;
         if (now != null) {
           state = AsyncData(
@@ -128,6 +134,7 @@ class NotificationPreferencesNotifier
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
   Future<bool> _edit(NotificationPreferencePatch patch) async {
+    final operationRef = ref;
     final current = state.value;
     final previous = current?.known[patch.category];
     if (current == null || previous == null) return false;
@@ -138,10 +145,10 @@ class NotificationPreferencesNotifier
     state = AsyncData(current.replace(patch.category, _apply(previous, patch)));
 
     try {
-      final server = await ref
+      final server = await operationRef
           .read(notificationPreferencesRepositoryProvider)
           .patch(patch);
-      if (_generations[key] != generation || !ref.mounted) return true;
+      if (_generations[key] != generation || !operationRef.mounted) return true;
       final now = state.value;
       final serverValue = server.known[patch.category];
       if (now != null && serverValue != null) {
@@ -154,7 +161,7 @@ class NotificationPreferencesNotifier
       }
       return true;
     } on Object {
-      if (_generations[key] == generation && ref.mounted) {
+      if (_generations[key] == generation && operationRef.mounted) {
         final now = state.value;
         if (now != null) {
           state = AsyncData(

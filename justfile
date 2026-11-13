@@ -445,7 +445,7 @@ app-run-production-android:
     just app-run-production -- -d emulator
 
 app-analyze:
-    cd app && flutter analyze
+    cd app && dart analyze --fatal-infos
 
 app-test *ARGS:
     # Refresh checkout-local libraries even when the pub cache has a setup marker.

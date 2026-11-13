@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as auth_model;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -12,6 +13,9 @@ import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -133,6 +137,249 @@ void main() {
       expect(filtered.cursor, 'filtered-next');
     },
   );
+
+  for (final accountScoped in [false, true]) {
+    test(
+      'disposed notification load cancels before reading overlays '
+      '(account=$accountScoped)',
+      () async {
+        final account = AccountKey('did:plc:alice');
+        final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+          token: 'alice-token',
+          did: account.did.value,
+          handle: 'alice.test',
+        );
+        final page = Completer<NotificationPage>();
+        final repository = _FakeNotificationRepository()
+          ..responses.add(page.future);
+        final container = ProviderContainer(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            notificationRepositoryProvider.overrideWithValue(repository),
+            accountNotificationRepositoryProvider.overrideWith(
+              (ref, account) async => repository,
+            ),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final provider = accountScoped
+            ? accountNotificationsProvider(account)
+            : notificationsProvider;
+        final pending = container.read(provider.future);
+        await repository.started.future;
+        expect(repository.calls, hasLength(1));
+        final cancelled = expectLater(
+          pending,
+          throwsA(isA<AccountOperationCancellation>()),
+        );
+        container.dispose();
+        page.complete(NotificationPage(items: [_follow('late')]));
+        await cancelled;
+      },
+    );
+  }
+
+  for (final accountScoped in [false, true]) {
+    test(
+      'rebuilt notification load cannot reconcile old overlays '
+      '(account=$accountScoped)',
+      () async {
+        final account = AccountKey('did:plc:alice');
+        final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+          token: 'alice-token',
+          did: account.did.value,
+          handle: 'alice.test',
+        );
+        final oldPage = Completer<NotificationPage>();
+        final repository = _FakeNotificationRepository()
+          ..responses.addAll([
+            oldPage.future,
+            Future.value(
+              NotificationPage(
+                items: [_follow('new', actorDid: 'did:plc:bob')],
+              ),
+            ),
+          ]);
+        final mutations = PdsRecordOperationController(schedule: (_, _) {});
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            notificationRepositoryProvider.overrideWithValue(repository),
+            accountNotificationRepositoryProvider.overrideWith(
+              (ref, account) async => repository,
+            ),
+            pdsRecordOperationControllerProvider.overrideWithValue(mutations),
+          ],
+        );
+        addTearDown(mutations.reset);
+        await container.read(sessionRegistryProvider.future);
+        final scope = blockProfileMutationScope(
+          container.read,
+          Did.parse('did:plc:alice'),
+        );
+        final token = mutations.begin(
+          scope: scope,
+          operationKey: 'fixture',
+          endpoint: '/fixture',
+          immutableBody: '{}',
+        );
+        mutations.markAccepted(
+          token,
+          optimisticValue: false,
+          agrees: (value) => value == false,
+        );
+        final overlay = mutations.overlayFor(scope);
+        final provider = accountScoped
+            ? accountNotificationsProvider(account)
+            : notificationsProvider;
+        container.listen(provider, (_, _) {});
+        final first = container.read(provider.future);
+        await repository.started.future;
+        container
+            .read(notificationFilterProvider.notifier)
+            .select(NotificationCategory.follow);
+        final current = await container.read(provider.future);
+        expect(current.items.map(_socialRkey), ['new']);
+        await first;
+        oldPage.complete(NotificationPage(items: [_follow('stale')]));
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          mutations.overlayFor(scope),
+          same(overlay),
+          reason: 'discarded builds must not reconcile current account state',
+        );
+      },
+    );
+  }
+
+  test(
+    'disposed notification work preserves the request cause and stack',
+    () async {
+      final account = AccountKey('did:plc:alice');
+      final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: account.did.value,
+        handle: 'alice.test',
+      );
+      final page = Completer<NotificationPage>();
+      final repository = _FakeNotificationRepository()
+        ..responses.add(page.future);
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          accountNotificationRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final original = Exception('synthetic request failure');
+      final originalStack = StackTrace.fromString(
+        'original notification request frame',
+      );
+      final pending = container.read(
+        accountNotificationsProvider(account).future,
+      );
+      await repository.started.future;
+      final inspected = pending.then<void>(
+        (_) => fail('expected request failure'),
+        onError: (Object error, StackTrace stack) {
+          expect(error, same(original));
+          expect(stack.toString(), originalStack.toString());
+        },
+      );
+      container.dispose();
+      page.completeError(original, originalStack);
+      await inspected;
+    },
+  );
+
+  for (final accountScoped in [false, true]) {
+    test('rebuilt notification pagination cannot reconcile old overlays '
+        '(account=$accountScoped)', () async {
+      final account = AccountKey('did:plc:alice');
+      final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: account.did.value,
+        handle: 'alice.test',
+      );
+      final oldPage = Completer<NotificationPage>();
+      final repository = _FakeNotificationRepository()
+        ..responses.addAll([
+          Future.value(
+            NotificationPage(
+              items: [_follow('first', actorDid: 'did:plc:bob')],
+              cursor: 'next',
+            ),
+          ),
+          oldPage.future,
+          Future.value(
+            NotificationPage(items: [_follow('new', actorDid: 'did:plc:bob')]),
+          ),
+        ]);
+      final mutations = PdsRecordOperationController(schedule: (_, _) {});
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          notificationRepositoryProvider.overrideWithValue(repository),
+          accountNotificationRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+          pdsRecordOperationControllerProvider.overrideWithValue(mutations),
+        ],
+      );
+      addTearDown(mutations.reset);
+      await container.read(sessionRegistryProvider.future);
+      final scope = blockProfileMutationScope(
+        container.read,
+        Did.parse('did:plc:alice'),
+      );
+      final token = mutations.begin(
+        scope: scope,
+        operationKey: 'fixture',
+        endpoint: '/fixture',
+        immutableBody: '{}',
+      );
+      mutations.markAccepted(
+        token,
+        optimisticValue: false,
+        agrees: (value) => value == false,
+      );
+      final overlay = mutations.overlayFor(scope);
+      final provider = accountScoped
+          ? accountNotificationsProvider(account)
+          : notificationsProvider;
+      container.listen(provider, (_, _) {});
+      await container.read(provider.future);
+      final operation = accountScoped
+          ? container
+                .read(accountNotificationsProvider(account).notifier)
+                .loadMore()
+          : container.read(notificationsProvider.notifier).loadMore();
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.calls, hasLength(2));
+      container
+          .read(notificationFilterProvider.notifier)
+          .select(NotificationCategory.follow);
+      final current = await container.read(provider.future);
+      expect(current.items.map(_socialRkey), ['new']);
+      oldPage.complete(NotificationPage(items: [_follow('stale')]));
+      await operation;
+      expect(
+        mutations.overlayFor(scope),
+        same(overlay),
+        reason: 'discarded pagination must not reconcile current account state',
+      );
+    });
+  }
 
   test(
     'category changes reset pagination and discard pending old pages',
@@ -370,6 +617,7 @@ FollowNotification _follow(
 class _FakeNotificationRepository implements NotificationRepository {
   final responses = <Future<NotificationPage>>[];
   final calls = <_Call>[];
+  final started = Completer<void>();
 
   @override
   Future<NotificationPage> list({
@@ -378,6 +626,7 @@ class _FakeNotificationRepository implements NotificationRepository {
     NotificationCategory? category,
   }) {
     calls.add(_Call(cursor: cursor, limit: limit, category: category));
+    if (!started.isCompleted) started.complete();
     return responses.removeAt(0);
   }
 }

@@ -34,7 +34,7 @@ final class ProductsControllerProvider
 }
 
 String _$productsControllerHash() =>
-    r'bef25b177fc7fad84b30e89207d57e601015cef4';
+    r'4d7c9028213c386e7c736b14fda5060cd7d76b9e';
 
 abstract class _$ProductsController extends $AsyncNotifier<ProductsState> {
   FutureOr<ProductsState> build();

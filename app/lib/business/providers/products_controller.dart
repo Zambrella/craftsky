@@ -83,7 +83,9 @@ class ProductsController extends _$ProductsController {
 
   @override
   Future<ProductsState> build() async {
-    final identity = await ref.watch(activeAccountIdentityProvider.future);
+    final buildRef = ref;
+    final identity = await buildRef.watch(activeAccountIdentityProvider.future);
+    if (!buildRef.mounted) throw const ApiCanceled();
     if (identity == null ||
         identity.profile.accountType != AccountType.business) {
       throw const ProductsUnavailableException();
@@ -92,7 +94,7 @@ class ProductsController extends _$ProductsController {
     return _stateFromProfile(
       identity.profile.copyWith(
         business: applyBusinessProfileOverlay(
-          ref,
+          buildRef,
           identity.lease,
           _ownerDid,
           identity.profile.business,
@@ -330,15 +332,19 @@ class ProductsController extends _$ProductsController {
   Future<void> reloadAfterConflict() async {
     final current = state.value;
     if (current == null || current.status != ProductsStatus.conflict) return;
+    final operation = ActiveAccountOperation.capture(ref);
+    final ownerDid = _ownerDid;
     state = const AsyncLoading<ProductsState>();
     try {
       final profile = await ref.read(productsProfileLoaderProvider)();
-      if (profile.did != _ownerDid ||
+      if (!operation.isCurrent) return;
+      if (profile.did != ownerDid ||
           profile.accountType != AccountType.business) {
         throw const ProductsUnavailableException();
       }
       state = AsyncData(_stateFromProfile(profile));
     } on Object catch (error, stackTrace) {
+      if (!operation.isCurrent) return;
       state = AsyncError(error, stackTrace);
     }
   }

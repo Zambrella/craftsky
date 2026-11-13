@@ -87,10 +87,11 @@ class AccountSavedPostState extends _$AccountSavedPostState {
       ),
     );
 
+    // Own the disposable repository only while this mutation is in flight.
+    final repositoryProvider = accountSavedPostRepositoryProvider(account);
+    final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
     try {
-      final repository = await ref.read(
-        accountSavedPostRepositoryProvider(account).future,
-      );
+      final repository = await ref.read(repositoryProvider.future);
       final result = await repository.save(post, folderId: folderId);
       if (!_isCurrent(post.uri, previous.revision, mutation, generation)) {
         return;
@@ -113,6 +114,8 @@ class AccountSavedPostState extends _$AccountSavedPostState {
         post.uri,
         previous.copyWith(pendingMutation: null, lastError: error),
       );
+    } finally {
+      repositorySubscription.close();
     }
   }
 
@@ -135,10 +138,11 @@ class AccountSavedPostState extends _$AccountSavedPostState {
       ),
     );
 
+    // Own the disposable repository only while this mutation is in flight.
+    final repositoryProvider = accountSavedPostRepositoryProvider(account);
+    final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
     try {
-      final repository = await ref.read(
-        accountSavedPostRepositoryProvider(account).future,
-      );
+      final repository = await ref.read(repositoryProvider.future);
       await repository.unsave(post);
       if (!_isCurrent(
         post.uri,
@@ -169,6 +173,8 @@ class AccountSavedPostState extends _$AccountSavedPostState {
         post.uri,
         previous.copyWith(pendingMutation: null, lastError: error),
       );
+    } finally {
+      repositorySubscription.close();
     }
   }
 

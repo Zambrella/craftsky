@@ -11,6 +11,8 @@ Future<NotificationSeenCoordinator> accountNotificationSeen(
   Ref ref,
   AccountKey account,
 ) async => NotificationSeenCoordinator(
+  // The retained coordinator owns this disposable account repository by watch.
+  // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
   repository: await ref.watch(
     accountNotificationNewnessRepositoryProvider(account).future,
   ),

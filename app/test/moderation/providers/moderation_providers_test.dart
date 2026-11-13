@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/moderation/data/moderation_repository.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
@@ -6,6 +8,46 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('history refresh discards pagination from its previous build', () async {
+    final account = AccountKey('did:plc:first');
+    final page = Completer<ModerationHistoryPage>();
+    final paginationStarted = Completer<void>();
+    var initialLoads = 0;
+    final repository = _FakeRepository(
+      strikes: 0,
+      onHistory: (cursor) async {
+        if (cursor != null) {
+          paginationStarted.complete();
+          return await page.future;
+        }
+        initialLoads++;
+        return ModerationHistoryPage(
+          items: const [],
+          cursor: initialLoads == 1 ? 'original' : 'fresh',
+        );
+      },
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        accountModerationRepositoryProvider(account).overrideWith(
+          (_) async => repository,
+        ),
+      ],
+    );
+    final provider = accountModerationHistoryProvider(account);
+    container.listen(provider, (_, _) {});
+    await container.read(provider.future);
+    final notifier = container.read(provider.notifier);
+    final pending = notifier.loadMore();
+    await paginationStarted.future;
+    await notifier.refresh();
+    await container.read(provider.future);
+    expect(container.read(provider).requireValue.cursor, 'fresh');
+    page.complete(const ModerationHistoryPage(items: [], cursor: 'stale'));
+    await pending;
+    expect(container.read(provider).requireValue.cursor, 'fresh');
+  });
+
   test('standing and history providers are isolated by account key', () async {
     final first = AccountKey('did:plc:first');
     final second = AccountKey('did:plc:second');
@@ -50,9 +92,10 @@ void main() {
 }
 
 final class _FakeRepository implements ModerationRepository {
-  const new({required this.strikes});
+  const new({required this.strikes, this.onHistory});
 
   final int strikes;
+  final Future<ModerationHistoryPage> Function(String? cursor)? onHistory;
 
   @override
   Future<AccountStanding> getStanding() async => AccountStanding(
@@ -67,7 +110,8 @@ final class _FakeRepository implements ModerationRepository {
   Future<ModerationHistoryPage> getHistory({
     String? cursor,
     int? limit,
-  }) async => const ModerationHistoryPage(items: []);
+  }) async =>
+      await onHistory?.call(cursor) ?? const ModerationHistoryPage(items: []);
 
   @override
   Future<ModerationHistoryPage> getHistoryEntry(

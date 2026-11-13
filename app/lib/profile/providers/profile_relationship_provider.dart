@@ -190,9 +190,13 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       return;
     }
     if (ref.exists(timelineProvider)) {
+      // Synchronously update an existing feed; no async dependency is retained.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
       ref.read(timelineProvider.notifier).suppressActor(did);
     }
     if (ref.exists(extendedNetworkProvider)) {
+      // Synchronously update an existing feed; no async dependency is retained.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
       ref.read(extendedNetworkProvider.notifier).suppressActor(did);
     }
     var removed = 0;

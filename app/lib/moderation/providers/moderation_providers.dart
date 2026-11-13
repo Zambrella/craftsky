@@ -92,20 +92,24 @@ class AccountModerationHistory extends _$AccountModerationHistory {
   Future<void> refresh() async => ref.invalidateSelf();
 
   Future<void> loadMore() async {
+    // The notifier survives dependency rebuilds, but its old Ref does not.
+    // Keep this request bound to the build that supplied its cursor/items.
+    final operationRef = ref;
     final current = state.value;
     if (current == null || current.loadingMore || !current.hasMore) return;
     state = AsyncData(
       current.copyWith(loadingMore: true, loadMoreFailed: false),
     );
     try {
-      final repository = await ref.read(
+      final repository = await operationRef.read(
         accountModerationRepositoryProvider(account).future,
       );
+      if (!operationRef.mounted) return;
       final page = await repository.getHistory(
         cursor: current.cursor,
         limit: moderationHistoryPageLimit,
       );
-      if (!ref.mounted) return;
+      if (!operationRef.mounted) return;
       state = AsyncData(
         ModerationHistoryState(
           items: [...current.items, ...page.items],
@@ -113,7 +117,7 @@ class AccountModerationHistory extends _$AccountModerationHistory {
         ),
       );
     } on Object {
-      if (!ref.mounted) return;
+      if (!operationRef.mounted) return;
       state = AsyncData(
         current.copyWith(loadingMore: false, loadMoreFailed: true),
       );

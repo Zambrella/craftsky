@@ -1,3 +1,6 @@
+// Every override below belongs to this visual test's root ProviderScope.
+// ignore_for_file: riverpod_lint/scoped_providers_should_specify_dependencies
+
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';

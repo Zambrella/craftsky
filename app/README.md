@@ -131,6 +131,24 @@ fvm exec just app-test
 tests, including after `flutter clean`. For repeated focused runs after setup,
 you can run `flutter test <test-path>` directly from `app/`.
 
+Riverpod checks use the pinned `riverpod_lint` analyzer plugin in
+[`analysis_options.yaml`](analysis_options.yaml), so `app-analyze` also checks
+provider parameters, scope declarations and supported notifier usage. See the
+[official lint setup](https://riverpod.dev/docs/introduction/getting_started#enabling-riverpod_lint).
+Local, CI and release checks use `dart analyze --fatal-infos` to include plugin
+diagnostics in terminal runs.
+
+Provider builds watch dependencies they own. Temporary asynchronous operations
+retain auto-dispose dependencies with a subscription and close it in `finally`.
+Capture the initiating `Ref` and account operation before awaiting work: a
+notifier can survive a dependency rebuild while its original `Ref` is disposed.
+Reject stale completions before publishing state or dispatching another request.
+Disposal errors stay reportable so genuine lifecycle misuse remains visible.
+Providers that expose `ChangeNotifier` controllers use `Raw<T>`: consumers listen
+directly, and the provider registers their cleanup with `ref.onDispose`.
+Provider tests should listen while exercising an observed lifetime and explicitly
+close that listener when testing disposal or navigation away.
+
 Use [native integration tests](integration_test/README.md) for applicable device journeys. UI contributions should include screenshots or recordings and state which platforms were inspected. Production signing and symbol upload credentials are only needed for the maintainer release workflow, not debug development or unit/widget tests.
 
 ## Deep links

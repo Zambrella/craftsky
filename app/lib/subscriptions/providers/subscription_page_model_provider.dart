@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
     FutureProvider.autoDispose<SubscriptionPageModel>((ref) async {
       final registry = await ref.watch(sessionRegistryProvider.future);
+      if (!ref.mounted) throw AccountOperationCanceled();
       final activeLease = registry.activeLease?.session;
       if (activeLease == null) {
         throw DiagnosticStateError('Active account unavailable');
@@ -23,6 +25,7 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
       final access = await ref.watch(
         subscriptionAccessProvider(activeLease).future,
       );
+      if (!ref.mounted) throw AccountOperationCanceled();
       final owner = registry.billingOwner;
       final ownerRetained =
           owner != null && registry.sessions.containsKey(owner.did);
@@ -68,9 +71,12 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
         );
       }
 
-      final ownerGuard = BillingOwnerGuard(
-        () => ref.read(sessionRegistryProvider).requireValue,
-      );
+      final ownerGuard = BillingOwnerGuard(() {
+        if (!ref.mounted) {
+          throw const BillingOwnerGuardException('owner_session_changed');
+        }
+        return ref.read(sessionRegistryProvider).requireValue;
+      });
       final ownerLease = ownerGuard.capture();
       final repository = await ref.watch(
         subscriptionRepositoryProvider(activeLease.account).future,
@@ -122,9 +128,9 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           assignedAccountLabels: labels,
         );
       }
+      if (!ref.mounted) throw AccountOperationCanceled();
       final current = ref.read(sessionRegistryProvider).value;
-      if (!ref.mounted ||
-          current?.leaseFor(activeLease.account) != activeLease) {
+      if (current?.leaseFor(activeLease.account) != activeLease) {
         throw DiagnosticStateError('Account session unavailable');
       }
       if (availability == BillingAvailability.available) {
