@@ -28,6 +28,7 @@
 	import Icon from '../shell/Icon.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import EmptyState from './EmptyState.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
 	const guest = $derived(api.audience === 'guest');
@@ -103,6 +104,7 @@
 		void tick().then(restore);
 	});
 	async function load(more = false) {
+		if (disposed || work.busy || (more && !cursor)) return;
 		const request = historyView?.beginLoad();
 		await work.run(
 			async () => {
@@ -302,11 +304,13 @@
 						>{:else}<a href={'/feed?craft=' + encodeURIComponent(craft)}
 							>Clear filters</a
 						>{/if}{/snippet}
-			</EmptyState>{/if}{/each}{#if cursor}<button
-			class="button next"
-			disabled={work.busy}
-			onclick={() => load(true)}>Load more</button
-		>{/if}
+			</EmptyState>{/if}{/each}{#if cursor}<LoadMore
+			loading={work.busy}
+			loadingLabel="Loading more posts"
+			autoLoad={!work.error && !page.url.pathname.endsWith('/filters')}
+			pageKey={cursor}
+			onclick={() => load(true)}
+		/>{/if}
 </div>
 {#if page.url.pathname.endsWith('/filters')}<ProjectFiltersPage />{/if}
 

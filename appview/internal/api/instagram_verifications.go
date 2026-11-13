@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -16,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type InstagramVerificationService interface {
@@ -237,9 +237,7 @@ func writeInstagramVerificationError(w http.ResponseWriter, r *http.Request, log
 	case errors.Is(err, instagram.ErrInstagramStateTransition):
 		envelope.WriteError(w, http.StatusConflict, "instagram_verification_state_conflict", "Instagram verification state conflict", runID, nil)
 	default:
-		logger.Error("Instagram verification operation failed",
-			slog.String("run_id", runID),
-			slog.String("error_category", "internal"))
+		logger.ErrorContext(r.Context(), "Instagram verification operation failed", apiLogErrorAttrs(r.Context(), runID, "instagram.verification", "store", err)...)
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Instagram verification failed", runID, nil)
 	}
 }

@@ -1716,8 +1716,8 @@ mixin $SafetyRoute on GoRouteData {
 final goRouterProvider = GoRouterProvider._();
 
 final class GoRouterProvider
-    extends $FunctionalProvider<GoRouter, GoRouter, GoRouter>
-    with $Provider<GoRouter> {
+    extends $FunctionalProvider<Raw<GoRouter>, Raw<GoRouter>, Raw<GoRouter>>
+    with $Provider<Raw<GoRouter>> {
   GoRouterProvider._()
     : super(
         from: null,
@@ -1734,21 +1734,21 @@ final class GoRouterProvider
 
   @$internal
   @override
-  $ProviderElement<GoRouter> $createElement($ProviderPointer pointer) =>
+  $ProviderElement<Raw<GoRouter>> $createElement($ProviderPointer pointer) =>
       $ProviderElement(pointer);
 
   @override
-  GoRouter create(Ref ref) {
+  Raw<GoRouter> create(Ref ref) {
     return goRouter(ref);
   }
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(GoRouter value) {
+  Override overrideWithValue(Raw<GoRouter> value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<GoRouter>(value),
+      providerOverride: $SyncValueProvider<Raw<GoRouter>>(value),
     );
   }
 }
 
-String _$goRouterHash() => r'6a72251ea626ad0eaeb22c68712474debe8ae105';
+String _$goRouterHash() => r'246ef567d54a6aa382bb0cb8816f03de258a5eb7';

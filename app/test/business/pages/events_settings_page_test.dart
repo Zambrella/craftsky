@@ -505,6 +505,8 @@ Widget _app(
   Future<SubscriptionAccess> Function(AccountSessionLease)? access,
 }) => ProviderScope(
   overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     secureSessionRegistryStorageProvider.overrideWithValue(
       _EventsRegistryStorage(
         SessionRegistry.empty().upsertAndActivate(
@@ -514,6 +516,8 @@ Widget _app(
         ),
       ),
     ),
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     subscriptionAccessProvider.overrideWith(
       (ref, lease) =>
           access?.call(lease) ??
@@ -540,6 +544,8 @@ Widget _app(
         ),
       ),
     ),
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     businessRepositoryProvider.overrideWithValue(repository),
     businessTimeZoneServiceProvider.overrideWithValue(
       BusinessTimeZoneService.initialized(),

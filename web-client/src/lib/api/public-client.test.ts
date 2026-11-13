@@ -1,5 +1,8 @@
 import { it, expect, vi } from 'vitest';
 import { PublicCraftskyAPI } from './public-client';
+import { APIError } from './transport';
+import { apiErrorMessage } from './error-message';
+import { expectedFailure } from '#lib/features/diagnostics/privacy.ts';
 const wire = {
 	uri: 'at://did:plc:alice/social.craftsky.feed.post/first',
 	cid: 'post-cid',
@@ -133,4 +136,66 @@ it('AT-005 reads a guarded public WebVTT caption without JSON adaptation', async
 	expect(seen).toEqual([
 		'/api/public/posts/did%3Aplc%3Aalice/post/video-captions/caption-cid'
 	]);
+});
+
+const requestId = '12345678-1234-4123-8123-123456789012';
+it('keeps malformed public JSON actionable with its original parse cause', async () => {
+	const response = new Response('PRIVATE_RESPONSE', {
+		headers: { 'X-Request-ID': requestId }
+	});
+	const api = new PublicCraftskyAPI(async () => response);
+	const failure: unknown = await api.search
+		.posts({ q: 'PRIVATE_QUERY' })
+		.catch((error: unknown) => error);
+	expect(failure).toBeInstanceOf(APIError);
+	expect(failure).toMatchObject({
+		status: 200,
+		code: 'invalid_response',
+		httpMethod: 'GET',
+		responseKind: 'nonJson',
+		requestId,
+		cause: expect.any(SyntaxError)
+	});
+	expect(expectedFailure(failure)).toBe(false);
+	expect(apiErrorMessage(failure as APIError)).toBe(
+		'Something went wrong. Please try again.'
+	);
+});
+
+it('preserves public response correlation through display adaptation', async () => {
+	const api = new PublicCraftskyAPI(async () =>
+		Response.json({ items: [wire] }, { headers: { 'X-Request-ID': requestId } })
+	);
+	await expect(
+		api.transport.request('GET', '/v1/search/posts', {
+			query: { q: 'knitting' },
+			validate: () => false
+		})
+	).rejects.toMatchObject({
+		status: 200,
+		code: 'invalid_response',
+		responseKind: 'json',
+		requestId
+	});
+});
+
+it('keeps cancellation and malformed request IDs out of public failure context', async () => {
+	const canceled = new DOMException('PRIVATE_RESPONSE', 'AbortError');
+	const response = Response.json({ items: [wire] });
+	vi.spyOn(response, 'text').mockRejectedValue(canceled);
+	const api = new PublicCraftskyAPI(async () => response);
+	await expect(api.search.posts({ q: 'knitting' })).rejects.toBe(canceled);
+
+	const malformed = new PublicCraftskyAPI(
+		async () =>
+			new Response('PRIVATE_RESPONSE', {
+				headers: { 'X-Request-ID': 'PRIVATE_IDENTIFIER' }
+			})
+	);
+	await expect(malformed.search.posts({ q: 'knitting' })).rejects.toMatchObject(
+		{
+			code: 'invalid_response',
+			requestId: undefined
+		}
+	);
 });

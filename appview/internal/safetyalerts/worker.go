@@ -57,19 +57,26 @@ func (w *Worker) ProcessBatch(ctx context.Context) (int, error) {
 	if err != nil || id == uuid.Nil {
 		return 0, err
 	}
+	ctx = observability.WithPrivateDiagnosticContext(observability.WithDiagnosticOccurrence(ctx), "", id.String())
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	sendErr := w.sender.Send(sendCtx, id)
 	cancel()
 	now := w.now().UTC()
 	if sendErr != nil {
-		w.observer.ObservePrivateFailure(ctx, sendErr, "", id.String(), "safety_email.send", "provider", "retry", attempt)
 		delay := retryDelay(attempt)
 		_, err = w.pool.Exec(ctx, `UPDATE safety_email_deliveries SET next_attempt_at=$3,lease_token=NULL,lease_until=NULL WHERE id=$1 AND lease_token=$2 AND sent_at IS NULL`, id, token, now.Add(delay))
 	} else {
 		_, err = w.pool.Exec(ctx, `UPDATE safety_email_deliveries SET sent_at=$3,lease_token=NULL,lease_until=NULL WHERE id=$1 AND lease_token=$2 AND sent_at IS NULL`, id, token, now)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("finalize safety email delivery: %w", err)
+		return 0, fmt.Errorf("finalize safety email delivery: %w", errors.Join(sendErr, err))
+	}
+	if sendErr != nil {
+		outcome := "retry"
+		if attempt >= 5 {
+			outcome = "exhausted"
+		}
+		w.observer.ObservePrivateFailure(ctx, sendErr, "", id.String(), "safety_email.send", "provider", outcome, attempt)
 	}
 	// The next call observes the one-minute delivery spacing below.
 	return 1, nil

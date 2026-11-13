@@ -43,10 +43,18 @@ NotificationRuntime notificationRuntime(Ref ref) {
         : NotificationPlatform.ios,
     registerAccount:
         ({required lease, required platform, required token}) async {
-          final repository = await ref.read(
-            accountNotificationDeviceRepositoryProvider(lease.account).future,
+          final target = accountNotificationDeviceRepositoryProvider(
+            lease.account,
           );
-          return await repository.register(platform: platform, token: token);
+          // Registration runs outside widgets, so own the auto-disposed
+          // repository and its transport until this attempt completes.
+          final subscription = ref.listen(target, (_, _) {});
+          try {
+            final repository = await ref.read(target.future);
+            return await repository.register(platform: platform, token: token);
+          } finally {
+            subscription.close();
+          }
         },
     saveBindingForLease: ({required lease, required binding}) async {
       await ref
@@ -60,6 +68,8 @@ NotificationRuntime notificationRuntime(Ref ref) {
     commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),
     resetToHome: () async =>
+        // The app's router config owns the router during runtime callbacks.
+        // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
         ref.read(goRouterProvider).go(const FeedRoute().location),
     confirmLeave: ref.read(unsavedWorkGuardProvider).confirmLeave,
   );
@@ -105,6 +115,8 @@ NotificationRuntime notificationRuntime(Ref ref) {
       return [
         for (final account in registry.sessions.keys)
           if (registry.leaseFor(AccountKey(account.value)) case final lease?)
+            // Read a synchronous snapshot; unresolved accounts stay ineligible.
+            // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
             if (ref.read(onboardingStatusProvider(lease)).value?.completed ??
                 false)
               lease,

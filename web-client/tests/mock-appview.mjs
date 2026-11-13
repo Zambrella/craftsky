@@ -48,6 +48,8 @@ createServer((req, res) => {
 		return send(500, { message: 'credentials forwarded' });
 	if (url.pathname.includes('missing'))
 		return send(404, { message: 'PRIVATE_CANARY' });
+	if (url.pathname.includes('rate-limited'))
+		return send(429, { message: 'PRIVATE_CANARY' });
 	if (url.pathname.includes('failed'))
 		return send(500, { message: 'PRIVATE_CANARY' });
 	if (url.pathname.endsWith('/posts') || url.pathname.endsWith('/projects'))

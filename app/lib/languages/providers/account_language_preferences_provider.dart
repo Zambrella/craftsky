@@ -21,16 +21,18 @@ class AccountLanguagePreferences extends _$AccountLanguagePreferences {
   Future<AccountLanguagePreferencesState> build(
     ActiveAccountLease lease,
   ) async {
-    _generation++;
+    final generation = ++_generation;
     final account = lease.session.account;
     final repository = await ref.watch(
       languagePreferencesRepositoryProvider(account).future,
     );
+    if (!ref.mounted || generation != _generation) throw const ApiCanceled();
     late final LanguagePreferences preferences;
     try {
       preferences = await repository.load();
     } on ApiBadRequest catch (error) {
       if (error.code != 'language_preferences_not_found') rethrow;
+      if (!ref.mounted || generation != _generation) throw const ApiCanceled();
       final proposal = deriveInitialLanguages(ref.read(deviceLocalesProvider));
       preferences = await repository.initialize(proposal);
     }

@@ -25,6 +25,8 @@ jobs:
       workflows: ${{ steps.paths.outputs.workflows }}
       status: ${{ steps.paths.outputs.status }}
       app_profile: ${{ steps.paths.outputs.app_profile }}
+      website: ${{ steps.paths.outputs.website }}
+      stats: ${{ steps.paths.outputs.stats }}
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -43,7 +45,14 @@ jobs:
           workflows=false
           status=false
           app_profile=false
-          while IFS= read -r path; do
+          website=false
+          stats=false
+          # Resolve the diff before classifying: a failed git process inside a
+          # process substitution would otherwise produce a green, empty result.
+          changed_paths=$(mktemp)
+          trap 'rm -f "$changed_paths"' EXIT
+          git diff --name-only -z "$BASE_SHA...HEAD" > "$changed_paths"
+          while IFS= read -r -d '' path; do
             case "$path" in
               appview/*|config/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/config|scripts/compose-dev|scripts/worktree-create|scripts/test_config.py|docs/development/configuration-reference.md|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
                 appview=true
@@ -73,9 +82,21 @@ jobs:
                 app_profile=true
                 ;;
             esac
-          done < <(git diff --name-only "$BASE_SHA...HEAD")
+            case "$path" in
+              web/*|scripts/cloudflare_pages_build.py|scripts/test_cloudflare_pages_build.py|scripts/web-deploy|scripts/test_web_deploy.py|justfile|.github/workflows/*)
+                website=true
+                ;;
+            esac
+            case "$path" in
+              stats/*|scripts/stats-dev|justfile|.github/workflows/*)
+                stats=true
+                ;;
+            esac
+          done < "$changed_paths"
           printf 'appview=%s\napp=%s\nworkflows=%s\nstatus=%s\napp_profile=%s\n' \
             "$appview" "$app" "$workflows" "$status" "$app_profile" >>"$GITHUB_OUTPUT"
+          printf 'website=%s\nstats=%s\n' \
+            "$website" "$stats" >>"$GITHUB_OUTPUT"
 
   appview-unit-feedback:
     name: AppView unit feedback
@@ -180,7 +201,7 @@ jobs:
 
       - name: Analyze
         working-directory: app
-        run: flutter analyze
+        run: dart analyze --fatal-infos
 
       - name: Set up Rive native test runtime
         working-directory: app
@@ -216,6 +237,59 @@ jobs:
           python3 -m unittest discover -s scripts -p test_web_deploy.py
       - name: Validate anonymous Worker
         run: node --test service-status/test/worker.test.js
+
+  website:
+    name: Public website checks
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - run: cd web && npm exec -- playwright install --with-deps chromium
+      - name: Check built website and deployment tooling
+        run: |
+          npm run --prefix web build
+          python3 -m unittest discover -s scripts -p test_web_deploy.py
+          python3 -m unittest discover -s scripts -p test_cloudflare_pages_build.py
+          WEB_TEST_ROOT=dist npm test --prefix web
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: website-fixture-failures
+          path: web/test-results/
+          if-no-files-found: ignore
+
+  stats:
+    name: Statistics website checks
+    needs: changes
+    if: needs.changes.outputs.stats == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: stats/package-lock.json
+      - run: npm ci --prefix stats
+      - run: cd stats && npm exec -- playwright install --with-deps chromium
+      - run: npm run --prefix stats check
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stats-fixture-failures
+          path: stats/test-results/
+          if-no-files-found: ignore
 
   app-profile:
     name: App profile publication checks
@@ -321,7 +395,7 @@ jobs:
   required:
     name: PR checks
     if: always() && github.event_name == 'pull_request'
-    needs: [changes, appview-unit-feedback, appview, app, status, app-profile, workflow-lint]
+    needs: [changes, appview-unit-feedback, appview, app, status, website, stats, app-profile, workflow-lint]
     runs-on: ubuntu-24.04
     steps:
       - name: Require applicable checks
@@ -331,12 +405,14 @@ jobs:
           APPVIEW_RESULT: ${{ needs.appview.result }}
           APP_RESULT: ${{ needs.app.result }}
           STATUS_RESULT: ${{ needs.status.result }}
+          WEBSITE_RESULT: ${{ needs.website.result }}
+          STATS_RESULT: ${{ needs.stats.result }}
           APP_PROFILE_RESULT: ${{ needs.app-profile.result }}
           WORKFLOW_RESULT: ${{ needs.workflow-lint.result }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$CHANGES_RESULT" == success ]]
-          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$APP_PROFILE_RESULT" "$WORKFLOW_RESULT"; do
+          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$WEBSITE_RESULT" "$STATS_RESULT" "$APP_PROFILE_RESULT" "$WORKFLOW_RESULT"; do
             [[ "$result" == success || "$result" == skipped ]]
           done

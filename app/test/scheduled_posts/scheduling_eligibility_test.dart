@@ -118,6 +118,8 @@ void main() {
 
 Widget _postApp(Widget home) => ProviderScope(
   overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     activeLanguagePreferencesProvider.overrideWith(
       (ref) => const LanguagePreferences(
         primaryLanguage: 'en',

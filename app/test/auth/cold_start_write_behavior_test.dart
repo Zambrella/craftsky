@@ -77,7 +77,7 @@ void main() {
         (server) => server.reply(401, {
           'error': 'pds_session_expired',
           'message': 'Reauthorize this account to continue.',
-          'requestId': 'request-cold-start',
+          'requestId': 'f0000000-0000-4000-8000-000000000004',
         }),
         data: {'description': 'stale write'},
       );
@@ -99,7 +99,7 @@ void main() {
               .having(
                 (error) => error.details.requestId,
                 'requestId',
-                'request-cold-start',
+                'f0000000-0000-4000-8000-000000000004',
               ),
         ),
       );

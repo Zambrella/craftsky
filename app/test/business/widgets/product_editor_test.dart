@@ -8,8 +8,11 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -21,6 +24,56 @@ import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  for (final (error, message, reports) in <(Object, String, bool)>[
+    (
+      const ProfileImagePickException(
+        reason: ProfileImageFailure.tooManyPixels,
+      ),
+      'That photo is over 48 megapixels. Choose a smaller photo or reduce its '
+          'resolution and try again.',
+      false,
+    ),
+    (
+      const ProfileImagePickException(reason: ProfileImageFailure.fileTooLarge),
+      'That photo is over 100 MB. Choose a smaller file and try again.',
+      false,
+    ),
+    (
+      StateError('PRIVATE_IMAGE_DEPENDENCY_PROSE'),
+      'The image could not be uploaded. Try again.',
+      true,
+    ),
+  ]) {
+    testWidgets('product photo failure shows actionable copy: $message', (
+      tester,
+    ) async {
+      final reporter = _ImageReporter();
+      await tester.pumpWidget(
+        _app(
+          ProductEditor(
+            onSave: (_) {},
+            pickImage: (_, _) async =>
+                Error.throwWithStackTrace(error, StackTrace.current),
+          ),
+          reporter: reporter,
+        ),
+      );
+      final add = find.byKey(const Key('product-add-image'));
+      await tester.ensureVisible(add);
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('product-choose-photos')));
+      await tester.pumpAndSettle();
+      expect(find.text(message), findsOneWidget);
+      expect(find.textContaining('PRIVATE_IMAGE'), findsNothing);
+      expect(reporter.errors, reports ? [same(error)] : isEmpty);
+      if (reports) {
+        expect(reporter.contexts.single.operation, 'business.product.image');
+        expect(reporter.stacks.single, isNotNull);
+      }
+    });
+  }
+
   testWidgets('AT-005 failed replacement keeps the saved image', (
     tester,
   ) async {
@@ -420,7 +473,10 @@ ProfileImagePickResult _uploadedPick(String cid) {
   );
 }
 
-Widget _app(Widget child) => ProviderScope(
+Widget _app(Widget child, {ErrorReporter? reporter}) => ProviderScope(
+  overrides: [
+    if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
+  ],
   child: MaterialApp(
     theme: AppTheme.lightThemeData,
     localizationsDelegates: appLocalizationsDelegates,
@@ -428,3 +484,22 @@ Widget _app(Widget child) => ProviderScope(
     home: Scaffold(body: child),
   ),
 );
+
+final class _ImageReporter implements ErrorReporter {
+  final errors = <Object>[];
+  final stacks = <StackTrace?>[];
+  final contexts = <ReportContext>[];
+  @override
+  bool get enabled => true;
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    errors.add(error);
+    stacks.add(stackTrace);
+    contexts.add(context);
+    return null;
+  }
+}

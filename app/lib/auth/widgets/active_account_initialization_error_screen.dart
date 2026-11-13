@@ -1,10 +1,13 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ActiveAccountInitializationErrorScreen extends StatelessWidget {
   const new({
+    required this.error,
     required this.onRetry,
     required this.onSignOut,
     required this.busy,
@@ -14,6 +17,7 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
   });
 
   final VoidCallback onRetry;
+  final Object error;
   final VoidCallback? onSwitchAccount;
   final VoidCallback onSignOut;
   final bool busy;
@@ -23,6 +27,11 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final appError = AppErrorMapper.map(
+      error,
+      fallbackKind: AppErrorKind.initializationFailed,
+      source: 'initialization',
+    );
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -45,7 +54,9 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  l10n.activeAccountInitializationFailedBody,
+                  appError.kind == AppErrorKind.initializationFailed
+                      ? l10n.activeAccountInitializationFailedBody
+                      : appError.message(l10n),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium,
                 ),

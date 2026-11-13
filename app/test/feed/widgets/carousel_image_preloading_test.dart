@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
@@ -59,14 +60,36 @@ void main() {
         final initialIndex = fullscreen ? 2 : 0;
 
         Future<void> finishImage(int index) async {
-          requests[url(index)]!.add(
-            FileInfo(file, FileSource.Cache, DateTime(2100), url(index)),
-          );
-          for (var attempt = 0; attempt < 10; attempt++) {
-            await tester.pump();
-            await tester.runAsync(() async {
-              await Future<void>.delayed(const Duration(milliseconds: 10));
-            });
+          final stream = CachedNetworkImageProvider(
+            url(index),
+            cacheManager: cache,
+          ).resolve(ImageConfiguration.empty);
+          var decoded = false;
+          Object? decodeError;
+          final listener = ImageStreamListener((image, _) {
+            image.dispose();
+            decoded = true;
+          }, onError: (error, _) => decodeError = error);
+          stream.addListener(listener);
+          try {
+            requests[url(index)]!.add(
+              FileInfo(file, FileSource.Cache, DateTime(2100), url(index)),
+            );
+            // Pump fake-async delivery and yield to the native codec until an
+            // image arrives. A fixed number of sleeps races slower CI hosts.
+            final deadline = DateTime.now().add(const Duration(seconds: 5));
+            while (!decoded &&
+                decodeError == null &&
+                DateTime.now().isBefore(deadline)) {
+              await tester.pump();
+              await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 1)),
+              );
+            }
+            expect(decodeError, isNull);
+            expect(decoded, isTrue, reason: 'image $index decoded');
+          } finally {
+            stream.removeListener(listener);
           }
           await tester.pump();
         }

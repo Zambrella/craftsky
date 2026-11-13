@@ -21,6 +21,12 @@ Covered journeys:
 - Regular post composition and publication through the production
   `PostApiClient`/repository, including the mobile wakelock lifecycle and live
   timeline update.
+- Published post editing over HTTP, including the expected-CID precondition,
+  conflict feedback that preserves unsaved text, and cancellation without a
+  create, draft or scheduled-post write.
+- Status announcement dismissal through the real shared-preferences plugin,
+  including reload with a fresh controller and redisplay for a new revision.
+  Maintenance coverage verifies an already accepted publication can finish.
 - Notification provider payload parsing, recipient resolution, runtime effect,
   and production deep-link routing to a profile.
 - Mobile startup dependency resolution through package-info, device-info, and
@@ -43,6 +49,10 @@ Outside this loopback suite:
 The critical-journeys suite targets Android and iOS. The app intentionally rejects
 desktop dependency initialization, and the loopback server uses `dart:io`, so
 macOS and web are not valid targets.
+
+`guest_browsing_test.dart` runs the isolated guest router/widget contracts on a
+native runtime. Use `just app-test-guest-integration <device-id>`. It reuses
+fixture repositories and does not add real AppView, OAuth or PDS coverage.
 
 No `test_driver` entry point or `enableFlutterDriverExtension` is needed for
 the current `flutter test integration_test/... -d <device>` runner.

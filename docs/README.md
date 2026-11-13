@@ -16,9 +16,10 @@ Start with the [repository README](../README.md) for the product and quick start
 | Guide | Covers |
 | --- | --- |
 | [Flutter client](../app/README.md) | SDK, local configuration, devices, and OAuth links |
+| [SvelteKit client](../web-client/README.md) | Guest and signed-in browser UI, Worker sessions, local fixture gates and live smoke tests |
 | [AppView](../appview/README.md) | Compose, backend ownership, tests, and OAuth debugging |
 | [Website](../web/README.md) | Local serving, browser checks, and static build |
-| [Instagram importer](../instagram-importer/README.md) | Browser-only importer, synthetic fixtures, and package checks |
+| [Statistics website](../stats/README.md) | Local API proxy, aggregate rendering and browser fixture checks |
 | [Service status](../service-status/README.md) | Worker checks and local status simulation |
 | [Verified links](../verified-links/README.md) | App-link hosting and OAuth fallbacks |
 | [Flutter integration tests](../app/integration_test/README.md) | Native journey coverage and its limits |
@@ -34,5 +35,10 @@ Start with the [repository README](../README.md) for the product and quick start
 - [Online safety documentation](../online-safety/README.md) — policy sources, assessments, and readiness gaps. Drafts and implementation checkboxes are not evidence of approval or full public-launch readiness.
 
 ## Design history
+
+[Search the change archive](changes/README.md) by topic, component or code symbol.
+Its [generated index](changes/INDEX.md) links concise summaries, status and open
+follow-ups. From the repository root, use `./scripts/docs search "search terms"`
+and retrieve individual historical sections as described in the archive guide.
 
 [Specs](superpowers/specs/), [plans](superpowers/plans/), and [change packages](changes/) preserve the reasoning and verification for individual changes. They are historical context, not a sequential setup guide. Start with the component README and current code, then consult the relevant package. If an older design conflicts with a later ADR or implementation, flag the mismatch and update the contributor-facing guidance.

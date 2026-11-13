@@ -1,9 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import { Work } from './work.svelte.ts';
+import { InputError, UserFacingError } from '#lib/user-facing-error.ts';
+import { reportFailure } from '../diagnostics/client.ts';
 vi.mock('../diagnostics/client.ts', () => ({ reportFailure: vi.fn() }));
 
 describe('social async work', () => {
+	it.each([
+		new InputError('Choose an image smaller than 40 MB.'),
+		new UserFacingError('Image editing is unavailable in this browser.')
+	])('preserves reviewed recovery copy for $name', async (failure) => {
+		const work = new Work('social.ProfileEditor.save');
+		await work.run(async () => {
+			throw failure;
+		});
+		expect(work.error).toBe(failure.message);
+		expect(reportFailure).toHaveBeenCalledWith(
+			failure,
+			'social.ProfileEditor.save'
+		);
+	});
+	it('keeps dependency prose out of recovery feedback', async () => {
+		const work = new Work();
+		await work.run(async () => {
+			throw new TypeError('PRIVATE_DEPENDENCY_CANARY');
+		});
+		expect(work.error).toBe('Something went wrong. Please try again.');
+	});
 	it('silently consumes canceled reads without leaving retry feedback', async () => {
 		const work = new Work();
 		await work.run(async () => {

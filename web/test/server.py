@@ -1,20 +1,13 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import os
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from cloudflare_pages_build import ROUTES
 
 
 ROOT = Path(__file__).resolve().parents[1] / os.environ.get("WEB_TEST_ROOT", ".")
-ROUTES = {
-    "/": "index.html",
-    "/waitlist": "waitlist.html",
-    "/privacy": "privacy.html",
-    "/terms": "terms.html",
-    "/community-guidelines": "community-guidelines.html",
-    "/reporting": "reporting.html",
-    "/copyright": "copyright.html",
-    "/instagram-import": "instagram-import.html",
-    "/why-instagram-sucks-for-crafters": "why-instagram-sucks-for-crafters.html",
-}
 
 
 class Handler(SimpleHTTPRequestHandler):

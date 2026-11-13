@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 
 final class AppErrorMapper {
   const new _();
@@ -17,6 +18,10 @@ final class AppErrorMapper {
     final visited = Set<Object>.identity();
     for (var depth = 0; depth < 8 && visited.add(error); depth++) {
       if (error is AppError) return error;
+      if (error is ProviderException) {
+        error = error.exception;
+        continue;
+      }
       if (error is! DiagnosticFailureCause || error.diagnosticCause == null) {
         break;
       }
@@ -37,11 +42,13 @@ final class AppErrorMapper {
         fallbackKind,
         source,
         classification: 'parse.failed',
+        cause: sourceError,
       ),
       _ => _fallbackForSource(
         fallbackKind,
         source,
         classification: fallbackClassification,
+        cause: sourceError,
       ),
     };
   }
@@ -53,7 +60,7 @@ final class AppErrorMapper {
         reportableOverride: true,
         sentryClassificationOverride: 'parse.failed',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       );
     }
@@ -63,15 +70,33 @@ final class AppErrorMapper {
         reportableOverride: false,
         sentryClassificationOverride: 'api.unauthorized',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
-      ApiBadRequest(:final code) when code == 'not_found' => AppError(
-        AppErrorKind.contentUnavailable,
+      ApiBadRequest(:final code, :final details)
+          when code == 'not_found' || details.statusCode == 404 =>
+        AppError(
+          AppErrorKind.contentUnavailable,
+          reportableOverride: false,
+          sentryClassificationOverride: 'api.not_found',
+          safeDiagnostics: _apiDiagnostics(error),
+          diagnosticCause: error,
+          diagnosticStack: error.details.stackTrace,
+        ),
+      ApiBadRequest(details: ApiFailureDetails(statusCode: 403)) => AppError(
+        AppErrorKind.permissionDenied,
         reportableOverride: false,
-        sentryClassificationOverride: 'api.not_found',
+        sentryClassificationOverride: 'api.forbidden',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
+        diagnosticStack: error.details.stackTrace,
+      ),
+      ApiBadRequest(details: ApiFailureDetails(statusCode: 429)) => AppError(
+        AppErrorKind.rateLimited,
+        reportableOverride: false,
+        sentryClassificationOverride: 'api.rate_limited',
+        safeDiagnostics: _apiDiagnostics(error),
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
       ApiBadRequest(:final code) => AppError(
@@ -79,7 +104,7 @@ final class AppErrorMapper {
         reportableOverride: false,
         sentryClassificationOverride: 'api.bad_request',
         safeDiagnostics: _apiDiagnostics(error, appViewError: code),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
       ApiServerError() => AppError(
@@ -87,7 +112,7 @@ final class AppErrorMapper {
         reportableOverride: true,
         sentryClassificationOverride: 'api.server_error',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
       ApiNetworkError() => AppError(
@@ -95,7 +120,7 @@ final class AppErrorMapper {
         reportableOverride: false,
         sentryClassificationOverride: 'api.network',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
       ApiCanceled() => AppError(
@@ -103,7 +128,7 @@ final class AppErrorMapper {
         reportableOverride: false,
         sentryClassificationOverride: 'api.canceled',
         safeDiagnostics: _apiDiagnostics(error),
-        diagnosticCause: error.details.cause ?? error,
+        diagnosticCause: error,
         diagnosticStack: error.details.stackTrace,
       ),
     };
@@ -130,10 +155,12 @@ final class AppErrorMapper {
   static AppError _fallbackForSource(
     AppErrorKind kind,
     String source, {
+    required Object cause,
     String? classification,
   }) => AppError(
     kind,
     sentryClassificationOverride: classification,
     safeDiagnostics: {'source': source},
+    diagnosticCause: cause,
   );
 }

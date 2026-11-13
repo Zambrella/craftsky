@@ -115,7 +115,7 @@ func newInstagramRuntimeDependencies(
 			Reducer:     reducer, Sink: webhookStore, Limiter: webhookRateLimiter,
 			BodyLimitBytes: cfg.InstagramLimits.WebhookBodyLimitBytes,
 			MaxEvents:      cfg.InstagramLimits.WebhookMaxEvents, Now: time.Now,
-			Logger: logger, UnsafeDebugLogs: cfg.UnsafeLogInstagramWebhookBodies,
+			Logger: logger,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("instagram webhook handler: %w", err)

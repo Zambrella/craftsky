@@ -95,6 +95,8 @@ class LinkPreviewController extends _$LinkPreviewController {
     return const LinkPreviewSessionState();
   }
 
+  // Composers watch session state, published after every cache change.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   SelectedLinkPreview? get selected {
     final identity = state.selectedIdentity;
     if (identity == null) return null;
@@ -108,12 +110,16 @@ class LinkPreviewController extends _$LinkPreviewController {
         : SelectedLinkPreview(candidate: candidate, preview: preview);
   }
 
+  // Snapshot for the composer that already watches this session's state.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   List<SelectedLinkPreview> get available => [
     for (final candidate in state.candidates)
       if (_successes[candidate.identity] case final preview?)
         SelectedLinkPreview(candidate: candidate, preview: preview),
   ];
 
+  // Imperative submit-time check; reactive consumers watch session state.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   bool get dismissed => state.dismissed;
 
   void seed(SelectedLinkPreview selection) {

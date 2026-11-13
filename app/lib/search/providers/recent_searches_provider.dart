@@ -17,18 +17,21 @@ class SaveRecentSearch extends _$SaveRecentSearch {
   @override
   FutureOr<RecentSearchItem?> build() => null;
 
-  Future<RecentSearchItem> save(SaveRecentSearchRequest request) async {
+  Future<RecentSearchItem?> save(SaveRecentSearchRequest request) async {
     final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
-    final saved = await ref
-        .read(searchRepositoryProvider)
-        .saveRecentSearch(request);
-    if (!accountOperation.isCurrent) return saved;
-    ref
-      ..invalidate(recentSearchPageProvider)
-      ..invalidate(blankSearchProvider);
-    state = AsyncData(saved);
-    return saved;
+    final next = await AsyncValue.guard(
+      () => ref.read(searchRepositoryProvider).saveRecentSearch(request),
+    );
+    accountOperation.publish(() {
+      state = next;
+      if (next.hasValue) {
+        ref
+          ..invalidate(recentSearchPageProvider)
+          ..invalidate(blankSearchProvider);
+      }
+    });
+    return next.value;
   }
 }
 
@@ -40,11 +43,16 @@ class DeleteRecentSearch extends _$DeleteRecentSearch {
   Future<void> delete(String id) async {
     final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
-    await ref.read(searchRepositoryProvider).deleteRecentSearch(id);
-    if (!accountOperation.isCurrent) return;
-    ref
-      ..invalidate(recentSearchPageProvider)
-      ..invalidate(blankSearchProvider);
-    state = const AsyncData(null);
+    final next = await AsyncValue.guard(
+      () => ref.read(searchRepositoryProvider).deleteRecentSearch(id),
+    );
+    accountOperation.publish(() {
+      state = next;
+      if (!next.hasError) {
+        ref
+          ..invalidate(recentSearchPageProvider)
+          ..invalidate(blankSearchProvider);
+      }
+    });
   }
 }

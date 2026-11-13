@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
@@ -21,9 +22,10 @@ const (
 )
 
 type Worker struct {
-	pool    *pgxpool.Pool
-	objects safetyincident.EvidenceStore
-	now     func() time.Time
+	pool     *pgxpool.Pool
+	objects  safetyincident.EvidenceStore
+	now      func() time.Time
+	observer *observability.Observer
 }
 
 type claimedJob struct {
@@ -35,11 +37,11 @@ type claimedJob struct {
 	leaseExpiresAt time.Time
 }
 
-func NewWorker(pool *pgxpool.Pool, objects safetyincident.EvidenceStore, now func() time.Time) *Worker {
+func NewWorker(pool *pgxpool.Pool, objects safetyincident.EvidenceStore, now func() time.Time, observer *observability.Observer) *Worker {
 	if now == nil {
 		now = time.Now
 	}
-	return &Worker{pool: pool, objects: objects, now: now}
+	return &Worker{pool: pool, objects: objects, now: now, observer: observer}
 }
 
 func (worker *Worker) RunOnce(ctx context.Context, limit int) (int, error) {
@@ -62,14 +64,20 @@ func (worker *Worker) RunOnce(ctx context.Context, limit int) (int, error) {
 		if !found {
 			break
 		}
+		jobCtx := observability.WithPrivateDiagnosticContext(observability.WithDiagnosticOccurrence(ctx), "", job.id.String())
 		deleted, deleteErr := safetyincident.DeleteEvidenceIfUnheld(
-			ctx, worker.pool, worker.objects, job.evidenceID,
+			jobCtx, worker.pool, worker.objects, job.evidenceID,
 			defaultWorkerID, "retentionExpired", now,
 		)
 		if deleteErr != nil {
 			if err := worker.fail(ctx, job, now, retentionErrorCategory(deleteErr)); err != nil {
-				return deletedCount, err
+				return deletedCount, errors.Join(deleteErr, err)
 			}
+			outcome := "retry"
+			if job.attempt >= job.maxAttempts {
+				outcome = "exhausted"
+			}
+			worker.observer.ObservePrivateFailure(jobCtx, deleteErr, "", job.id.String(), "safety.retention", "delete", outcome, job.attempt)
 			continue
 		}
 		if err := worker.complete(ctx, job, now); err != nil {

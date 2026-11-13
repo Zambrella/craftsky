@@ -10,8 +10,11 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/event_editor_dialog.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -24,6 +27,57 @@ import '../../test_support/deterministic_pump.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
+  for (final (error, message, reports) in <(Object, String, bool)>[
+    (
+      const ProfileImagePickException(
+        reason: ProfileImageFailure.tooManyPixels,
+      ),
+      'That photo is over 48 megapixels. Choose a smaller photo or reduce its '
+          'resolution and try again.',
+      false,
+    ),
+    (
+      const ProfileImagePickException(reason: ProfileImageFailure.fileTooLarge),
+      'That photo is over 100 MB. Choose a smaller file and try again.',
+      false,
+    ),
+    (
+      StateError('PRIVATE_IMAGE_DEPENDENCY_PROSE'),
+      'The image could not be uploaded. Try again.',
+      true,
+    ),
+  ]) {
+    testWidgets('event photo failure shows actionable copy: $message', (
+      tester,
+    ) async {
+      final reporter = _ImageReporter();
+      await tester.pumpWidget(
+        _app(
+          EventEditorDialog(
+            initialDraft: _draft(),
+            onSubmit: (_) async => false,
+            pickImage: (_, _) async =>
+                Error.throwWithStackTrace(error, StackTrace.current),
+          ),
+          reporter: reporter,
+        ),
+      );
+      final add = find.byKey(const Key('event-add-image'));
+      await tester.ensureVisible(add);
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('event-choose-photos')));
+      await tester.pumpAndSettle();
+      expect(find.text(message), findsOneWidget);
+      expect(find.textContaining('PRIVATE_IMAGE'), findsNothing);
+      expect(reporter.errors, reports ? [same(error)] : isEmpty);
+      if (reports) {
+        expect(reporter.contexts.single.operation, 'business.event.image');
+        expect(reporter.stacks.single, isNotNull);
+      }
+    });
+  }
+
   testWidgets('Done dismisses event keyboard without submitting', (
     tester,
   ) async {
@@ -664,8 +718,9 @@ BusinessEvent _event({
   upcomingExclusionReasons: const [],
 );
 
-Widget _app(Widget child) => ProviderScope(
+Widget _app(Widget child, {ErrorReporter? reporter}) => ProviderScope(
   overrides: [
+    if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
     businessTimeZoneServiceProvider.overrideWithValue(
       BusinessTimeZoneService.initialized(),
     ),
@@ -704,3 +759,22 @@ UploadedImageBlob _uploadedImage(String cid) => UploadedImageBlob(
   mime: 'image/png',
   size: 68,
 );
+
+final class _ImageReporter implements ErrorReporter {
+  final errors = <Object>[];
+  final stacks = <StackTrace?>[];
+  final contexts = <ReportContext>[];
+  @override
+  bool get enabled => true;
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    errors.add(error);
+    stacks.add(stackTrace);
+    contexts.add(context);
+    return null;
+  }
+}

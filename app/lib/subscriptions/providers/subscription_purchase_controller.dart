@@ -7,6 +7,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_rules.dart';
 import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum SubscriptionPurchaseOutcome {
   completed,
@@ -43,11 +44,13 @@ final class SubscriptionPurchaseController {
     required this.wait,
     required this.readAccess,
     this.isCurrent = _alwaysCurrent,
+    this.diagnostics = const SubscriptionDiagnostics(),
     this.isForeground = _alwaysCurrent,
     this.onProviderConfirmed,
     this.maxReconciliationAttempts = 30,
   });
 
+  final SubscriptionDiagnostics diagnostics;
   final BillingOwnerGuard ownerGuard;
   final SubscriptionApi api;
   final Future<PaywallOutcome> Function(
@@ -134,13 +137,15 @@ final class SubscriptionPurchaseController {
     } on BillingOwnerGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pendingRetry(tier, beforeProvider);
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'purchase.reconcile');
       return _pendingRetry(tier, beforeProvider);
     }
     if (!isCurrent()) {
       return _pendingRetry(tier, beforeProvider);
     }
     final reconciliation = ReconciliationCoordinator(
+      diagnostics: diagnostics,
       requestReconciliation: () => ownerGuard.dispatch(
         owner,
         api.requestReconciliation,
@@ -189,7 +194,8 @@ final class SubscriptionPurchaseController {
               access.effectiveTier != tier) {
             return _pendingRetry(tier, beforeProvider);
           }
-        } on Object {
+        } on Object catch (error, stack) {
+          diagnostics.report(error, stack, operation: 'purchase.access');
           return _pendingRetry(tier, beforeProvider);
         }
       }

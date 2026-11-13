@@ -5,6 +5,7 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum AssignmentMutationOutcome {
   success,
@@ -37,8 +38,10 @@ final class SubscriptionAssignmentController {
     required this.api,
     required this.readTargetAccess,
     this.isCurrent = _alwaysCurrent,
+    this.diagnostics = const SubscriptionDiagnostics(),
   });
 
+  final SubscriptionDiagnostics diagnostics;
   final BillingOwnerGuard ownerGuard;
   final SessionRegistry Function() readRegistry;
   final SubscriptionApi api;
@@ -92,13 +95,16 @@ final class SubscriptionAssignmentController {
         return const AssignmentMutationResult(
           outcome: AssignmentMutationOutcome.unauthorized,
         );
-      } on ApiBadRequest catch (error) {
+      } on ApiBadRequest catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.assign');
         outcome = _mapError(error.code);
-      } on BillingOwnerGuardException {
+      } on BillingOwnerGuardException catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.assign');
         return const AssignmentMutationResult(
           outcome: AssignmentMutationOutcome.cancelled,
         );
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.assign');
         outcome = AssignmentMutationOutcome.failed;
       }
 
@@ -176,13 +182,16 @@ final class SubscriptionAssignmentController {
         return const AssignmentMutationResult(
           outcome: AssignmentMutationOutcome.unauthorized,
         );
-      } on ApiBadRequest catch (error) {
+      } on ApiBadRequest catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.unassign');
         outcome = _mapError(error.code);
-      } on BillingOwnerGuardException {
+      } on BillingOwnerGuardException catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.unassign');
         return const AssignmentMutationResult(
           outcome: AssignmentMutationOutcome.cancelled,
         );
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'assignment.unassign');
         outcome = AssignmentMutationOutcome.failed;
       }
       if (!isCurrent()) {

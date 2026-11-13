@@ -453,7 +453,10 @@ void main() {
         serverError.details.appViewError,
         'instagram_verification_unavailable',
       );
-      expect(serverError.details.requestId, 'synthetic-request-0001');
+      expect(
+        serverError.details.requestId,
+        'f0000000-0000-4000-8000-000000000003',
+      );
       expect(
         serverError.toString(),
         isNot(contains(_map(unavailable['body'])['message'] as String)),

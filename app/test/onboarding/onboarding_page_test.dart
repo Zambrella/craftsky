@@ -33,8 +33,11 @@ final _lease = ActiveAccountLease(
 final class _Flow extends OnboardingFlow {
   new(this.initial);
   final OnboardingFlowState initial;
+  @visibleForTesting
   int completionCalls = 0;
+  @visibleForTesting
   ImageSource? avatarSource;
+  @visibleForTesting
   BasicImageEditor? avatarEditor;
 
   @override
@@ -54,6 +57,7 @@ final class _Flow extends OnboardingFlow {
 }
 
 final class _PendingFlow extends OnboardingFlow {
+  @visibleForTesting
   int completionCalls = 0;
 
   @override
@@ -65,6 +69,7 @@ final class _PendingFlow extends OnboardingFlow {
 }
 
 final class _ErrorFlow extends OnboardingFlow {
+  @visibleForTesting
   int completionCalls = 0;
 
   @override

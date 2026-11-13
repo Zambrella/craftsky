@@ -231,7 +231,7 @@ test('native image sharing keeps loading visible, supports cancellation, reports
 	await button.click();
 	await finish('fail');
 	await expect(dialog.getByRole('alert')).toHaveText(
-		'Could not complete this request. Please try again.'
+		'Something went wrong. Please try again.'
 	);
 	await expect(dialog).not.toContainText('PRIVATE_SHARE_IMAGE_CANARY');
 	await button.click();

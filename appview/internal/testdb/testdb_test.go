@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestResolveDatabaseURL(t *testing.T) {
@@ -196,6 +197,84 @@ func TestWithMigratedSchema(t *testing.T) {
 	}
 	if !exists {
 		t.Fatal("fully migrated schema does not contain craftsky_posts")
+	}
+}
+
+func TestConcurrencyProbesExcludeOtherFixtures(t *testing.T) {
+	local := WithSchema(t, "")
+	foreign := WithSchema(t, "")
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	blocker, err := foreign.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Rollback(context.Background()) }()
+	var key int64
+	if err := blocker.QueryRow(ctx, `SELECT pg_backend_pid()::bigint`).Scan(&key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, key); err != nil {
+		t.Fatal(err)
+	}
+	waiter, err := foreign.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer waiter.Release()
+	pid := waiter.Conn().PgConn().PID()
+	done := make(chan error, 1)
+	go func() {
+		_, err := waiter.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, key)
+		done <- err
+	}()
+	// Cancel and join before releasing the acquired connection, including when
+	// a failed assertion aborts the test while the foreign operation is blocked.
+	defer func() {
+		cancel()
+		<-done
+	}()
+	for {
+		var waiting bool
+		if err := local.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory' AND NOT granted
+		)`, pid).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		select {
+		case err := <-done:
+			// Preserve the result for the deferred join.
+			done <- err
+			t.Fatalf("foreign operation completed before lock contention: %v", err)
+		case <-ctx.Done():
+			t.Fatal("foreign fixture did not reach advisory lock contention")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	for _, fixture := range []struct {
+		name string
+		pool *pgxpool.Pool
+		want bool
+	}{
+		{"local", local, false},
+		{"foreign", foreign, true},
+	} {
+		var waiting bool
+		if err := fixture.pool.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory' AND NOT granted
+			AND pid IN (SELECT pid FROM pg_stat_activity
+			            WHERE datname=current_database()
+			              AND application_name=current_setting('application_name'))
+		)`, pid).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting != fixture.want {
+			t.Errorf("%s fixture sees foreign waiter = %t, want %t", fixture.name, waiting, fixture.want)
+		}
 	}
 }
 

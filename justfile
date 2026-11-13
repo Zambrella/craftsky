@@ -13,6 +13,15 @@ config-status:
 config-reference:
     ./scripts/config reference
 
+# Regenerate the change archive's human index and machine-readable catalogue.
+docs-index:
+    ./scripts/docs update
+
+# Validate every change card/reference and bounded discovery behavior.
+docs-check:
+    python3 -m unittest discover -s scripts -p 'test_docs_catalog.py'
+    ./scripts/docs check
+
 default:
     @just --list
 
@@ -445,7 +454,7 @@ app-run-production-android:
     just app-run-production -- -d emulator
 
 app-analyze:
-    cd app && flutter analyze
+    cd app && dart analyze --fatal-infos
 
 app-test *ARGS:
     # Refresh checkout-local libraries even when the pub cache has a setup marker.
@@ -473,42 +482,6 @@ app-test-e2e DEVICE:
 # No backend/account required; verifies the selected native Patrol runner.
 app-test-e2e-harness DEVICE:
     python3 scripts/app-test-e2e '{{DEVICE}}' --harness
-
-# Install the standalone Instagram importer's checked dependency graph.
-importer-install:
-    npm ci --prefix instagram-importer
-
-# Start the standalone importer with loopback OAuth metadata.
-importer-dev:
-    npm run --prefix instagram-importer dev
-
-# Run the standalone importer's unit and integration test suite.
-importer-test:
-    npm run --prefix instagram-importer test
-
-# Run generated-contract, type, lint, test, and production-build gates.
-importer-check:
-    npm run --prefix instagram-importer generate:check
-    npm run --prefix instagram-importer typecheck
-    npm run --prefix instagram-importer lint
-    npm run --prefix instagram-importer test
-    npm run --prefix instagram-importer build
-
-# Build the production static artifact in instagram-importer/dist/.
-importer-build:
-    npm run --prefix instagram-importer build
-
-# Build a separately configured stable-staging artifact.
-importer-build-staging:
-    npm run --prefix instagram-importer build:staging
-
-# Build a mock-only artifact with a disabled OAuth metadata marker.
-importer-build-preview:
-    npm run --prefix instagram-importer build:preview
-
-# Run Playwright browser integration and acceptance tests.
-importer-test-e2e *ARGS:
-    npm run --prefix instagram-importer test:e2e -- {{ARGS}}
 
 # Build a mobile release with Sentry enabled, then upload its debug symbols.
 _app-build-mobile TARGET ENV:

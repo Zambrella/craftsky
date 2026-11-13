@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -8,6 +10,8 @@ import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -396,6 +400,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   Future<void> _pickImage(ImageSource source) async {
     final l10n = AppLocalizations.of(context);
     final ownership = _owner;
+    final reporter = ref.read(errorReporterProvider);
     final picker =
         widget.pickImage ??
         (source, onPreviewReady) => ref
@@ -427,11 +432,24 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
       } else {
         setState(() => _pendingPreview = null);
       }
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      unawaited(
+        reportImagePickFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stackTrace,
+          operation: ImagePickOperation.businessProduct,
+          accountDid: ownership?.session.account.did.value,
+        ),
+      );
       if (!_isCurrent(ownership)) return;
       setState(() {
         _pendingPreview = null;
-        _uploadError = l10n.businessProductsUploadError;
+        _uploadError = imagePickFailureMessage(
+          error,
+          l10n,
+          fallback: l10n.businessProductsUploadError,
+        );
       });
     } finally {
       if (mounted) {

@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import LoadMore from '#lib/LoadMore.svelte';
+	import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import {
 		FieldValidationError,
 		presentFieldErrors,
@@ -51,6 +53,7 @@
 	}: { api: CraftskyAPI; session: Session; section: string } = $props();
 	const work = new Work('settings.Business.action');
 	let loaded = $state(false);
+	let loadingMore = $state(false);
 	let cid = $state<string | null>(null),
 		allowsBusiness = $state(false),
 		types = $state<string[]>([]),
@@ -159,7 +162,7 @@
 			async () => {
 				if (!media.blob) {
 					if (!selection.original)
-						throw new UserFacingError('Choose an image first.');
+						throw new InputError('Choose an image first.');
 					return { ...selection.original, alt: media.alt };
 				}
 				const prepared = await prepareImage(media.blob, media.name);
@@ -345,6 +348,7 @@
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
+			void reportFailure(error, 'settings.Business.saveProfile');
 			work.error = userErrorMessage(error);
 		}
 	}
@@ -553,6 +557,7 @@
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
+			void reportFailure(error, 'settings.Business.saveEvent');
 			work.error = userErrorMessage(error);
 		}
 	}
@@ -578,9 +583,16 @@
 	}
 	function more() {
 		const next = cursor;
-		if (next)
+		if (next && !work.busy && !work.retry)
 			void work.run(
-				() => api.business.ownerEvents(filter, { cursor: next }),
+				async () => {
+					loadingMore = true;
+					try {
+						return await api.business.ownerEvents(filter, { cursor: next });
+					} finally {
+						loadingMore = false;
+					}
+				},
 				(page) => {
 					events = [...events, ...page.items];
 					cursor = page.cursor || null;
@@ -984,9 +996,13 @@
 					'upcoming'
 						? 'No upcoming events yet.'
 						: 'No event history yet.'}
-				</p>{/each}{#if cursor}<button disabled={work.busy} onclick={more}
-					>Load more events</button
-				>{/if}
+				</p>{/each}{#if cursor}<LoadMore
+					loading={loadingMore}
+					disabled={work.busy || !!work.retry}
+					label="Load more events"
+					loadingLabel="Loading more events"
+					onclick={more}
+				/>{/if}
 		</section>
 		{#if eventOpen}<dialog
 				class="settings-dialog event-dialog"

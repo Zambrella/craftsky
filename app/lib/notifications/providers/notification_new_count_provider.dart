@@ -8,6 +8,8 @@ part 'notification_new_count_provider.g.dart';
 class AccountNotificationNewCount extends _$AccountNotificationNewCount {
   @override
   Future<int> build(AccountKey account) async {
+    // The count owns its disposable account repository through this watch.
+    // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
     final repository = await ref.watch(
       accountNotificationNewnessRepositoryProvider(account).future,
     );
@@ -15,11 +17,15 @@ class AccountNotificationNewCount extends _$AccountNotificationNewCount {
   }
 
   Future<void> refresh() async {
-    final repository = await ref.read(
+    final operationRef = ref;
+    // build's watch keeps the same account repository alive during refresh.
+    // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+    final repository = await operationRef.read(
       accountNotificationNewnessRepositoryProvider(account).future,
     );
+    if (!operationRef.mounted) return;
     final next = await AsyncValue.guard(repository.count);
-    if (ref.mounted) state = next;
+    if (operationRef.mounted) state = next;
   }
 
   void suppress(int count) {
@@ -36,10 +42,11 @@ class NotificationNewCount extends _$NotificationNewCount {
       ref.watch(notificationNewnessRepositoryProvider).count();
 
   Future<void> refresh() async {
+    final operationRef = ref;
     final next = await AsyncValue.guard(
-      ref.read(notificationNewnessRepositoryProvider).count,
+      operationRef.read(notificationNewnessRepositoryProvider).count,
     );
-    if (ref.mounted) state = next;
+    if (operationRef.mounted) state = next;
   }
 
   void suppress(int count) {

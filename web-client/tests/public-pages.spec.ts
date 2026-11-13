@@ -109,6 +109,7 @@ test('missing, upstream failure, invalid tab and unknown routes use real error s
 	for (const [path, status] of [
 		['/profiles/missing.test', 404],
 		['/profiles/failed.test', 503],
+		['/profiles/rate-limited.test', 429],
 		['/profiles/alice.test?tab=private', 400],
 		['/unknown', 404]
 	] as const) {
@@ -117,6 +118,34 @@ test('missing, upstream failure, invalid tab and unknown routes use real error s
 		expect(await response.text()).not.toContain('PRIVATE_CANARY');
 		expect(response.headers()['x-robots-tag']).toContain('noindex');
 		expect(response.headers()['cache-control']).toBe('no-store');
+	}
+});
+
+test('public failure pages give recovery advice for the actual failure', async ({
+	request
+}) => {
+	for (const [path, heading, advice] of [
+		[
+			'/profiles/alice.test?tab=private',
+			'This link isn’t valid.',
+			'Check the address or return to CraftSky.'
+		],
+		[
+			'/profiles/rate-limited.test',
+			'Too many requests.',
+			'Please wait a moment, then reload this page.'
+		],
+		[
+			'/profiles/failed.test',
+			'We couldn’t load this page.',
+			'CraftSky is having trouble right now. Please try again.'
+		]
+	]) {
+		const response = await request.get(path);
+		const html = await response.text();
+		expect(html).toContain(heading);
+		expect(html).toContain(advice);
+		expect(html).not.toContain('PRIVATE_CANARY');
 	}
 });
 test('OAuth fallbacks and association files retain their exact safe content', async ({

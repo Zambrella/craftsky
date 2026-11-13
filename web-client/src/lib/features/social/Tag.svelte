@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import type { CraftskyAPI, PostPresentation } from '#lib/api/client.ts';
 	import { Work } from './work.svelte';
@@ -7,6 +8,7 @@
 	import MemberPost from './MemberPost.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, did, tag }: { api: CraftskyAPI; did?: string; tag: string } =
 		$props();
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
@@ -33,7 +35,9 @@
 					displayLabel: '#' + tag,
 					payload: { tag }
 				})
-				.catch(() => {});
+				.catch(
+					(error) => void reportFailure(error, 'social.Search.saveRecent')
+				);
 	});
 	onDestroy(() => work.dispose());
 </script>
@@ -57,10 +61,13 @@
 			title={'#' + tag}
 			detail="No posts found for this hashtag."
 			icon="search"
-		/>{/if}{/each}{#if cursor}<button
-		class="button next"
-		onclick={() => load(true)}>Load more</button
-	>{/if}
+		/>{/if}{/each}{#if cursor}<LoadMore
+		loading={work.busy}
+		autoLoad={!work.error}
+		pageKey={cursor}
+		loadingLabel="Loading more posts"
+		onclick={() => load(true)}
+	/>{/if}
 
 <style>
 	.workspace-heading {

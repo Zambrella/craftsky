@@ -28,6 +28,7 @@ import 'package:material_ui/material_ui.dart';
 import '../fakes/recording_messenger.dart';
 
 class _RecordingAuthController extends AuthController {
+  @visibleForTesting
   int registrationCalls = 0;
   final List<String> signInCalls = [];
 

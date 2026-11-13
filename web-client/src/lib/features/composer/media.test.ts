@@ -31,6 +31,35 @@ describe('native-style attachment selection', () => {
 });
 
 describe('approved video capability transport', () => {
+	it('preserves the original parser cause without showing provider response text', async () => {
+		const api = {
+			media: {
+				videoLimits: async () => ({ canUpload: true }),
+				videoAuthorization: async () => ({
+					token: 'capability-canary',
+					expiresAt: new Date(Date.now() + 60000).toISOString()
+				})
+			}
+		} as unknown as CraftskyAPI;
+		const failure = await uploadVideo(
+			api,
+			'did:plc:maker',
+			{
+				id: 'v',
+				name: 'v.mp4',
+				mime: 'video/mp4',
+				blob: new Blob(['video']),
+				alt: ''
+			},
+			new AbortController().signal,
+			() => {},
+			async () => new Response('PRIVATE_PROVIDER_CANARY')
+		).catch((error) => error);
+		expect(failure.cause).toBeInstanceOf(SyntaxError);
+		expect(failure.message).toBe(
+			'The video service returned an invalid response.'
+		);
+	});
 	it.each(['unknown'])(
 		'does not send %s capabilities to Bluesky',
 		async (provider) => {

@@ -50,7 +50,7 @@ final class SavedPostsProvider
   }
 }
 
-String _$savedPostsHash() => r'44c3f0d7e23b8f52670cea381b794647238ad391';
+String _$savedPostsHash() => r'442c92825f622d6c76702772683f5636dd6bba39';
 
 final class SavedPostsFamily extends $Family
     with

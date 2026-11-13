@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Post, Profile } from '#lib/api/types.ts';
 import { Publications, matchesProject } from './publications.svelte.ts';
+import { reportFailure } from '../diagnostics/client.ts';
+vi.mock('../diagnostics/client.ts', () => ({ reportFailure: vi.fn() }));
 const owner = 'did:plc:alice';
 const post = (id = 'new', extra: Partial<Post> = {}): Post => ({
 	uri: `at://${owner}/social.craftsky.feed.post/${id}`,
@@ -186,6 +188,31 @@ describe('confirmed publications', () => {
 });
 
 describe('indexed edits', () => {
+	it('reports an exhausted background read once with its original failure', async () => {
+		vi.useFakeTimers();
+		vi.mocked(reportFailure).mockClear();
+		const state = new Publications(owner);
+		try {
+			const failure = new TypeError('PRIVATE_CANARY');
+			const load = vi.fn().mockRejectedValue(failure);
+			state.watchEdit(
+				'existing',
+				{ acceptedCid: 'edited', changed: true },
+				load
+			);
+			await vi.advanceTimersByTimeAsync(3000);
+			expect(reportFailure).not.toHaveBeenCalled();
+			await vi.runAllTimersAsync();
+			expect(load).toHaveBeenCalledTimes(31);
+			expect(reportFailure).toHaveBeenCalledExactlyOnceWith(
+				failure,
+				'post.edit.reconcile'
+			);
+		} finally {
+			state.dispose();
+			vi.useRealTimers();
+		}
+	});
 	it('waits for the accepted CID, then replaces cached content everywhere without changing live interactions', async () => {
 		vi.useFakeTimers();
 		try {

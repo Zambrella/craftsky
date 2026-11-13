@@ -24,6 +24,7 @@ import 'service_status_recovery_test.dart' show StatusRegistryStorage;
 class MessageAuthSession extends AuthSession {
   @override
   Future<AuthState> build() async => const SignedOut();
+  @visibleForTesting
   AsyncValue<AuthState> get authState => state;
   set authState(AsyncValue<AuthState> value) => state = value;
 }

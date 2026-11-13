@@ -26,6 +26,7 @@ import '../fakes/recording_messenger.dart';
 
 class _RecordingAuthController extends AuthController {
   final List<String> signInCalls = [];
+  @visibleForTesting
   int registrationCalls = 0;
 
   @override

@@ -195,6 +195,7 @@ func TestAssignLicenseRevalidatesOwnerTargetDeviceAndUniquenessAtomically(t *tes
 				SELECT 1 FROM pg_stat_activity
 				WHERE pid <> pg_backend_pid()
 				  AND datname=current_database()
+				  AND application_name=current_setting('application_name')
 				  AND wait_event_type='Lock'
 				  AND wait_event='advisory'
 				  AND query LIKE '%pg_advisory_xact_lock_shared%'

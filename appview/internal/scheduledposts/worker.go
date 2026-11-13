@@ -86,6 +86,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 					"claim", "failure", "dependency_unavailable", time.Since(started),
 				)
 			}
+			observeScheduledInfrastructureFailure(ctx, worker.observer, err, "schedule.publish", "snapshot")
 			return 0, observability.WrapError("observe scheduled queue", err)
 		}
 		observeScheduledQueue(worker.observer, snapshot)
@@ -97,6 +98,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 				"claim", "failure", "dependency_unavailable", time.Since(started),
 			)
 		}
+		observeScheduledInfrastructureFailure(ctx, worker.observer, err, "schedule.publish", "claim")
 		return 0, observability.WrapError("claim scheduled posts", err)
 	}
 	if worker.observer != nil {
@@ -105,7 +107,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 		)
 	}
 	for index, item := range items {
-		if err := worker.processor.Process(ctx, item); err != nil {
+		if err := worker.processor.Process(observability.WithDiagnosticOccurrence(ctx), item); err != nil {
 			return index, observability.WrapError("process scheduled post", err)
 		}
 	}

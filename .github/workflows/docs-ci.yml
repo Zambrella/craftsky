@@ -1,0 +1,20 @@
+name: Change archive
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    # Code-only refactors can also delete entry points linked by archive cards.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Test archive discovery and validation
+        run: python3 -m unittest discover -s scripts -p 'test_docs_catalog.py'
+      - name: Check metadata, references and generated indexes
+        run: ./scripts/docs check

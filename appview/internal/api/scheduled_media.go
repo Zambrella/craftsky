@@ -15,6 +15,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
@@ -60,14 +61,14 @@ func PutScheduledMediaHandler(
 			limits,
 		)
 		if err != nil {
-			writeScheduledMediaError(writer, request, err)
+			writeScheduledMediaError(writer, request, err, "scheduled.media.upload", "decode")
 			return
 		}
 		if _, err := validator.Validate(request.Context(), validated.ContentType, payload); err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			writeScheduledMediaError(writer, request, err)
+			writeScheduledMediaError(writer, request, err, "scheduled.media.upload", "validate")
 			return
 		}
 		media, err := service.Put(request.Context(), scheduledposts.PutPrivateMediaParams{
@@ -83,7 +84,7 @@ func PutScheduledMediaHandler(
 				))
 			}
 			logger.Warn("scheduled media upload failed", attributes...)
-			writeScheduledMediaError(writer, request, err)
+			writeScheduledMediaError(writer, request, err, "scheduled.media.upload", "store")
 			return
 		}
 		writer.Header().Set("Content-Type", "application/json")
@@ -108,7 +109,7 @@ func GetScheduledMediaHandler(service scheduledMediaService, logger *slog.Logger
 		if err != nil {
 			logger.Warn("scheduled media read failed",
 				slog.String("error_class", scheduledMediaErrorClass(err)))
-			writeScheduledMediaError(writer, request, err)
+			writeScheduledMediaError(writer, request, err, "scheduled.media.read", "store")
 			return
 		}
 		defer media.Body.Close()
@@ -144,7 +145,7 @@ func DeleteScheduledMediaHandler(
 		if err := service.Delete(request.Context(), ownerDID, mediaID, now().UTC(), ownerGeneration); err != nil {
 			logger.Warn("scheduled media delete failed",
 				slog.String("error_class", scheduledMediaErrorClass(err)))
-			writeScheduledMediaError(writer, request, err)
+			writeScheduledMediaError(writer, request, err, "scheduled.media.delete", "store")
 			return
 		}
 		writer.WriteHeader(http.StatusNoContent)
@@ -193,6 +194,7 @@ func writeScheduledMediaError(
 	writer http.ResponseWriter,
 	request *http.Request,
 	err error,
+	operation, stage string,
 ) {
 	runID := middleware.GetRunID(request.Context())
 	var fieldError *FieldError
@@ -215,8 +217,10 @@ func writeScheduledMediaError(
 		writer.Header().Set("Retry-After", "1")
 		envelope.WriteError(writer, http.StatusServiceUnavailable, "scheduled_media_busy", "scheduled media validation is temporarily busy", runID, nil)
 	case errors.Is(err, scheduledposts.ErrPrivateObjectStoreUnavailable):
+		observability.ReportRequestFailure(request.Context(), err, operation, "object_store")
 		envelope.WriteError(writer, http.StatusServiceUnavailable, "scheduled_media_unavailable", "scheduled media is temporarily unavailable", runID, nil)
 	default:
+		observability.ReportRequestFailure(request.Context(), err, operation, stage)
 		envelope.WriteError(writer, http.StatusInternalServerError, "internal_error", "scheduled media request failed", runID, nil)
 	}
 }

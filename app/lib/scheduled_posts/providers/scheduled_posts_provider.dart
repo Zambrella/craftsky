@@ -22,7 +22,11 @@ class ScheduledPosts extends _$ScheduledPosts {
   @override
   Future<ScheduledPostListState> build(AccountKey account) async {
     final ownership = _captureOwnership(account);
-    final result = await _load(account);
+    final repository = await ref.watch(
+      accountScheduledPostRepositoryProvider(account).future,
+    );
+    _assertCurrent(ownership);
+    final result = ScheduledPostListState(await repository.list());
     _assertCurrent(ownership);
     return result;
   }

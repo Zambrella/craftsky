@@ -39,7 +39,7 @@ final class ProfileCustomisationEditorProvider
 }
 
 String _$profileCustomisationEditorHash() =>
-    r'0182f8fc5bf280c7859f711f6524a3222040885e';
+    r'0661ff1808aee7615eb74b9b6af2d78c89f62a9d';
 
 abstract class _$ProfileCustomisationEditor
     extends $AsyncNotifier<ProfileCustomisationEditorState> {

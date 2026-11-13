@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// AT Protocol rich-text facet feature type constants supported by CraftSky.
 abstract final class FacetFeatureType {
   /// Mention facet feature type.
@@ -208,9 +206,16 @@ Map<int, int> _byteToCharIndexMap(String text) {
   var byteOffset = 0;
   var charOffset = 0;
   for (final rune in text.runes) {
-    final character = String.fromCharCode(rune);
-    byteOffset += utf8.encode(character).length;
-    charOffset += character.length;
+    // UTF-8 widths can be counted without allocating a String and encoded
+    // byte buffer for every code point during feed rendering. Lone UTF-16
+    // surrogates use three bytes, matching Utf8Encoder's replacement behavior.
+    byteOffset += switch (rune) {
+      <= 0x7f => 1,
+      <= 0x7ff => 2,
+      <= 0xffff => 3,
+      _ => 4,
+    };
+    charOffset += rune <= 0xffff ? 1 : 2;
     byteToChar[byteOffset] = charOffset;
   }
   return byteToChar;

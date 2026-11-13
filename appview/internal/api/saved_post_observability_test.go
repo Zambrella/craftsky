@@ -56,8 +56,8 @@ func TestSavedPostDiagnosticsRedactPrivateStateAndClassifyIdentityFailure(t *tes
 		Sort:  api.SavedPostSortNewest,
 		Limit: 50,
 	})
-	if !errors.Is(err, api.ErrSavedPostIdentityUnavailable) {
-		t.Fatalf("ListSavedPosts error = %v, want identity unavailable", err)
+	if !errors.Is(err, api.ErrSavedPostIdentityUnavailable) || !errors.Is(err, resolverErr) {
+		t.Fatalf("ListSavedPosts error lost identity classification or original resolver cause: %v", err)
 	}
 	for _, sentinel := range []string{ownerSentinel, targetSentinel, uriSentinel.String(), folderSentinel} {
 		if strings.Contains(err.Error(), sentinel) {

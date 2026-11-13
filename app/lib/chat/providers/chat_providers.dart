@@ -285,8 +285,10 @@ ChatUnreadCounts? displayedChatUnreadCounts(Ref ref, AccountKey account) {
   });
 }
 
+// Widgets listen to these controllers directly. Raw preserves the async
+// provider state with explicit manual listening and onDispose ownership.
 @riverpod
-Future<ChatConversationController> chatConversationController(
+Future<Raw<ChatConversationController>> chatConversationController(
   Ref ref,
   AccountKey account,
   ChatConversationId id,
@@ -360,7 +362,7 @@ Future<ChatConversationController> chatConversationController(
 }
 
 @riverpod
-Future<ChatInboxController> chatInboxController(
+Future<Raw<ChatInboxController>> chatInboxController(
   Ref ref,
   AccountKey account,
   ChatBucket bucket,
@@ -384,7 +386,7 @@ Future<ChatInboxController> chatInboxController(
 }
 
 @riverpod
-Future<ChatSettingsController> chatSettingsController(
+Future<Raw<ChatSettingsController>> chatSettingsController(
   Ref ref,
   AccountKey account,
 ) async {
@@ -426,7 +428,7 @@ Future<ChatSettingsController> chatSettingsController(
 }
 
 @riverpod
-Future<ChatRecipientController> chatRecipientController(
+Future<Raw<ChatRecipientController>> chatRecipientController(
   Ref ref,
   AccountKey account,
 ) async {
@@ -450,7 +452,7 @@ Future<ChatRecipientController> chatRecipientController(
 }
 
 @riverpod
-Future<ChatReportController> chatReportController(
+Future<Raw<ChatReportController>> chatReportController(
   Ref ref,
   AccountKey account,
   ChatConversationId id,
@@ -514,7 +516,7 @@ Future<ChatConversationId> chatNotificationOpen(
 }
 
 @riverpod
-Future<ChatSyncCoordinator> chatSyncCoordinator(
+Future<Raw<ChatSyncCoordinator>> chatSyncCoordinator(
   Ref ref,
   AccountKey account,
 ) async {

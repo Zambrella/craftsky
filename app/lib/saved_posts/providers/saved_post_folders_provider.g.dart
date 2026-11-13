@@ -50,7 +50,7 @@ final class SavedPostFoldersProvider
   }
 }
 
-String _$savedPostFoldersHash() => r'4c6960a7e0b84e72c2cd03744052f597ee9d48bb';
+String _$savedPostFoldersHash() => r'd0a991eed5c3a7088aacbcbf9f7137aec55a79d7';
 
 final class SavedPostFoldersFamily extends $Family
     with

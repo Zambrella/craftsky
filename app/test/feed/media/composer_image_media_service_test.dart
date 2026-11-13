@@ -103,7 +103,9 @@ void main() {
       expect(prepared.bytes.length, lessThanOrEqualTo(2000000));
       final decoded = img.decodeJpg(prepared.bytes)!;
       expect((decoded.width, decoded.height), (4000, 3000));
-    });
+      // The host substitute decodes all 48 million pixels in Dart. Match the
+      // profile stress test's bounded CPU allowance for concurrent suite runs.
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('rejects original files over the source byte limit', () {
       final result = service.validateOriginalImage(

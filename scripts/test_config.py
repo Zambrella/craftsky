@@ -184,7 +184,6 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('LINK_PREVIEWS_ENABLED: invalid configuration', text)
         self.assertIn('INSTAGRAM_META_REPLIES_ENABLED: enabled', text)
         self.assertIn('REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE: enabled', text)
-        self.assertIn('APPVIEW_UNSAFE_LOG_RESPONSE_BODIES: disabled', text)
         self.assertNotIn('private-canary', text)
 
     def test_refuses_to_copy_into_unignored_paths(self):

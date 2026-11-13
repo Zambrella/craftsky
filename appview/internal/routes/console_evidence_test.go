@@ -172,7 +172,7 @@ func TestConsoleEvidenceHoldReleaseAndRetentionReadback(t *testing.T) {
 	if scoped.Code != 200 || !strings.Contains(scoped.Body.String(), id) {
 		t.Fatalf("hold evidence=%d", scoped.Code)
 	}
-	worker := retention.NewWorker(deps.DB, objects, func() time.Time { return time.Now().Add(36 * time.Hour) })
+	worker := retention.NewWorker(deps.DB, objects, func() time.Time { return time.Now().Add(36 * time.Hour) }, nil)
 	if deleted, err := worker.RunOnce(t.Context(), 10); err != nil || deleted != 0 {
 		t.Fatalf("held evidence retained=%d err=%v", deleted, err)
 	}

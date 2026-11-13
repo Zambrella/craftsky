@@ -51,6 +51,9 @@ export async function publicAPI<T>(
 		logServerFailure(cause, 'public.read', 'fetch');
 		error(503, 'Page temporarily unavailable');
 	}
+	// Rejected payloads are never read. Release their network resources without
+	// delaying the existing status mapping if upstream cancellation fails.
+	if (!response.ok) void response.body?.cancel().catch(() => {});
 	if (response.status === 403) error(403, 'Sign in to view this content.');
 	if (response.status === 404) error(404, 'Page not found');
 	if (response.status === 400) error(400, 'Invalid page request');
@@ -68,13 +71,14 @@ export async function publicAPI<T>(
 		);
 		error(503, 'Page temporarily unavailable');
 	}
-	// Bound both declared and streamed bodies; no public JSON can exhaust Worker memory.
+	// Bound streamed bytes, including responses without a Content-Length header.
 	const reader = response.body?.getReader();
 	if (!reader) {
 		logServerFailure(new Error('Missing body'), 'public.read', 'response');
 		error(503, 'Page temporarily unavailable');
 	}
-	const chunks: Uint8Array[] = [];
+	const decoder = new TextDecoder();
+	let text = '';
 	let length = 0;
 	try {
 		for (;;) {
@@ -85,15 +89,9 @@ export async function publicAPI<T>(
 				await reader.cancel();
 				error(503, 'Page temporarily unavailable');
 			}
-			chunks.push(value);
+			text += decoder.decode(value, { stream: true });
 		}
-		const body = new Uint8Array(length);
-		let offset = 0;
-		for (const chunk of chunks) {
-			body.set(chunk, offset);
-			offset += chunk.length;
-		}
-		const text = new TextDecoder().decode(body);
+		text += decoder.decode();
 		if (format === 'caption') {
 			if (!/^WEBVTT(?:[ \t\r\n]|$)/.test(text))
 				error(503, 'Page temporarily unavailable');

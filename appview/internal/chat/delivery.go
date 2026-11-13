@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/chatdb"
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/push"
 	"strings"
@@ -79,6 +80,7 @@ func (dispatcher *DeliveryDispatcher) terminate(ctx context.Context, item chatdb
 }
 
 func (dispatcher *DeliveryDispatcher) ProcessOne(ctx context.Context) (processed bool, resultErr error) {
+	ctx = ctxkeys.WithDiagnosticOccurrence(ctx)
 	diagnosticCtx := ctx
 	var diagnosticOwner syntax.DID
 	var diagnosticReference string

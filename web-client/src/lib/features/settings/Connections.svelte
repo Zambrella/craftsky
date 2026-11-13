@@ -119,20 +119,22 @@
 	async function more() {
 		const next = cursor;
 		if (!next || loadingMore || work.busy || work.retry) return;
-		loadingMore = true;
-		try {
-			await work.run(
-				() => relationships(next),
-				(value) => {
-					items = appendPage(items, value.items, (item) => item.did);
-					cursor = value.cursor || null;
-				},
-				'',
-				'settings.Connections.more'
-			);
-		} finally {
-			loadingMore = false;
-		}
+		await work.run(
+			async () => {
+				loadingMore = true;
+				try {
+					return await relationships(next);
+				} finally {
+					loadingMore = false;
+				}
+			},
+			(value) => {
+				items = appendPage(items, value.items, (item) => item.did);
+				cursor = value.cursor || null;
+			},
+			'',
+			'settings.Connections.more'
+		);
 	}
 	function remove(profile: Author) {
 		const id = profile.did;
@@ -334,6 +336,7 @@
 		{#if cursor}<LoadMore
 				loading={loadingMore}
 				disabled={work.busy || !!work.retry}
+				loadingLabel="Loading more accounts"
 				onclick={() => void more()}
 			/>{/if}
 	</section>

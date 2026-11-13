@@ -86,7 +86,7 @@ void main() {
         (server) => server.reply(422, {
           'error': code,
           'message': 'Safe assignment failure.',
-          'requestId': 'request-canary',
+          'requestId': 'e0000000-0000-4000-8000-000000000010',
         }),
         data: {'targetDid': 'did:plc:bob'},
       );
@@ -99,7 +99,7 @@ void main() {
               .having(
                 (error) => error.details.requestId,
                 'requestId',
-                'request-canary',
+                'e0000000-0000-4000-8000-000000000010',
               ),
         ),
       );
@@ -120,7 +120,7 @@ void main() {
         (server) => server.reply(422, {
           'error': 'billing_license_not_found',
           'message': 'License unavailable.',
-          'requestId': 'request-delete-missing',
+          'requestId': 'e0000000-0000-4000-8000-000000000011',
         }),
       );
 
@@ -136,7 +136,7 @@ void main() {
               .having(
                 (error) => error.details.requestId,
                 'requestId',
-                'request-delete-missing',
+                'e0000000-0000-4000-8000-000000000011',
               ),
         ),
       );
@@ -159,7 +159,7 @@ void main() {
             (server) => server.reply(401, {
               'error': 'unauthorized',
               'message': 'Sign in again.',
-              'requestId': 'request-$operation-401',
+              'requestId': 'e0000000-0000-4000-8000-000000000012',
             }),
             data: {'targetDid': 'did:plc:bob'},
           );
@@ -169,7 +169,7 @@ void main() {
             (server) => server.reply(401, {
               'error': 'unauthorized',
               'message': 'Sign in again.',
-              'requestId': 'request-$operation-401',
+              'requestId': 'e0000000-0000-4000-8000-000000000012',
             }),
           );
         }
@@ -182,7 +182,7 @@ void main() {
             isA<ApiUnauthorized>().having(
               (error) => error.details.requestId,
               'requestId',
-              'request-$operation-401',
+              'e0000000-0000-4000-8000-000000000012',
             ),
           ),
         );
@@ -202,7 +202,7 @@ void main() {
           (server) => server.reply(500, {
             'error': 'internal_error',
             'message': 'sensitive mutation details',
-            'requestId': 'request-$operation-500',
+            'requestId': 'e0000000-0000-4000-8000-000000000013',
           }),
           data: {'targetDid': 'did:plc:bob'},
         );
@@ -212,7 +212,7 @@ void main() {
           (server) => server.reply(500, {
             'error': 'internal_error',
             'message': 'sensitive mutation details',
-            'requestId': 'request-$operation-500',
+            'requestId': 'e0000000-0000-4000-8000-000000000013',
           }),
         );
       }
@@ -225,7 +225,7 @@ void main() {
           isA<ApiServerError>().having(
             (error) => error.details.requestId,
             'requestId',
-            'request-$operation-500',
+            'e0000000-0000-4000-8000-000000000013',
           ),
         ),
       );
@@ -240,7 +240,7 @@ void main() {
       (server) => server.reply(401, {
         'error': 'unauthorized',
         'message': 'Sign in again.',
-        'requestId': 'request-401',
+        'requestId': 'e0000000-0000-4000-8000-000000000014',
       }),
     );
 
@@ -250,7 +250,7 @@ void main() {
         isA<ApiUnauthorized>().having(
           (error) => error.details.requestId,
           'requestId',
-          'request-401',
+          'e0000000-0000-4000-8000-000000000014',
         ),
       ),
     );
@@ -264,7 +264,7 @@ void main() {
       (server) => server.reply(500, {
         'error': 'internal_error',
         'message': 'sensitive database details',
-        'requestId': 'request-500',
+        'requestId': 'e0000000-0000-4000-8000-000000000015',
       }),
     );
 
@@ -274,7 +274,7 @@ void main() {
         isA<ApiServerError>().having(
           (error) => error.details.requestId,
           'requestId',
-          'request-500',
+          'e0000000-0000-4000-8000-000000000015',
         ),
       ),
     );

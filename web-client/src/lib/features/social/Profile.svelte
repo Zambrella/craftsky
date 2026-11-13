@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { appendPage } from '#lib/pagination.ts';
 	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
@@ -38,6 +39,7 @@
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import { profileTabs, tabLabel, joinedAge } from './presentation';
 	import { profileStyle, texture, safeLink } from './model';
 	let {
@@ -230,7 +232,7 @@
 				() => api.profiles.posts(id, tab as 'posts', { cursor }),
 				(value) => {
 					if (revision !== generation) return;
-					posts = [...posts, ...value.items];
+					posts = appendPage(posts, value.items, (post) => post.uri ?? post);
 					cursor = value.cursor;
 				},
 				undefined,
@@ -686,11 +688,15 @@
 							encodeURIComponent(id) +
 							'?' +
 							new URLSearchParams({ tab, cursor })}>Older {tab}</a
-					>{:else}<button
-						class="next"
-						disabled={contentWork.busy}
-						onclick={more}>Load more</button
-					>{/if}{/if}
+					>{:else}<LoadMore
+						loading={contentWork.busy}
+						autoLoad={tab !== 'events' && !contentWork.error}
+						pageKey={JSON.stringify([id, tab, cursor])}
+						loadingLabel={tab === 'events'
+							? 'Loading more events'
+							: 'Loading more posts'}
+						onclick={more}
+					/>{/if}{/if}
 		</div>
 	</div>{/if}
 

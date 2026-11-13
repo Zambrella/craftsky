@@ -256,6 +256,82 @@ test('mixed-ratio images keep the feed frame stable through lazy decoding and se
 	);
 });
 
+test('height-limited carousels keep mixed-ratio photos centered across paging and resizing', async ({
+	page
+}) => {
+	const dimensions = [
+		{ width: 600, height: 900 },
+		{ width: 1200, height: 600 }
+	];
+	await page.route('https://fixture.craftsky.test/centered-*.svg', (route) => {
+		const index = Number(
+			new URL(route.request().url()).pathname.match(/\d+/)![0]
+		);
+		const { width, height } = dimensions[index];
+		return route.fulfill({
+			contentType: 'image/svg+xml',
+			body: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="red"/></svg>`
+		});
+	});
+	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+		const response = await route.fetch();
+		const body = await response.json();
+		body.items[0].post.images = dimensions.map((aspectRatio, index) => ({
+			cid: `centered-${index}`,
+			mime: 'image/svg+xml',
+			size: 1,
+			alt: `Centered photo ${index + 1}`,
+			fullsize: `https://fixture.craftsky.test/centered-${index}.svg`,
+			thumb: `https://fixture.craftsky.test/centered-${index}.svg`,
+			aspectRatio
+		}));
+		await route.fulfill({ response, json: body });
+	});
+	await page.setViewportSize({ width: 1440, height: 1100 });
+	await page.goto('/feed');
+	const card = page.locator('.member-post').first();
+	const frame = card.getByRole('region', { name: 'Post images' });
+	const container = card.locator('.post-images');
+	const expectCentered = async (index: number) => {
+		const image = frame.locator('img').nth(index);
+		await expect(image).toHaveJSProperty(
+			'naturalWidth',
+			dimensions[index].width
+		);
+		await expect
+			.poll(async () => {
+				const parent = (await container.boundingBox())!;
+				const gallery = (await frame.boundingBox())!;
+				const photo = (await image.boundingBox())!;
+				return Math.max(
+					Math.abs(gallery.width - parent.width),
+					Math.abs(gallery.x + gallery.width / 2 - parent.x - parent.width / 2),
+					Math.abs(photo.x + photo.width / 2 - parent.x - parent.width / 2)
+				);
+			})
+			.toBeLessThanOrEqual(1);
+	};
+	await expect(frame).toBeVisible();
+	expect((await container.boundingBox())!.width).toBeGreaterThan(700);
+	await expectCentered(0);
+	await card
+		.getByRole('button', { name: 'Show image 2 of 2', exact: true })
+		.click();
+	await expect(card.locator('.image-counter')).toHaveText('2/2');
+	await expectCentered(1);
+	await card
+		.getByRole('button', { name: 'Show image 1 of 2', exact: true })
+		.click();
+	await expectCentered(0);
+	await page.setViewportSize({ width: 402, height: 874 });
+	await expectCentered(0);
+	await card
+		.getByRole('button', { name: 'Show image 2 of 2', exact: true })
+		.click();
+	await expect(card.locator('.image-counter')).toHaveText('2/2');
+	await expectCentered(1);
+});
+
 for (const source of ['timeline', 'extended-network']) {
 	test(`${source} refresh preserves paginated rows and scroll position`, async ({
 		page
@@ -294,10 +370,20 @@ for (const source of ['timeline', 'extended-network']) {
 		await page.goto(
 			source === 'timeline' ? '/feed' : '/feed?source=extended-network'
 		);
-		await expect(page.locator('.member-post')).toHaveCount(3);
-		await page.getByRole('button', { name: 'Load more', exact: true }).click();
-		await expect(page.locator('.member-post')).toHaveCount(6);
-		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(page.locator('.member-post').nth(2)).toBeAttached();
+		await page.evaluate(() =>
+			scrollTo({
+				top: document.documentElement.scrollHeight,
+				behavior: 'instant'
+			})
+		);
+		await expect(page.locator('.member-post').nth(5)).toBeAttached();
+		await page.evaluate(() =>
+			scrollTo({
+				top: document.documentElement.scrollHeight,
+				behavior: 'instant'
+			})
+		);
 		await expect(page.locator('.member-post')).toHaveCount(9);
 		await page.locator('.member-post').nth(7).scrollIntoViewIfNeeded();
 		const before = await page.evaluate(() => window.scrollY);

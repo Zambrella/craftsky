@@ -25,6 +25,8 @@ import '../profile/fakes/fake_profile_repository.dart';
 Widget _app(FakeProfileRepository repo, RelationshipListKind kind) =>
     ProviderScope(
       overrides: [
+        // This override belongs to the test harness's root ProviderScope.
+        // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
         profileRepositoryProvider.overrideWithValue(repo),
         pdsRecordOperationControllerProvider.overrideWithValue(
           PdsRecordOperationController(schedule: (_, _) {}),

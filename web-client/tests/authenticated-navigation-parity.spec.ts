@@ -138,7 +138,13 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 		})
 	);
 	await page.goto('/feed');
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await expect(page.locator('.member-post').first()).toBeVisible();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(page.locator('.member-post')).toHaveCount(20);
 	const card = page.locator('.member-post').nth(15);
 	await card.scrollIntoViewIfNeeded();
@@ -536,9 +542,8 @@ for (const width of [1280, 390]) {
 				expect(centered).toBeLessThan(1);
 				await loadMore.click();
 				try {
-					await expect(
-						page.getByRole('button', { name: 'Load more', exact: true })
-					).toHaveCount(0);
+					await expect(loadMore).toBeDisabled();
+					await expect(loadMore).toHaveAttribute('aria-busy', 'true');
 					await expect(
 						page.getByRole('status', { name: 'Loading more accounts' })
 					).toBeVisible();

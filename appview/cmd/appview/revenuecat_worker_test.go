@@ -73,7 +73,7 @@ func TestRevenueCatProcessorLogsOnlyBoundedProviderFailure(t *testing.T) {
 	if strings.Contains(output.String(), canary) {
 		t.Fatalf("worker log leaked provider error: %s", output.String())
 	}
-	for _, want := range []string{`"component":"revenuecat_reconciliation"`, `"result":"error"`, `"error_category":"provider"`} {
+	for _, want := range []string{`"component":"revenuecat_reconciliation"`, `"result":"retry"`, `"error_category":"provider"`, `"failure_stage":"process"`, "*errors.errorString"} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("worker log missing %s: %s", want, output.String())
 		}

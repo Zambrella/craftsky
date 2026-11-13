@@ -35,6 +35,9 @@ func waitForScheduledAdvisoryWaiter(t *testing.T, pool *pgxpool.Pool, premature 
 			SELECT EXISTS (
 				SELECT 1 FROM pg_locks
 				WHERE locktype='advisory' AND NOT granted
+				  AND pid IN (SELECT pid FROM pg_stat_activity
+				              WHERE datname=current_database()
+				                AND application_name=current_setting('application_name'))
 			)
 		`).Scan(&waiting); err != nil {
 			t.Fatal(err)

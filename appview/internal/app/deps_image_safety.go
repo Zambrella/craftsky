@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/imagesafety"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/safetyintake"
 )
@@ -34,6 +35,7 @@ func newImageSafetyDependencies(
 	pool *pgxpool.Pool,
 	federated *federatedClients,
 	cfg Config,
+	observer *observability.Observer,
 ) (*imageSafetyDependencies, error) {
 	store := imagesafety.NewWorkerStore(pool, time.Now)
 	incidents := safetyincident.NewStore(pool, time.Now)
@@ -75,7 +77,7 @@ func newImageSafetyDependencies(
 		},
 		WorkerID: "appview-image-safety", LeaseDuration: cfg.ImageSafetyLeaseDuration,
 		OperationLimit: cfg.ImageSafetyOperationTimeout, PollInterval: cfg.ImageSafetyPollInterval,
-		Now: time.Now,
+		Now: time.Now, Observer: observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("image safety worker: %w", err)

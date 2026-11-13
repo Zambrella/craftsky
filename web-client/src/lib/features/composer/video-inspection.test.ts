@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { attachmentSelection, inspectVideo } from './media.ts';
+import { InputError } from '#lib/user-facing-error.ts';
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -76,4 +77,16 @@ it('rejects oversized videos before reading or probing them', async () => {
 		'This video is too large. Videos must be 300 MB or smaller.'
 	);
 	expect(read).not.toHaveBeenCalled();
+});
+
+it('classifies correctable video size, format, empty and duration failures as input errors', async () => {
+	probe(601);
+	for (const file of [
+		{ size: 300_000_001 } as File,
+		new File([], 'empty.mp4'),
+		new File(['invalid'], 'unsupported.avi'),
+		source()
+	]) {
+		await expect(inspectVideo(file)).rejects.toBeInstanceOf(InputError);
+	}
 });

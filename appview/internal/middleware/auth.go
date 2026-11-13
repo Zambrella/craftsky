@@ -153,9 +153,7 @@ func authenticatedWith(
 					envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 					return
 				}
-				logger.Error("auth: authoritative session lookup unavailable",
-					slog.String("error_category", "infrastructure"),
-					slog.String("run_id", GetRunID(r.Context())))
+				reportMiddlewareFailure(ctx, logger, err, "auth.authenticate", "session_lookup")
 				w.Header().Set("Retry-After", "5")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_unavailable", "authentication is temporarily unavailable", GetRunID(r.Context()), nil)
 				return

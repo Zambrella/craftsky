@@ -10,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type PostInteractionTargetReader interface {
@@ -120,13 +121,13 @@ func postInteractionListHandler(store PostInteractionTargetReader, kind PostInte
 		target, err := store.ResolveInteractionTarget(r.Context(), viewer, owner, rkey, kind)
 		if err != nil {
 			logPostInteractionListResult(logger, runID, kind, "error", postInteractionListErrorClass(err), limit, postInteractionListResult{}, true)
-			writePostInteractionListError(w, runID, err)
+			writePostInteractionListError(w, r, err, "post.interactions."+string(kind))
 			return
 		}
 		result, err := list(w, r, viewer, target, limit, r.URL.Query().Get("cursor"))
 		if err != nil {
 			logPostInteractionListResult(logger, runID, kind, "error", postInteractionListErrorClass(err), limit, postInteractionListResult{}, true)
-			writePostInteractionListError(w, runID, err)
+			writePostInteractionListError(w, r, err, "post.interactions."+string(kind))
 			return
 		}
 		logPostInteractionListResult(logger, runID, kind, "success", "", limit, result, true)
@@ -177,15 +178,18 @@ func postInteractionListErrorClass(err error) string {
 	}
 }
 
-func writePostInteractionListError(w http.ResponseWriter, runID string, err error) {
+func writePostInteractionListError(w http.ResponseWriter, r *http.Request, err error, operation string) {
+	runID := middleware.GetRunID(r.Context())
 	switch {
 	case errors.Is(err, envelope.ErrInvalidCursor):
 		envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 	case errors.Is(err, ErrPostNotFound):
 		envelope.WriteError(w, http.StatusNotFound, "post_not_found", "post not found", runID, nil)
 	case errors.Is(err, ErrPostInteractionIdentityUnavailable), errors.Is(err, ErrHandleUnavailable):
+		observability.ReportRequestFailure(r.Context(), err, operation, "identity")
 		envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve identity", runID, nil)
 	default:
+		observability.ReportRequestFailure(r.Context(), err, operation, "store")
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post interaction list failed", runID, nil)
 	}
 }

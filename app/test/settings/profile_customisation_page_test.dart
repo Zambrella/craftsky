@@ -41,7 +41,11 @@ Widget _app({
   ThemeData? theme,
   TextScaler textScaler = TextScaler.noScaling,
 }) => ProviderScope(
-  overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+  overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+    profileRepositoryProvider.overrideWithValue(repository),
+  ],
   child: MessengerScope(
     messenger: RecordingMessenger(),
     child: MaterialApp(

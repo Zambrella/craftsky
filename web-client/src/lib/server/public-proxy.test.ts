@@ -61,3 +61,39 @@ it('maps opt-out without reflecting protected upstream details', async () => {
 		message: 'Sign in to view this content.'
 	});
 });
+
+it.each([200, 503])(
+	'preserves validated AppView correlation for public HTTP %s',
+	async (status) => {
+		vi.stubEnv('APPVIEW_ORIGIN', 'https://appview.example');
+		const requestId = '12345678-1234-4123-8123-123456789012';
+		const response = await publicReadResponse(
+			async () =>
+				Response.json(
+					status === 200 ? { items: [] } : { message: 'PRIVATE_BODY' },
+					{ status, headers: { 'X-Request-ID': requestId } }
+				),
+			'search/posts',
+			new URLSearchParams('q=knitting')
+		);
+		expect(response.headers.get('X-Request-ID')).toBe(requestId);
+		const body = await response.json();
+		if (status === 503) expect(body).toHaveProperty('requestId', requestId);
+		expect(JSON.stringify(body)).not.toContain('PRIVATE_BODY');
+	}
+);
+
+it('omits untrusted correlation from public responses', async () => {
+	vi.stubEnv('APPVIEW_ORIGIN', 'https://appview.example');
+	const response = await publicReadResponse(
+		async () =>
+			new Response('PRIVATE_BODY', {
+				status: 503,
+				headers: { 'X-Request-ID': 'PRIVATE_IDENTIFIER' }
+			}),
+		'search/posts',
+		new URLSearchParams('q=knitting')
+	);
+	expect(response.headers.get('X-Request-ID')).toBeNull();
+	expect(await response.text()).not.toContain('PRIVATE');
+});

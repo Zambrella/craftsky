@@ -127,7 +127,7 @@ class _RouterRefresh extends ChangeNotifier {
 }
 
 @riverpod
-GoRouter goRouter(Ref ref) {
+Raw<GoRouter> goRouter(Ref ref) {
   final refresh = _RouterRefresh();
   void refreshRouter(Object? _, Object? _) => refresh.fire();
 
@@ -137,7 +137,7 @@ GoRouter goRouter(Ref ref) {
     ..listen(sessionRegistryProvider, refreshRouter)
     ..listen(activeAccountInitializationProvider, refreshRouter);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: RouteLocations.feed,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     observers: [diagnosticNavigationObserver()],
@@ -206,6 +206,8 @@ GoRouter goRouter(Ref ref) {
     errorBuilder: (context, state) =>
         ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
+  ref.onDispose(router.dispose);
+  return router;
 }
 
 @visibleForTesting
@@ -822,12 +824,18 @@ Future<String?> _businessOwnerRouteRedirect(BuildContext context) async {
     final registry = await container.read(sessionRegistryProvider.future);
     final lease = registry.activeLease?.session;
     if (lease == null) return const SettingsRoute().location;
-    final access = await container.read(
-      subscriptionAccessProvider(lease).future,
-    );
-    return access.did == lease.account.did && access.allowsBusiness
-        ? null
-        : const SettingsRoute().location;
+    final provider = subscriptionAccessProvider(lease);
+    // The destination cannot watch access until this redirect finishes. Own
+    // the auto-dispose lookup across frames while its request is pending.
+    final subscription = container.listen(provider, (_, _) {});
+    try {
+      final access = await container.read(provider.future);
+      return access.did == lease.account.did && access.allowsBusiness
+          ? null
+          : const SettingsRoute().location;
+    } finally {
+      subscription.close();
+    }
   } on Object {
     return const SettingsRoute().location;
   }

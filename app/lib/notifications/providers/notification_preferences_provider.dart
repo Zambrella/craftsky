@@ -1,7 +1,10 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'notification_preferences_provider.g.dart';
@@ -35,6 +38,8 @@ class AccountNotificationPreferencesNotifier
 
   @override
   Future<NotificationPreferences> build(AccountKey account) async {
+    // This watch owns the account repository for the retained preferences.
+    // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
     final repository = await ref.watch(
       accountNotificationPreferencesRepositoryProvider(account).future,
     );
@@ -54,6 +59,8 @@ class AccountNotificationPreferencesNotifier
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
   Future<bool> _edit(NotificationPreferencePatch patch) async {
+    final operationRef = ref;
+    final reporter = operationRef.read(errorReporterProvider);
     final current = state.value;
     final previous = current?.known[patch.category];
     if (current == null || previous == null) return false;
@@ -63,12 +70,17 @@ class AccountNotificationPreferencesNotifier
     state = AsyncData(
       current.replace(patch.category, _applyPreference(previous, patch)),
     );
+    var dispatched = false;
     try {
-      final repository = await ref.read(
+      // build's watch owns this same account repository throughout the edit.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+      final repository = await operationRef.read(
         accountNotificationPreferencesRepositoryProvider(account).future,
       );
+      if (!operationRef.mounted) return false;
+      dispatched = true;
       final server = await repository.patch(patch);
-      if (_generations[key] != generation || !ref.mounted) return true;
+      if (_generations[key] != generation || !operationRef.mounted) return true;
       final now = state.value;
       final serverValue = server.known[patch.category];
       if (now != null && serverValue != null) {
@@ -84,8 +96,18 @@ class AccountNotificationPreferencesNotifier
         );
       }
       return true;
-    } on Object {
-      if (_generations[key] == generation && ref.mounted) {
+    } on Object catch (error, stack) {
+      if (_generations[key] == generation && operationRef.mounted) {
+        if (dispatched) {
+          reportConsumedFailure(
+            error,
+            stack,
+            reporter: reporter,
+            feature: 'Notifications',
+            operation: 'notifications.preferences_patch',
+            accountDid: account.did.value,
+          );
+        }
         final now = state.value;
         if (now != null) {
           state = AsyncData(
@@ -128,6 +150,18 @@ class NotificationPreferencesNotifier
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
   Future<bool> _edit(NotificationPreferencePatch patch) async {
+    final operationRef = ref;
+    final reporter = operationRef.read(errorReporterProvider);
+    final accountDid = operationRef.exists(sessionRegistryProvider)
+        ? operationRef
+              .read(sessionRegistryProvider)
+              .value
+              ?.activeLease
+              ?.session
+              .account
+              .did
+              .value
+        : null;
     final current = state.value;
     final previous = current?.known[patch.category];
     if (current == null || previous == null) return false;
@@ -138,10 +172,10 @@ class NotificationPreferencesNotifier
     state = AsyncData(current.replace(patch.category, _apply(previous, patch)));
 
     try {
-      final server = await ref
+      final server = await operationRef
           .read(notificationPreferencesRepositoryProvider)
           .patch(patch);
-      if (_generations[key] != generation || !ref.mounted) return true;
+      if (_generations[key] != generation || !operationRef.mounted) return true;
       final now = state.value;
       final serverValue = server.known[patch.category];
       if (now != null && serverValue != null) {
@@ -153,8 +187,16 @@ class NotificationPreferencesNotifier
         );
       }
       return true;
-    } on Object {
-      if (_generations[key] == generation && ref.mounted) {
+    } on Object catch (error, stack) {
+      if (_generations[key] == generation && operationRef.mounted) {
+        reportConsumedFailure(
+          error,
+          stack,
+          reporter: reporter,
+          feature: 'Notifications',
+          operation: 'notifications.preferences_patch',
+          accountDid: accountDid,
+        );
         final now = state.value;
         if (now != null) {
           state = AsyncData(

@@ -227,8 +227,6 @@ projects:
               - key: SENTRY_TAP_TRACES_SAMPLE_RATE
                 value: "0.01"
 
-              - key: APPVIEW_UNSAFE_LOG_RESPONSE_BODIES
-                value: "false"
               - key: APPVIEW_ENABLE_DEV_OAUTH_SCHEME
                 value: "false"
 

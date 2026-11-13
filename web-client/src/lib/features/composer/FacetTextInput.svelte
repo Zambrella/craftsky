@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { textareaPresentation } from './textarea-presentation';
+	import { reportFailure } from '../diagnostics/client.ts';
+	import { expectedFailure } from '../diagnostics/privacy.ts';
 	import Avatar from '#lib/Avatar.svelte';
 	import type { Author } from '#lib/api/types.ts';
 	import FieldCounter from './FieldCounter.svelte';
@@ -54,6 +56,7 @@
 	let active = $state(0);
 	let loading = $state(false);
 	let failed = $state(false);
+	let failureReported = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let controller: AbortController | undefined;
 	let generation = 0;
@@ -142,10 +145,15 @@
 					if (!dead && revision === generation) {
 						choices = items;
 						loading = false;
+						failureReported = false;
 					}
 				})
-				.catch(() => {
+				.catch((error) => {
 					if (!dead && revision === generation && !signal.aborted) {
+						const unexpected = !expectedFailure(error);
+						if (!unexpected || !failureReported)
+							void reportFailure(error, 'composer.suggestions');
+						if (unexpected) failureReported = true;
 						loading = false;
 						failed = true;
 					}

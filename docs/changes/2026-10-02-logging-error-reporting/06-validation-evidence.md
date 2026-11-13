@@ -452,3 +452,114 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
 - No running DTD/Flutter debug session was available for hot reload. Physical iOS/Android behavior, post-release Sentry delivery/symbolication and production recurrence remain **unverified**. No deployment, synthetic production failure, consent/configuration change or production data mutation was performed; only requested Sentry issue statuses changed. Changes remain local and uncommitted.
 
 - Final complete AppView gate: **passed**, including **7246 integration cases / 7261 final race cases**, zero test skips; module/codegen/vet/Staticcheck, source/binary vulnerability scans, production/media image builds, migration checks, media memory checks and service smoke tests. The initial run found an unsupported sensitive stage label in a new fixture; it was corrected to the production `finalization` stage and verified before the final gate. Transcript: `/tmp/craftsky-sentry-appview-check-final.log`; artifacts: `/var/folders/zl/ymtyvzvn6510ld99pymykhy80000gn/T/tmp.yRiLxQLFta/`. Pinned Tap handshake passed; deterministic event injection remains unavailable.
+
+## Client error-handling audit (13 November 2026)
+
+- Reviewed Flutter and Svelte user messages, consumed failure ownership, native
+  cause chains, request correlation and final SDK privacy filtering. Both clients
+  retain reviewed input copy and distinguish offline, expired-session,
+  permission, missing-content, rate-limit and server failures. Account recovery
+  now explains the underlying failure; pre-`runApp` failures have localized retry
+  UI instead of a blank screen.
+- Consumed billing, media/composer, saved-post, business, relationship and
+  notification failures report their original cause and caught stack. Provider
+  acquisition and already-published `AsyncError` controls verify one issue owner.
+  Retired account operations remain cancellation; exhausted retries report once
+  without changing the retry budget or pending/ambiguous state.
+- Actual SDK-serialized fixtures retain native causes, app frames, operation,
+  status/method and valid AppView UUIDv4 correlation. Protected payload, payment,
+  path, credential and private-prose canaries are absent. Browser diagnostics
+  remain opt-in; no consent, replay, tracing or production collection gate changed.
+- Web validation: **541 unit tests**, Svelte checking with zero errors/warnings,
+  ESLint and Prettier passed. **100 browser checks** passed: 22 authenticated
+  diagnostics/field/action cases, 12 public-page cases and 16 guest-report cases
+  on each of Node preview and local Cloudflare Worker. Diagnostic envelopes were
+  intercepted on loopback. The normal build was restored afterward; source maps
+  remained private and no upload occurred. Logs: `/tmp/craftsky-error-web-unit.log`,
+  `/tmp/craftsky-error-web-browser-node-final.log`,
+  `/tmp/craftsky-error-web-browser-worker.log` and the corresponding public/guest
+  browser logs.
+- Complete Flutter suite: **4240 passed / 44 skipped**
+  (`/tmp/craftsky-error-app-tests-clean.log`). Strict whole-app Dart/Riverpod
+  analysis passed (`/tmp/craftsky-error-app-analysis-final2.log`). The initial run exposed
+  four older positive-correlation fixtures using non-UUID IDs; those fixtures and
+  the shared Instagram corpus now use valid UUIDv4 values. All 96 affected tests
+  passed before the final complete rerun. Malformed-ID privacy controls remain.
+- Backend race verification covered 53 tested packages. The full run found only
+  stale release tests from the earlier switch to strict Dart analysis. Their
+  fixtures now stub both Flutter and Dart, verify `dart analyze --fatal-infos`,
+  and propagate analyzer failures without invoking the host SDK. The complete
+  affected `internal/app` package then passed with `-race`; all other packages
+  passed in the full run. Logs: `/tmp/craftsky-error-appview-tests-final.log` and
+  `/tmp/craftsky-error-appview-app-final.log`. Worktree PostgreSQL/MinIO fixtures
+  were stopped afterward, preserving their volumes.
+- The iOS simulator debug build passed. On this thread's iPad simulator, a hot
+  restart applied the final code; the offline recovery message and Retry action
+  were visually and interactively verified. Flutter tooling reported no runtime
+  errors. Screenshot: `/tmp/craftsky-error-account-offline.png`. The test build
+  used local API access and an empty Sentry DSN.
+- Production Sentry inspection was read-only: eight unresolved Flutter issues and
+  one web issue were listed, with representative existing events inspected for
+  diagnostic gaps. No issue status, production data/configuration, deployment,
+  hosted synthetic event or source-map upload changed. Physical iOS/Android and
+  post-release hosted ingestion/symbolication of these changes remain unverified.
+
+## AppView error-handling audit (13 November 2026)
+
+- Reviewed request handlers/middleware, command rejection callbacks, provider
+  adapters, ingestion, private workers, issue ownership and final local/SDK
+  output against the mandatory logging guide. Checked Sentry Go's error-chain
+  [documentation](https://docs.sentry.io/platforms/go/usage/) and the installed
+  `sentry-go`/`sentry-go/slog` 0.49.0 implementations; no SDK upgrade was needed.
+- Added original causes and operation/stage context to missing API failure
+  owners, including notification, Instagram, saved-content, scheduling, billing,
+  moderation, deletion and safety paths. Durable command rejection callbacks
+  report before the terminal response is persisted. Private supporting logs
+  select the initiating account only on actual failures.
+- Corrected two API classifications: invalid notification preferences still
+  return 400 before storage, while storage outages return 500; malformed manual
+  scheduled-publication input now returns 400 instead of 500. No routes,
+  Lexicons, migrations or wire fields changed.
+- Preserved RevenueCat/Instagram transport, read and decode causes and safe
+  upstream status; link-preview upstream rejection now retains its status.
+  Supporting Sentry Logs no longer overwrite AppView response status with a
+  provider status. Removed raw Instagram webhook-body logging and obsolete
+  response-body configuration, including current reference/Blueprint entries.
+  This is a source/configuration change, not a live Blueprint sync.
+- Workers retain consumed failures and original causes when failure persistence
+  also fails. Job/attempt scopes isolate sibling ownership and breadcrumb
+  timelines. Manual publication keeps the HTTP issue owner; periodic retries
+  remain WARN, exhausted failures and unexpected exits remain actionable.
+  Retry timing, queue persistence, fencing and acknowledgement rules are intact.
+- Serialized local and SDK fixtures verify native cause types, SQLSTATE,
+  provider status, request/job references and initiating identity, with protected
+  payload/credential/session/recipient/URL canaries absent. Independent review
+  identified manual-publication duplication, premature safety-email capture and
+  missing chat scope wiring; all three were corrected.
+- Complete focused observability, middleware, Tap and link-preview suites passed
+  (`/tmp/craftsky-appview-error-focused.log`). Go vet, pinned Staticcheck
+  2026.2.1, configuration lint, generated catalogue/reference checks and all 18
+  Python configuration tests passed. Logs:
+  `/tmp/craftsky-appview-error-vet-final.log`,
+  `/tmp/craftsky-appview-error-staticcheck-final.log` and
+  `/tmp/craftsky-appview-error-config.log`.
+- Backend race/integration coverage passed across **53 tested packages** against
+  worktree PostgreSQL and MinIO. The full `just test` run passed 52 packages and
+  found one older API fixture that permitted the initiating account on its issue
+  but excluded it from supporting failure logs. The fixture now validates that
+  account reference only on cause-bearing failure records; payload/token/device
+  canaries and request/metric/transaction exclusions remain checked. Its focused
+  race rerun passed, followed by the complete API package (194.144 seconds) and
+  final Instagram Meta package (2.298 seconds), both with `-race`. Logs:
+  `/tmp/craftsky-appview-error-race-full.log`,
+  `/tmp/craftsky-appview-error-api-privacy-rerun.log` and
+  `/tmp/craftsky-appview-error-api-final.log`. No race failures were reported.
+  Worktree PostgreSQL/MinIO fixtures were stopped afterward, preserving volumes.
+- Production Sentry inspection was read-only: 20 unresolved issues under the
+  actual `prod` environment; `APP-VIEW-2F` retained a typed PDS 502 cause and
+  provider code on release `craftsky-appview@1.3.2`. That upstream failure does
+  not establish an AppView business-logic defect. No issue status, production
+  data/configuration, deployment or hosted synthetic event changed. The full
+  Docker release-image/Tap acceptance gate (`just appview-check`) was not run;
+  post-release hosted collection of the new diagnostics remains unverified.
+  Flutter and web code were unchanged by this backend pass.

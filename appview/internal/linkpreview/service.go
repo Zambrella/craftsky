@@ -24,6 +24,14 @@ var (
 	ErrUpstream    = errors.New("link preview upstream failed")
 )
 
+// UpstreamError retains the response status without retaining the destination,
+// headers or body. The sentinel remains available to existing error policies.
+type UpstreamError struct{ statusCode int }
+
+func (e *UpstreamError) Error() string   { return ErrUpstream.Error() }
+func (e *UpstreamError) Unwrap() error   { return ErrUpstream }
+func (e *UpstreamError) StatusCode() int { return e.statusCode }
+
 type ResourceFetcher interface {
 	FetchPage(context.Context, string) (*http.Response, *url.URL, error)
 	FetchImage(context.Context, string) (*http.Response, *url.URL, error)
@@ -65,7 +73,7 @@ func (s *Service) FetchPreview(ctx context.Context, raw string) (Preview, error)
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		cancelPage()
-		return Preview{}, ErrUpstream
+		return Preview{}, &UpstreamError{statusCode: response.StatusCode}
 	}
 	contentType := response.Header.Get("Content-Type")
 	if !isHTMLContentType(contentType) {
@@ -114,7 +122,7 @@ func (s *Service) fetchYouTubePreview(ctx context.Context, reference youtubeRefe
 		return Preview{}, ErrUnsupported
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return Preview{}, ErrUpstream
+		return Preview{}, &UpstreamError{statusCode: response.StatusCode}
 	}
 	if !isJSONContentType(response.Header.Get("Content-Type")) {
 		return Preview{}, ErrUnsupported

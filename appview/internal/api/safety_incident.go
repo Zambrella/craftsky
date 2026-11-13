@@ -10,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
@@ -27,6 +28,7 @@ func SafetyIncidentDetailHandler(store *safetyincident.Store) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "safety.incident.read", "store")
 			envelope.WriteError(w, http.StatusServiceUnavailable, "safety_incident_unavailable", "safety incident unavailable", runID, nil)
 			return
 		}

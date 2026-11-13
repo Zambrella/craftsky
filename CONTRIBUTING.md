@@ -33,9 +33,10 @@ Run commands from the repository root unless a guide says otherwise. Use only de
 | --- | --- |
 | Backend | Docker + Compose v2, `just`, and Go matching [go.mod](appview/go.mod). Run `just dev-d`. See [AppView setup](appview/README.md). |
 | Flutter | FVM with the SDK pinned in [.fvmrc](.fvmrc), plus target platform tooling. Run `fvm install`, then `(cd app && fvm flutter pub get)` and `fvm exec just app-run`. See [client setup](app/README.md). |
+| Web client | Node.js matching [package.json](web-client/package.json), npm and Playwright Chromium/WebKit. Run `just web-client-setup`, then `just dev-d` and `just web-run`. See [SvelteKit setup](web-client/README.md). |
 | Website | Python for local serving; Node.js 22+ and npm for checks. See [website setup](web/README.md). |
-| Instagram importer | Node.js 22.12+ and the npm version in its package manifest. See [importer setup](instagram-importer/README.md). |
 | Service status | See [status setup](service-status/README.md) for local checks and preview. |
+| Statistics website | Node.js 22+, npm and Python. Run `just stats-setup`; see [stats setup](stats/README.md) for the local API proxy and fixture tests. |
 | Documentation | A text editor; check relative links and any commands you change against their source. |
 
 The local stack supplies PostgreSQL and MinIO, and the app's example configuration can leave billing and Sentry disabled. Production signing, deployment, and provider credentials are not required for ordinary contributions. Some journeys, including real OAuth and external media services, need separate test accounts or provider configuration; describe what you could and could not verify.
@@ -45,6 +46,16 @@ Linked Git worktrees receive isolated Compose projects, volumes, and alternate p
 ## Make the change
 
 Keep a PR focused on one problem. Add regression coverage for changed behavior and update the relevant documentation. Avoid unrelated formatting, generated output, or dependency upgrades.
+
+Find historical decisions through the [change archive](docs/changes/README.md):
+`./scripts/docs search "topic or symbol"` returns short, filtered results. Read
+the selected summary and linked current guidance before opening original
+requirements or plans. When adding a change package or standalone change note,
+add its catalogue card; when extending a package, update its summary and evidence
+references. Run `just docs-index` to regenerate discovery files and
+`just docs-check` to validate metadata, references and generated output. A package
+date, approved plan or archived status alone does not establish implementation
+or production verification.
 
 Read [AGENTS.md](AGENTS.md) for the full conventions. In particular:
 
@@ -65,15 +76,21 @@ Run the checks for the parts you changed, and report their actual results in the
 | --- | --- |
 | Go / AppView | `just fmt`, then `just test` with `just dev-d` running. `just appview-test-unit` is a fast, incomplete iteration path. AppView changes require `just appview-check` before merge; it uses disposable services for the full release gate. |
 | Flutter | `fvm exec just app-analyze` and `fvm exec just app-test`. For UI changes, inspect the affected screens and attach screenshots or a recording. See [device integration tests](app/integration_test/README.md) for applicable native journeys. |
+| Web client | `just web-client-check` runs static checks, unit tests, builds and local Node/Worker browser fixtures. Use the [web client guide](web-client/README.md) for separate live tests. |
 | Lexicons / generated types | `just lexgen-check` and the relevant backend/client checks, including `just appview-check`. Commit regenerated output with the schema. |
 | Website | `just web-setup` once, then `just web-check`. This checks a local build; no login or deployment is needed. |
-| Instagram importer | `just importer-install`, `just importer-check`, and `just importer-test-e2e` for browser changes. Install Playwright browsers as described in its README. |
 | Service status | `just service-status-test`. |
+| Statistics website | `just stats-check`; `just stats-dry-run` packages the Worker without publishing. |
 | Documentation / issue forms | Check links, command names, formatting, and YAML structure. Run any area-specific checks needed for changed executable examples. |
 
 The full backend gate also needs `curl`, `diff`, Git, Go, Docker Compose v2, `just`, and `rg`; it downloads pinned check tools and images. It is more expensive than the unit path. If your environment cannot run a required check, explain the limitation so a maintainer can arrange verification before merge.
 
 [GitHub Actions](.github/workflows/backend-ci.yml) selects PR checks by changed paths. It does not cover every package or every manual journey, and it does not publish releases. A green PR is not evidence of a deployed or device-verified change.
+
+Website and statistics changes run their local fixture suites in that
+workflow. The [web client workflow](.github/workflows/web-client-ci.yml) separately
+runs the SvelteKit release gate. Mobile device journeys and real-provider tests
+remain explicit checks; CI uses synthetic content and does not publish PDS records.
 
 ## Submit a pull request
 

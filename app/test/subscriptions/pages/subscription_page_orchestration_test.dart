@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -24,7 +25,122 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/recording_error_reporter.dart';
+
 void main() {
+  testWidgets('account switching during billing acquisition stays quiet', (
+    tester,
+  ) async {
+    final registry = _registry();
+    final reporter = RecordingErrorReporter();
+    final gate = Completer<SubscriptionApi>();
+    final api = _OwnerApi([_state(generation: 7)]);
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(registry),
+        ),
+        errorReporterProvider.overrideWithValue(reporter),
+        revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+        subscriptionRepositoryProvider.overrideWith((_, _) => gate.future),
+        subscriptionPageModelProvider.overrideWith((ref) async {
+          final current = await ref.watch(sessionRegistryProvider.future);
+          return SubscriptionPageModel(
+            role:
+                current.activeLease!.session.account.did ==
+                    Did.parse('did:plc:alice')
+                ? SubscriptionPageRole.owner
+                : SubscriptionPageRole.beneficiary,
+            access: _access(
+              current.activeLease!.session.account.did.value,
+              SubscriptionTier.free,
+            ),
+            billingAvailability: BillingAvailability.available,
+            billingState: _state(generation: 7),
+          );
+        }),
+      ],
+    );
+    // Another account operation may retain this acquisition across the switch.
+    final repository = container.listen(
+      subscriptionRepositoryProvider(AccountKey('did:plc:alice')),
+      (_, _) {},
+    );
+    addTearDown(repository.close);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SubscriptionPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _tapVisible(tester, _tierDetails(SubscriptionTier.plus));
+    await tester.pump();
+    await container
+        .read(sessionRegistryProvider.notifier)
+        .activate(
+          registry.leaseFor(AccountKey('did:plc:bob'))!,
+        );
+    gate.complete(api);
+    await tester.pumpAndSettle();
+
+    expect(reporter.errors, isEmpty);
+    expect(api.billingReads, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('consumed paywall failure reports its original cause once', (
+    tester,
+  ) async {
+    final reporter = RecordingErrorReporter();
+    final cause = StateError('PRIVATE_BILLING_PAYLOAD');
+    final presentation = Completer<DirectPaywallResult>();
+    final revenueCat = _RevenueCat()..pendingPresentation = presentation;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(_registry()),
+          ),
+          errorReporterProvider.overrideWithValue(reporter),
+          revenueCatServiceProvider.overrideWithValue(revenueCat),
+          subscriptionRepositoryProvider.overrideWith(
+            (_, _) async => _OwnerApi([_state(generation: 7)]),
+          ),
+          subscriptionPageModelProvider.overrideWith((ref) async {
+            await ref.watch(sessionRegistryProvider.future);
+            return SubscriptionPageModel(
+              role: SubscriptionPageRole.owner,
+              access: _access('did:plc:alice', SubscriptionTier.free),
+              billingAvailability: BillingAvailability.available,
+              billingState: _state(generation: 7),
+            );
+          }),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SubscriptionPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _tapVisible(tester, _tierDetails(SubscriptionTier.plus));
+    await tester.pump();
+    presentation.completeError(cause, StackTrace.current);
+    await tester.pumpAndSettle();
+
+    expect(reporter.errors, [same(cause)]);
+    expect(find.textContaining('PRIVATE_BILLING_PAYLOAD'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('new phone reconnects the same owner and existing license', (
     tester,
   ) async {

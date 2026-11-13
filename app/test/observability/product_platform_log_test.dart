@@ -32,7 +32,10 @@ void main() {
       ) as Map<String, dynamic>;
       expect(record['severity'], 'WARNING');
       expect(record['cause'], 'StateError');
-      expect(record['appViewRequestId'], 'product-probe');
+      expect(
+        record['appViewRequestId'],
+        '80000000-0000-4000-8000-000000000008',
+      );
       expect(record['stack'], hasLength(240));
       expect((record['stack'] as List<dynamic>).last, {'function': 'frame239'});
       expect(
