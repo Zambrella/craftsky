@@ -3,6 +3,7 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './test',
   fullyParallel: true,
+  forbidOnly: Boolean(process.env.CI),
   workers: 2,
   retries: process.env.CI ? 1 : 0,
   use: {

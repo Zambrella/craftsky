@@ -144,6 +144,8 @@ longer registers a production custom `craftsky://` scheme. The accepted routes a
 - `https://app.craftsky.social/account-deletion/reauth-complete?job-id=…&proof=…`
   for account-deletion reauthentication. The proof is single use and the URL
   never carries the ordinary CraftSky session bearer.
+- `https://app.craftsky.social/posts/<did>/<rkey>` for shared posts and projects.
+- `https://app.craftsky.social/profiles/<did>` for shared profiles.
 
 Smoke tests (synthetic values should open the app and then fail closed):
 
@@ -166,7 +168,8 @@ Publishing the domain-association files is a release gate:
   must not be replaced with a debug-keystore fingerprint.
 - `https://app.craftsky.social/.well-known/apple-app-site-association` must
   authorize application ID `B6YZZCUZWS.social.craftsky.app` for exactly
-  `/auth/complete` and `/account-deletion/reauth-complete`. The Apple App ID
+  `/auth/complete`, `/account-deletion/reauth-complete`, `/posts/*` and
+  `/profiles/*`. The Apple App ID
   and release provisioning profile must also enable Associated Domains.
 
 The files must be served directly by the canonical HTTPS host with the content

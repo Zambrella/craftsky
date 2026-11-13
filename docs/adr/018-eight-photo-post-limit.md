@@ -16,7 +16,7 @@ CraftSky posts currently allow four photos. Crafters need more room to show thei
 
 ### What I decided
 
-Change `social.craftsky.feed.post.images.maxLength` from four to eight in place. Align Flutter's shared composer limit, AppView's default and maximum configurable count, local development configuration, and the Instagram importer's generated contract and selection limit.
+Change `social.craftsky.feed.post.images.maxLength` from four to eight in place. Align Flutter's shared composer limit, AppView's default and maximum configurable count, local development configuration, and the Instagram importer's generated contract and selection limit at that time. The standalone importer has since been retired and removed from the repository; the eight-photo limit remains in force for the current clients and AppView.
 
 Existing records with four or fewer images remain valid. Records with five to eight images fail validation against the old schema, so this is a deliberate compatibility change permitted by the repository's no-active-users policy. Update consumers before enabling eight-photo authoring in a release.
 

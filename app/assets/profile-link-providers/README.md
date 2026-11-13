@@ -45,8 +45,8 @@ The icons in this directory are the marks of third-party services that appear in
 | `Vgen.svg` | [VGen](https://vgen.co) |
 | `Zeffy.svg` | [Zeffy](https://www.zeffy.com) |
 
-**These marks belong to their respective owners.** They are not Bluesky trademarks, they are not covered by the [MIT license](../../../LICENSE) that applies to the rest of this repository, and we are not in a position to grant or withhold permission to use them. We include them to identify those services in our UI.
+**These marks belong to their respective owners.** They are not Bluesky trademarks. We include them to identify those services in our UI; their inclusion does not grant permission to use the marks.
 
-If you fork this repository and keep these icons, your use of them rests on your own nominative-use basis or on permission from the mark owner.
+CraftSky's repository license is [AGPL-3.0](../../../LICENSE). It does not replace the rights of the third-party mark owners or grant trademark permissions. The copied upstream attribution's reference to MIT described Bluesky's repository, not CraftSky.
 
-See [`ASSETS.md`](../../../ASSETS.md#5-third-party-trademarks) for the full asset licensing picture.
+For the original attribution and asset guidance, consult the [Bluesky source commit](https://github.com/bluesky-social/social-app/tree/0d30bbead1df8409fac03370e4097bb8f33000fa), including its `ASSETS.md`. CraftSky does not have a corresponding `ASSETS.md`.

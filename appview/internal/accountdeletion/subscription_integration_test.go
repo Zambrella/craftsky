@@ -384,6 +384,9 @@ func waitForAdvisoryWaiter(t *testing.T, pool interface {
 				  AND classid=(($1::bigint >> 32) & 4294967295)::oid
 				  AND objid=($1::bigint & 4294967295)::oid
 				  AND NOT granted
+				  AND pid IN (SELECT pid FROM pg_stat_activity
+				              WHERE datname=current_database()
+				                AND application_name=current_setting('application_name'))
 			)
 		`, key).Scan(&waiting); err != nil {
 			t.Fatal(err)
@@ -410,6 +413,7 @@ func waitForSnapshotLockWaiter(t *testing.T, pool interface {
 				SELECT 1 FROM pg_stat_activity
 				WHERE pid <> pg_backend_pid()
 				  AND datname=current_database()
+				  AND application_name=current_setting('application_name')
 				  AND wait_event_type='Lock'
 				  AND (
 					query LIKE '%SELECT reconciled_generation, state%'

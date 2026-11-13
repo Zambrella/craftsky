@@ -1,8 +1,11 @@
 import hashlib
+from html.parser import HTMLParser
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from cloudflare_pages_build import PUBLIC_FILES, build_site
 
@@ -65,6 +68,46 @@ class CloudflarePagesBuildTests(unittest.TestCase):
         (self.web / "privacy.html").write_text("Draft; not effective")
         output = build_site(self.web, "abc123", False)
         self.assertEqual((output / "privacy.html").read_text(), "Draft; not effective")
+
+
+class WebsiteLinks(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.targets = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag not in {"a", "link", "script", "img"}:
+            return
+        for name, value in attrs:
+            if name in {"href", "src"} and value:
+                self.targets.append(value)
+
+
+class RepositoryWebsiteSmokeTests(unittest.TestCase):
+    def test_built_pages_link_to_published_local_files(self):
+        source = Path(__file__).resolve().parents[1] / "web"
+        with tempfile.TemporaryDirectory() as temporary:
+            web = Path(temporary) / "web"
+            web.mkdir()
+            for name in PUBLIC_FILES:
+                shutil.copy2(source / name, web / name)
+            shutil.copytree(source / "assets", web / "assets")
+            output = build_site(web, "fixture", False)
+            for page in output.glob("*.html"):
+                links = WebsiteLinks()
+                links.feed(page.read_text())
+                for target in links.targets:
+                    url = urlsplit(target)
+                    if url.scheme or url.netloc or not url.path:
+                        continue
+                    path = unquote(url.path).lstrip("/")
+                    file = output / path if url.path.startswith("/") else page.parent / path
+                    candidates = [file / "index.html", file, file.with_suffix(".html")]
+                    with self.subTest(page=page.name, target=target):
+                        self.assertTrue(
+                            any(candidate.is_file() for candidate in candidates),
+                            f"{page.name} links to unpublished file: {target}",
+                        )
 
 
 if __name__ == "__main__":

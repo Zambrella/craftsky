@@ -19,8 +19,8 @@ currently enabled in production.
 | User's PDS | Authoritative public records and referenced blobs; identity and repository authority remain with the user's account |
 
 Flutter supports mobile platforms only. The browser application is separate
-from the public website in `web/`, statistics site in `stats/`, standalone
-Instagram importer and service-status Worker.
+from the public website in `web/`, statistics site in `stats/`, and
+service-status Worker. Instagram features live in the clients and AppView.
 
 ## Data ownership
 

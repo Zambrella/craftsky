@@ -16,9 +16,10 @@ Start with the [repository README](../README.md) for the product and quick start
 | Guide | Covers |
 | --- | --- |
 | [Flutter client](../app/README.md) | SDK, local configuration, devices, and OAuth links |
+| [SvelteKit client](../web-client/README.md) | Guest and signed-in browser UI, Worker sessions, local fixture gates and live smoke tests |
 | [AppView](../appview/README.md) | Compose, backend ownership, tests, and OAuth debugging |
 | [Website](../web/README.md) | Local serving, browser checks, and static build |
-| [Instagram importer](../instagram-importer/README.md) | Browser-only importer, synthetic fixtures, and package checks |
+| [Statistics website](../stats/README.md) | Local API proxy, aggregate rendering and browser fixture checks |
 | [Service status](../service-status/README.md) | Worker checks and local status simulation |
 | [Verified links](../verified-links/README.md) | App-link hosting and OAuth fallbacks |
 | [Flutter integration tests](../app/integration_test/README.md) | Native journey coverage and its limits |

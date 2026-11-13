@@ -10,7 +10,7 @@ Browser routes use the mobile router's names: `/feed`, `/search`,
 `/profiles/@handle`), `/posts/:did/:rkey`, `/events/:did/:rkey`, `/saved`,
 `/saved/folder?folder=…`, `/scheduled`, `/drafts`, and `/settings/*`.
 `/projects` redirects to `/feed`, preserving query parameters, as on mobile.
-`/` opens `/sign-in` when signed out and `/feed` when signed in. Public post and
+`/` opens `/feed`, including guest browsing when signed out. Public post and
 profile URLs render the public view when signed out and the app view when signed
 in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 `/feed/filters`; they also have no `/app` prefix.
@@ -107,6 +107,9 @@ This separate, opt-in Playwright suite mirrors
 [`app/patrol_test/live_smoke_test.dart`](../app/patrol_test/live_smoke_test.dart).
 It uses real browser OAuth, this checkout's Docker AppView and the same coral/teal
 PNG fixtures. No provider, API, upload or persistence operation is mocked.
+
+`npm run test:e2e:live -- --list` discovers the journey without credentials or a
+running backend and makes no account/database changes.
 
 Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/config/.env.development.local` using a
 **dedicated disposable Bluesky-hosted account** and its full account password.
@@ -267,17 +270,24 @@ respect the published colour and texture selection.
 Motion honours `prefers-reduced-motion`. Native scrolling and focusable image
 links provide a photo carousel without client-side JavaScript. Post timestamps
 follow Flutter's seven-day compact display, with full UTC timestamps available
-to assistive technology and native tooltips. Anonymous profile navigation retains the two-tab public surface. Authenticated
-profiles offer the corresponding mobile actions and content tabs.
+to assistive technology and native tooltips. Guest profiles show projects, posts,
+comments and reposts, plus applicable business tabs. Member actions prompt guests
+to sign in; authenticated profiles offer the corresponding mobile actions.
 
 ## Public contract
 
-- `GET /v1/public/profiles/{handleOrDid}`: public profile, links and crafts.
-- `GET /v1/public/profiles/{handleOrDid}/posts?cursor=...`: root authored posts.
-- `GET /v1/public/profiles/{handleOrDid}/projects?cursor=...`: root authored projects.
-- `GET /v1/public/posts/{did}/{rkey}`: root post/project detail.
+- Project browsing and filters: `GET /v1/public/projects`.
+- Search: `GET /v1/public/search/{profiles|posts|projects|hashtags}` and hashtag post lists.
+- Profiles: public profile detail and paginated posts, projects, comments, reposts and events.
+- Posts: public post detail, threads, likes, reposts, quotes and video captions.
+- Events: public event detail.
+- Reporting: `POST` to a public profile or post's `/reports` subroute is the sole anonymous write.
 
-Lists return `{items, cursor?}`, fixed at 20 items. Cursors are opaque. API errors
+The browser and Worker share the exact route/query allowlist in
+[`public-path.ts`](src/lib/api/public-path.ts) and the report-only mutation map in
+[`public-report-path.ts`](src/lib/api/public-report-path.ts).
+
+Lists return `{items, cursor?}`, with up to 20 items per page. Cursors are opaque. API errors
 use the standard `{error, message, requestId}` envelope. Unknown/ineligible content
 returns 404; invalid identifiers/cursors return 400; exhausted admission budgets
 return 429/503 with Retry-After; unavailable dependencies return 503. No device ID
@@ -293,13 +303,13 @@ and outbound user links are marked `ugc nofollow noreferrer`.
 HTML and JSON are `no-store`; page metadata uses eligible content only. The
 Cloudflare configuration must not override these with a cache-everything rule.
 Search engines and social networks control their own copies of public content.
-This first version has no content directory/sitemap; crawlers discover pages
-through shared links and profile pagination. Cursor pages are `noindex,follow`.
+There is no content directory/sitemap; public discovery includes the guest feed,
+search, shared links and profile pagination. Cursor pages are `noindex,follow`.
 
-Images retain authored alt text and dimensions where provided. Video uses the
-existing public HLS playlist with native browser controls and a direct playlist
-link. Browsers without native HLS need a compatible player; captions and expanded
-quote/comment rendering remain available in the authenticated application.
+Images retain authored alt text and dimensions where provided. Guests reuse the
+social components for quotes, comment threads and video. Video supports native
+HLS or the bundled HLS player, public captions and a direct playlist link; hosted
+Bunny playback follows AppView's explicit provider destination.
 
 ## Dependency audit
 
