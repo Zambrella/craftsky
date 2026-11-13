@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"sort"
 	"strings"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
@@ -224,7 +224,7 @@ func executeFollowCommand(
 			return accepted(), nil
 		},
 		AcceptedAbsent: accepted,
-		Rejected:       func(err error) pdscommands.TerminalResult { return RejectedCommandResult(runID, err) },
+		Rejected:       func(err error) pdscommands.TerminalResult { return RejectedCommandResult(runID, err, r.Context()) },
 	})
 }
 

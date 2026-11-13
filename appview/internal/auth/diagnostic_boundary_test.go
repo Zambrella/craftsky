@@ -287,3 +287,68 @@ func TestLoginRecurrenceRetainsStageProviderFactsAndCorrelation(t *testing.T) {
 		})
 	}
 }
+
+func TestOAuthCleanupFailuresRetainCausesAndIsolateJobs(t *testing.T) {
+	pool := withAuthSchema(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	clock := &testCleanupClock{at: now}
+	firstOwner := syntax.DID("did:plc:cleanup-first")
+	secondOwner := syntax.DID("did:plc:cleanup-second")
+	const firstSession = "private-first-session-canary"
+	const secondSession = "private-second-session-canary"
+	const providerCanary = "private-provider-credential-canary"
+	seedRevocationPendingSession(t, pool, firstOwner.String(), firstSession, now)
+	seedRevocationPendingSession(t, pool, secondOwner.String(), secondSession, now)
+	if _, err := pool.Exec(context.Background(), `UPDATE oauth_sessions SET cleanup_attempts=1 WHERE account_did=$1`, secondOwner); err != nil {
+		t.Fatal(err)
+	}
+	cause := &pgconn.PgError{Code: "08006", Message: providerCanary}
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	processor, err := auth.NewOAuthRevocationProcessor(auth.OAuthRevocationProcessorOptions{
+		Pool: pool, Revoker: &blockingCredentialRevoker{otherError: cause}, Observer: observer, Now: clock.Now,
+		BatchSize: 5, LeaseDuration: time.Minute, OperationTimeout: 30 * time.Second,
+		MaxAttempts: 2, BaseBackoff: time.Minute, MaxBackoff: 10 * time.Minute, MaxCredentialRetention: 24 * time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := observability.WithRequestObserver(observability.WithCaptureMarker(context.Background()), observer)
+	if count, err := processor.ProcessBatch(ctx); err != nil || count != 2 {
+		t.Fatalf("cleanup batch changed: count=%d err=%v", count, err)
+	}
+	observer.Flush(time.Second)
+	events := transport.Events()
+	if len(events) != 1 || events[0].Tags["operation"] != "auth.oauth_cleanup" || events[0].Tags["failure_stage"] != "parent_revoke" || events[0].Tags["result"] != "exhausted" {
+		t.Fatalf("exhausted job lost or duplicated after earlier retry: %#v", events)
+	}
+	if events[0].Contexts["diagnostic"]["operation_account_did"] != secondOwner.String() {
+		t.Fatalf("wrong initiating owner: %#v", events[0].Contexts)
+	}
+	clock.Set(now.Add(time.Minute))
+	if count, err := processor.ProcessBatch(ctx); err != nil || count != 1 {
+		t.Fatalf("persisted retry changed: count=%d err=%v", count, err)
+	}
+	observer.Flush(time.Second)
+	if len(transport.Events()) != 2 {
+		t.Fatalf("later exhausted occurrence was suppressed: %d", len(transport.Events()))
+	}
+	payload, err := json.Marshal(transport.Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sink := range []string{local.String(), string(payload)} {
+		for _, retained := range []string{"auth.oauth_cleanup", "parent_revoke", "PgError", "08006", "exhausted", secondOwner.String()} {
+			if !strings.Contains(sink, retained) {
+				t.Fatalf("missing diagnostic fact %q", retained)
+			}
+		}
+		for _, private := range []string{firstSession, secondSession, providerCanary} {
+			if strings.Contains(sink, private) {
+				t.Fatalf("private cleanup data escaped: %s", private)
+			}
+		}
+	}
+}

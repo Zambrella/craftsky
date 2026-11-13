@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -18,10 +20,157 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
+	"github.com/google/uuid"
 	"google.golang.org/api/option"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/integrations/revenuecat"
+	"social.craftsky/appview/internal/linkpreview"
 )
+
+type diagnosticPreviewFetcher struct{}
+
+func (diagnosticPreviewFetcher) FetchPage(context.Context, string) (*http.Response, *url.URL, error) {
+	return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: io.NopCloser(strings.NewReader("PRIVATE_PREVIEW_BODY")), Header: http.Header{"X-Private": {"PRIVATE_HEADER"}}}, nil, nil
+}
+func (fetcher diagnosticPreviewFetcher) FetchJSON(ctx context.Context, target string) (*http.Response, *url.URL, error) {
+	return fetcher.FetchPage(ctx, target)
+}
+func (fetcher diagnosticPreviewFetcher) FetchImage(ctx context.Context, target string) (*http.Response, *url.URL, error) {
+	return fetcher.FetchPage(ctx, target)
+}
+
+func TestLinkPreviewFailuresRetainOnlyUpstreamStatus(t *testing.T) {
+	for _, target := range []string{"https://example.invalid/PRIVATE_PATH?token=PRIVATE_CAPABILITY", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"} {
+		_, cause := linkpreview.NewService(diagnosticPreviewFetcher{}).FetchPreview(context.Background(), target)
+		if !errors.Is(cause, linkpreview.ErrUpstream) {
+			t.Fatalf("upstream taxonomy lost: %v", cause)
+		}
+		var local bytes.Buffer
+		transport := &sentry.MockTransport{}
+		observer := New(Config{Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))), LogsEnabled: true, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+		observer.ObservePrivateFailure(context.Background(), cause, "did:plc:initiator", "", "link.preview", "fetch", "error", 1)
+		observer.Flush(time.Second)
+		issues := 0
+		for _, event := range transport.Events() {
+			if len(event.Exception) == 0 {
+				continue
+			}
+			issues++
+			if event.Tags["upstream_status"] != "503" || event.Exception[len(event.Exception)-1].Type != "*linkpreview.UpstreamError" {
+				t.Fatalf("upstream evidence lost: %+v", event)
+			}
+		}
+		if issues != 1 {
+			t.Fatalf("issues=%d want1", issues)
+		}
+		serialized, err := json.Marshal(transport.Events())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(local.String(), "503") || !strings.Contains(string(serialized), "link preview upstream failed (HTTP 503)") {
+			t.Fatal("selected explanation/status missing")
+		}
+		if strings.Contains(local.String()+string(serialized), "PRIVATE_") || strings.Contains(local.String()+string(serialized), target) {
+			t.Fatal("preview target/body escaped")
+		}
+	}
+}
+
+func TestRevenueCatNativeCausesAndStatusSurviveProtectedSinks(t *testing.T) {
+	for _, test := range []struct {
+		name                         string
+		status                       int
+		body, causeType, explanation string
+	}{
+		{"provider rejection", http.StatusServiceUnavailable, "PRIVATE_PROVIDER recipient@example.invalid", "*revenuecat.ProviderError", "RevenueCat response rejected"},
+		{"invalid JSON", http.StatusOK, "!PRIVATE_PROVIDER", "*json.SyntaxError", "decode RevenueCat response failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Private", "PRIVATE_HEADER")
+				w.WriteHeader(test.status)
+				_, _ = io.WriteString(w, test.body)
+			}))
+			defer server.Close()
+			client, err := revenuecat.NewClient(revenuecat.ClientConfig{BaseURL: server.URL, APIKey: "PRIVATE_CREDENTIAL", ProjectID: "PRIVATE_PROJECT"}, server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, cause := client.ListCustomerSubscriptions(context.Background(), uuid.MustParse("40000000-0000-4000-8000-000000000001"))
+			if cause == nil {
+				t.Fatal("fixture did not fail")
+			}
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			observer := New(Config{Env: "test", Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))), LogsEnabled: true, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			ctx := ctxkeys.WithRunID(context.Background(), "10000000-0000-4000-8000-000000000001")
+			observer.ObservePrivateFailure(ctx, cause, "did:plc:initiator", "20000000-0000-4000-8000-000000000002", "revenuecat.reconciliation", "provider", "terminal", 1)
+			observer.Flush(time.Second)
+			serialized, err := json.Marshal(transport.Events())
+			if err != nil {
+				t.Fatal(err)
+			}
+			issues := 0
+			for _, event := range transport.Events() {
+				if len(event.Exception) == 0 {
+					continue
+				}
+				issues++
+				if event.Exception[0].Type != test.causeType || event.Tags["upstream_status"] != fmt.Sprint(test.status) {
+					t.Fatalf("native cause or upstream status lost: %+v", event)
+				}
+				if event.Contexts["diagnostic"]["operation_account_did"] != "did:plc:initiator" || event.Contexts["correlation"]["run_id"] == nil {
+					t.Fatal("failure context lost")
+				}
+			}
+			if issues != 1 {
+				t.Fatalf("issues=%d want1", issues)
+			}
+			for _, wanted := range []string{test.explanation, test.causeType, "revenuecat.reconciliation", fmt.Sprint(test.status)} {
+				if !strings.Contains(local.String(), wanted) || !strings.Contains(string(serialized), wanted) {
+					t.Fatalf("missing positive field %q", wanted)
+				}
+			}
+			for _, forbidden := range []string{"PRIVATE_", "recipient@example.invalid", server.URL, "40000000-0000-4000-8000-000000000001"} {
+				if strings.Contains(local.String()+string(serialized), forbidden) {
+					t.Fatalf("private provider value escaped: %s", forbidden)
+				}
+			}
+		})
+	}
+}
+
+func TestProviderLogStatusDoesNotOverwriteAppViewResponseStatus(t *testing.T) {
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))), LogsEnabled: true, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	cause := &atclient.APIError{StatusCode: 503, Name: "UpstreamFailure", Message: "PRIVATE_PROVIDER"}
+	observer.Log(context.Background(), slog.LevelWarn, "provider request failed", EventContext{"component": "api", "operation": "post.read", "http_status": 502}, slog.Any("causes", DescribeError(cause, EventContext{})))
+	observer.Flush(time.Second)
+	logs := 0
+	for _, event := range transport.Events() {
+		if len(event.Exception) != 0 {
+			t.Fatal("supporting log created an issue")
+		}
+		for _, log := range event.Logs {
+			logs++
+			if fmt.Sprint(log.Attributes["http_status"].AsInterface()) != "502" || fmt.Sprint(log.Attributes["upstream_status"].AsInterface()) != "503" {
+				t.Fatalf("provider status overwrote response: %+v", log.Attributes)
+			}
+		}
+	}
+	if logs != 1 {
+		t.Fatalf("logs=%d want1", logs)
+	}
+	serialized, err := json.Marshal(transport.Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(serialized)+local.String(), "PRIVATE_PROVIDER") {
+		t.Fatal("provider body escaped")
+	}
+}
 
 type diagnosticFCMTransport struct {
 	status                      int

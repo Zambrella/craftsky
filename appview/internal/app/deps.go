@@ -338,7 +338,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	instagramPrivateData := instagramStorage.privateData
 	scheduledAccountDeletion := scheduledLifecycle.accountDeletion
 	scheduledDepartureParticipant := scheduledLifecycle.departureParticipant
-	imageSafetyCapability, err := newImageSafetyDependencies(pool, federated, cfg)
+	imageSafetyCapability, err := newImageSafetyDependencies(pool, federated, cfg, observer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -513,7 +513,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.IdentityInvalidator = identities.invalidator
 	deps.IdentityCacheRefresh = contentRuntime.identityRefresh
 	deps.RelationshipMutations = contentRuntime.relationshipMutations
-	safety, err := newSafetyDependencies(ctx, pool, cfg)
+	safety, err := newSafetyDependencies(ctx, pool, cfg, observer)
 	if err != nil {
 		return nil, nil, err
 	}

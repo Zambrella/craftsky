@@ -1,4 +1,4 @@
-package revenuecat
+package revenuecat_test
 
 import (
 	"bytes"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/integrations/revenuecat"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
@@ -52,7 +53,7 @@ func TestWebhookHandlerRollsBackInterruptedDurableCommit(t *testing.T) {
 	const rawCanary = "raw-receipt-payment-canary"
 	const authCanary = "authorization-private-canary"
 	const signatureCanary = "signature-private-canary"
-	handler, err := NewWebhookHandler(WebhookConfig{
+	handler, err := revenuecat.NewWebhookHandler(revenuecat.WebhookConfig{
 		Authorization: authCanary, SigningSecret: signatureCanary, BodyLimit: 1024,
 		IngressDeadline: 20 * time.Millisecond, SignatureTolerance: time.Minute, Observer: observer,
 	}, store, func() time.Time { return now })

@@ -14,6 +14,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
@@ -557,5 +558,96 @@ func TestNewServerArrivalHasCataloguePathWhileHandlerHeld(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), "credential") || strings.Contains(logs.String(), "opaque private prose") {
 		t.Fatal("protected input leaked")
+	}
+}
+
+type diagnosticBatchProcessor struct {
+	calls      int
+	cancel     context.CancelFunc
+	cause      error
+	sourceOwns bool
+}
+
+func (p *diagnosticBatchProcessor) ProcessBatch(ctx context.Context) (int, error) {
+	p.calls++
+	if p.calls == 3 {
+		p.cancel()
+		return 0, nil
+	}
+	if p.sourceOwns {
+		observability.CaptureRequestDiagnostic(ctx, observability.DiagnosticInput{Error: p.cause, Context: observability.EventContext{"component": "worker", "operation": "test.job", "failure_stage": "query", "result": "error"}})
+	}
+	return 0, p.cause
+}
+
+func TestBatchWorkerPreservesRetryCausesAndSourceIssueOwnership(t *testing.T) {
+	for _, sourceOwns := range []bool{false, true} {
+		t.Run(fmt.Sprintf("sourceOwns=%t", sourceOwns), func(t *testing.T) {
+			const canary = "PRIVATE_WORKER_PROVIDER_CANARY"
+			var logs bytes.Buffer
+			transport := &sentry.MockTransport{}
+			logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&logs, nil)))
+			observer := observability.New(observability.Config{Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx = context.WithValue(ctx, workerObserverKey{}, observer)
+			processor := &diagnosticBatchProcessor{cancel: cancel, cause: &pgconn.PgError{Code: "40001", Message: canary}, sourceOwns: sourceOwns}
+			runBatchWorker(ctx, processor, logger, time.Nanosecond, "worker", "test.batch", true)
+			events := transport.Events()
+			wantIssues := 0
+			if sourceOwns {
+				wantIssues = 2
+			}
+			if len(events) != wantIssues {
+				t.Fatalf("issues = %d, want %d source-owned issues", len(events), wantIssues)
+			}
+			raw, err := json.Marshal(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outputs := []string{logs.String()}
+			if sourceOwns {
+				outputs = append(outputs, string(raw))
+			}
+			for _, output := range outputs {
+				for _, want := range []string{"*pgconn.PgError", "40001"} {
+					if !strings.Contains(output, want) {
+						t.Fatalf("missing %s: %s", want, output)
+					}
+				}
+				if strings.Contains(output, canary) {
+					t.Fatalf("private provider message leaked: %s", output)
+				}
+			}
+		})
+	}
+}
+
+func TestFollowerGrowthFailuresRetainTypedCauseAndEscalateEachExhaustedAttempt(t *testing.T) {
+	const canary = "PRIVATE_FOLLOWER_GROWTH_CANARY"
+	transport := &sentry.MockTransport{}
+	var logs bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&logs, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	ctx := observability.WithCaptureMarker(context.Background())
+	cause := &pgconn.PgError{Code: "40001", Message: canary}
+	for attempt := 1; attempt <= 6; attempt++ {
+		observer.FollowerGrowthFailure(ctx, cause, attempt)
+	}
+	if events := transport.Events(); len(events) != 2 {
+		t.Fatalf("issues = %d, want attempts 5 and 6", len(events))
+	}
+	raw, err := json.Marshal(transport.Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range []string{logs.String(), string(raw)} {
+		for _, want := range []string{"follower_growth.capture", "*pgconn.PgError", "40001"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %s: %s", want, output)
+			}
+		}
+		if strings.Contains(output, canary) {
+			t.Fatalf("private provider message leaked: %s", output)
+		}
 	}
 }

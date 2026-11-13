@@ -133,15 +133,18 @@ func (c *HTTPClient) LookupUsername(ctx context.Context, senderIGSID string) (st
 	query.Set("fields", "username")
 	endpoint.RawQuery = query.Encode()
 
-	response, err := c.do(ctx, http.MethodGet, endpoint, nil)
+	response, status, err := c.do(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
 	}
 	var profile struct {
 		Username string `json:"username"`
 	}
-	if err := json.Unmarshal(response, &profile); err != nil || !validUsername(profile.Username) {
-		return "", &ProviderError{kind: ProviderErrorInvalidResponse}
+	if err := json.Unmarshal(response, &profile); err != nil {
+		return "", &ProviderError{kind: ProviderErrorInvalidResponse, statusCode: status, cause: err}
+	}
+	if !validUsername(profile.Username) {
+		return "", &ProviderError{kind: ProviderErrorInvalidResponse, statusCode: status}
 	}
 	return strings.ToLower(profile.Username), nil
 }
@@ -155,9 +158,9 @@ func (c *HTTPClient) SendReply(ctx context.Context, senderIGSID, text string) er
 		Message:   replyMessage{Text: text},
 	})
 	if err != nil {
-		return &ProviderError{kind: ProviderErrorPermanent}
+		return &ProviderError{kind: ProviderErrorPermanent, cause: err}
 	}
-	_, err = c.do(ctx, http.MethodPost, c.endpoint(c.officialAccountID+"/messages"), payload)
+	_, _, err = c.do(ctx, http.MethodPost, c.endpoint(c.officialAccountID+"/messages"), payload)
 	return err
 }
 
@@ -186,7 +189,7 @@ func (c *HTTPClient) endpoint(path string) *url.URL {
 	return &endpoint
 }
 
-func (c *HTTPClient) do(ctx context.Context, method string, endpoint *url.URL, body []byte) ([]byte, error) {
+func (c *HTTPClient) do(ctx context.Context, method string, endpoint *url.URL, body []byte) ([]byte, int, error) {
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -194,12 +197,12 @@ func (c *HTTPClient) do(ctx context.Context, method string, endpoint *url.URL, b
 	case c.concurrency <- struct{}{}:
 		defer func() { <-c.concurrency }()
 	case <-callCtx.Done():
-		return nil, classifyContextError(callCtx.Err())
+		return nil, 0, classifyContextError(callCtx.Err())
 	}
 
 	request, err := http.NewRequestWithContext(callCtx, method, endpoint.String(), bytes.NewReader(body))
 	if err != nil {
-		return nil, &ProviderError{kind: ProviderErrorPermanent}
+		return nil, 0, &ProviderError{kind: ProviderErrorPermanent, cause: err}
 	}
 	request.Header.Set("Authorization", "Bearer "+c.accessToken)
 	request.Header.Set("Accept", "application/json")
@@ -210,33 +213,37 @@ func (c *HTTPClient) do(ctx context.Context, method string, endpoint *url.URL, b
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		if callCtx.Err() != nil {
-			return nil, classifyContextError(callCtx.Err())
+			return nil, 0, classifyContextError(errors.Join(err, callCtx.Err()))
 		}
-		return nil, &ProviderError{kind: ProviderErrorTransient}
+		return nil, 0, &ProviderError{kind: ProviderErrorTransient, cause: err}
 	}
 	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, c.responseLimit+1))
 	if err != nil {
 		if callCtx.Err() != nil {
-			return nil, classifyContextError(callCtx.Err())
+			failure := classifyContextError(errors.Join(err, callCtx.Err()))
+			if provider, ok := failure.(*ProviderError); ok {
+				provider.statusCode = response.StatusCode
+			}
+			return nil, response.StatusCode, failure
 		}
-		return nil, &ProviderError{kind: ProviderErrorTransient}
+		return nil, response.StatusCode, &ProviderError{kind: ProviderErrorTransient, statusCode: response.StatusCode, cause: err}
 	}
 	if int64(len(responseBody)) > c.responseLimit {
-		return nil, &ProviderError{kind: ProviderErrorInvalidResponse}
+		return nil, 0, &ProviderError{kind: ProviderErrorInvalidResponse, statusCode: response.StatusCode}
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return nil, classifyResponse(response.StatusCode, response.Header.Get("Retry-After"), responseBody)
+		return nil, 0, classifyResponse(response.StatusCode, response.Header.Get("Retry-After"), responseBody)
 	}
-	return responseBody, nil
+	return responseBody, response.StatusCode, nil
 }
 
 func classifyContextError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return context.Canceled
 	}
-	return &ProviderError{kind: ProviderErrorTransient}
+	return &ProviderError{kind: ProviderErrorTransient, cause: err}
 }
 
 func classifyStatus(status int, retryAfterValue string) (result error) {

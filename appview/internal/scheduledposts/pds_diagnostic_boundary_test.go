@@ -190,3 +190,91 @@ func TestIT007ScheduledMediaIOCausesSurviveAcrossSinks(t *testing.T) {
 		})
 	}
 }
+
+type diagnosticCleanupStore struct {
+	CleanupOperationStore
+	retryErr error
+	retries  int
+}
+
+func (*diagnosticCleanupStore) AcquireCleanupEffect(context.Context, CleanupClaim) (CleanupEffectGuard, error) {
+	return diagnosticCleanupGuard{}, nil
+}
+func (*diagnosticCleanupStore) PrepareCleanupDelete(context.Context, CleanupClaim) (bool, error) {
+	return true, nil
+}
+func (s *diagnosticCleanupStore) RetryCleanup(context.Context, CleanupClaim, time.Time, string, time.Time) error {
+	s.retries++
+	return s.retryErr
+}
+
+type diagnosticCleanupGuard struct{}
+
+func (diagnosticCleanupGuard) Release(context.Context) error { return nil }
+
+type diagnosticCleanupFence struct{}
+
+func (diagnosticCleanupFence) WithShared(ctx context.Context, _ []syntax.DID, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
+type diagnosticCleanupObjects struct {
+	PrivateObjectStore
+	stage string
+	cause error
+}
+
+func (o diagnosticCleanupObjects) Delete(context.Context, string) error {
+	if o.stage == "delete" {
+		return o.cause
+	}
+	return nil
+}
+func (o diagnosticCleanupObjects) Exists(context.Context, string) (bool, error) {
+	return false, o.cause
+}
+
+func TestScheduledCleanupRetainsCausesAndIsolatesSiblingFailures(t *testing.T) {
+	for _, stage := range []string{"delete", "existence"} {
+		t.Run(stage, func(t *testing.T) {
+			const canary = "PRIVATE_CLEANUP_PROVIDER_CANARY"
+			const objectKey = "PRIVATE_CLEANUP_OBJECT_CANARY"
+			cause := &pgconn.PgError{Code: "40001", Message: canary}
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			store := &diagnosticCleanupStore{}
+			processor := CleanupProcessor{store: store, objects: diagnosticCleanupObjects{stage: stage, cause: cause}, ownerFence: diagnosticCleanupFence{}, observer: observer, leaseDuration: time.Minute, retryDelay: time.Minute}
+			parent := observability.WithRequestObserver(observability.WithCaptureMarker(context.Background()), observer)
+			ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+			for index, attempt := range []int{1, 5, 5} {
+				claim := CleanupClaim{ID: ids[index], OwnerDID: "did:plc:cleanup-owner", ObjectKey: objectKey, AttemptCount: attempt}
+				if err := processor.processClaim(parent, claim, time.Now()); err != nil {
+					t.Fatalf("consumed retry changed behavior: %v", err)
+				}
+			}
+			if store.retries != 3 {
+				t.Fatalf("retries=%d", store.retries)
+			}
+			if events := transport.Events(); len(events) != 2 {
+				t.Fatalf("issues=%d, want both exhausted sibling jobs", len(events))
+			}
+			exported, err := json.Marshal(transport.Events())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, sink := range []string{local.String(), string(exported)} {
+				for _, want := range []string{"schedule.cleanup", stage, "*pgconn.PgError", "40001", ids[1].String(), ids[2].String(), "did:plc:cleanup-owner"} {
+					if !strings.Contains(sink, want) {
+						t.Fatalf("missing %s: %s", want, sink)
+					}
+				}
+				for _, private := range []string{canary, objectKey} {
+					if strings.Contains(sink, private) {
+						t.Fatalf("private value leaked: %s", sink)
+					}
+				}
+			}
+		})
+	}
+}

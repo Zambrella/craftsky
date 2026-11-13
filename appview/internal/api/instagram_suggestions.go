@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"strconv"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 )
@@ -250,7 +250,7 @@ func writeInstagramSuggestionError(w http.ResponseWriter, r *http.Request, logge
 		errors.Is(err, ownerlifecycle.ErrTerminalOwner):
 		envelope.WriteError(w, http.StatusConflict, "suggestion_unavailable", "suggestion is no longer available", middleware.GetRunID(r.Context()), nil)
 	default:
-		logger.Error("Instagram suggestion operation failed", slog.String("run_id", middleware.GetRunID(r.Context())), slog.String("error_category", "store_or_effect"))
+		logger.ErrorContext(r.Context(), "Instagram suggestion operation failed", apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "instagram.suggestion", "store_or_effect", err)...)
 		envelope.WriteError(w, http.StatusServiceUnavailable, "instagram_unavailable", "Instagram migration unavailable", middleware.GetRunID(r.Context()), nil)
 	}
 }

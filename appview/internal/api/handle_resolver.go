@@ -118,14 +118,14 @@ func (r DevHandleResolver) ResolveHandle(ctx context.Context, did syntax.DID) (s
 	var exists bool
 	if err := r.Pool.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM bluesky_profiles WHERE did = $1)`, did.String()).Scan(&exists); err != nil {
-		return "", fmt.Errorf("%w: dev fallback lookup: %v", ErrHandleUnavailable, err)
+		return "", fmt.Errorf("%w: dev fallback lookup: %w", ErrHandleUnavailable, err)
 	}
 	if !exists {
 		return "", fmt.Errorf("%w: no local profile for %s", ErrHandleUnavailable, did)
 	}
 	handle, err := syntax.ParseHandle(localHandleForDID(did.String()))
 	if err != nil {
-		return "", fmt.Errorf("%w: build local handle: %v", ErrHandleUnavailable, err)
+		return "", fmt.Errorf("%w: build local handle: %w", ErrHandleUnavailable, err)
 	}
 	return handle, nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/subscriptions"
 )
 
@@ -29,6 +30,7 @@ func GetProfilePinsHandler(reader ProfilePinReader) http.Handler {
 		}
 		state, err := reader.Read(r.Context(), owner)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "profile.pin.read", "store")
 			writeProfilePinError(w, r, http.StatusInternalServerError, "internal_error", "profile pin read failed")
 			return
 		}
@@ -116,6 +118,7 @@ func writeProfilePinMutationError(w http.ResponseWriter, r *http.Request, err er
 	case errors.Is(err, ErrProfilePinNotAllowed):
 		writeProfilePinError(w, r, http.StatusUnprocessableEntity, "pin_not_allowed", "post cannot be pinned")
 	default:
+		observability.ReportRequestFailure(r.Context(), err, "profile.pin.mutation", "store")
 		writeProfilePinError(w, r, http.StatusInternalServerError, "internal_error", "profile pin mutation failed")
 	}
 }

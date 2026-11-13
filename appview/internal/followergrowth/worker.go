@@ -13,6 +13,7 @@ type Capturer interface {
 
 type WorkerObserver interface {
 	FollowerGrowthCapture(context.Context, string, string, time.Duration, int64, *time.Duration)
+	FollowerGrowthFailure(context.Context, error, int)
 }
 
 type workerTimer interface {
@@ -61,6 +62,7 @@ func NewWorker(capturer Capturer, options ...workerOption) *Worker {
 }
 
 func (w *Worker) Run(ctx context.Context) error {
+	consecutiveFailures := 0
 	for {
 		now := w.now()
 		utcNow := now.UTC()
@@ -77,8 +79,13 @@ func (w *Worker) Run(ctx context.Context) error {
 			if err != nil {
 				outcome = "error"
 				category = "capture"
+				consecutiveFailures++
+				w.observer.FollowerGrowthFailure(ctx, err, consecutiveFailures)
 			} else if result.AlreadyCompleted {
 				outcome = "already_complete"
+			}
+			if err == nil {
+				consecutiveFailures = 0
 			}
 			w.observer.FollowerGrowthCapture(
 				ctx,

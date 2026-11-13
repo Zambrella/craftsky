@@ -48,7 +48,7 @@ func newAuthorityWorkers(
 		return nil, fmt.Errorf("OAuth revocation processor: %w", err)
 	}
 	authAuxiliaryCleanup, err := auth.NewAuxiliaryCleanupProcessor(auth.AuxiliaryCleanupProcessorOptions{
-		Pool: pool, Cleaner: notificationStore, Now: time.Now,
+		Pool: pool, Cleaner: notificationStore, Observer: observer, Now: time.Now,
 		BatchSize: cfg.AuthAuxiliaryCleanupBatchSize, LeaseDuration: cfg.AuthAuxiliaryCleanupLeaseDuration,
 		OperationTimeout: cfg.AuthAuxiliaryCleanupOperationTimeout, MaxAttempts: cfg.AuthAuxiliaryCleanupMaxAttempts,
 		BaseBackoff: cfg.AuthAuxiliaryCleanupBackoffMin, MaxBackoff: cfg.AuthAuxiliaryCleanupBackoffMax,

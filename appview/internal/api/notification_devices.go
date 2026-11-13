@@ -237,7 +237,7 @@ func RegisterNotificationDeviceHandler(store NotificationDeviceStore, logger *sl
 		}
 		routingID, err := store.RegisterNotificationDevice(r.Context(), did.String(), deviceID, request.Platform, request.Token)
 		if err != nil {
-			logger.Error("notification device registration failed")
+			logger.ErrorContext(r.Context(), "notification device registration failed", apiLogErrorAttrs(r.Context(), runID, "notification.device.register", "store", err)...)
 			envelope.WriteError(w, 500, "internal_error", "device registration failed", runID, nil)
 			return
 		}
@@ -268,7 +268,7 @@ func RemoveNotificationDeviceHandler(store NotificationDeviceStore, logger *slog
 			return
 		}
 		if err != nil {
-			logger.Error("notification subscription removal failed")
+			logger.ErrorContext(r.Context(), "notification subscription removal failed", apiLogErrorAttrs(r.Context(), runID, "notification.device.remove", "store", err)...)
 			envelope.WriteError(w, 500, "internal_error", "subscription removal failed", runID, nil)
 			return
 		}

@@ -91,7 +91,7 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 		}
 		next, err := c.resolveNextPage(*response.NextPage, endpointPath)
 		if err != nil {
-			return subscriptions.CompleteSnapshot{}, errors.New("invalid RevenueCat pagination URL")
+			return subscriptions.CompleteSnapshot{}, fmt.Errorf("invalid RevenueCat pagination URL: %w", err)
 		}
 		pageURL = next
 	}
@@ -142,28 +142,28 @@ type subscriptionResource struct {
 func (c *Client) fetchPage(ctx context.Context, endpoint string) (subscriptionPage, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return subscriptionPage{}, fmt.Errorf("create RevenueCat request: %w", err)
+		return subscriptionPage{}, &ProviderError{stage: "create", cause: err}
 	}
 	request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	request.Header.Set("Accept", "application/json")
 	response, err := c.http.Do(request)
 	if err != nil {
-		return subscriptionPage{}, errors.New("RevenueCat request failed")
+		return subscriptionPage{}, &ProviderError{stage: "request", cause: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return subscriptionPage{}, fmt.Errorf("RevenueCat request returned status %d", response.StatusCode)
+		return subscriptionPage{}, &ProviderError{stage: "response", statusCode: response.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, c.config.MaxResponseBytes+1))
 	if err != nil {
-		return subscriptionPage{}, errors.New("read RevenueCat response")
+		return subscriptionPage{}, &ProviderError{stage: "read", statusCode: response.StatusCode, cause: err}
 	}
 	if int64(len(body)) > c.config.MaxResponseBytes {
-		return subscriptionPage{}, errors.New("RevenueCat response exceeds configured limit")
+		return subscriptionPage{}, &ProviderError{stage: "oversized", statusCode: response.StatusCode}
 	}
 	var page subscriptionPage
 	if err := json.Unmarshal(body, &page); err != nil {
-		return subscriptionPage{}, errors.New("invalid RevenueCat response")
+		return subscriptionPage{}, &ProviderError{stage: "decode", statusCode: response.StatusCode, cause: err}
 	}
 	return page, nil
 }

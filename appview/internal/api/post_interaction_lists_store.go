@@ -456,7 +456,7 @@ func (s *PostStore) ListQuotePostResponses(
 	handleDIDs := append(append([]syntax.DID(nil), subjects...), target.Author)
 	handles, err := s.postInteractionHandles(ctx, handleDIDs)
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", ErrPostInteractionIdentityUnavailable, err)
+		return nil, "", fmt.Errorf("%w: %w", ErrPostInteractionIdentityUnavailable, err)
 	}
 	resolver := fixedHandleResolver(handles)
 
@@ -471,7 +471,7 @@ func (s *PostStore) ListQuotePostResponses(
 	}
 	if err := attachQuoteViews(ctx, s, resolver, items); err != nil {
 		if errors.Is(err, ErrHandleUnavailable) {
-			return nil, "", fmt.Errorf("%w: %v", ErrPostInteractionIdentityUnavailable, err)
+			return nil, "", fmt.Errorf("%w: %w", ErrPostInteractionIdentityUnavailable, err)
 		}
 		return nil, "", err
 	}

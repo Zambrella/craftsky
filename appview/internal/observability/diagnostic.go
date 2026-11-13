@@ -19,7 +19,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
+	"social.craftsky/appview/internal/integrations/revenuecat"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
+	"social.craftsky/appview/internal/linkpreview"
 )
 
 // DiagnosticCause contains selected error details, never an unknown error's
@@ -64,6 +66,18 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 			cause.Message = current.DiagnosticMessage()
 		case *DiagnosticError:
 			cause.Message = boundDiagnosticText(current.Message, 512)
+		case *revenuecat.ProviderError:
+			cause.Message = current.DiagnosticMessage()
+			if status := current.StatusCode(); status >= 100 && status <= 599 {
+				cause.Code = strconv.Itoa(status)
+				cause.Message += " (HTTP " + cause.Code + ")"
+			}
+		case *linkpreview.UpstreamError:
+			cause.Message = "link preview upstream failed"
+			if status := current.StatusCode(); status >= 100 && status <= 599 {
+				cause.Code = strconv.Itoa(status)
+				cause.Message += " (HTTP " + cause.Code + ")"
+			}
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
 			cause.Message = sanitizeKnownDiagnosticText(current.Error())
 		}

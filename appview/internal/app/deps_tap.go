@@ -146,7 +146,7 @@ func newTapDependencies(
 		WorkerID: "appview-tap-quarantine", PollInterval: cfg.TapQuarantinePollInterval,
 		LeaseDuration:    cfg.TapQuarantineLeaseDuration,
 		OperationTimeout: cfg.TapQuarantineOperationTimeout,
-		BatchSize:        cfg.TapQuarantineBatchSize, Logger: logger,
+		BatchSize:        cfg.TapQuarantineBatchSize, Logger: logger, Observer: observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tap quarantine replay worker: %w", err)

@@ -2,12 +2,12 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"slices"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,6 +17,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
@@ -124,7 +125,7 @@ func PutBusinessProfileHandler(
 					return acceptedBusinessProfilePutResult(owner, authoritative)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return rejectedBusinessProfileResult(runID, err)
+					return rejectedBusinessProfileResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -288,7 +289,7 @@ func DeleteBusinessProfileHandler(
 					return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -563,10 +564,10 @@ func buildBusinessProfileReplacement(current json.RawMessage, replacement map[st
 	return business.MergeProfileReplacement(current, raw)
 }
 
-func rejectedBusinessProfileResult(runID string, err error) pdscommands.TerminalResult {
+func rejectedBusinessProfileResult(runID string, err error, contexts ...context.Context) pdscommands.TerminalResult {
 	var fieldErr *FieldError
 	if !errors.As(err, &fieldErr) {
-		return RejectedCommandResult(runID, err)
+		return RejectedCommandResult(runID, err, contexts...)
 	}
 	body, _ := json.Marshal(envelope.Error{Error: fieldErr.Code, Message: "invalid business profile", RequestID: runID, Fields: fieldErr.Fields})
 	return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusUnprocessableEntity, ResponseBody: body}

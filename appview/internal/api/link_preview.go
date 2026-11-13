@@ -10,6 +10,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/linkpreview"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type LinkPreviewService interface {
@@ -62,6 +63,9 @@ func LinkPreviewHandler(service LinkPreviewService, enabled bool, observers ...L
 		preview, err := service.FetchPreview(r.Context(), target.String())
 		if err != nil {
 			status, errorClass := linkPreviewErrorTelemetry(err)
+			if status >= http.StatusInternalServerError {
+				observability.ReportRequestFailure(r.Context(), err, "link.preview", "fetch")
+			}
 			observeLinkPreview(observer, "fetch", "failed", errorClass, status, 0, started)
 			writeLinkPreviewError(w, runID, err)
 			return

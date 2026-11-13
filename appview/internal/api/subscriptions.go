@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -12,6 +11,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/subscriptions"
 )
 
@@ -39,7 +39,7 @@ func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time
 		}
 		_, created, err := store.EnsureAccount(r.Context(), owner)
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		status := http.StatusOK
@@ -48,7 +48,7 @@ func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time
 		}
 		state, err := store.OwnerState(r.Context(), owner, now())
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, status, state)
@@ -63,7 +63,7 @@ func GetBillingAccountHandler(store BillingAccountStore, now func() time.Time) h
 		}
 		account, err := store.OwnerState(r.Context(), owner, now())
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, http.StatusOK, account)
@@ -97,7 +97,7 @@ func RequestSubscriptionReconciliationHandler(store BillingAccountStore, now fun
 			err = store.RequestReconciliation(r.Context(), account.ID, now())
 		}
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
@@ -137,7 +137,7 @@ func AssignSubscriptionLicenseHandler(store SubscriptionAssignmentStore, now fun
 			OwnerDID: owner, LicenseID: licenseID, TargetDID: target, DeviceID: deviceID, Now: now(),
 		})
 		if err != nil {
-			writeAssignmentError(w, middleware.GetRunID(r.Context()), err)
+			writeAssignmentError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, http.StatusOK, assignment)
@@ -156,14 +156,15 @@ func UnassignSubscriptionLicenseHandler(store SubscriptionAssignmentStore, now f
 			return
 		}
 		if err := store.Unassign(r.Context(), subscriptions.UnassignParams{OwnerDID: owner, LicenseID: licenseID, Now: now()}); err != nil {
-			writeAssignmentError(w, middleware.GetRunID(r.Context()), err)
+			writeAssignmentError(w, r, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
 
-func writeAssignmentError(w http.ResponseWriter, runID string, err error) {
+func writeAssignmentError(w http.ResponseWriter, r *http.Request, err error) {
+	runID := middleware.GetRunID(r.Context())
 	switch {
 	case errors.Is(err, subscriptions.ErrLicenseNotFound):
 		envelope.WriteError(w, http.StatusNotFound, "billing_license_not_found", "billing license not found", runID, nil)
@@ -174,6 +175,7 @@ func writeAssignmentError(w http.ResponseWriter, runID string, err error) {
 	case errors.Is(err, subscriptions.ErrAssignmentCooldown):
 		envelope.WriteError(w, http.StatusConflict, "assignment_cooldown", "license assignment cannot be changed yet", runID, nil)
 	default:
+		observability.ReportRequestFailure(r.Context(), err, "subscription.assignment", "store")
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "billing operation failed", runID, nil)
 	}
 }
@@ -187,10 +189,12 @@ func subscriptionOwnerScope(w http.ResponseWriter, r *http.Request) (syntax.DID,
 	return owner, true
 }
 
-func writeBillingAccountError(w http.ResponseWriter, runID string, err error) {
+func writeBillingAccountError(w http.ResponseWriter, r *http.Request, err error) {
+	runID := middleware.GetRunID(r.Context())
 	if errors.Is(err, subscriptions.ErrBillingAccountNotFound) {
 		envelope.WriteError(w, http.StatusNotFound, "billing_account_not_found", "billing account not found", runID, nil)
 		return
 	}
+	observability.ReportRequestFailure(r.Context(), err, "billing.account", "store")
 	envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "billing operation failed", runID, nil)
 }

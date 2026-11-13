@@ -84,7 +84,7 @@ func TestDevelopmentImageAutoApprovalDefaultAndOptInScanner(t *testing.T) {
 		t.Fatalf("unexpected default: %+v", cfg.ImageSafety)
 	}
 	// Nil dependencies prove the bypass neither builds a fetcher nor a worker.
-	deps, err := newImageSafetyDependencies(nil, nil, cfg)
+	deps, err := newImageSafetyDependencies(nil, nil, cfg, nil)
 	if err != nil || deps == nil || deps.worker != nil {
 		t.Fatalf("dependencies=%+v err=%v", deps, err)
 	}
