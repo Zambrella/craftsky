@@ -30,20 +30,18 @@ void main() {
         ),
         home: SubscriptionPageView(
           model: SubscriptionPageModel(
-            role: SubscriptionPageRole.owner,
             access: SubscriptionAccess(
               did: Did.parse('did:plc:alice'),
               effectiveTier: SubscriptionTier.plus,
               givesAccess: true,
             ),
             billingAvailability: BillingAvailability.available,
+            nativeStore: 'app_store',
             billingState: _state(),
             onPurchase: (_) {},
             onRestore: () {},
             onManage: () {},
             onRefresh: () {},
-            onAssign: (_) {},
-            onUnassign: (_) {},
           ),
         ),
       ),
@@ -56,7 +54,6 @@ void main() {
     );
     for (final finder in [
       find.byKey(const ValueKey('subscription-view-details-plus')),
-      find.text('Assign license'),
       find.byKey(const ValueKey('subscription-view-details-business')),
       find.text('Restore purchases'),
       find.text('Manage subscription'),

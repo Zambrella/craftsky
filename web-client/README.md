@@ -18,6 +18,46 @@ in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 See [ADR 024](../docs/adr/024-public-server-rendered-web-client.md) and
 [ADR 025](../docs/adr/025-browser-consumer-handoff.md).
 
+## Account subscriptions and Stripe checkout
+
+Each CraftSky DID owns a separate RevenueCat customer identified by a private
+AppView-generated UUID. The web client never accepts a customer ID from a URL or
+asks a member to choose a billing owner or assign a licence.
+
+The subscriptions page sends only the selected `plus` or `business` tier to
+`POST /v1/billing/web-checkout`. AppView checks current provider state and creates
+an account-owned Stripe Checkout session. Stripe Managed Payments must be enabled
+on the session, with Stripe owning tax liability; there is no ordinary-billing
+fallback. The client accepts only the canonical HTTPS `checkout.stripe.com`
+Checkout destination and preserves its private fragment unchanged. Configure the
+Stripe account, server API key, price mappings and fixed return URLs on AppView;
+see the [configuration reference](../docs/development/configuration-reference.md).
+No Stripe secret key, RevenueCat secret key or public Web SDK key is required in
+the frontend. Missing configuration hides purchase controls.
+
+Plus and Business are alternatives for one account. Web tier changes are deferred:
+active subscriptions, canceled paid-through periods, pending payments and
+unresolved provider states prevent a second checkout. AppView retains a pending
+checkout so retrying the same plan recovers that session and another plan cannot
+open a concurrent payment. A member may choose another tier after the original
+subscription has ended.
+
+Apple and Google subscriptions are managed through their store pages. The
+**Manage in Stripe** button calls authenticated `POST /v1/billing/web-management`
+without a customer identifier. AppView resolves this DID's Stripe customer and
+returns a short-lived customer-specific portal session. The client permits only
+HTTPS `billing.stripe.com/p/session/…` destinations; shared email-login portal
+links are not used, because multiple DIDs can have the same payer email. If
+account-specific management is unavailable, the page directs the member to their
+Stripe receipt's management link.
+
+After returning from checkout or management, the page requests provider
+reconciliation. A success redirect or query parameter never grants paid access;
+AppView's subscription access response remains authoritative. Responses arriving
+after an account change or closing the view cannot open a billing page for the
+previous account. Checkout and portal session URLs are private capabilities and
+must not be logged or included in diagnostics.
+
 ## Local development and checks
 
 Use Node 24 (minimum 22.17) and Docker. From the repository root:

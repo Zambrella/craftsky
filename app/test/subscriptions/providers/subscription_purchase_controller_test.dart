@@ -5,11 +5,106 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_purchase_controller.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('same-store upgrade replaces the plan and completes '
+      'same-ID access', () async {
+    final before = _state(1, 1, licenses: [_pair('old')]);
+    final after = _state(
+      2,
+      2,
+      licenses: [_pair('old', tier: SubscriptionTier.business)],
+    );
+    var changes = 0;
+    var purchases = 0;
+    final result = await _controller(
+      _ScriptedApi([before, before, after]),
+      nativeStore: 'app_store',
+      allowNativeTierChanges: true,
+      presentPlanChange: (_, _) async {
+        changes++;
+        return PaywallOutcome.reconcile;
+      },
+      presentPaywall: (_, _) async {
+        purchases++;
+        return PaywallOutcome.reconcile;
+      },
+    ).purchase(SubscriptionTier.business);
+    expect(result.outcome, SubscriptionPurchaseOutcome.completed);
+    expect(changes, 1);
+    expect(purchases, 0);
+  });
+  test(
+    'deferred downgrade confirms Plus while keeping Business active',
+    () async {
+      final before = _state(
+        1,
+        1,
+        licenses: [_pair('old', tier: SubscriptionTier.business)],
+      );
+      final after = _state(
+        2,
+        2,
+        licenses: [
+          _pair(
+            'old',
+            tier: SubscriptionTier.business,
+            pendingTier: SubscriptionTier.plus,
+            renewal: 'will_change_product',
+          ),
+        ],
+      );
+      final result = await _controller(
+        _ScriptedApi([before, before, after]),
+        nativeStore: 'play_store',
+        allowNativeTierChanges: true,
+        presentPlanChange: (_, _) async => PaywallOutcome.reconcile,
+      ).purchase(SubscriptionTier.plus);
+      // An App Store plan cannot be replaced through Play.
+      expect(result.outcome, SubscriptionPurchaseOutcome.notEligible);
+      final native = await _controller(
+        _ScriptedApi([before, before, after]),
+        nativeStore: 'app_store',
+        allowNativeTierChanges: true,
+        presentPlanChange: (_, _) async => PaywallOutcome.reconcile,
+      ).purchase(SubscriptionTier.plus);
+      expect(native.outcome, SubscriptionPurchaseOutcome.completed);
+      expect(native.state?.licenses.single.tier, SubscriptionTier.business);
+      expect(
+        native.state?.subscriptions.single.pendingTier,
+        SubscriptionTier.plus,
+      );
+    },
+  );
+
+  for (final stores in [
+    ('app_store', 'play_store'),
+    ('play_store', 'app_store'),
+  ]) {
+    test(
+      'dispatch blocks ${stores.$2} subscription from checkout in ${stores.$1}',
+      () async {
+        final api = _ScriptedApi([
+          _state(1, 1, licenses: [_pair('old', store: stores.$2)]),
+        ]);
+        var presentations = 0;
+        final result = await _controller(
+          api,
+          nativeStore: stores.$1,
+          presentPaywall: (_, _) async {
+            presentations++;
+            return PaywallOutcome.reconcile;
+          },
+        ).purchase(SubscriptionTier.business);
+        expect(result.outcome, SubscriptionPurchaseOutcome.notEligible);
+        expect(presentations, 0);
+      },
+    );
+  }
+
   test(
     'IT-006 new purchase completes unassigned and requests assignment',
     () async {
@@ -20,11 +115,6 @@ void main() {
       ]);
 
       expect(result.outcome, SubscriptionPurchaseOutcome.completed);
-      expect(result.requiresAssignment, isTrue);
-      expect(
-        result.assignmentLicense?.id,
-        '40000000-0000-4000-8000-000000000002',
-      );
     },
   );
 
@@ -38,7 +128,6 @@ void main() {
     ]);
 
     expect(result.outcome, SubscriptionPurchaseOutcome.anomaly);
-    expect(result.assignmentLicense, isNull);
     expect(result.retry, isNull);
   });
 
@@ -61,7 +150,6 @@ void main() {
     ]);
 
     expect(result.outcome, SubscriptionPurchaseOutcome.anomaly);
-    expect(result.assignmentLicense, isNull);
     expect(result.retry, isNull);
   });
 
@@ -81,7 +169,6 @@ void main() {
     ]);
 
     expect(result.outcome, SubscriptionPurchaseOutcome.completed);
-    expect(result.requiresAssignment, isFalse);
     expect(result.state?.licenses.single.assignedDid, Did.parse('did:plc:bob'));
   });
 
@@ -103,7 +190,6 @@ void main() {
       ]);
 
       expect(result.outcome, SubscriptionPurchaseOutcome.completed);
-      expect(result.requiresAssignment, isTrue);
       expect(
         result.state?.licenses.first.assignedDid,
         Did.parse('did:plc:bob'),
@@ -225,7 +311,7 @@ void main() {
 
     await expectLater(
       controller.purchase(SubscriptionTier.plus),
-      throwsA(isA<BillingOwnerGuardException>()),
+      throwsA(isA<BillingAccountGuardException>()),
     );
     expect(presentations, 0);
   });
@@ -240,7 +326,6 @@ void main() {
     ]);
 
     expect(result.outcome, SubscriptionPurchaseOutcome.pending);
-    expect(result.assignmentLicense, isNull);
   });
 
   test(
@@ -316,7 +401,6 @@ void main() {
 
       final retried = await result.retry!();
       expect(retried.outcome, SubscriptionPurchaseOutcome.completed);
-      expect(retried.requiresAssignment, isTrue);
       expect(api.reconciliationCalls, 1);
       expect(presentations, 1);
     },
@@ -469,7 +553,6 @@ void main() {
       final retried = await pending.retry!();
 
       expect(retried.outcome, SubscriptionPurchaseOutcome.completed);
-      expect(retried.requiresAssignment, isTrue);
       expect(api.reconciliationCalls, 1);
       expect(presentations, 1);
     },
@@ -483,7 +566,11 @@ Future<SubscriptionPurchaseResult> _runPurchase(List<BillingState> states) {
 
 SubscriptionPurchaseController _controller(
   _ScriptedApi api, {
-  Future<PaywallOutcome> Function(BillingOwnerLease, SubscriptionTier)?
+  String? nativeStore,
+  bool allowNativeTierChanges = false,
+  Future<PaywallOutcome> Function(BillingAccountLease, SubscriptionTier)?
+  presentPlanChange,
+  Future<PaywallOutcome> Function(BillingAccountLease, SubscriptionTier)?
   presentPaywall,
   bool Function()? isCurrent,
   bool Function()? isForeground,
@@ -493,8 +580,11 @@ SubscriptionPurchaseController _controller(
 }) {
   final registry = readRegistry ?? _ownerRegistry;
   return SubscriptionPurchaseController(
-    ownerGuard: BillingOwnerGuard(registry),
+    ownerGuard: BillingAccountGuard(registry),
     api: api,
+    nativeStore: nativeStore,
+    allowNativeTierChanges: allowNativeTierChanges,
+    presentPlanChange: presentPlanChange,
     presentPaywall: presentPaywall ?? (_, _) async => PaywallOutcome.reconcile,
     wait: (_) async {},
     isCurrent: isCurrent ?? () => true,
@@ -518,8 +608,7 @@ SessionRegistry _ownerRegistry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );
@@ -556,6 +645,8 @@ BillingState _state(
   bool givesAccess = true,
   String? renewal = 'will_renew',
   String? assigned,
+  String store = 'app_store',
+  SubscriptionTier? pendingTier,
   SubscriptionTier tier = SubscriptionTier.plus,
   String anomaly = 'none',
 }) {
@@ -569,11 +660,12 @@ BillingState _state(
     subscription: BillingSubscription(
       id: subscriptionId,
       productId: 'craftsky_plus_$suffix',
-      store: 'app_store',
+      store: store,
       status: 'active',
       givesAccess: givesAccess,
       pendingPayment: false,
       autoRenewalStatus: renewal,
+      pendingTier: pendingTier,
       anomaly: anomaly,
     ),
     license: BillingLicense(
@@ -619,15 +711,8 @@ final class _ScriptedApi implements SubscriptionApi {
   }
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
   Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
 
   @override
   Future<SubscriptionAccess> getAccess() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }

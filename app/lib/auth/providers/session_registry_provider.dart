@@ -59,12 +59,9 @@ class SessionRegistry extends _$SessionRegistry {
   Future<void> clearAccountDeletion(String jobId) =>
       _mutate((current) => current.clearAccountDeletion(jobId));
 
-  Future<void> reserveBillingOwner(String did) =>
-      _mutate((current) => current.reserveBillingOwner(did));
-
-  Future<void> completeBillingOwner(String did, String revenueCatAppUserId) =>
+  Future<void> setBillingCustomer(String did, String revenueCatAppUserId) =>
       _mutate(
-        (current) => current.completeBillingOwner(did, revenueCatAppUserId),
+        (current) => current.setBillingCustomer(did, revenueCatAppUserId),
       );
 
   Future<void> invalidate(AccountSessionLease lease) {

@@ -89,33 +89,39 @@ final class ReconciliationTracker {
     BillingState baseline,
     BillingState current,
   ) {
-    final baselineLicenseIds = baseline.licenses
-        .map((value) => value.id)
-        .toSet();
-    final tierLicenses = current.licenses.where(
-      (value) => expectedTier == null || value.tier == expectedTier,
-    );
+    if (expectedTier != null &&
+        current.subscriptions.any(
+          (subscription) =>
+              subscription.givesAccess &&
+              !subscription.pendingPayment &&
+              !isBillingAnomaly(subscription.anomaly) &&
+              subscription.pendingTier == expectedTier &&
+              subscription.autoRenewalStatus == 'will_change_product',
+        )) {
+      return true;
+    }
+    final previousLicenses = {
+      for (final value in baseline.licenses) value.id: value,
+    };
+    final previousSubscriptions = {
+      for (final value in baseline.subscriptions) value.id: value,
+    };
     final subscriptions = {
       for (final value in current.subscriptions) value.id: value,
     };
-    if (tierLicenses.any(
-      (value) =>
-          !baselineLicenseIds.contains(value.id) &&
-          (subscriptions[value.subscriptionId]?.givesAccess ?? false),
-    )) {
-      return true;
-    }
-    final baselineSubscriptions = {
-      for (final value in baseline.subscriptions) value.id: value,
-    };
-    final tierSubscriptionIds = tierLicenses
-        .map((value) => value.subscriptionId)
-        .toSet();
-    return current.subscriptions.any((value) {
-      if (!tierSubscriptionIds.contains(value.id)) return false;
-      final previous = baselineSubscriptions[value.id];
-      return previous != null && !previous.givesAccess && value.givesAccess;
-    });
+    return current.licenses
+        .where((value) => expectedTier == null || value.tier == expectedTier)
+        .any((license) {
+          final subscription = subscriptions[license.subscriptionId];
+          if (subscription == null || !subscription.givesAccess) return false;
+          final previousLicense = previousLicenses[license.id];
+          final previous = previousSubscriptions[license.subscriptionId];
+          return previousLicense == null ||
+              previous == null ||
+              !previous.givesAccess ||
+              previousLicense.tier != license.tier ||
+              previous.productId != subscription.productId;
+        });
   }
 
   bool _hasInvalidNewPurchaseLicense(

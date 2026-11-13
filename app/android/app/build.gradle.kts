@@ -69,5 +69,7 @@ flutter {
 }
 
 dependencies {
+    // Match the BillingClient version used by purchases_flutter 10.15.2.
+    implementation("com.android.billingclient:billing:8.3.0")
     androidTestUtil("androidx.test:orchestrator:1.5.1")
 }

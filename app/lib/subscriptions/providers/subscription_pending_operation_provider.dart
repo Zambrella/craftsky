@@ -1,17 +1,12 @@
-import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum PendingSubscriptionOperationKind {
   purchase,
   restore,
   customerCenter,
-  assignment,
-  unassignment,
 }
 
 enum PendingSubscriptionOperationPhase { nativeInFlight, reconciliationPending }
@@ -23,7 +18,6 @@ final class PendingSubscriptionOperation {
     required this.ownerDid,
     this.beforeProvider,
     this.tier,
-    this.licenseId,
   });
 
   const new purchaseInFlight(
@@ -79,32 +73,11 @@ final class PendingSubscriptionOperation {
         ownerDid: ownerDid,
       );
 
-  const new assignmentInFlight(
-    Did ownerDid,
-    String licenseId,
-  ) : this._(
-        kind: PendingSubscriptionOperationKind.assignment,
-        phase: PendingSubscriptionOperationPhase.nativeInFlight,
-        ownerDid: ownerDid,
-        licenseId: licenseId,
-      );
-
-  const new unassignmentInFlight(
-    Did ownerDid,
-    String licenseId,
-  ) : this._(
-        kind: PendingSubscriptionOperationKind.unassignment,
-        phase: PendingSubscriptionOperationPhase.nativeInFlight,
-        ownerDid: ownerDid,
-        licenseId: licenseId,
-      );
-
   final PendingSubscriptionOperationKind kind;
   final PendingSubscriptionOperationPhase phase;
   final Did ownerDid;
   final SubscriptionTier? tier;
   final BillingState? beforeProvider;
-  final String? licenseId;
 
   bool get canReconcile =>
       phase == PendingSubscriptionOperationPhase.reconciliationPending;
@@ -136,24 +109,6 @@ final class SubscriptionPendingOperationController
   bool beginCustomerCenter(Did ownerDid) {
     if (state != null) return false;
     state = PendingSubscriptionOperation.customerCenterInFlight(ownerDid);
-    return true;
-  }
-
-  bool beginAssignment(Did ownerDid, String licenseId) {
-    if (state != null) return false;
-    state = PendingSubscriptionOperation.assignmentInFlight(
-      ownerDid,
-      licenseId,
-    );
-    return true;
-  }
-
-  bool beginUnassignment(Did ownerDid, String licenseId) {
-    if (state != null) return false;
-    state = PendingSubscriptionOperation.unassignmentInFlight(
-      ownerDid,
-      licenseId,
-    );
     return true;
   }
 
@@ -195,19 +150,6 @@ final class SubscriptionPendingOperationController
     state = PendingSubscriptionOperation.customerCenterPending(
       current.ownerDid,
     );
-  }
-
-  void completeAssignmentMutation({
-    required PendingSubscriptionOperationKind kind,
-    AccountSessionLease? affectedTarget,
-  }) {
-    final current = state;
-    if (current == null || current.kind != kind) return;
-    state = null;
-    ref.invalidate(subscriptionPageModelProvider);
-    if (affectedTarget != null) {
-      ref.invalidate(subscriptionAccessProvider(affectedTarget));
-    }
   }
 
   void clear() => state = null;

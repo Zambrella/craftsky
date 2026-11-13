@@ -1,10 +1,9 @@
 import 'dart:io';
 
-import 'package:craftsky_app/auth/models/billing_owner_binding.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,10 +13,6 @@ void main() {
     const token = 'secret-session-token';
     const transaction = 'transaction-provider-999';
     final values = <Object>[
-      BillingOwnerBinding(
-        did: 'did:plc:sensitive',
-        revenueCatAppUserId: uuid,
-      ),
       const BillingState(
         billingAccountId: uuid,
         revenueCatAppUserId: uuid,
@@ -32,7 +27,7 @@ void main() {
         effectiveTier: SubscriptionTier.plus,
         givesAccess: true,
       ),
-      const BillingOwnerGuardException('owner_session_changed'),
+      const BillingAccountGuardException('owner_session_changed'),
       const RevenueCatUnavailableException(),
     ];
 
@@ -48,8 +43,6 @@ void main() {
     ).readAsStringSync();
 
     expect(source, isNot(contains('setLogHandler')));
-    expect(source, isNot(contains('PlatformException')));
-    expect(source, isNot(contains('CustomerInfo')));
     expect(source, isNot(contains('logOut')));
   });
 }

@@ -86,7 +86,7 @@ final class ExtendedNetworkProvider
   ExtendedNetwork create() => ExtendedNetwork();
 }
 
-String _$extendedNetworkHash() => r'7a878812c2746a32649272bd2d96fbaf63f91ee1';
+String _$extendedNetworkHash() => r'2e00b8158326b913cbc5dd1abd3837b7b4bf2515';
 
 /// Retained chronological feed of indexed second-degree connections.
 

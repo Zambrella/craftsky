@@ -115,7 +115,7 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 		t.Fatalf("seed account type: %v", err)
 	}
 	for _, statement := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:billing-owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:business-lifecycle-owner','20000000-0000-4000-8000-000000000001')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:business-lifecycle-owner',now())`,
 	} {

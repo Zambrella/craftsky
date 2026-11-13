@@ -2,6 +2,7 @@ package revenuecat
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -276,5 +277,67 @@ func TestClientProviderErrorsDoNotExposeResponseCanaries(t *testing.T) {
 	_, err = client.ListCustomerSubscriptions(context.Background(), uuid.New())
 	if err == nil || strings.Contains(err.Error(), canary) {
 		t.Fatalf("provider error = %v, want generic error without canary", err)
+	}
+}
+
+func TestFirstWebCustomerIsCreatedBeforeEmptySnapshotIsAccepted(t *testing.T) {
+	customer := uuid.New()
+	for _, tc := range []struct {
+		name         string
+		createStatus int
+		afterStatus  int
+		wantError    bool
+	}{
+		{"created", http.StatusCreated, http.StatusOK, false},
+		{"concurrent SDK creation", http.StatusConflict, http.StatusOK, false},
+		{"missing project", http.StatusNotFound, http.StatusNotFound, true},
+		{"insufficient create scope", http.StatusForbidden, http.StatusNotFound, true},
+		{"read still missing", http.StatusCreated, http.StatusNotFound, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reads, creates := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer secret" {
+					t.Error("missing authorization")
+				}
+				if r.Method == http.MethodPost {
+					creates++
+					if r.URL.Path != "/v2/projects/project/customers" {
+						t.Errorf("create path=%s", r.URL.Path)
+					}
+					raw, _ := io.ReadAll(r.Body)
+					if string(raw) != `{"id":"`+customer.String()+`"}` {
+						t.Errorf("customer body=%s", raw)
+					}
+					w.WriteHeader(tc.createStatus)
+					return
+				}
+				reads++
+				if reads == 1 {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(tc.afterStatus)
+				_, _ = w.Write([]byte(`{"object":"list","items":[],"next_page":null}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", ProjectID: "project", APIKey: "secret"}, server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := client.ListCustomerSubscriptions(context.Background(), customer)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("snapshot=%+v err=%v", snapshot, err)
+			}
+			if creates != 1 {
+				t.Fatalf("create calls=%d", creates)
+			}
+			if tc.wantError && snapshot.Complete {
+				t.Fatal("missing/unavailable customer accepted as empty authoritative snapshot")
+			}
+			if !tc.wantError && (!snapshot.Complete || len(snapshot.Subscriptions) != 0) {
+				t.Fatalf("first customer snapshot=%+v", snapshot)
+			}
+		})
 	}
 }

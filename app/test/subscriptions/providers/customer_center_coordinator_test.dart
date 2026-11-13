@@ -3,11 +3,33 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/customer_center_coordinator.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final error in [
+    const StoreAccountConflictException(),
+    const StoreOwnershipUnverifiedException(),
+  ]) {
+    test(
+      'ownership ${error.runtimeType} prevents Customer Center presentation',
+      () async {
+        final service = _CustomerCenterService(ownershipError: error);
+        final result = await _coordinator(
+          _ScriptedApi([_state(1, 1)]),
+          service,
+        ).present();
+        expect(
+          result.outcome,
+          error is StoreAccountConflictException
+              ? CustomerCenterOutcome.storeAccountConflict
+              : CustomerCenterOutcome.providerError,
+        );
+        expect(service.presentations, 0);
+      },
+    );
+  }
   test(
     'IT-009 management callback reconciles and refreshes owner state',
     () async {
@@ -80,7 +102,7 @@ void main() {
         ]),
         service,
       ).present(),
-      throwsA(isA<BillingOwnerGuardException>()),
+      throwsA(isA<BillingAccountGuardException>()),
     );
     expect(service.presentations, 0);
   });
@@ -173,7 +195,7 @@ CustomerCenterCoordinator _coordinator(
   bool Function()? isForeground,
   SessionRegistry Function()? readRegistry,
 }) => CustomerCenterCoordinator(
-  ownerGuard: BillingOwnerGuard(readRegistry ?? _registry),
+  ownerGuard: BillingAccountGuard(readRegistry ?? _registry),
   api: api,
   revenueCat: service,
   wait: (_) async {},
@@ -188,8 +210,7 @@ SessionRegistry _registry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );
@@ -237,17 +258,28 @@ BillingState _state(
       : const [],
 );
 
-final class _CustomerCenterService implements RevenueCatService {
+final class _CustomerCenterService
+    implements RevenueCatService, NativeStoreOwnershipService {
   new({
     this.event,
     this.appUserId = '20000000-0000-4000-8000-000000000001',
     this.onPresent,
+    this.ownershipError,
   });
 
   final CustomerCenterEvent? event;
   final String appUserId;
   final void Function()? onPresent;
   int presentations = 0;
+  final Exception? ownershipError;
+  @override
+  String get store => 'app_store';
+  @override
+  bool get supportsPlanChanges => false;
+  @override
+  Future<void> verifyStoreOwnership(String appUserId) async {
+    if (ownershipError case final error?) throw error;
+  }
 
   @override
   BillingAvailability get availability => BillingAvailability.available;
@@ -299,15 +331,8 @@ final class _ScriptedApi implements SubscriptionApi {
   Future<void> requestReconciliation() async => reconciliationCalls++;
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
   Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
 
   @override
   Future<SubscriptionAccess> getAccess() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }

@@ -113,6 +113,23 @@ enablement requirements; client UI flags do not replace server authorization.
 Follow the [configuration guide](development/configuration.md) and
 [logging/error-reporting rules](development/logging-error-reporting.md).
 
+Subscriptions belong to individual DIDs, each mapped to a private RevenueCat
+customer UUID. Plus and Business are alternative tiers; licences cannot be
+assigned to another DID. AppView creates hosted Stripe Checkout sessions with
+Managed Payments required and verified on the returned session; Stripe is
+merchant of record. A durable per-account pending operation and provider
+idempotency fence concurrent checkout attempts and uncertain retries. RevenueCat
+tracks paid Stripe invoices using the account's private UUID in session and
+subscription metadata. AppView authorizes paid access from reconciled provider
+state, never a checkout redirect. Web tier changes remain deferred, and native
+apps contain no web purchase promotion. Subscription management creates a
+customer-specific Stripe portal session through authenticated AppView; shared
+payer email is not an account selector. Billing state exposes retained checkout
+work through `webCheckoutPending` across environments, preventing native
+repurchase before RevenueCat indexing. Unresolved checkout operations also block
+account deletion until provider terminal state is established. See
+[ADR 027](adr/027-per-did-subscriptions.md).
+
 Moderation controls CraftSky visibility and private enforcement state. It must
 not delete another user's PDS content. The explicit owner-approved permanent
 CraftSky account-deletion flow and owner removal of their referenced profile-link

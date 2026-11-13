@@ -15,6 +15,7 @@ import (
 
 func TestApplyCompleteSnapshotsIsFencedIdempotentAndFailClosed(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,13 +62,7 @@ func TestApplyCompleteSnapshotsIsFencedIdempotentAndFailClosed(t *testing.T) {
 	if err := store.ApplySnapshot(ctx, claim(1), first, catalog); err != nil {
 		t.Fatalf("apply first snapshot: %v", err)
 	}
-	beneficiary := syntax.DID("did:plc:snapshot-beneficiary")
-	if _, err := pool.Exec(ctx, `
-		UPDATE billing_licenses SET assigned_did=$2, assigned_at=now()
-		WHERE provider_subscription_id=(SELECT id FROM provider_subscriptions WHERE revenuecat_subscription_id=$1)
-	`, "sub-plus-old", beneficiary); err != nil {
-		t.Fatal(err)
-	}
+	beneficiary := account.OwnerDID
 
 	second := CompleteSnapshot{Complete: true, Subscriptions: []ProviderSubscriptionSnapshot{
 		{ID: "sub-plus-old", ProductID: "prod-plus", Store: "app_store", Environment: "production", Status: "expired"},
@@ -93,14 +88,14 @@ func TestApplyCompleteSnapshotsIsFencedIdempotentAndFailClosed(t *testing.T) {
 	`).Scan(&assigned, &givesAccess); err != nil {
 		t.Fatal(err)
 	}
-	if assigned == nil || *assigned != beneficiary.String() || givesAccess {
+	if assigned != nil || givesAccess {
 		t.Fatalf("dormant same-ID assignment = %v, access=%t", assigned, givesAccess)
 	}
 	if err := pool.QueryRow(ctx, `
 		SELECT assigned_did FROM billing_licenses license
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 		WHERE subscription.revenuecat_subscription_id='sub-business-new'
-	`).Scan(&assigned); err != nil || assigned != nil {
+	`).Scan(&assigned); err != nil || assigned == nil || *assigned != beneficiary.String() {
 		t.Fatalf("new subscription assignment = %v, error %v; want nil", assigned, err)
 	}
 	var unsupportedLicenses int
@@ -172,7 +167,7 @@ func TestApplyCompleteSnapshotsIsFencedIdempotentAndFailClosed(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if access.EffectiveTier != TierFree || access.GivesAccess || access.AssignedTier == nil || *access.AssignedTier != TierPlus {
+		if access.EffectiveTier != TierFree || access.GivesAccess {
 			t.Fatalf("unsupported assigned access = %+v, want free with dormant Plus assignment", access)
 		}
 		var productID, environment, providerAnomaly string

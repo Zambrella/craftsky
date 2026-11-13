@@ -49,8 +49,8 @@ const routes: [string, RegExp][] = [
 	['PUT', /^\/v1\/billing\/account$/],
 	['GET', /^\/v1\/billing\/account$/],
 	['POST', /^\/v1\/billing\/reconciliation$/],
-	['PUT', /^\/v1\/billing\/licenses\/[^/]+\/assignment$/],
-	['DELETE', /^\/v1\/billing\/licenses\/[^/]+\/assignment$/],
+	['POST', /^\/v1\/billing\/web-checkout$/],
+	['POST', /^\/v1\/billing\/web-management$/],
 	['POST', /^\/v1\/blobs\/videos\/authorization$/],
 	['GET', /^\/v1\/blobs\/videos\/limits$/],
 	[

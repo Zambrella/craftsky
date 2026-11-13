@@ -326,33 +326,36 @@ test('business profile saves preserve products and unknown catalog values with a
 		'Small batch colour for your next project'
 	);
 });
-test('license assignment targets the entered DID and is reflected after reloading billing', async ({
+test('subscriptions belong to the active account without assignment or duplicate checkout', async ({
 	page
 }) => {
 	await page.goto('/settings/subscriptions');
 	await expect(
 		page.getByRole('link', { name: 'Manage in App Store', exact: true })
 	).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions');
-	await page.getByText('Assign another account', { exact: true }).click();
-	await page.getByLabel('Account DID', { exact: true }).fill('did:plc:bob');
-	await page
-		.getByRole('button', { name: 'Assign license', exact: true })
-		.click();
 	await expect(
-		page.getByRole('status').filter({ hasText: 'License assignment updated.' })
+		page.getByText('Your subscription belongs to', { exact: false })
+	).toContainText('@alice.test');
+	await expect(
+		page.getByRole('button', { name: 'Assign license', exact: true })
+	).toHaveCount(0);
+	await expect(page.getByLabel('Account DID', { exact: true })).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: /^Choose (Plus|Business)$/ })
+	).toHaveCount(0);
+	await expect(
+		page.getByText('Web plan changes are not available yet.', { exact: false })
 	).toBeVisible();
-	const request = (await calls()).find(
-		(row) => row.method === 'PUT' && row.path.endsWith('/license-1/assignment')
-	);
-	expect(request?.body).toEqual({ targetDid: 'did:plc:bob' });
-	expect(request?.owner).toBe(alice.did);
 	await page.reload();
 	await expect(
-		page.getByRole('combobox', { name: 'Account', exact: true })
-	).toHaveValue('did:plc:bob');
-	await expect(
-		page.locator('.license p strong').filter({ hasText: 'did:plc:bob' })
+		page.getByRole('link', { name: 'Manage in App Store', exact: true })
 	).toBeVisible();
+	expect(
+		(await calls()).some(
+			(row) =>
+				row.path.includes('/assignment') || row.path.endsWith('/web-checkout')
+		)
+	).toBe(false);
 });
 test('BZip2 ZIP imports use the bundled worker and require review before sending usernames', async ({
 	page

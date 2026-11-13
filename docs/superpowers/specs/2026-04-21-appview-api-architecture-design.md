@@ -224,6 +224,27 @@ owner-fencing contract. No general PDS deletion endpoint is introduced.
 - `POST /v1/auth/logout` — per OAuth BFF spec. Continues to accept `?all=true`.
 - `GET /v1/whoami` — returns the authenticated user's DID + handle.
 
+### Account subscription checkout and management (13 November 2026)
+
+- `POST /v1/billing/web-checkout` accepts `{tier: "plus" | "business"}` and
+  returns `{url}` for an account-specific Stripe Checkout session. AppView
+  selects the configured price and private RevenueCat customer UUID, requires
+  fresh reconciled subscription state, and persists a pending operation with
+  provider idempotency. It never falls back from Managed Payments to ordinary
+  billing. A browser return does not grant paid access.
+- `POST /v1/billing/web-management` accepts no body and returns `{url}` for a
+  short-lived Stripe Customer Portal session. AppView resolves the Stripe
+  customer through the authenticated DID's verified completed checkout; callers
+  cannot supply another customer or subscription identifier. Unmapped provider
+  history leaves management unavailable rather than selecting a customer by
+  email. Both routes require ordinary current-member authentication, device
+  headers, eligibility and suspension checks, write-rate admission, and no-store
+  responses. Checkout and portal URLs are private capabilities, excluded from
+  diagnostics. RevenueCat reconciliation remains authoritative for access.
+
+See [ADR 027](../../adr/027-per-did-subscriptions.md) for identity, duplicate
+purchase protection and native-store boundaries.
+
 ### 4.6 Out of scope for v1 (explicitly)
 
 - Search

@@ -1,368 +1,285 @@
 <script lang="ts">
-	import { fieldError } from '#lib/field-validation.ts';
-	import SingleSelect from '#lib/SingleSelect.svelte';
-	import { usePrompt } from '../social/prompt';
-	const ask = usePrompt();
-	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/state';
-	import SettingsIcon from './SettingsIcon.svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import {
 		APIError,
 		type CraftskyAPI,
 		type SubscriptionAccess,
-		type BillingState,
-		type BillingLicense
+		type BillingState
 	} from '#lib/api/client.ts';
-	import { dateTime, title, validDid, type Session } from './model.ts';
+	import SettingsIcon from './SettingsIcon.svelte';
+	import { UserFacingError } from '#lib/user-facing-error.ts';
+	import { dateTime, title, type Session } from './model.ts';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
 	import { storeManagementURL } from './navigation.ts';
+	import { tierState, tierStateLabel } from './native-settings.ts';
 	import {
-		canAssignLicense,
-		tierState,
-		tierStateLabel
-	} from './native-settings.ts';
+		canStartWebCheckout,
+		hasCurrentSubscription,
+		isCurrentSubscription,
+		SubscriptionCheckout,
+		SubscriptionManagement,
+		subscriptionNeedsRefresh,
+		subscriptionProvider,
+		subscriptionTier,
+		type SubscriptionTier
+	} from './subscription-checkout.ts';
 	let { api, session }: { api: CraftskyAPI; session: Session } = $props();
 	const work = new Work('settings.Billing.action');
-	let accounts = $derived(
-		(page.data.accounts || []) as { did: string; handle: string }[]
-	);
+	let active = true;
 	let access = $state<SubscriptionAccess | null>(null),
 		billing = $state<BillingState | null>(null),
-		targets = $state<Record<string, string>>({});
-	const noAccount = (error: unknown) => {
-		if (error instanceof APIError && error.status === 404) return null;
-		throw error;
-	};
-	function apply(value: BillingState | null) {
-		billing = value;
-		targets = Object.fromEntries(
-			(value?.licenses || []).map((l) => [l.id, l.assignedDid || session.did])
-		);
+		purchasingTier = $state<SubscriptionTier | null>(null),
+		managingSubscription = $state(false);
+	const checkout = new SubscriptionCheckout(
+		untrack(() => `${session.id}:${session.did}`),
+		() => `${session.id}:${session.did}`,
+		(tier) => api.billing.checkout(tier),
+		(url) => location.assign(url)
+	);
+	const management = new SubscriptionManagement(
+		untrack(() => `${session.id}:${session.did}`),
+		() => `${session.id}:${session.did}`,
+		() => api.billing.manage(),
+		(url) => location.assign(url)
+	);
+	const currentSubscriptions = $derived(
+		billing?.subscriptions.filter((subscription) =>
+			isCurrentSubscription(subscription)
+		) || []
+	);
+	async function read() {
+		const state = await api.billing.get().catch((error: unknown) => {
+			if (error instanceof APIError && error.status === 404)
+				return api.billing.ensure();
+			throw error;
+		});
+		if (!active) throw new DOMException('View closed', 'AbortError');
+		return { access: await api.billing.access(), billing: state };
+	}
+	function apply(value: { access: SubscriptionAccess; billing: BillingState }) {
+		access = value.access;
+		billing = value.billing;
+	}
+	async function reconciled() {
+		await api.billing.reconcile();
+		let value = await read();
+		for (
+			let attempt = 0;
+			attempt < 15 && subscriptionNeedsRefresh(value.billing);
+			attempt++
+		) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			if (!active) throw new DOMException('View closed', 'AbortError');
+			value = await read();
+		}
+		return value;
 	}
 	function load() {
 		return work.load(
-			() =>
-				Promise.all([api.billing.access(), api.billing.get().catch(noAccount)]),
-			([a, b]) => {
-				access = a;
-				apply(b);
+			async () => {
+				const value = await read();
+				if (!active) throw new DOMException('View closed', 'AbortError');
+				return value.billing.webCheckoutAvailable ? reconciled() : value;
 			},
+			apply,
 			'settings.Billing.load'
 		);
 	}
 	function refresh() {
 		void work.run(
-			async () => {
-				await api.billing.reconcile();
-				return Promise.all([api.billing.access(), api.billing.get()]);
-			},
-			([a, b]) => {
-				access = a;
-				apply(b);
-			},
-			'Refresh requested. Store updates can take a little time; refresh again if needed.',
+			reconciled,
+			apply,
+			'Subscription status refreshed. Payment updates can take a little time.',
 			'settings.Billing.refresh'
 		);
 	}
-	function assign(license: BillingLicense, event: SubmitEvent) {
-		event.preventDefault();
-		if (!billing || !canAssignLicense(billing, license)) {
-			work.error =
-				'Refresh subscription status before changing this assignment.';
-			return;
-		}
-		const did = (targets[license.id] || '').trim();
-		if (!validDid(did)) {
-			fieldError(
-				'Account DID',
-				'Enter a complete valid DID, such as did:plc:…',
-				event.currentTarget as HTMLFormElement
-			);
-			return;
-		}
-		void work.run(
-			async () => {
-				await api.billing.assign(license.id, did);
-				return api.billing.get();
-			},
-			apply,
-			'License assignment updated.',
-			'settings.Billing.assign'
-		);
-	}
-	async function unassign(license: BillingLicense) {
+	function purchase(tier: SubscriptionTier) {
 		if (
-			!(await ask({
-				title: 'Remove license assignment?',
-				detail: 'The assigned account will lose its subscription access.',
-				confirmLabel: 'Remove',
-				danger: true
-			}))
+			!billing ||
+			!billing.webCheckoutAvailable ||
+			hasCurrentSubscription(billing) ||
+			work.busy
 		)
 			return;
-		void work.run(
-			async () => {
-				await api.billing.unassign(license.id);
-				return api.billing.get();
-			},
-			apply,
-			'License unassigned.',
-			'settings.Billing.unassign'
-		);
+		purchasingTier = tier;
+		void work
+			.run(
+				async () => {
+					const value = await reconciled();
+					if (!active) return;
+					apply(value);
+					if (!canStartWebCheckout(value.billing))
+						throw new UserFacingError(
+							'Checkout cannot open yet. Review your subscription status and try again.'
+						);
+					await checkout.start(tier);
+				},
+				() => {},
+				'',
+				'settings.Billing.action'
+			)
+			.finally(() => {
+				if (active) purchasingTier = null;
+			});
 	}
-	onMount(load);
-	onDestroy(() => work.dispose());
+	function manage() {
+		if (work.busy) return;
+		managingSubscription = true;
+		void work
+			.run(
+				() => management.start(),
+				() => {},
+				'',
+				'settings.Billing.action'
+			)
+			.finally(() => {
+				if (active) managingSubscription = false;
+			});
+	}
+	onMount(() => {
+		void load();
+		const restored = (event: PageTransitionEvent) => {
+			if (event.persisted) refresh();
+		};
+		window.addEventListener('pageshow', restored);
+		return () => window.removeEventListener('pageshow', restored);
+	});
+	onDestroy(() => {
+		active = false;
+		checkout.dispose();
+		management.dispose();
+		work.dispose();
+	});
 </script>
 
 <h1 class="workspace-heading">Subscriptions</h1>
 <Feedback {work} reload={load} />
-{#if !work.loading && access}
+{#if !work.loading && access && billing}
 	<section class="panel">
 		<h2 class="section-heading access-title">
 			<SettingsIcon name="plus" />Current access: {title(access.effectiveTier)}
 		</h2>
 		<p>
-			{access.givesAccess
-				? 'Your subscription features are available on the web.'
-				: 'Your account currently has free access.'}
+			Your subscription belongs to <strong
+				>@{session.handle || session.did}</strong
+			> and follows this account across devices.
 		</p>
-		{#if access.assignedTier && !access.givesAccess}<p>
-				Assigned plan: {title(access.assignedTier)}. This plan is not currently
-				providing access.
-			</p>{/if}{#if access.accessEndsAt}<p class="muted">
-				Access ends {dateTime(access.accessEndsAt)}
+		{#if access.accessEndsAt}<p class="muted">
+				Access until {dateTime(access.accessEndsAt)}
 			</p>{/if}
 	</section>
-	<p class="muted mobile-purchases">
-		Purchase or restore subscriptions in the CraftSky mobile app. Existing
-		access and license assignments are available here.
-	</p>
-	<p class="muted">
-		Plus and Business are separate account licenses. After purchase, assign each
-		license to a CraftSky account.
-	</p>
-	{#if !billing}<section class="panel stack">
-			<h2>Billing account</h2>
-			<p>
-				A billing account links your store subscriptions and license
-				assignments.
-			</p>
-			<button
-				disabled={work.busy}
-				class="primary"
-				onclick={() =>
-					work.run(() => api.billing.ensure(), apply, 'Billing account ready.')}
-				>Set up billing account</button
-			>
-		</section>
-	{:else}<div class="billing-refresh">
-			<button disabled={work.busy} onclick={refresh}>Refresh access</button>
-		</div>
-		{#if billing.reconciliationStale}<p class="notice">
-				Subscription changes are still being checked with the store.
-			</p>{/if}
-		{#each ['plus', 'business'] as tierValue}{@const tier = tierValue as
-				'plus' | 'business'}{@const status = tierState(billing, tier)}
-			{@const active = status === 'active' || status === 'cancelled'}
-			{@const subscriptions = billing.subscriptions.filter((subscription) =>
-				billing!.licenses.some(
-					(license) =>
-						license.tier === tier && license.subscriptionId === subscription.id
-				)
-			)}
-			<section
-				class="panel tier-card"
-				class:business-tier={tier === 'business'}
-				aria-label={`CraftSky ${title(tier)}`}
-			>
-				<div class="tier-heading">
-					<span class="tier-icon"
-						><SettingsIcon
-							name={tier === 'business' ? 'business' : 'subscription'}
-						/></span
-					>
-					<div>
-						<h2>{title(tier)}</h2>
-						{#if active}
-							{#each subscriptions as subscription}
-								{@const end =
-									subscription.endsAt || subscription.currentPeriodEndsAt}
-								<p class="muted renewal">
-									{#if end}{subscription.autoRenewalStatus === 'will_renew'
-											? 'Renews on'
-											: 'Access until'}
-										{dateTime(end)}{:else}{tierStateLabel[status]}{/if}
-								</p>
-							{/each}
-						{:else}
-							<p class="tier-status">{tierStateLabel[status]}</p>
-						{/if}
-					</div>
-				</div>
-				{#if !active}<p class="muted">
-						{tier === 'business'
-							? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
-							: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
-					</p>{/if}
-				{#each subscriptions as subscription}{@const managementURL =
-						storeManagementURL(subscription.store)}
-					{#if !active && subscription.currentPeriodEndsAt}<p class="muted">
-							Current period ends {dateTime(subscription.currentPeriodEndsAt)}
-						</p>{/if}
-					{#if !active && subscription.endsAt}<p class="muted">
-							Access ends {dateTime(subscription.endsAt)}
-						</p>{/if}
-					{#if !active && subscription.autoRenewalStatus}<p class="muted">
-							Renewal: {title(subscription.autoRenewalStatus)}
-						</p>{/if}
-					{#if subscription.pendingPayment}<p class="notice">
-							Payment is pending. Open your mobile store to resolve payment.
-						</p>{/if}
-					{#if !active && managementURL}<a
-							class="action"
-							href={managementURL}
-							target="_blank"
-							rel="noopener noreferrer"
-							>Manage in {subscription.store === 'app_store'
-								? 'App Store'
-								: 'Google Play'}</a
-						>{/if}
-				{/each}
-
-				{#each billing.licenses.filter((value) => value.tier === tier) as license}
-					{@const subscription = subscriptions.find(
-						(value) => value.id === license.subscriptionId
-					)}
-					{@const managementURL =
-						subscription && storeManagementURL(subscription.store)}
-					<form
-						class="license stack"
-						onsubmit={(event) => assign(license, event)}
-					>
-						<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
-							{#if !active}<h3>CraftSky {title(license.tier)}</h3>{/if}
-							<p>
-								{license.assignedDid ? 'Assigned to:' : 'Unassigned'}
-								{#if license.assignedDid}<strong
-										>{accounts.find(
-											(account) => account.did === license.assignedDid
-										)?.handle
-											? '@' +
-												accounts.find(
-													(account) => account.did === license.assignedDid
-												)!.handle
-											: license.assignedDid}</strong
-									>{/if}
-							</p>
-							{#if active && managementURL}<a
-									class="action flat-action"
-									href={managementURL}
-									target="_blank"
-									rel="noopener noreferrer"
-									>Manage in {subscription!.store === 'app_store'
-										? 'App Store'
-										: 'Google Play'}</a
-								>{/if}
-							{#if !active && license.assignedAt}<p class="muted">
-									Assigned {dateTime(license.assignedAt)}
-								</p>{/if}{#if license.anomaly && license.anomaly !== 'none'}<p
-									class="error"
-								>
-									This license needs attention: {title(license.anomaly)}
-								</p>{:else if canAssignLicense(billing, license)}
-								{#if !accounts.some((account) => account.did !== license.assignedDid && !billing!.licenses.some((assigned) => assigned.assignedDid === account.did))}
-									<p class="muted">
-										There’s no other signed-in account available to assign this
-										licence to. Add another account using the account switcher,
-										or enter its DID below.
-									</p>
-								{/if}
-								<SingleSelect
-									label="Account"
-									value={targets[license.id]}
-									required
-									showRequired={false}
-									disabled={work.busy}
-									options={[
-										...accounts.map((account) => ({
-											id: account.did,
-											label: '@' + account.handle
-										})),
-										...(!accounts.some(
-											(account) => account.did === targets[license.id]
-										)
-											? [
-													{
-														id: targets[license.id] || '',
-														label: targets[license.id] || 'Choose an account'
-													}
-												]
-											: [])
-									]}
-									onchange={(value) =>
-										(targets = { ...targets, [license.id]: value })}
-								/>
-								<details>
-									<summary>Assign another account</summary><label
-										>Account DID<input
-											required
-											value={targets[license.id] || ''}
-											oninput={(e) =>
-												(targets = {
-													...targets,
-													[license.id]: e.currentTarget.value
-												})}
-											placeholder="did:plc:…"
-											autocomplete="off"
-											spellcheck="false"
-										/></label
-									>
-								</details>
-								<div class="actions">
-									<button
-										class:primary={!license.assignedDid}
-										class:flat-action={!!license.assignedDid}
-										disabled={work.busy}>Assign license</button
-									><button
-										type="button"
-										disabled={work.busy}
-										onclick={() =>
-											(targets = { ...targets, [license.id]: session.did })}
-										>Use this account</button
-									>
-								</div>{:else}<p class="muted">
-									This license cannot currently be reassigned.
-								</p>
-							{/if}
-							{#if license.assignedDid}<button
-									type="button"
-									class="flat-action danger"
-									disabled={work.busy}
-									onclick={() => unassign(license)}>Unassign</button
-								>{/if}
-						</fieldset>
-					</form>{/each}
-			</section>{/each}
-		{#if billing.reconciledAt}<p class="muted">
-				Last checked {dateTime(billing.reconciledAt)}
-			</p>{/if}
+	<div class="billing-refresh">
+		<button disabled={work.busy} onclick={refresh}>
+			{work.busy && !purchasingTier && !managingSubscription
+				? 'Refreshing…'
+				: 'Refresh status'}
+		</button>
+	</div>
+	{#if subscriptionNeedsRefresh(billing)}
+		<p class="notice">
+			Your subscription status is still being checked. Refresh status before
+			making a purchase.
+		</p>
 	{/if}
+	{#each currentSubscriptions as subscription}
+		{@const tier = subscriptionTier(billing, subscription)}
+		{@const managementURL = storeManagementURL(subscription.store)}
+		<section class="panel" aria-label="Current subscription">
+			<h2>{tier ? `CraftSky ${title(tier)}` : 'Subscription'}</h2>
+			<p>Billed through {subscriptionProvider(subscription.store)}.</p>
+			{#if subscription.pendingTier && subscription.autoRenewalStatus === 'will_change_product'}
+				<p class="notice">
+					Changes to CraftSky {title(subscription.pendingTier)} at the next renewal.
+					Your current benefits remain available until then.
+				</p>
+			{/if}
+			{#if subscription.pendingPayment}<p class="notice">
+					Payment is pending. Resolve it with your billing provider before
+					making another purchase.
+				</p>{/if}
+			{#if subscription.endsAt || subscription.currentPeriodEndsAt}
+				<p class="muted">
+					{subscription.autoRenewalStatus === 'will_renew'
+						? 'Renews on'
+						: 'Current period ends'}
+					{dateTime(subscription.endsAt || subscription.currentPeriodEndsAt)}
+				</p>
+			{/if}
+			{#if managementURL}<a
+					class="action"
+					href={managementURL}
+					target="_blank"
+					rel="noopener noreferrer"
+					>Manage in {subscriptionProvider(subscription.store)}</a
+				>
+			{:else if subscription.store === 'stripe'}
+				<button disabled={work.busy} onclick={manage}
+					>{managingSubscription
+						? 'Opening Stripe…'
+						: 'Manage in Stripe'}</button
+				>
+			{/if}
+		</section>
+	{/each}
+	{#if hasCurrentSubscription(billing)}
+		<p class="muted">
+			This account already has a subscription or a payment awaiting resolution.
+			Web plan changes are not available yet. To choose another plan here,
+			cancel your current subscription and wait for it to expire.
+		</p>
+	{:else if !billing.webCheckoutAvailable}
+		<p class="muted">Web subscriptions are not available yet.</p>
+	{:else}
+		<p class="muted">
+			Choose Plus or Business for this account. You can review the price and
+			billing details before paying securely with Stripe.
+		</p>
+	{/if}
+	{#each ['plus', 'business'] as tierValue}
+		{@const tier = tierValue as SubscriptionTier}
+		{@const status = tierState(billing, tier)}
+		<section
+			class="panel tier-card"
+			class:business-tier={tier === 'business'}
+			aria-label={`CraftSky ${title(tier)}`}
+		>
+			<div class="tier-heading">
+				<span class="tier-icon"
+					><SettingsIcon
+						name={tier === 'business' ? 'business' : 'subscription'}
+					/></span
+				>
+				<div>
+					<h2>{title(tier)}</h2>
+					{#if status !== 'empty'}<p class="tier-status">
+							{tierStateLabel[status]}
+						</p>{/if}
+				</div>
+			</div>
+			<p class="muted">
+				{tier === 'business'
+					? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
+					: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
+			</p>
+			{#if canStartWebCheckout(billing)}
+				<button
+					class="primary"
+					disabled={work.busy}
+					onclick={() => purchase(tier)}
+					>{purchasingTier === tier
+						? 'Opening checkout…'
+						: `Choose ${title(tier)}`}</button
+				>
+			{/if}
+		</section>
+	{/each}
+	{#if billing.reconciledAt}<p class="muted">
+			Last checked {dateTime(billing.reconciledAt)}
+		</p>{/if}
 {/if}
 
 <style>
-	.license .actions {
-		gap: 4px;
-	}
-	.flat-action {
-		background: transparent;
-		border-color: transparent;
-		box-shadow: none;
-		color: var(--primary);
-	}
-	button.flat-action.danger {
-		color: var(--red-ink);
-	}
 	.billing-refresh {
 		display: flex;
 		justify-content: flex-end;
@@ -403,32 +320,8 @@
 	.tier-status {
 		color: var(--primary);
 		font-size: 14px;
-		font-weight: 600;
 	}
-	.tier-card .license h3 {
-		font-size: 16px;
-	}
-
 	.access-title {
 		font-size: 16px;
-	}
-	.mobile-purchases {
-		margin: 0 0 16px;
-	}
-	summary {
-		cursor: pointer;
-		padding: 8px 0;
-		color: var(--primary);
-		font-size: 14px;
-	}
-	.license {
-		padding: 1rem 0;
-		border-bottom: 1px solid var(--hairline);
-	}
-	.license:last-child {
-		border: 0;
-	}
-	.renewal {
-		margin: 0;
 	}
 </style>

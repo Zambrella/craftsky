@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/models/billing_owner_binding.dart';
 import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
@@ -10,6 +9,7 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:uuid/uuid.dart';
 
 class AccountLimitReached implements Exception {
   const new();
@@ -32,11 +32,15 @@ class SessionRegistry {
     Map<String, String> routingBindings = const {},
     this.pendingHandoff,
     this.pendingAccountDeletion,
-    this.billingOwner,
+    Map<String, String> billingCustomers = const {},
   }) : activeDid = activeDid == null ? null : Did.parse(activeDid),
        sessions = Map.unmodifiable({
          for (final MapEntry(key: did, value: session) in sessions.entries)
            Did.parse(did): session,
+       }),
+       billingCustomers = Map.unmodifiable({
+         for (final entry in billingCustomers.entries)
+           Did.parse(entry.key): _billingCustomerId(entry.value),
        }),
        routingBindings = Map.unmodifiable({
          for (final MapEntry(key: did, value: binding)
@@ -58,7 +62,9 @@ class SessionRegistry {
       throw const FormatException('Invalid session registry');
     }
     final schemaVersion = decoded['schemaVersion'];
-    if (schemaVersion != 2 && schemaVersion != currentSchemaVersion) {
+    if (schemaVersion != 2 &&
+        schemaVersion != 3 &&
+        schemaVersion != currentSchemaVersion) {
       throw const FormatException('Unsupported session registry version');
     }
     _requireOnlyKeys(decoded, {
@@ -71,7 +77,8 @@ class SessionRegistry {
       'pendingHandoff',
       'pendingAccountDeletion',
       'sessions',
-      if (schemaVersion == currentSchemaVersion) 'billingOwner',
+      if (schemaVersion == 3) 'billingOwner',
+      if (schemaVersion == currentSchemaVersion) 'billingCustomers',
     });
 
     final rawSessions = decoded['sessions'];
@@ -167,16 +174,38 @@ class SessionRegistry {
       throw const FormatException('Invalid pending account deletion');
     }
 
-    final rawBillingOwner = decoded['billingOwner'];
-    final BillingOwnerBinding? billingOwner;
-    if (rawBillingOwner == null) {
-      billingOwner = null;
-    } else if (rawBillingOwner is Map) {
-      billingOwner = BillingOwnerBinding.fromMap(
-        Map<String, Object?>.from(rawBillingOwner),
-      );
-    } else {
-      throw const FormatException('Invalid billing owner');
+    // Older installs reserved a single payer. Preserve its private customer ID
+    // for that DID only; it grants no authority over another account.
+    final billingCustomers = <String, String>{};
+    final rawCustomers = decoded['billingCustomers'];
+    if (rawCustomers != null) {
+      if (rawCustomers is! Map<String, Object?>) {
+        throw const FormatException('Invalid billing customers');
+      }
+      for (final entry in rawCustomers.entries) {
+        Did.parse(entry.key);
+        if (entry.value is! String) {
+          throw const FormatException('Invalid billing customer');
+        }
+        billingCustomers[entry.key] = _billingCustomerId(
+          entry.value! as String,
+        );
+      }
+    }
+    if (schemaVersion == 3 && decoded['billingOwner'] != null) {
+      final legacy = decoded['billingOwner'];
+      if (legacy is! Map<String, Object?> || legacy['did'] is! String) {
+        throw const FormatException('Invalid legacy billing customer');
+      }
+      _requireOnlyKeys(legacy, {'did', 'revenueCatAppUserId'});
+      final did = Did.parse(legacy['did']! as String).value;
+      final id = legacy['revenueCatAppUserId'];
+      if (id != null) {
+        if (id is! String) {
+          throw const FormatException('Invalid billing customer');
+        }
+        billingCustomers[did] = _billingCustomerId(id);
+      }
     }
 
     final nextSessionGeneration = _requiredPositiveInt(
@@ -203,11 +232,11 @@ class SessionRegistry {
       routingBindings: routingBindings,
       pendingHandoff: pendingHandoff,
       pendingAccountDeletion: pendingAccountDeletion,
-      billingOwner: billingOwner,
+      billingCustomers: billingCustomers,
     );
   }
 
-  static const currentSchemaVersion = 3;
+  static const currentSchemaVersion = 4;
   static const maxRetainedAccounts = 5;
   static const _unchanged = Object();
 
@@ -219,7 +248,7 @@ class SessionRegistry {
   final Map<Did, String> routingBindings;
   final PendingHandoff? pendingHandoff;
   final PendingAccountDeletion? pendingAccountDeletion;
-  final BillingOwnerBinding? billingOwner;
+  final Map<Did, String> billingCustomers;
 
   List<StoredSession> get orderedSessions {
     final ordered = sessions.values.toList()
@@ -324,39 +353,27 @@ class SessionRegistry {
     return _copyWith(pendingAccountDeletion: null);
   }
 
-  SessionRegistry reserveBillingOwner(String did) {
+  SessionRegistry setBillingCustomer(String did, String revenueCatAppUserId) {
     final parsedDid = Did.parse(did);
     if (activeDid != parsedDid || !sessions.containsKey(parsedDid)) {
-      throw DiagnosticStateError('Billing owner must be the active account');
-    }
-    final current = billingOwner;
-    if (current == null) {
-      return _copyWith(
-        billingOwner: BillingOwnerBinding(did: parsedDid.value),
+      throw DiagnosticStateError(
+        'Billing customer requires the active account',
       );
     }
-    if (current.did != parsedDid) {
-      throw DiagnosticStateError('Another billing owner is already reserved');
+    final id = _billingCustomerId(revenueCatAppUserId);
+    final existing = billingCustomers[parsedDid];
+    if (existing != null && existing != id) {
+      throw DiagnosticStateError('Billing customer identity changed');
     }
-    return this;
+    if (existing == id) return this;
+    return _copyWith(billingCustomers: {...billingCustomers, parsedDid: id});
   }
 
-  SessionRegistry completeBillingOwner(String did, String revenueCatAppUserId) {
-    final parsedDid = Did.parse(did);
-    final current = billingOwner;
-    if (current == null || current.did != parsedDid) {
-      throw DiagnosticStateError('Billing owner reservation unavailable');
+  static String _billingCustomerId(String value) {
+    if (!Uuid.isValidUUID(fromString: value)) {
+      throw const FormatException('Invalid RevenueCat app user ID');
     }
-    if (current.revenueCatAppUserId == revenueCatAppUserId) return this;
-    if (current.revenueCatAppUserId != null) {
-      throw DiagnosticStateError('Billing owner is already complete');
-    }
-    return _copyWith(
-      billingOwner: BillingOwnerBinding(
-        did: parsedDid.value,
-        revenueCatAppUserId: revenueCatAppUserId,
-      ),
-    );
+    return value;
   }
 
   /// Stores the entire inactive handoff receipt in the same secure snapshot as
@@ -613,7 +630,10 @@ class SessionRegistry {
     },
     'pendingHandoff': pendingHandoff?.toMap(),
     'pendingAccountDeletion': pendingAccountDeletion?.toMap(),
-    'billingOwner': billingOwner?.toMap(),
+    'billingCustomers': {
+      for (final entry in billingCustomers.entries)
+        entry.key.value: entry.value,
+    },
     'sessions': {
       for (final MapEntry(key: did, value: session) in sessions.entries)
         did: {
@@ -639,7 +659,7 @@ class SessionRegistry {
     Map<Did, String>? routingBindings,
     Object? pendingHandoff = _unchanged,
     Object? pendingAccountDeletion = _unchanged,
-    Object? billingOwner = _unchanged,
+    Map<Did, String>? billingCustomers,
   }) {
     final resolvedActiveDid = identical(activeDid, _unchanged)
         ? this.activeDid
@@ -653,9 +673,6 @@ class SessionRegistry {
         identical(pendingAccountDeletion, _unchanged)
         ? this.pendingAccountDeletion
         : pendingAccountDeletion as PendingAccountDeletion?;
-    final resolvedBillingOwner = identical(billingOwner, _unchanged)
-        ? this.billingOwner
-        : billingOwner as BillingOwnerBinding?;
     return SessionRegistry(
       nextSessionGeneration:
           nextSessionGeneration ?? this.nextSessionGeneration,
@@ -672,7 +689,10 @@ class SessionRegistry {
       },
       pendingHandoff: resolvedPendingHandoff,
       pendingAccountDeletion: resolvedPendingAccountDeletion,
-      billingOwner: resolvedBillingOwner,
+      billingCustomers: {
+        for (final entry in (billingCustomers ?? this.billingCustomers).entries)
+          entry.key.value: entry.value,
+      },
     );
   }
 

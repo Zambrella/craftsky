@@ -35,12 +35,12 @@ func registerSubscriptionRoutes(routes subscriptionRouteBundle) {
 		mustPolicy("POST", "/v1/billing/reconciliation"),
 		api.RequestSubscriptionReconciliationHandler(routes.store, now),
 	))
-	routes.mux.Handle("PUT /v1/billing/licenses/{licenseId}/assignment", routes.middleware.wrap(
-		mustPolicy("PUT", "/v1/billing/licenses/{licenseId}/assignment"),
-		api.AssignSubscriptionLicenseHandler(routes.store, now),
+	routes.mux.Handle("POST /v1/billing/web-checkout", routes.middleware.wrap(
+		mustPolicy("POST", "/v1/billing/web-checkout"),
+		api.CreateWebSubscriptionCheckoutHandler(routes.store, now),
 	))
-	routes.mux.Handle("DELETE /v1/billing/licenses/{licenseId}/assignment", routes.middleware.wrap(
-		mustPolicy("DELETE", "/v1/billing/licenses/{licenseId}/assignment"),
-		api.UnassignSubscriptionLicenseHandler(routes.store, now),
+	routes.mux.Handle("POST /v1/billing/web-management", routes.middleware.wrap(
+		mustPolicy("POST", "/v1/billing/web-management"),
+		api.CreateWebSubscriptionManagementHandler(routes.store, now),
 	))
 }

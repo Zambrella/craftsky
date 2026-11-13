@@ -5,15 +5,97 @@ import 'package:craftsky_app/subscriptions/models/subscription_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('UT-004 absent tiers are independently purchasable when fresh', () {
+  for (final store in ['app_store', 'play_store']) {
+    test(
+      'pending web checkout blocks a new $store purchase before indexing',
+      () {
+        final pending = _state().copyWith(
+          subscriptions: [],
+          licenses: [],
+          webCheckoutPending: true,
+        );
+        for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+          expect(
+            purchaseEligibility(
+              pending,
+              tier,
+              store: store,
+              allowTierChanges: true,
+            ).reason,
+            PurchaseEligibilityReason.pendingPayment,
+          );
+        }
+      },
+    );
+  }
+  test('native tiers can change within the same billing provider', () {
     final state = _state();
 
     expect(
-      purchaseEligibility(state, SubscriptionTier.business).eligible,
+      purchaseEligibility(
+        state,
+        SubscriptionTier.business,
+        store: 'app_store',
+        allowTierChanges: true,
+      ).eligible,
       isTrue,
     );
     expect(purchaseEligibility(state, SubscriptionTier.plus).eligible, isFalse);
   });
+
+  test(
+    'a scheduled tier change prevents another checkout until it resolves',
+    () {
+      final initial = _state();
+      final scheduled = initial.copyWith(
+        subscriptions: [
+          initial.subscriptions.single.copyWith(
+            pendingTier: SubscriptionTier.business,
+            autoRenewalStatus: 'will_change_product',
+          ),
+        ],
+      );
+      expect(
+        purchaseEligibility(
+          scheduled,
+          SubscriptionTier.business,
+          store: 'app_store',
+          allowTierChanges: true,
+        ).eligible,
+        isFalse,
+      );
+    },
+  );
+
+  for (final stores in [
+    ('app_store', 'play_store'),
+    ('play_store', 'app_store'),
+    ('app_store', 'stripe'),
+    ('play_store', 'stripe'),
+  ]) {
+    test(
+      'current ${stores.$2} plan cannot be repurchased through ${stores.$1}',
+      () {
+        final existing = _state(store: stores.$2);
+        expect(
+          purchaseEligibility(
+            existing,
+            SubscriptionTier.business,
+            store: stores.$1,
+          ).eligible,
+          isFalse,
+        );
+        expect(
+          purchaseEligibility(
+            existing,
+            SubscriptionTier.plus,
+            store: stores.$1,
+          ).eligible,
+          isFalse,
+        );
+      },
+    );
+  }
 
   test('UT-004 AppView none anomaly sentinel permits safe repurchase', () {
     final state = _state(
@@ -145,6 +227,7 @@ BillingState _withRelations(
 
 BillingState _state({
   SubscriptionTier tier = SubscriptionTier.plus,
+  String store = 'app_store',
   bool givesAccess = true,
   bool pendingPayment = false,
   String? autoRenewalStatus = 'will_renew',
@@ -164,7 +247,7 @@ BillingState _state({
     BillingSubscription(
       id: '30000000-0000-4000-8000-000000000001',
       productId: 'craftsky_plus',
-      store: 'app_store',
+      store: store,
       status: 'active',
       givesAccess: givesAccess,
       pendingPayment: pendingPayment,

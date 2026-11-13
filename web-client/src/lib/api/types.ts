@@ -582,6 +582,8 @@ export interface BillingSubscription {
 	currentPeriodEndsAt?: string;
 	endsAt?: string;
 	anomaly: string;
+	tier?: 'plus' | 'business';
+	pendingTier?: 'plus' | 'business';
 }
 export interface BillingLicense {
 	id: string;
@@ -600,13 +602,11 @@ export interface BillingState {
 	reconciliationRequestedAt?: string;
 	reconciledAt?: string;
 	reconciliationStale: boolean;
+	webCheckoutAvailable?: boolean;
+	/** A retained checkout may be resumed; AppView enforces its original tier. */
+	webCheckoutPending?: boolean;
 	subscriptions: BillingSubscription[];
 	licenses: BillingLicense[];
-}
-export interface BillingAssignment {
-	licenseId: string;
-	targetDid: DID;
-	assignedAt: string;
 }
 export interface ChatActor {
 	did: DID;

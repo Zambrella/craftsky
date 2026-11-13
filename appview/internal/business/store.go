@@ -103,7 +103,7 @@ func (s *Store) ReadEvent(ctx context.Context, input EventReadInput) (EventView,
 		           WHERE license.assigned_did=event.owner_did AND license.tier='business'
 		             AND subscription.gives_access AND subscription.environment=$4
 		             AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		             AND subscription.anomaly='none'
+		             AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 		       ) THEN 'business' ELSE 'regular' END,
 		       `+eventBlockedSQL+`, `+eventModerationReadSQL(input.Guest)+`
 		FROM craftsky_business_events event
@@ -164,7 +164,7 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 		  AND subscription.gives_access AND subscription.environment=$7
 		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 		WHERE event.owner_did = $2
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -238,7 +238,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 		  AND subscription.gives_access AND subscription.environment=$5
 		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 		WHERE event.owner_did = $1
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -259,7 +259,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 			  AND subscription.gives_access AND subscription.environment=$6
 			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -282,7 +282,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 			  AND subscription.gives_access AND subscription.environment=$6
 			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -351,7 +351,7 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 		  ON subscription.id = license.provider_subscription_id
 		 AND subscription.gives_access AND subscription.environment=$2
 		 AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
-		 AND subscription.anomaly = 'none'
+		 AND subscription.anomaly = 'none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 		WHERE business_profile.owner_did = $1
 		  AND appview_owner_is_active(business_profile.owner_did)
 		  AND appview_image_subject_is_clear(business_profile.uri, business_profile.cid)
@@ -381,7 +381,7 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 			JOIN provider_subscriptions subscription ON subscription.id = license.provider_subscription_id
 			  AND subscription.gives_access AND subscription.environment=$3
 			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
-			  AND subscription.anomaly = 'none'
+			  AND subscription.anomaly = 'none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -418,7 +418,7 @@ func (s *Store) ReadAccountType(ctx context.Context, did syntax.DID) (AccountTyp
 			WHERE license.assigned_did=$1 AND license.tier='business'
 			  AND subscription.gives_access AND subscription.environment=$2
 			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 		)
 	`, did, s.accessEnvironment).Scan(&active)
 	if err != nil {
@@ -451,7 +451,7 @@ func (s *Store) ReadAccountTypes(ctx context.Context, dids []syntax.DID) (map[sy
 		WHERE license.assigned_did=ANY($1) AND license.tier='business'
 		  AND subscription.gives_access AND subscription.environment=$2
 		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 	`, values, s.accessEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("read account types: %w", err)

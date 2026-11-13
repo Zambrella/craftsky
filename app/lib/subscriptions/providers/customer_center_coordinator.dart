@@ -1,6 +1,6 @@
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
@@ -9,6 +9,7 @@ enum CustomerCenterOutcome {
   completed,
   refreshed,
   providerError,
+  storeAccountConflict,
   pending,
   anomaly,
   failed,
@@ -32,10 +33,11 @@ final class CustomerCenterCoordinator {
     this.isCurrent = _alwaysCurrent,
     this.isForeground = _alwaysCurrent,
     this.onProviderMutationConfirmed,
+    this.onStoreConflict,
     this.maxReconciliationAttempts = 30,
   });
 
-  final BillingOwnerGuard ownerGuard;
+  final BillingAccountGuard ownerGuard;
   final SubscriptionApi api;
   final RevenueCatService revenueCat;
   final ReconciliationWait wait;
@@ -43,12 +45,13 @@ final class CustomerCenterCoordinator {
   final bool Function() isForeground;
   final void Function()? onProviderMutationConfirmed;
   final int maxReconciliationAttempts;
+  final void Function(StoreAccountConflictException)? onStoreConflict;
 
   Future<CustomerCenterResult> present() async {
     final owner = ownerGuard.capture();
     try {
       await ownerGuard.dispatchBillingState(owner, api.getBillingAccount);
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
@@ -68,13 +71,34 @@ final class CustomerCenterCoordinator {
       await ownerGuard.dispatchRevenueCat(
         owner,
         RevenueCatIdentityGuard(revenueCat),
-        () => revenueCat.presentCustomerCenter((_) {
-          if (providerMutationPossible) return;
-          providerMutationPossible = true;
-          onProviderMutationConfirmed?.call();
-        }),
+        () async {
+          final service = revenueCat;
+          if (service is NativeStoreOwnershipService) {
+            await (service as NativeStoreOwnershipService).verifyStoreOwnership(
+              owner.revenueCatAppUserId,
+            );
+          }
+          if (!ownerGuard.isCurrent(owner)) {
+            throw const BillingAccountGuardException('owner_session_changed');
+          }
+          await service.presentCustomerCenter((_) {
+            if (providerMutationPossible) return;
+            providerMutationPossible = true;
+            onProviderMutationConfirmed?.call();
+          });
+        },
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on StoreAccountConflictException catch (error) {
+      if (!ownerGuard.isCurrent(owner)) {
+        return const CustomerCenterResult(
+          outcome: CustomerCenterOutcome.cancelled,
+        );
+      }
+      onStoreConflict?.call(error);
+      return const CustomerCenterResult(
+        outcome: CustomerCenterOutcome.storeAccountConflict,
+      );
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       if (providerMutationPossible) {
         return _pending(reconcilePending);
@@ -101,7 +125,7 @@ final class CustomerCenterCoordinator {
         : await _refreshOwner(owner);
   }
 
-  Future<CustomerCenterResult> _refreshOwner(BillingOwnerLease owner) async {
+  Future<CustomerCenterResult> _refreshOwner(BillingAccountLease owner) async {
     if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
@@ -117,7 +141,7 @@ final class CustomerCenterCoordinator {
         outcome: CustomerCenterOutcome.refreshed,
         state: state,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
@@ -127,7 +151,7 @@ final class CustomerCenterCoordinator {
     }
   }
 
-  Future<CustomerCenterResult> _reconcile(BillingOwnerLease owner) async {
+  Future<CustomerCenterResult> _reconcile(BillingAccountLease owner) async {
     if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
       return _pending(reconcilePending);
     }
@@ -138,7 +162,7 @@ final class CustomerCenterCoordinator {
         owner,
         api.getBillingAccount,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pending(reconcilePending);
     } on Object {
@@ -178,10 +202,10 @@ final class CustomerCenterCoordinator {
 
   Future<CustomerCenterResult> reconcilePending() async {
     if (!isCurrent()) return _pending(reconcilePending);
-    late final BillingOwnerLease owner;
+    late final BillingAccountLease owner;
     try {
       owner = ownerGuard.capture();
-    } on BillingOwnerGuardException {
+    } on BillingAccountGuardException {
       return _pending(reconcilePending);
     }
     return await _reconcile(owner);

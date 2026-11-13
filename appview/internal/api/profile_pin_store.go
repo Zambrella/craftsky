@@ -113,7 +113,7 @@ func (s *ProfilePinStore) requirePaidMutation(ctx context.Context, tx pgx.Tx, ow
 		WHERE license.assigned_did=$1 AND license.tier IN ('plus','business')
 		  AND subscription.gives_access AND subscription.environment=$2
 		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		  AND subscription.anomaly='none' AND EXISTS (SELECT 1 FROM billing_accounts customer WHERE customer.id=subscription.billing_account_id AND customer.owner_did=license.assigned_did AND customer.state='active')
 	)`, owner, s.accessEnvironment).Scan(&paid); err != nil {
 		return err
 	}

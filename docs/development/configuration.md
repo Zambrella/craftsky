@@ -15,6 +15,33 @@ Configuration has one owner per setting:
 
 ## Local setup and worktrees
 
+For per-DID subscriptions and Stripe Managed Payments checkout, see the
+[billing configuration and recovery runbook](../operations/subscription-billing-recovery.md).
+Stripe credentials, configured price IDs and return URLs belong in AppView
+configuration, never Flutter or web build inputs. Configure `STRIPE_SECRET_KEY`,
+`STRIPE_ACCOUNT_ID`, `STRIPE_PLUS_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`,
+`STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL` and
+`STRIPE_BILLING_RETURN_URL` together, or leave them all absent to keep
+web checkout disabled. Stripe checkout also requires the existing RevenueCat
+integration and catalog configuration. Keep the RevenueCat server key's
+customer-creation and subscription-read permissions. The
+`REVENUECAT_ENVIRONMENT` selects sandbox or production; Stripe key and session
+mode must match. `STRIPE_PORTAL_CONFIGURATION_ID` optionally selects the approved
+Stripe Customer Portal configuration. Paddle hosted-link settings are no longer
+used. Management uses an authenticated AppView operation to resolve the DID's
+Stripe customer; a shared email-based portal login cannot select that customer
+reliably. AppView verifies the Stripe key's account matches `STRIPE_ACCOUNT_ID`
+before creating sessions; retained checkout attempts cannot be moved to another
+merchant by rotating configuration.
+
+RevenueCat must use its **Stripe Billing** integration, with each Stripe price
+mapped to the intended tier and shared `paid` entitlement. For external purchase
+tracking, use `app_user_id` metadata detection, paid-invoice recognition and the
+documented Stripe webhook events/signing secret. RevenueCat Billing and its
+Stripe processing connection are a different product and do not provide
+Managed Payments. Provider sandbox success does not enable application checkout
+or establish live business eligibility.
+
 Each component owns its environment files in `config/`: `appview/config/`, `app/config/`, and `web-client/config/`. Root `config/.env.local` holds optional shared Compose project, publish-host, port and memory overrides; copy `config/.env.local.example` when needed. Production backend settings remain in Render.
 
 For an existing checkout, run `just config-init` to move legacy root backend files and web environment files into this layout. The migration preserves values, rejects conflicting destinations, keeps private files at mode 0600, and removes the old inputs after successful writes. Web files move byte-for-byte.

@@ -100,6 +100,42 @@ abstract class AppLocalizations {
   /// **'Use current image ({current} of {total})'**
   String postQuoteUseCurrentImage(int current, int total);
 
+  /// No description provided for @subscriptionsPlanChangeScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Your plan change is scheduled. Your current benefits continue until renewal.'**
+  String get subscriptionsPlanChangeScheduled;
+
+  /// No description provided for @subscriptionsScheduledPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Your plan will change to {tier} at the next renewal.'**
+  String subscriptionsScheduledPlan(String tier);
+
+  /// No description provided for @subscriptionsPlanChangeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This plan change is not available yet. Your existing subscription stays active.'**
+  String get subscriptionsPlanChangeUnavailable;
+
+  /// No description provided for @subscriptionsAccountPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Your subscription belongs to this CraftSky account. Plus and Business are alternative plans.'**
+  String get subscriptionsAccountPlan;
+
+  /// No description provided for @subscriptionsStoreAccountConflictKnown.
+  ///
+  /// In en, this message translates to:
+  /// **'This store purchase is linked to {account}. Switch to that CraftSky account to manage or restore it.'**
+  String subscriptionsStoreAccountConflictKnown(String account);
+
+  /// No description provided for @subscriptionsStoreAccountConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.'**
+  String get subscriptionsStoreAccountConflict;
+
   /// Desktop discovery sidebar section copy.
   ///
   /// In en, this message translates to:
@@ -7776,7 +7812,7 @@ abstract class AppLocalizations {
   /// Dormant assignment explanation.
   ///
   /// In en, this message translates to:
-  /// **'{tier} is assigned to this account but is not currently providing access.'**
+  /// **'Your {tier} subscription is currently inactive.'**
   String subscriptionsDormantAssignment(String tier);
 
   /// Privacy explanation shown to a beneficiary.

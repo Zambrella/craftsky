@@ -26,27 +26,30 @@ const (
 // RevenueCatConfig is disabled by default and keeps provider credentials and
 // private catalog identifiers out of ordinary process diagnostics.
 type RevenueCatConfig struct {
-	enabled                 bool
-	configured              bool
-	apiBaseURL              string
-	apiKey                  Secret
-	projectID               string
-	environment             string
-	webhookAuthorization    Secret
-	webhookSigningSecret    Secret
-	webhookRequireSignature bool
-	appIDs                  []string
-	products                map[string]subscriptions.ProductMapping
-	webhookBodyLimit        int64
-	ingressDeadline         time.Duration
-	signatureTolerance      time.Duration
-	apiTimeout              time.Duration
-	pageLimit               int
-	maxPages                int
-	maxResponseBytes        int64
-	reconciliationPoll      time.Duration
-	reconciliationSchedule  time.Duration
-	leaseDuration           time.Duration
+	enabled                     bool
+	configured                  bool
+	apiBaseURL                  string
+	apiKey                      Secret
+	projectID                   string
+	stripeSecretKey             Secret
+	stripeCheckout              subscriptions.WebCheckoutConfig
+	stripePortalConfigurationID string
+	environment                 string
+	webhookAuthorization        Secret
+	webhookSigningSecret        Secret
+	webhookRequireSignature     bool
+	appIDs                      []string
+	products                    map[string]subscriptions.ProductMapping
+	webhookBodyLimit            int64
+	ingressDeadline             time.Duration
+	signatureTolerance          time.Duration
+	apiTimeout                  time.Duration
+	pageLimit                   int
+	maxPages                    int
+	maxResponseBytes            int64
+	reconciliationPoll          time.Duration
+	reconciliationSchedule      time.Duration
+	leaseDuration               time.Duration
 }
 
 func (c RevenueCatConfig) Enabled() bool    { return c.enabled }
@@ -99,15 +102,43 @@ func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
 	}
 
 	config := RevenueCatConfig{
-		enabled:                 true,
-		apiBaseURL:              strings.TrimSpace(getEnvWithDefault("REVENUECAT_API_BASE_URL", defaultRevenueCatAPIBaseURL)),
-		apiKey:                  Secret(strings.TrimSpace(os.Getenv("REVENUECAT_API_KEY"))),
-		projectID:               strings.TrimSpace(os.Getenv("REVENUECAT_PROJECT_ID")),
-		environment:             strings.TrimSpace(getEnvWithDefault("REVENUECAT_ENVIRONMENT", "production")),
-		webhookAuthorization:    Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_AUTHORIZATION"))),
-		webhookSigningSecret:    Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_SIGNING_SECRET"))),
-		webhookRequireSignature: webhookRequireSignature,
-		appIDs:                  splitCommaEnv("REVENUECAT_APP_IDS"),
+		enabled:                     true,
+		stripeSecretKey:             Secret(strings.TrimSpace(os.Getenv("STRIPE_SECRET_KEY"))),
+		stripeCheckout:              subscriptions.WebCheckoutConfig{AccountID: strings.TrimSpace(os.Getenv("STRIPE_ACCOUNT_ID")), PlusPriceID: strings.TrimSpace(os.Getenv("STRIPE_PLUS_PRICE_ID")), BusinessPriceID: strings.TrimSpace(os.Getenv("STRIPE_BUSINESS_PRICE_ID")), SuccessURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_SUCCESS_URL")), CancelURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_CANCEL_URL")), BillingReturnURL: strings.TrimSpace(os.Getenv("STRIPE_BILLING_RETURN_URL"))},
+		stripePortalConfigurationID: strings.TrimSpace(os.Getenv("STRIPE_PORTAL_CONFIGURATION_ID")),
+		apiBaseURL:                  strings.TrimSpace(getEnvWithDefault("REVENUECAT_API_BASE_URL", defaultRevenueCatAPIBaseURL)),
+		apiKey:                      Secret(strings.TrimSpace(os.Getenv("REVENUECAT_API_KEY"))),
+		projectID:                   strings.TrimSpace(os.Getenv("REVENUECAT_PROJECT_ID")),
+		environment:                 strings.TrimSpace(getEnvWithDefault("REVENUECAT_ENVIRONMENT", "production")),
+		webhookAuthorization:        Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_AUTHORIZATION"))),
+		webhookSigningSecret:        Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_SIGNING_SECRET"))),
+		webhookRequireSignature:     webhookRequireSignature,
+		appIDs:                      splitCommaEnv("REVENUECAT_APP_IDS"),
+	}
+	stripeValues := []string{config.stripeSecretKey.Reveal(), config.stripeCheckout.AccountID, config.stripeCheckout.PlusPriceID, config.stripeCheckout.BusinessPriceID, config.stripeCheckout.SuccessURL, config.stripeCheckout.CancelURL, config.stripeCheckout.BillingReturnURL, config.stripePortalConfigurationID}
+	stripeConfigured := false
+	for _, value := range stripeValues {
+		if value != "" {
+			stripeConfigured = true
+		}
+	}
+	if stripeConfigured {
+		if config.stripeSecretKey.Reveal() == "" {
+			return RevenueCatConfig{}, errors.New("STRIPE_SECRET_KEY is required for Stripe checkout")
+		}
+		if err := subscriptions.ValidateWebCheckoutConfig(config.stripeCheckout); err != nil {
+			return RevenueCatConfig{}, err
+		}
+		prefix := "sk_live_"
+		if config.environment == "sandbox" {
+			prefix = "sk_test_"
+		}
+		if !strings.HasPrefix(config.stripeSecretKey.Reveal(), prefix) {
+			return RevenueCatConfig{}, errors.New("STRIPE_SECRET_KEY must match REVENUECAT_ENVIRONMENT")
+		}
+		if config.stripePortalConfigurationID != "" && !strings.HasPrefix(config.stripePortalConfigurationID, "bpc_") {
+			return RevenueCatConfig{}, errors.New("invalid STRIPE_PORTAL_CONFIGURATION_ID")
+		}
 	}
 	if config.environment != "production" && config.environment != "sandbox" {
 		return RevenueCatConfig{}, errors.New("REVENUECAT_ENVIRONMENT must be production or sandbox")

@@ -28,6 +28,7 @@ func (provider *scriptedProvider) ListCustomerSubscriptions(context.Context, uui
 
 func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}

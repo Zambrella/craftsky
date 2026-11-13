@@ -1,6 +1,6 @@
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
@@ -8,6 +8,7 @@ import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 enum SubscriptionRestoreOutcome {
   completed,
   providerError,
+  storeAccountConflict,
   pending,
   anomaly,
   failed,
@@ -18,16 +19,12 @@ final class SubscriptionRestoreResult {
   const new({
     required this.outcome,
     this.state,
-    this.assignmentLicense,
     this.retry,
   });
 
   final SubscriptionRestoreOutcome outcome;
   final BillingState? state;
-  final BillingLicense? assignmentLicense;
   final Future<SubscriptionRestoreResult> Function()? retry;
-
-  bool get requiresAssignment => assignmentLicense != null;
 }
 
 final class SubscriptionRestoreController {
@@ -39,10 +36,11 @@ final class SubscriptionRestoreController {
     this.isCurrent = _alwaysCurrent,
     this.isForeground = _alwaysCurrent,
     this.onProviderConfirmed,
+    this.onStoreConflict,
     this.maxReconciliationAttempts = 30,
   });
 
-  final BillingOwnerGuard ownerGuard;
+  final BillingAccountGuard ownerGuard;
   final SubscriptionApi api;
   final RevenueCatService revenueCat;
   final ReconciliationWait wait;
@@ -50,6 +48,7 @@ final class SubscriptionRestoreController {
   final bool Function() isForeground;
   final void Function(BillingState beforeProvider)? onProviderConfirmed;
   final int maxReconciliationAttempts;
+  final void Function(StoreAccountConflictException)? onStoreConflict;
 
   Future<SubscriptionRestoreResult> restore() async {
     final owner = ownerGuard.capture();
@@ -59,7 +58,7 @@ final class SubscriptionRestoreController {
         owner,
         api.getBillingAccount,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.cancelled,
@@ -70,16 +69,39 @@ final class SubscriptionRestoreController {
         outcome: SubscriptionRestoreOutcome.cancelled,
       );
     }
+    var providerConfirmed = false;
     try {
-      await ownerGuard.prepareRevenueCat(
+      await ownerGuard.dispatchRevenueCat(
         owner,
         RevenueCatIdentityGuard(revenueCat),
+        () async {
+          final service = revenueCat;
+          if (service is NativeStoreOwnershipService) {
+            await (service as NativeStoreOwnershipService).verifyStoreOwnership(
+              owner.revenueCatAppUserId,
+            );
+          }
+          if (!ownerGuard.isCurrent(owner)) {
+            throw const BillingAccountGuardException('owner_session_changed');
+          }
+          await service.restorePurchases();
+          providerConfirmed = true;
+          onProviderConfirmed?.call(beforeProvider);
+        },
       );
-      await revenueCat.restorePurchases();
-      onProviderConfirmed?.call(beforeProvider);
       if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
         return _pendingRetry(beforeProvider);
       }
+    } on StoreAccountConflictException catch (error) {
+      if (!ownerGuard.isCurrent(owner)) {
+        return const SubscriptionRestoreResult(
+          outcome: SubscriptionRestoreOutcome.cancelled,
+        );
+      }
+      onStoreConflict?.call(error);
+      return const SubscriptionRestoreResult(
+        outcome: SubscriptionRestoreOutcome.storeAccountConflict,
+      );
     } on RevenueCatIdentityException {
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
@@ -88,8 +110,9 @@ final class SubscriptionRestoreController {
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
+      if (providerConfirmed) return _pendingRetry(beforeProvider);
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.cancelled,
       );
@@ -104,7 +127,7 @@ final class SubscriptionRestoreController {
   }
 
   Future<SubscriptionRestoreResult> _reconcileRestore(
-    BillingOwnerLease owner,
+    BillingAccountLease owner,
     BillingState beforeProvider,
   ) async {
     if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
@@ -117,7 +140,7 @@ final class SubscriptionRestoreController {
         owner,
         api.getBillingAccount,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pendingRetry(beforeProvider);
     } on Object {
@@ -146,10 +169,6 @@ final class SubscriptionRestoreController {
       ReconciliationOutcome.completed => SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.completed,
         state: result.state,
-        assignmentLicense: _newUnassignedLicense(
-          beforeProvider,
-          result.state!,
-        ),
       ),
       ReconciliationOutcome.timedOut => _pendingRetry(beforeProvider),
       ReconciliationOutcome.failed =>
@@ -167,10 +186,10 @@ final class SubscriptionRestoreController {
     BillingState beforeProvider,
   ) async {
     if (!isCurrent()) return _pendingRetry(beforeProvider);
-    late final BillingOwnerLease owner;
+    late final BillingAccountLease owner;
     try {
       owner = ownerGuard.capture();
-    } on BillingOwnerGuardException {
+    } on BillingAccountGuardException {
       return _pendingRetry(beforeProvider);
     }
     return await _reconcileRestore(owner, beforeProvider);
@@ -182,24 +201,6 @@ final class SubscriptionRestoreController {
     outcome: SubscriptionRestoreOutcome.pending,
     retry: () => reconcilePending(beforeProvider),
   );
-
-  BillingLicense? _newUnassignedLicense(
-    BillingState before,
-    BillingState current,
-  ) {
-    final previousIds = before.licenses.map((value) => value.id).toSet();
-    final subscriptions = {
-      for (final value in current.subscriptions) value.id: value,
-    };
-    return current.licenses
-        .where(
-          (value) =>
-              value.assignedDid == null &&
-              !previousIds.contains(value.id) &&
-              (subscriptions[value.subscriptionId]?.givesAccess ?? false),
-        )
-        .firstOrNull;
-  }
 }
 
 bool _alwaysCurrent() => true;

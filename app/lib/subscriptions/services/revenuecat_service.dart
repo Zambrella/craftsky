@@ -2,7 +2,13 @@ enum RevenueCatIdentityKind { anonymous, identified }
 
 enum BillingAvailability { available, unavailable }
 
-enum DirectPaywallResult { purchased, restored, cancelled, error }
+enum DirectPaywallResult {
+  purchased,
+  restored,
+  cancelled,
+  error,
+  storeAccountConflict,
+}
 
 enum CustomerCenterEvent {
   restoreCompleted,
@@ -33,6 +39,28 @@ abstract interface class RevenueCatIdentityService {
   BillingAvailability get availability;
   Future<RevenueCatIdentity> currentIdentity();
   Future<void> identify(String appViewUuid);
+}
+
+abstract interface class NativeStoreOwnershipService {
+  String get store;
+  bool get supportsPlanChanges;
+
+  /// Reads store-owned transactions without posting or transferring receipts.
+  /// Unknown ownership must fail closed before opening a purchase sheet.
+  Future<void> verifyStoreOwnership(String appUserId);
+}
+
+abstract interface class NativePlanChangeService {
+  Future<DirectPaywallResult> changePlan(
+    RevenueCatOffering offering, {
+    required bool Function() isCurrent,
+  });
+}
+
+final class NativePlanChangeUnavailableException implements Exception {
+  const new();
+  @override
+  String toString() => 'NativePlanChangeUnavailableException()';
 }
 
 abstract interface class RevenueCatService
@@ -82,4 +110,20 @@ final class RevenueCatUnavailableException implements Exception {
 
   @override
   String toString() => 'RevenueCatUnavailableException()';
+}
+
+/// A store receipt is linked to another identified CraftSky customer.
+/// The exception deliberately contains no unverified account identity.
+final class StoreAccountConflictException implements Exception {
+  const new({this.ownerAppUserId, this.ownerHash});
+  final String? ownerAppUserId;
+  final String? ownerHash;
+  @override
+  String toString() => 'StoreAccountConflictException(<redacted>)';
+}
+
+final class StoreOwnershipUnverifiedException implements Exception {
+  const new();
+  @override
+  String toString() => 'StoreOwnershipUnverifiedException()';
 }

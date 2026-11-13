@@ -61,6 +61,25 @@ describe('AppView wire contracts', () => {
 		expect(changed).toHaveBeenCalledTimes(6);
 	});
 
+	it('starts account-owned checkout with only the chosen tier', async () => {
+		const { api, request } = setup({
+			url: 'https://checkout.stripe.com/c/pay/cs_test_fixture#capability'
+		});
+		await api.billing.checkout('business');
+		expect(request().url).toBe('/api/appview/v1/billing/web-checkout');
+		expect(request().method).toBe('POST');
+		expect(request().json).toEqual({ tier: 'business' });
+	});
+	it('requests account-owned management without accepting a provider customer ID', async () => {
+		const { api, request } = setup({
+			url: 'https://billing.stripe.com/p/session/test_fixture'
+		});
+		await api.billing.manage();
+		expect(request().url).toBe('/api/appview/v1/billing/web-management');
+		expect(request().method).toBe('POST');
+		expect(request().body).toBeUndefined();
+	});
+
 	it('pages the extended network feed and preserves its connection attribution', async () => {
 		const item = {
 			itemKey: 'post:network-post',

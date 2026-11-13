@@ -19,12 +19,15 @@ func TestClaimedScheduledPostCannotAppendAfterAccessLossCommits(t *testing.T) {
 	if err := testdb.ApplyMigrations(ctx, pool, "000076_subscription_accounts.up.sql"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `CREATE TABLE profile_pins(owner_did TEXT, slot TEXT)`); err != nil {
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);
+		ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;
+	`); err != nil {
 		t.Fatal(err)
 	}
 	accountID := uuid.MustParse("10000000-0000-4000-8000-000000000091")
 	for _, query := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000091','did:plc:billing-owner','20000000-0000-4000-8000-000000000091')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000091','did:plc:alice','20000000-0000-4000-8000-000000000091')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000091','10000000-0000-4000-8000-000000000091','project','sub','plus','app','app_store','production','active',true,'plus',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000091','plus','did:plc:alice',now())`,
 	} {

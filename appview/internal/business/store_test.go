@@ -28,7 +28,7 @@ func TestStoreAccountType(t *testing.T) {
 		t.Fatalf("unassigned = %q, %v", got, err)
 	}
 	for _, statement := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:alice','20000000-0000-4000-8000-000000000001')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:alice',now())`,
 	} {
@@ -82,7 +82,7 @@ func TestStoreReadAccountTypesUsesOneSetBasedQuery(t *testing.T) {
 	}
 	pool := testdb.WithSchema(t, string(migration))
 	for _, statement := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:summary00','20000000-0000-4000-8000-000000000001')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:summary00',now())`,
 	} {

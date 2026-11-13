@@ -61,6 +61,8 @@ func (*DeletionParticipant) ConfirmDeletion(ctx context.Context, tx pgx.Tx, owne
 	var blocking bool
 	if err := tx.QueryRow(ctx, `
 		SELECT EXISTS(
+			SELECT 1 FROM billing_web_checkouts WHERE billing_account_id=$1
+		) OR EXISTS(
 			SELECT 1 FROM provider_subscriptions
 			WHERE billing_account_id=$1
 			  AND (

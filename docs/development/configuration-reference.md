@@ -187,26 +187,26 @@ Go loaders own defaults, types, validation and conditional requirements. Follow 
 | `PUSH_SEND_TIMEOUT` | Server configuration | [config.go:713](../../appview/internal/app/config.go#L713) |
 | `RENDER_GIT_COMMIT` | Server configuration | [config.go:1041](../../appview/internal/app/config.go#L1041) |
 | `REQUIRED_POLICY_VERSION` | Server configuration | [config.go:395](../../appview/internal/app/config.go#L395) |
-| `REVENUECAT_API_BASE_URL` | Server configuration | [revenuecat_config.go:103](../../appview/internal/app/revenuecat_config.go#L103) |
-| `REVENUECAT_API_KEY` | Protected server value | [revenuecat_config.go:104](../../appview/internal/app/revenuecat_config.go#L104) |
-| `REVENUECAT_API_MAX_PAGES` | Server configuration | [revenuecat_config.go:170](../../appview/internal/app/revenuecat_config.go#L170) |
-| `REVENUECAT_API_MAX_RESPONSE_BYTES` | Server configuration | [revenuecat_config.go:173](../../appview/internal/app/revenuecat_config.go#L173) |
-| `REVENUECAT_API_PAGE_LIMIT` | Server configuration | [revenuecat_config.go:167](../../appview/internal/app/revenuecat_config.go#L167) |
-| `REVENUECAT_API_TIMEOUT` | Server configuration | [revenuecat_config.go:164](../../appview/internal/app/revenuecat_config.go#L164) |
-| `REVENUECAT_APP_IDS` | Server configuration | [revenuecat_config.go:110](../../appview/internal/app/revenuecat_config.go#L110) |
-| `REVENUECAT_ENABLED` | Server configuration | [revenuecat_config.go:93](../../appview/internal/app/revenuecat_config.go#L93) |
-| `REVENUECAT_ENVIRONMENT` | Server configuration | [revenuecat_config.go:106](../../appview/internal/app/revenuecat_config.go#L106) |
-| `REVENUECAT_PRODUCT_MAPPINGS` | Server configuration | [revenuecat_config.go:120](../../appview/internal/app/revenuecat_config.go#L120) |
-| `REVENUECAT_PROJECT_ID` | Server configuration | [revenuecat_config.go:105](../../appview/internal/app/revenuecat_config.go#L105) |
-| `REVENUECAT_RECONCILIATION_LEASE_DURATION` | Server configuration | [revenuecat_config.go:182](../../appview/internal/app/revenuecat_config.go#L182) |
-| `REVENUECAT_RECONCILIATION_POLL_INTERVAL` | Server configuration | [revenuecat_config.go:176](../../appview/internal/app/revenuecat_config.go#L176) |
-| `REVENUECAT_RECONCILIATION_SCHEDULE_INTERVAL` | Server configuration | [revenuecat_config.go:179](../../appview/internal/app/revenuecat_config.go#L179) |
-| `REVENUECAT_WEBHOOK_AUTHORIZATION` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
-| `REVENUECAT_WEBHOOK_BODY_LIMIT_BYTES` | Server configuration | [revenuecat_config.go:155](../../appview/internal/app/revenuecat_config.go#L155) |
-| `REVENUECAT_WEBHOOK_INGRESS_DEADLINE` | Server configuration | [revenuecat_config.go:158](../../appview/internal/app/revenuecat_config.go#L158) |
-| `REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE` | Server configuration | [revenuecat_config.go:86](../../appview/internal/app/revenuecat_config.go#L86) |
-| `REVENUECAT_WEBHOOK_SIGNATURE_TOLERANCE` | Server configuration | [revenuecat_config.go:161](../../appview/internal/app/revenuecat_config.go#L161) |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Protected server value | [revenuecat_config.go:108](../../appview/internal/app/revenuecat_config.go#L108) |
+| `REVENUECAT_API_BASE_URL` | Server configuration | [revenuecat_config.go:109](../../appview/internal/app/revenuecat_config.go#L109) |
+| `REVENUECAT_API_KEY` | Protected server value | [revenuecat_config.go:110](../../appview/internal/app/revenuecat_config.go#L110) |
+| `REVENUECAT_API_MAX_PAGES` | Server configuration | [revenuecat_config.go:201](../../appview/internal/app/revenuecat_config.go#L201) |
+| `REVENUECAT_API_MAX_RESPONSE_BYTES` | Server configuration | [revenuecat_config.go:204](../../appview/internal/app/revenuecat_config.go#L204) |
+| `REVENUECAT_API_PAGE_LIMIT` | Server configuration | [revenuecat_config.go:198](../../appview/internal/app/revenuecat_config.go#L198) |
+| `REVENUECAT_API_TIMEOUT` | Server configuration | [revenuecat_config.go:195](../../appview/internal/app/revenuecat_config.go#L195) |
+| `REVENUECAT_APP_IDS` | Server configuration | [revenuecat_config.go:116](../../appview/internal/app/revenuecat_config.go#L116) |
+| `REVENUECAT_ENABLED` | Server configuration | [revenuecat_config.go:96](../../appview/internal/app/revenuecat_config.go#L96) |
+| `REVENUECAT_ENVIRONMENT` | Server configuration | [revenuecat_config.go:112](../../appview/internal/app/revenuecat_config.go#L112) |
+| `REVENUECAT_PRODUCT_MAPPINGS` | Server configuration | [revenuecat_config.go:151](../../appview/internal/app/revenuecat_config.go#L151) |
+| `REVENUECAT_PROJECT_ID` | Server configuration | [revenuecat_config.go:111](../../appview/internal/app/revenuecat_config.go#L111) |
+| `REVENUECAT_RECONCILIATION_LEASE_DURATION` | Server configuration | [revenuecat_config.go:213](../../appview/internal/app/revenuecat_config.go#L213) |
+| `REVENUECAT_RECONCILIATION_POLL_INTERVAL` | Server configuration | [revenuecat_config.go:207](../../appview/internal/app/revenuecat_config.go#L207) |
+| `REVENUECAT_RECONCILIATION_SCHEDULE_INTERVAL` | Server configuration | [revenuecat_config.go:210](../../appview/internal/app/revenuecat_config.go#L210) |
+| `REVENUECAT_WEBHOOK_AUTHORIZATION` | Server configuration | [revenuecat_config.go:113](../../appview/internal/app/revenuecat_config.go#L113) |
+| `REVENUECAT_WEBHOOK_BODY_LIMIT_BYTES` | Server configuration | [revenuecat_config.go:186](../../appview/internal/app/revenuecat_config.go#L186) |
+| `REVENUECAT_WEBHOOK_INGRESS_DEADLINE` | Server configuration | [revenuecat_config.go:189](../../appview/internal/app/revenuecat_config.go#L189) |
+| `REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE` | Server configuration | [revenuecat_config.go:89](../../appview/internal/app/revenuecat_config.go#L89) |
+| `REVENUECAT_WEBHOOK_SIGNATURE_TOLERANCE` | Server configuration | [revenuecat_config.go:192](../../appview/internal/app/revenuecat_config.go#L192) |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Protected server value | [revenuecat_config.go:114](../../appview/internal/app/revenuecat_config.go#L114) |
 | `SAFETY_EMAIL_CONSOLE_ORIGIN` | Server configuration | [config.go:1102](../../appview/internal/app/config.go#L1102) |
 | `SAFETY_EMAIL_ENABLED` | Server configuration | [config.go:1094](../../appview/internal/app/config.go#L1094) |
 | `SAFETY_EVIDENCE_S3_ACCESS_KEY_ID` | Protected server value | [config.go:1006](../../appview/internal/app/config.go#L1006) |
@@ -235,6 +235,14 @@ Go loaders own defaults, types, validation and conditional requirements. Follow 
 | `SENTRY_TAP_TRACING_ENABLED` | Server configuration | [config.go:1055](../../appview/internal/app/config.go#L1055) |
 | `SENTRY_TRACES_SAMPLE_RATE` | Server configuration | [config.go:1049](../../appview/internal/app/config.go#L1049) |
 | `SENTRY_TRACING_ENABLED` | Server configuration | [config.go:1046](../../appview/internal/app/config.go#L1046) |
+| `STRIPE_ACCOUNT_ID` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_BILLING_RETURN_URL` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_BUSINESS_PRICE_ID` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_CHECKOUT_CANCEL_URL` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_CHECKOUT_SUCCESS_URL` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_PLUS_PRICE_ID` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
+| `STRIPE_PORTAL_CONFIGURATION_ID` | Server configuration | [revenuecat_config.go:108](../../appview/internal/app/revenuecat_config.go#L108) |
+| `STRIPE_SECRET_KEY` | Protected server value | [revenuecat_config.go:106](../../appview/internal/app/revenuecat_config.go#L106) |
 | `TAP_ACK_SAFETY_MARGIN` | Server configuration | [config.go:431](../../appview/internal/app/config.go#L431) |
 | `TAP_ACK_TIMEOUT` | Server configuration | [config.go:428](../../appview/internal/app/config.go#L428) |
 | `TAP_MAX_RETRIES` | Server configuration | [config.go:438](../../appview/internal/app/config.go#L438) |

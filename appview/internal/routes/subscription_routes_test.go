@@ -16,6 +16,7 @@ import (
 
 func TestBillingIdentityIsExplicitStableAndPrivate(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +92,7 @@ func TestBillingIdentityIsExplicitStableAndPrivate(t *testing.T) {
 
 func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +104,7 @@ func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 	end := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
-		VALUES('10000000-0000-4000-8000-000000000011','did:plc:access-owner','20000000-0000-4000-8000-000000000011')
+		VALUES('10000000-0000-4000-8000-000000000011','did:plc:access-member','20000000-0000-4000-8000-000000000011')
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -166,6 +168,7 @@ func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 
 func TestIT013OwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}

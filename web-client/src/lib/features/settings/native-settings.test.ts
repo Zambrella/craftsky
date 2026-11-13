@@ -8,7 +8,6 @@ import type {
 } from '#lib/api/types.ts';
 import { colours, imageBody, productBody, type Product } from './model.ts';
 import {
-	canAssignLicense,
 	characterCount,
 	currencyOptions,
 	effectiveCustomisation,
@@ -45,13 +44,9 @@ const state: BillingState = {
 };
 
 describe('native subscription state precedence', () => {
-	it('keeps independent tier cards and permits only authoritative active assignments', () => {
+	it('shows authoritative provider status for each tier', () => {
 		expect(tierState(state, 'plus')).toBe('active');
 		expect(tierState(state, 'business')).toBe('empty');
-		expect(canAssignLicense(state, license)).toBe(true);
-		expect(canAssignLicense(state, { ...license, assignable: false })).toBe(
-			false
-		);
 		expect(
 			tierState(
 				{ ...state, subscriptions: [{ ...subscription, status: 'cancelled' }] },
@@ -70,7 +65,7 @@ describe('native subscription state precedence', () => {
 			)
 		).toBe('dormant');
 	});
-	it('does not allow assignment for missing, anomalous, stale, pending or future store states', () => {
+	it('represents missing, anomalous, stale, pending and future store states', () => {
 		const cases: [BillingState, string][] = [
 			[{ ...state, subscriptions: [] }, 'anomaly'],
 			[
@@ -103,7 +98,6 @@ describe('native subscription state precedence', () => {
 		];
 		for (const [value, status] of cases) {
 			expect(tierState(value, 'plus')).toBe(status);
-			expect(canAssignLicense(value, value.licenses[0])).toBe(false);
 		}
 	});
 	it('uses native anomaly > stale > pending > unknown-status precedence', () => {
@@ -123,10 +117,6 @@ describe('native subscription state precedence', () => {
 				'plus'
 			)
 		).toBe('anomaly');
-		const anomalous = { ...license, id: 'second', subscriptionId: 'missing' };
-		expect(
-			canAssignLicense({ ...state, licenses: [license, anomalous] }, license)
-		).toBe(false);
 	});
 });
 

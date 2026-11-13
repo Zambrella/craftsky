@@ -98,10 +98,15 @@ func snapshotIsolationTables(t *testing.T, ctx context.Context, pool interface {
 
 func TestBillingLifecycleIsIsolatedFromSocialAndRetainedPrivateState(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, isolationSocialDDL+string(migration))
+	checkoutMigration, err := os.ReadFile("../../migrations/000125_stripe_web_checkouts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, isolationSocialDDL+string(migration)+string(checkoutMigration))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:isolation-owner")
@@ -150,17 +155,6 @@ func TestBillingLifecycleIsIsolatedFromSocialAndRetainedPrivateState(t *testing.
 	}
 
 	reconcile(TriggerRestore)
-	var primaryLicense uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT license.id FROM billing_licenses license
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE subscription.revenuecat_subscription_id='plus-primary'
-	`).Scan(&primaryLicense); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Assign(ctx, AssignParams{OwnerDID: owner, LicenseID: primaryLicense, TargetDID: beneficiary, DeviceID: "isolation-device", Now: now}); err != nil {
-		t.Fatal(err)
-	}
 	reconcile(TriggerWebhook)
 	var duplicateAnomaly string
 	if err := pool.QueryRow(ctx, `
@@ -171,12 +165,12 @@ func TestBillingLifecycleIsIsolatedFromSocialAndRetainedPrivateState(t *testing.
 		t.Fatalf("duplicate anomaly = %q, error %v", duplicateAnomaly, err)
 	}
 	reconcile(TriggerScheduled)
-	access, err := store.SelfAccess(ctx, beneficiary, now)
+	access, err := store.SelfAccess(ctx, owner, now)
 	if err != nil || access.EffectiveTier != TierFree || access.AssignedTier == nil {
 		t.Fatalf("access loss = %#v, error %v", access, err)
 	}
 	reconcile(TriggerOwnerRefresh)
-	access, err = store.SelfAccess(ctx, beneficiary, now)
+	access, err = store.SelfAccess(ctx, owner, now)
 	if err != nil || access.EffectiveTier != TierPlus || !access.GivesAccess {
 		t.Fatalf("access recovery = %#v, error %v", access, err)
 	}

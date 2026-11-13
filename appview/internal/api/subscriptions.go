@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"social.craftsky/appview/internal/observability"
 	"time"
@@ -24,11 +25,6 @@ type BillingAccountStore interface {
 
 type SubscriptionAccessStore interface {
 	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
-}
-
-type SubscriptionAssignmentStore interface {
-	Assign(context.Context, subscriptions.AssignParams) (subscriptions.Assignment, error)
-	Unassign(context.Context, subscriptions.UnassignParams) error
 }
 
 func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time) http.Handler {
@@ -94,6 +90,14 @@ func RequestSubscriptionReconciliationHandler(store BillingAccountStore, now fun
 		}
 		account, err := store.OwnerAccount(r.Context(), owner)
 		if err == nil {
+			if resolver, ok := store.(interface {
+				ResolveWebCheckoutForDeletion(context.Context, syntax.DID, time.Time) error
+			}); ok {
+				if resolveErr := resolver.ResolveWebCheckoutForDeletion(r.Context(), owner, now()); resolveErr != nil {
+					writeBillingAccountError(w, middleware.GetRunID(r.Context()), resolveErr)
+					return
+				}
+			}
 			err = store.RequestReconciliation(r.Context(), account.ID, now())
 		}
 		if err != nil {
@@ -102,80 +106,6 @@ func RequestSubscriptionReconciliationHandler(store BillingAccountStore, now fun
 		}
 		envelope.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
 	})
-}
-
-func AssignSubscriptionLicenseHandler(store SubscriptionAssignmentStore, now func() time.Time) http.Handler {
-	type requestBody struct {
-		TargetDID string `json:"targetDid"`
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		owner, ok := subscriptionOwnerScope(w, r)
-		if !ok {
-			return
-		}
-		licenseID, err := uuid.Parse(r.PathValue("licenseId"))
-		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid assignment request", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		var body requestBody
-		if err := decodeStrictJSONObject(r, &body); err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid assignment request", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		target, err := syntax.ParseDID(body.TargetDID)
-		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid assignment request", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		deviceID, ok := middleware.GetDeviceID(r.Context())
-		if !ok {
-			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_scope", "authenticated device scope missing", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		assignment, err := store.Assign(r.Context(), subscriptions.AssignParams{
-			OwnerDID: owner, LicenseID: licenseID, TargetDID: target, DeviceID: deviceID, Now: now(),
-		})
-		if err != nil {
-			writeAssignmentError(w, middleware.GetRunID(r.Context()), err)
-			return
-		}
-		envelope.WriteJSON(w, http.StatusOK, assignment)
-	})
-}
-
-func UnassignSubscriptionLicenseHandler(store SubscriptionAssignmentStore, now func() time.Time) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		owner, ok := subscriptionOwnerScope(w, r)
-		if !ok {
-			return
-		}
-		licenseID, err := uuid.Parse(r.PathValue("licenseId"))
-		if err != nil {
-			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid assignment request", middleware.GetRunID(r.Context()), nil)
-			return
-		}
-		if err := store.Unassign(r.Context(), subscriptions.UnassignParams{OwnerDID: owner, LicenseID: licenseID, Now: now()}); err != nil {
-			writeAssignmentError(w, middleware.GetRunID(r.Context()), err)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-}
-
-func writeAssignmentError(w http.ResponseWriter, runID string, err error) {
-	switch {
-	case errors.Is(err, subscriptions.ErrLicenseNotFound):
-		envelope.WriteError(w, http.StatusNotFound, "billing_license_not_found", "billing license not found", runID, nil)
-	case errors.Is(err, subscriptions.ErrAssignmentTargetIneligible):
-		envelope.WriteError(w, http.StatusUnprocessableEntity, "assignment_target_ineligible", "assignment target is ineligible", runID, nil)
-	case errors.Is(err, subscriptions.ErrDIDAlreadyAssigned):
-		envelope.WriteError(w, http.StatusConflict, "assignment_conflict", "target already has a paid assignment", runID, nil)
-	case errors.Is(err, subscriptions.ErrAssignmentCooldown):
-		envelope.WriteError(w, http.StatusConflict, "assignment_cooldown", "license assignment cannot be changed yet", runID, nil)
-	default:
-		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "billing operation failed", runID, nil)
-	}
 }
 
 func subscriptionOwnerScope(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
@@ -193,4 +123,75 @@ func writeBillingAccountError(w http.ResponseWriter, runID string, err error) {
 		return
 	}
 	envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "billing operation failed", runID, nil)
+}
+
+type WebSubscriptionCheckoutStore interface {
+	WebCheckoutURL(context.Context, syntax.DID, subscriptions.Tier, time.Time) (string, error)
+}
+
+func CreateWebSubscriptionCheckoutHandler(store WebSubscriptionCheckoutStore, now func() time.Time) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := subscriptionOwnerScope(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			Tier subscriptions.Tier `json:"tier"`
+		}
+		if err := decodeStrictJSONObject(r, &body); err != nil || !body.Tier.Paid() {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "choose a valid subscription tier", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		destination, err := store.WebCheckoutURL(r.Context(), owner, body.Tier, now())
+		if err != nil {
+			switch {
+			case errors.Is(err, subscriptions.ErrWebCheckoutUnavailable):
+				envelope.WriteError(w, http.StatusServiceUnavailable, "web_checkout_unavailable", "web checkout is unavailable", middleware.GetRunID(r.Context()), nil)
+			case errors.Is(err, subscriptions.ErrSubscriptionReconciliationRequired):
+				envelope.WriteError(w, http.StatusConflict, "subscription_reconciliation_required", "refresh subscription status before checkout", middleware.GetRunID(r.Context()), nil)
+			case errors.Is(err, subscriptions.ErrWebCheckoutPending):
+				envelope.WriteError(w, http.StatusConflict, "web_checkout_pending", "finish or wait for the existing subscription checkout", middleware.GetRunID(r.Context()), nil)
+			case errors.Is(err, subscriptions.ErrSubscriptionAlreadyExists):
+				envelope.WriteError(w, http.StatusConflict, "subscription_already_exists", "this account already has a subscription", middleware.GetRunID(r.Context()), nil)
+			default:
+				writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, http.StatusOK, map[string]string{"url": destination})
+	})
+}
+
+type WebSubscriptionManagementStore interface {
+	WebManagementURL(context.Context, syntax.DID, time.Time) (string, error)
+}
+
+func CreateWebSubscriptionManagementHandler(store WebSubscriptionManagementStore, now func() time.Time) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := subscriptionOwnerScope(w, r)
+		if !ok {
+			return
+		}
+		// The route accepts no body; server-side identity is the only authority.
+		var probe [1]byte
+		if r.Body != nil {
+			n, err := r.Body.Read(probe[:])
+			if n != 0 || (err != nil && err != io.EOF) {
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "billing management accepts no request body", middleware.GetRunID(r.Context()), nil)
+				return
+			}
+		}
+		destination, err := store.WebManagementURL(r.Context(), owner, now())
+		if err != nil {
+			if errors.Is(err, subscriptions.ErrWebManagementUnavailable) || errors.Is(err, subscriptions.ErrWebCheckoutUnavailable) {
+				envelope.WriteError(w, http.StatusServiceUnavailable, "web_management_unavailable", "subscription management is unavailable", middleware.GetRunID(r.Context()), nil)
+			} else {
+				writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, http.StatusOK, map[string]string{"url": destination})
+	})
 }

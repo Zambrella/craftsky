@@ -18,10 +18,6 @@ type BillingObserver interface {
 
 var ErrBillingAccountNotFound = errors.New("billing account not found")
 var ErrStaleSnapshot = errors.New("stale subscription snapshot")
-var ErrLicenseNotFound = errors.New("billing license not found")
-var ErrAssignmentTargetIneligible = errors.New("assignment target is ineligible")
-var ErrDIDAlreadyAssigned = errors.New("target already has a billing license")
-var ErrAssignmentCooldown = errors.New("billing license reassignment is cooling down")
 var ErrProviderBillingMustBeResolved = errors.New("provider billing must be resolved")
 
 // Tier identifies a CraftSky access level used by billing and authorization.
@@ -71,7 +67,8 @@ type BillingAccount struct {
 	ReconciledAt            *time.Time
 }
 
-// BillingState is the owner-visible view of a billing account, its subscriptions, and assignable licenses.
+// BillingState is the authenticated DID customer and its provider subscriptions.
+// Licenses remain a compatibility projection; they cannot be assigned or moved.
 type BillingState struct {
 	BillingAccountID        uuid.UUID             `json:"billingAccountId"`
 	RevenueCatAppUserID     uuid.UUID             `json:"revenueCatAppUserId"`
@@ -80,12 +77,16 @@ type BillingState struct {
 	ReconciliationRequested *time.Time            `json:"reconciliationRequestedAt,omitempty"`
 	ReconciledAt            *time.Time            `json:"reconciledAt,omitempty"`
 	ReconciliationStale     bool                  `json:"reconciliationStale"`
+	WebCheckoutAvailable    bool                  `json:"webCheckoutAvailable"`
+	WebCheckoutPending      bool                  `json:"webCheckoutPending"`
 	Subscriptions           []BillingSubscription `json:"subscriptions"`
 	Licenses                []BillingLicense      `json:"licenses"`
 }
 
-// BillingSubscription exposes provider subscription state needed by its billing owner.
+// BillingSubscription exposes provider subscription state for its customer DID.
 type BillingSubscription struct {
+	Tier                  *Tier      `json:"tier,omitempty"`
+	PendingTier           *Tier      `json:"pendingTier,omitempty"`
 	ID                    uuid.UUID  `json:"id"`
 	ProductID             string     `json:"productId"`
 	Store                 string     `json:"store"`
@@ -99,7 +100,7 @@ type BillingSubscription struct {
 	Anomaly               string     `json:"anomaly"`
 }
 
-// BillingLicense represents one paid entitlement that an owner can assign to a CraftSky DID.
+// BillingLicense is the legacy entitlement projection, bound only to the customer DID.
 type BillingLicense struct {
 	ID             uuid.UUID   `json:"id"`
 	SubscriptionID uuid.UUID   `json:"subscriptionId"`
@@ -147,27 +148,4 @@ type RevenueCatEvent struct {
 	Type                string
 	RevenueCatAppUserID uuid.UUID
 	OccurredAt          time.Time
-}
-
-// AssignParams supplies the authenticated owner, target, and request context for assigning a license.
-type AssignParams struct {
-	OwnerDID  syntax.DID
-	LicenseID uuid.UUID
-	TargetDID syntax.DID
-	DeviceID  string
-	Now       time.Time
-}
-
-// Assignment reports the resulting license-to-DID relationship after an assignment operation.
-type Assignment struct {
-	LicenseID  uuid.UUID  `json:"licenseId"`
-	TargetDID  syntax.DID `json:"targetDid"`
-	AssignedAt time.Time  `json:"assignedAt"`
-}
-
-// UnassignParams supplies the authenticated owner and request context for removing a license assignment.
-type UnassignParams struct {
-	OwnerDID  syntax.DID
-	LicenseID uuid.UUID
-	Now       time.Time
 }

@@ -14,18 +14,20 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestSubscriptionFeatureAccessAssignedDIDNotBillingOwner(t *testing.T) {
+func TestSubscriptionFeatureAccessUsesEachDIDsOwnCustomer(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pool := testdb.WithSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:payer'),('did:plc:beneficiary'),('did:plc:business');`+string(migration))
 	ctx := context.Background()
 	for _, statement := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:payer','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:beneficiary','20000000-0000-4000-8000-000000000001')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','plus','app','app_store','production','active',true,'plus',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','plus','did:plc:beneficiary',now())`,
-		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','project','business-subscription','business','app','app_store','production','active',true,'business',1)`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000002','did:plc:business','20000000-0000-4000-8000-000000000002')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002','project','business-subscription','business','app','app_store','production','active',true,'business',1)`,
 		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000002','business','did:plc:business',now())`,
 	} {
 		if _, err := pool.Exec(ctx, statement); err != nil {

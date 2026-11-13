@@ -110,6 +110,7 @@ var routeParameterPattern = regexp.MustCompile(`\{[^}]+\}`)
 
 func TestSuspendedAccountInvokesEveryRegisteredAuthenticatedRoute(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +334,6 @@ func suspendedRouteRequest(policy RoutePolicy) (*http.Request, *suspendedBodyPro
 func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing.T) {
 	wantAllowed := []string{
 		"DELETE /v1/account-deletion/intents/{jobId}",
-		"DELETE /v1/billing/licenses/{licenseId}/assignment",
 		"DELETE /v1/events/{did}/{rkey}",
 		"DELETE /v1/migrations/instagram/account",
 		"DELETE /v1/migrations/instagram/imports/{importId}",
@@ -369,10 +369,11 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/saved-post-folders",
 		"POST /v1/search/recent",
 		"PUT /v1/billing/account",
-		"PUT /v1/billing/licenses/{licenseId}/assignment",
 		"PUT /v1/languages/preferences",
 	}
 	wantDenied := []string{
+		"POST /v1/billing/web-checkout",
+		"POST /v1/billing/web-management",
 		"POST /v1/chat/sync",
 		"PUT /v1/chat/push-preferences",
 		"PUT /v1/chat/connection",

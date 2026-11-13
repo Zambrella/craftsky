@@ -79,6 +79,16 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 		}
 		seen[pageKey] = struct{}{}
 		response, err := c.fetchPage(ctx, pageURL.String())
+		var status *providerStatusError
+		if page == 0 && errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
+			// Web checkout has no SDK login to create a first-time customer.
+			// Create the exact server-owned UUID, then re-read: a project/path
+			// misconfiguration must never be mistaken for an empty account.
+			if createErr := c.createCustomer(ctx, customerID); createErr != nil {
+				return subscriptions.CompleteSnapshot{}, createErr
+			}
+			response, err = c.fetchPage(ctx, pageURL.String())
+		}
 		if err != nil {
 			return subscriptions.CompleteSnapshot{}, err
 		}
@@ -152,7 +162,7 @@ func (c *Client) fetchPage(ctx context.Context, endpoint string) (subscriptionPa
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return subscriptionPage{}, fmt.Errorf("RevenueCat request returned status %d", response.StatusCode)
+		return subscriptionPage{}, &providerStatusError{StatusCode: response.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, c.config.MaxResponseBytes+1))
 	if err != nil {
@@ -189,4 +199,39 @@ func millisTime(value *int64) *time.Time {
 	}
 	timestamp := time.UnixMilli(*value).UTC()
 	return &timestamp
+}
+
+// providerStatusError preserves the safe provider status without retaining a
+// response body or a customer-bearing URL in diagnostics.
+type providerStatusError struct{ StatusCode int }
+
+func (e *providerStatusError) Error() string {
+	return fmt.Sprintf("RevenueCat request returned status %d", e.StatusCode)
+}
+
+func (c *Client) createCustomer(ctx context.Context, customerID uuid.UUID) error {
+	endpoint := *c.base
+	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/projects/" + url.PathEscape(c.config.ProjectID) + "/customers"
+	body, err := json.Marshal(struct {
+		ID string `json:"id"`
+	}{ID: customerID.String()})
+	if err != nil {
+		return fmt.Errorf("encode RevenueCat customer: %w", err)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), strings.NewReader(string(body)))
+	if err != nil {
+		return fmt.Errorf("create RevenueCat customer request: %w", err)
+	}
+	request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	response, err := c.http.Do(request)
+	if err != nil {
+		return fmt.Errorf("RevenueCat customer creation request failed: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusConflict {
+		return &providerStatusError{StatusCode: response.StatusCode}
+	}
+	return nil
 }

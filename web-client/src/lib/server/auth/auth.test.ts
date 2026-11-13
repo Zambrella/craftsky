@@ -577,6 +577,20 @@ describe('account-specific proxy and session actions', () => {
 		);
 		expect(allowedRoute('POST', '/v1/feed/extended-network')).toBe(false);
 	});
+	it('allows only account-owned checkout and removes cross-account assignment routes', () => {
+		expect(allowedRoute('POST', '/v1/billing/web-checkout')).toBe(true);
+		expect(allowedRoute('GET', '/v1/billing/web-checkout')).toBe(false);
+		expect(allowedRoute('POST', '/v1/billing/web-management')).toBe(true);
+		expect(allowedRoute('GET', '/v1/billing/web-management')).toBe(false);
+		expect(allowedRoute('POST', '/v1/billing/web-management/customer')).toBe(
+			false
+		);
+		for (const method of ['PUT', 'DELETE']) {
+			expect(
+				allowedRoute(method, '/v1/billing/licenses/license/assignment')
+			).toBe(false);
+		}
+	});
 	it('blocks unsupported, auth-capability, double-encoded, traversal and URL-control routes', async () => {
 		const jar = new CookieJar().add(A);
 		for (const path of [

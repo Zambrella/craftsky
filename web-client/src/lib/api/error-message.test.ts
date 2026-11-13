@@ -29,7 +29,32 @@ describe('error parity and diagnostic evidence', () => {
 			'CraftSky is having trouble right now. Please try again.'
 		],
 		[200, 'invalid_response', 'Something went wrong. Please try again.'],
-		[400, 'bad_request', "That didn't work. Please try again."]
+		[400, 'bad_request', "That didn't work. Please try again."],
+		[
+			503,
+			'web_checkout_unavailable',
+			'Web subscriptions are not available right now. Please try again later.'
+		],
+		[
+			409,
+			'subscription_reconciliation_required',
+			'Refresh your subscription status before opening checkout.'
+		],
+		[
+			409,
+			'subscription_already_exists',
+			'This account already has a subscription or a payment awaiting resolution. Refresh your subscription status.'
+		],
+		[
+			409,
+			'web_checkout_pending',
+			'This account already has a checkout in progress. Continue with that plan or wait for the checkout to expire before choosing another.'
+		],
+		[
+			503,
+			'web_management_unavailable',
+			'Subscription management is not available here yet. Use the management link in your Stripe receipt.'
+		]
 	] as const)(
 		'maps %s/%s to client-owned Flutter copy',
 		(status, code, message) => {

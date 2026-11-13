@@ -4,7 +4,7 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_rules.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 
@@ -14,6 +14,8 @@ enum SubscriptionPurchaseOutcome {
   cancelled,
   offeringUnavailable,
   providerError,
+  storeAccountConflict,
+  planChangeUnavailable,
   pending,
   anomaly,
   failed,
@@ -23,16 +25,12 @@ final class SubscriptionPurchaseResult {
   const new({
     required this.outcome,
     this.state,
-    this.assignmentLicense,
     this.retry,
   });
 
   final SubscriptionPurchaseOutcome outcome;
   final BillingState? state;
-  final BillingLicense? assignmentLicense;
   final Future<SubscriptionPurchaseResult> Function()? retry;
-
-  bool get requiresAssignment => assignmentLicense != null;
 }
 
 final class SubscriptionPurchaseController {
@@ -42,19 +40,24 @@ final class SubscriptionPurchaseController {
     required this.presentPaywall,
     required this.wait,
     required this.readAccess,
+    this.presentPlanChange,
     this.isCurrent = _alwaysCurrent,
     this.isForeground = _alwaysCurrent,
     this.onProviderConfirmed,
+    this.nativeStore,
+    this.allowNativeTierChanges = false,
     this.maxReconciliationAttempts = 30,
   });
 
-  final BillingOwnerGuard ownerGuard;
+  final BillingAccountGuard ownerGuard;
   final SubscriptionApi api;
   final Future<PaywallOutcome> Function(
-    BillingOwnerLease owner,
+    BillingAccountLease owner,
     SubscriptionTier tier,
   )
   presentPaywall;
+  final Future<PaywallOutcome> Function(BillingAccountLease, SubscriptionTier)?
+  presentPlanChange;
   final ReconciliationWait wait;
   final Future<SubscriptionAccess> Function(Did did) readAccess;
   final bool Function() isCurrent;
@@ -62,6 +65,8 @@ final class SubscriptionPurchaseController {
   final void Function(SubscriptionTier tier, BillingState beforeProvider)?
   onProviderConfirmed;
   final int maxReconciliationAttempts;
+  final String? nativeStore;
+  final bool allowNativeTierChanges;
 
   Future<SubscriptionPurchaseResult> purchase(SubscriptionTier tier) async {
     final owner = ownerGuard.capture();
@@ -71,7 +76,7 @@ final class SubscriptionPurchaseController {
         owner,
         api.getBillingAccount,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return const SubscriptionPurchaseResult(
         outcome: SubscriptionPurchaseOutcome.cancelled,
@@ -82,13 +87,28 @@ final class SubscriptionPurchaseController {
         outcome: SubscriptionPurchaseOutcome.cancelled,
       );
     }
-    if (!purchaseEligibility(beforeProvider, tier).eligible) {
+    if (!purchaseEligibility(
+      beforeProvider,
+      tier,
+      store: nativeStore,
+      allowTierChanges: allowNativeTierChanges && presentPlanChange != null,
+    ).eligible) {
       return const SubscriptionPurchaseResult(
         outcome: SubscriptionPurchaseOutcome.notEligible,
       );
     }
 
-    final paywallOutcome = await presentPaywall(owner, tier);
+    final changingPlan = beforeProvider.subscriptions.any(
+      (value) => value.givesAccess,
+    );
+    if (changingPlan && presentPlanChange == null) {
+      return const SubscriptionPurchaseResult(
+        outcome: SubscriptionPurchaseOutcome.planChangeUnavailable,
+      );
+    }
+    final paywallOutcome = changingPlan
+        ? await presentPlanChange!(owner, tier)
+        : await presentPaywall(owner, tier);
     if (!isCurrent() && paywallOutcome != PaywallOutcome.reconcile) {
       return const SubscriptionPurchaseResult(
         outcome: SubscriptionPurchaseOutcome.cancelled,
@@ -102,6 +122,14 @@ final class SubscriptionPurchaseController {
       case PaywallOutcome.offeringUnavailable:
         return const SubscriptionPurchaseResult(
           outcome: SubscriptionPurchaseOutcome.offeringUnavailable,
+        );
+      case PaywallOutcome.planChangeUnavailable:
+        return const SubscriptionPurchaseResult(
+          outcome: SubscriptionPurchaseOutcome.planChangeUnavailable,
+        );
+      case PaywallOutcome.storeAccountConflict:
+        return const SubscriptionPurchaseResult(
+          outcome: SubscriptionPurchaseOutcome.storeAccountConflict,
         );
       case PaywallOutcome.providerError:
         return const SubscriptionPurchaseResult(
@@ -117,7 +145,7 @@ final class SubscriptionPurchaseController {
   }
 
   Future<SubscriptionPurchaseResult> _reconcilePurchase(
-    BillingOwnerLease owner,
+    BillingAccountLease owner,
     SubscriptionTier tier,
     BillingState beforeProvider,
   ) async {
@@ -131,7 +159,7 @@ final class SubscriptionPurchaseController {
         owner,
         api.getBillingAccount,
       );
-    } on BillingOwnerGuardException catch (error) {
+    } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pendingRetry(tier, beforeProvider);
     } on Object {
@@ -163,14 +191,6 @@ final class SubscriptionPurchaseController {
 
     if (result.outcome == ReconciliationOutcome.completed) {
       final state = result.state!;
-      final assignmentLicense = _assignmentLicense(tier, beforeProvider, state);
-      if (assignmentLicense != null) {
-        return SubscriptionPurchaseResult(
-          outcome: SubscriptionPurchaseOutcome.completed,
-          state: state,
-          assignmentLicense: assignmentLicense,
-        );
-      }
       final assignedLicense = _accessibleAssignedLicense(tier, state);
       final assignedDid = assignedLicense?.assignedDid;
       if (assignedDid != null) {
@@ -220,10 +240,10 @@ final class SubscriptionPurchaseController {
     BillingState beforeProvider,
   ) async {
     if (!isCurrent()) return _pendingRetry(tier, beforeProvider);
-    late final BillingOwnerLease owner;
+    late final BillingAccountLease owner;
     try {
       owner = ownerGuard.capture();
-    } on BillingOwnerGuardException {
+    } on BillingAccountGuardException {
       return _pendingRetry(tier, beforeProvider);
     }
     return await _reconcilePurchase(owner, tier, beforeProvider);
@@ -252,32 +272,6 @@ final class SubscriptionPurchaseController {
               (subscriptions[license.subscriptionId]?.givesAccess ?? false),
         )
         .firstOrNull;
-  }
-
-  BillingLicense? _assignmentLicense(
-    SubscriptionTier tier,
-    BillingState before,
-    BillingState current,
-  ) {
-    final previousLicenseIds = before.licenses.map((value) => value.id).toSet();
-    final previousSubscriptions = {
-      for (final value in before.subscriptions) value.id: value,
-    };
-    final currentSubscriptions = {
-      for (final value in current.subscriptions) value.id: value,
-    };
-    return current.licenses.where((license) {
-      if (license.tier != tier) return false;
-      if (license.assignedDid != null) return false;
-      final subscription = currentSubscriptions[license.subscriptionId];
-      if (!(subscription?.givesAccess ?? false)) return false;
-      if (!previousLicenseIds.contains(license.id)) return true;
-      final previous = previousSubscriptions[license.subscriptionId];
-      return subscription != null &&
-          previous != null &&
-          !previous.givesAccess &&
-          subscription.givesAccess;
-    }).firstOrNull;
   }
 }
 

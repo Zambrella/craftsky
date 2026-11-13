@@ -425,8 +425,8 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
-		VALUES('11000000-0000-4000-8000-000000000002','did:plc:other-billing-owner','21000000-0000-4000-8000-000000000002')
-	`); err != nil {
+		VALUES('11000000-0000-4000-8000-000000000002',$1,'21000000-0000-4000-8000-000000000002')
+	`, owner); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

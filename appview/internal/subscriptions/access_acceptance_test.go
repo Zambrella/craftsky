@@ -15,6 +15,7 @@ import (
 
 func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +23,7 @@ func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore(pool)
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
-	account, _, err := store.EnsureAccount(ctx, syntax.DID("did:plc:authority-owner"))
+	account, _, err := store.EnsureAccount(ctx, syntax.DID("did:plc:authority-beneficiary"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,6 +80,7 @@ func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 
 func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +88,7 @@ func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
 	ctx := context.Background()
 	beneficiary := syntax.DID("did:plc:sandbox-beneficiary")
 	for _, statement := range []string{
-		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES('10000000-0000-4000-8000-000000000071','did:plc:sandbox-owner','20000000-0000-4000-8000-000000000071')`,
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES('10000000-0000-4000-8000-000000000071','did:plc:sandbox-beneficiary','20000000-0000-4000-8000-000000000071')`,
 		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES('30000000-0000-4000-8000-000000000071','10000000-0000-4000-8000-000000000071','project','sandbox-subscription','sandbox-plus','test-app','test_store','sandbox','active',true,'plus',1)`,
 	} {
 		if _, err := pool.Exec(ctx, statement); err != nil {

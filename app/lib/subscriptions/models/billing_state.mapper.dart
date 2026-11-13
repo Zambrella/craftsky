@@ -15,6 +15,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
   static BillingSubscriptionMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = BillingSubscriptionMapper._());
+      SubscriptionTierMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -61,6 +62,10 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
     _$autoRenewalStatus,
     opt: true,
   );
+  static SubscriptionTier? _$pendingTier(BillingSubscription v) =>
+      v.pendingTier;
+  static const Field<BillingSubscription, SubscriptionTier> _f$pendingTier =
+      Field('pendingTier', _$pendingTier, opt: true);
   static DateTime? _$currentPeriodStartsAt(BillingSubscription v) =>
       v.currentPeriodStartsAt;
   static const Field<BillingSubscription, DateTime> _f$currentPeriodStartsAt =
@@ -86,6 +91,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
     #pendingPayment: _f$pendingPayment,
     #anomaly: _f$anomaly,
     #autoRenewalStatus: _f$autoRenewalStatus,
+    #pendingTier: _f$pendingTier,
     #currentPeriodStartsAt: _f$currentPeriodStartsAt,
     #currentPeriodEndsAt: _f$currentPeriodEndsAt,
     #endsAt: _f$endsAt,
@@ -103,6 +109,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
       pendingPayment: data.dec(_f$pendingPayment),
       anomaly: data.dec(_f$anomaly),
       autoRenewalStatus: data.dec(_f$autoRenewalStatus),
+      pendingTier: data.dec(_f$pendingTier),
       currentPeriodStartsAt: data.dec(_f$currentPeriodStartsAt),
       currentPeriodEndsAt: data.dec(_f$currentPeriodEndsAt),
       endsAt: data.dec(_f$endsAt),
@@ -171,6 +178,7 @@ abstract class BillingSubscriptionCopyWith<
     bool? pendingPayment,
     String? anomaly,
     String? autoRenewalStatus,
+    SubscriptionTier? pendingTier,
     DateTime? currentPeriodStartsAt,
     DateTime? currentPeriodEndsAt,
     DateTime? endsAt,
@@ -198,6 +206,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
     bool? pendingPayment,
     String? anomaly,
     Object? autoRenewalStatus = $none,
+    Object? pendingTier = $none,
     Object? currentPeriodStartsAt = $none,
     Object? currentPeriodEndsAt = $none,
     Object? endsAt = $none,
@@ -211,6 +220,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
       if (pendingPayment != null) #pendingPayment: pendingPayment,
       if (anomaly != null) #anomaly: anomaly,
       if (autoRenewalStatus != $none) #autoRenewalStatus: autoRenewalStatus,
+      if (pendingTier != $none) #pendingTier: pendingTier,
       if (currentPeriodStartsAt != $none)
         #currentPeriodStartsAt: currentPeriodStartsAt,
       if (currentPeriodEndsAt != $none)
@@ -231,6 +241,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
       #autoRenewalStatus,
       or: $value.autoRenewalStatus,
     ),
+    pendingTier: data.get(#pendingTier, or: $value.pendingTier),
     currentPeriodStartsAt: data.get(
       #currentPeriodStartsAt,
       or: $value.currentPeriodStartsAt,
@@ -476,6 +487,13 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
     'licenses',
     _$licenses,
   );
+  static bool _$webCheckoutPending(BillingState v) => v.webCheckoutPending;
+  static const Field<BillingState, bool> _f$webCheckoutPending = Field(
+    'webCheckoutPending',
+    _$webCheckoutPending,
+    opt: true,
+    def: false,
+  );
   static DateTime? _$reconciliationRequestedAt(BillingState v) =>
       v.reconciliationRequestedAt;
   static const Field<BillingState, DateTime> _f$reconciliationRequestedAt =
@@ -500,6 +518,7 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
     #reconciliationStale: _f$reconciliationStale,
     #subscriptions: _f$subscriptions,
     #licenses: _f$licenses,
+    #webCheckoutPending: _f$webCheckoutPending,
     #reconciliationRequestedAt: _f$reconciliationRequestedAt,
     #reconciledAt: _f$reconciledAt,
   };
@@ -515,6 +534,7 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
       reconciliationStale: data.dec(_f$reconciliationStale),
       subscriptions: data.dec(_f$subscriptions),
       licenses: data.dec(_f$licenses),
+      webCheckoutPending: data.dec(_f$webCheckoutPending),
       reconciliationRequestedAt: data.dec(_f$reconciliationRequestedAt),
       reconciledAt: data.dec(_f$reconciledAt),
     );
@@ -583,6 +603,7 @@ abstract class BillingStateCopyWith<$R, $In extends BillingState, $Out>
     bool? reconciliationStale,
     List<BillingSubscription>? subscriptions,
     List<BillingLicense>? licenses,
+    bool? webCheckoutPending,
     DateTime? reconciliationRequestedAt,
     DateTime? reconciledAt,
   });
@@ -628,6 +649,7 @@ class _BillingStateCopyWithImpl<$R, $Out>
     bool? reconciliationStale,
     List<BillingSubscription>? subscriptions,
     List<BillingLicense>? licenses,
+    bool? webCheckoutPending,
     Object? reconciliationRequestedAt = $none,
     Object? reconciledAt = $none,
   }) => $apply(
@@ -643,6 +665,7 @@ class _BillingStateCopyWithImpl<$R, $Out>
         #reconciliationStale: reconciliationStale,
       if (subscriptions != null) #subscriptions: subscriptions,
       if (licenses != null) #licenses: licenses,
+      if (webCheckoutPending != null) #webCheckoutPending: webCheckoutPending,
       if (reconciliationRequestedAt != $none)
         #reconciliationRequestedAt: reconciliationRequestedAt,
       if (reconciledAt != $none) #reconciledAt: reconciledAt,
@@ -669,6 +692,10 @@ class _BillingStateCopyWithImpl<$R, $Out>
     ),
     subscriptions: data.get(#subscriptions, or: $value.subscriptions),
     licenses: data.get(#licenses, or: $value.licenses),
+    webCheckoutPending: data.get(
+      #webCheckoutPending,
+      or: $value.webCheckoutPending,
+    ),
     reconciliationRequestedAt: data.get(
       #reconciliationRequestedAt,
       or: $value.reconciliationRequestedAt,

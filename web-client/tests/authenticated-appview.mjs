@@ -1212,6 +1212,8 @@ createServer(async (req, res) => {
 		return send(200, {
 			billingAccountId: 'billing-1',
 			revenueCatAppUserId: 'private-rc-id',
+			webCheckoutAvailable: false,
+			reconciledAt: new Date().toISOString(),
 			requestedGeneration: 1,
 			reconciledGeneration: 1,
 			reconciliationStale: false,
@@ -1230,18 +1232,6 @@ createServer(async (req, res) => {
 		});
 	if (pathname === '/v1/billing/reconciliation')
 		return send(200, { generation: 1 });
-	if (pathname === '/v1/billing/licenses/license-1/assignment') {
-		if (method === 'DELETE') {
-			delete state.license.assignedDid;
-			return send(204);
-		}
-		state.license.assignedDid = body.targetDid;
-		return send(200, {
-			licenseId: 'license-1',
-			targetDid: body.targetDid,
-			assignedAt: '2026-11-02T12:00:00Z'
-		});
-	}
 	if (pathname === '/v1/migrations/instagram/account') {
 		if (method === 'DELETE') {
 			state.instagram = null;

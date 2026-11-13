@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/integrations/revenuecat"
+	"social.craftsky/appview/internal/integrations/stripe"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/subscriptions"
 )
@@ -26,6 +27,15 @@ func newSubscriptionDependencies(pool *pgxpool.Pool, config RevenueCatConfig, ht
 	dependencies := &subscriptionDependencies{store: subscriptions.NewStoreForEnvironment(pool, environment, observer)}
 	if !config.Enabled() || !config.Configured() {
 		return dependencies, nil
+	}
+	if config.stripeSecretKey.Reveal() != "" {
+		stripeClient, err := stripe.NewClient(stripe.Config{SecretKey: config.stripeSecretKey.Reveal(), AccountID: config.stripeCheckout.AccountID, Environment: environment, PortalConfigurationID: config.stripePortalConfigurationID}, httpClient)
+		if err != nil {
+			return nil, err
+		}
+		if err := dependencies.store.SetWebCheckoutProvider(stripeClient, config.stripeCheckout); err != nil {
+			return nil, err
+		}
 	}
 	catalog, err := subscriptions.NewCatalog(subscriptions.CatalogConfig{
 		ProjectID:   config.projectID,

@@ -43,6 +43,7 @@ final class BillingSubscription with BillingSubscriptionMappable {
     required this.pendingPayment,
     required this.anomaly,
     this.autoRenewalStatus,
+    this.pendingTier,
     this.currentPeriodStartsAt,
     this.currentPeriodEndsAt,
     this.endsAt,
@@ -55,6 +56,7 @@ final class BillingSubscription with BillingSubscriptionMappable {
   final bool givesAccess;
   final bool pendingPayment;
   final String? autoRenewalStatus;
+  final SubscriptionTier? pendingTier;
   final DateTime? currentPeriodStartsAt;
   final DateTime? currentPeriodEndsAt;
   final DateTime? endsAt;
@@ -102,6 +104,7 @@ final class BillingState with BillingStateMappable {
     required this.reconciliationStale,
     required this.subscriptions,
     required this.licenses,
+    this.webCheckoutPending = false,
     this.reconciliationRequestedAt,
     this.reconciledAt,
   });
@@ -143,6 +146,7 @@ final class BillingState with BillingStateMappable {
   final bool reconciliationStale;
   final List<BillingSubscription> subscriptions;
   final List<BillingLicense> licenses;
+  final bool webCheckoutPending;
 
   Map<String, BillingLicense> get licensesBySubscriptionId => {
     for (final license in licenses) license.subscriptionId: license,
@@ -194,6 +198,9 @@ void _validateBillingStateMap(Map<String, dynamic> map) {
   _requireOptionalType<String>(map, 'reconciliationRequestedAt');
   _requireOptionalType<String>(map, 'reconciledAt');
   _requireType<bool>(map, 'reconciliationStale');
+  if (map.containsKey('webCheckoutPending')) {
+    _requireType<bool>(map, 'webCheckoutPending');
+  }
 
   final subscriptions = _requireType<List<dynamic>>(map, 'subscriptions');
   for (final value in subscriptions) {
@@ -207,6 +214,7 @@ void _validateBillingStateMap(Map<String, dynamic> map) {
     _requireType<bool>(value, 'givesAccess');
     _requireType<bool>(value, 'pendingPayment');
     _requireOptionalType<String>(value, 'autoRenewalStatus');
+    _requireOptionalType<String>(value, 'pendingTier');
     _requireOptionalType<String>(value, 'currentPeriodStartsAt');
     _requireOptionalType<String>(value, 'currentPeriodEndsAt');
     _requireOptionalType<String>(value, 'endsAt');

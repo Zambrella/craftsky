@@ -533,7 +533,7 @@ test('all-day event edits retain future catalog values and freeze the original d
 	});
 });
 
-test('future subscription states keep independent tier cards without exposing unsafe assignment controls', async ({
+test('future subscription states show plans without exposing assignment or checkout controls', async ({
 	page
 }) => {
 	await page.route(`**${appview}/billing/account`, (route) =>
@@ -580,7 +580,7 @@ test('future subscription states keep independent tier cards without exposing un
 	await expect(page.getByRole('link', { name: /^Manage in/ })).toHaveCount(0);
 	await expect(
 		page.getByText(
-			'Purchase or restore subscriptions in the CraftSky mobile app.',
+			'This account already has a subscription or a payment awaiting resolution.',
 			{ exact: false }
 		)
 	).toBeVisible();

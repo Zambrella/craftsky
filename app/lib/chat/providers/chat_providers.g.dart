@@ -720,7 +720,7 @@ final class ChatSettingsControllerProvider
 }
 
 String _$chatSettingsControllerHash() =>
-    r'd0cf71e630a1f46f1ccf202916a89f2dfffe413c';
+    r'887a712a1a5539c75271dfd8e9f6ca8ed700cf0d';
 
 final class ChatSettingsControllerFamily extends $Family
     with
@@ -886,7 +886,7 @@ final class ChatReportControllerProvider
 }
 
 String _$chatReportControllerHash() =>
-    r'e2ea0bd3e71ce4875fd7e966d19c3c13255e905b';
+    r'e630d7cc477b207783e07d6e74cec3c7d35aee5a';
 
 final class ChatReportControllerFamily extends $Family
     with

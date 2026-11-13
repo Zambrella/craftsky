@@ -223,15 +223,8 @@ final class _AccessApi implements SubscriptionApi {
   }
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
   Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
 
   @override
   Future<void> requestReconciliation() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }

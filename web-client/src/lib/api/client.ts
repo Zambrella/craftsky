@@ -718,17 +718,16 @@ export class CraftskyAPI {
 				'POST',
 				'/v1/billing/reconciliation'
 			),
-		assign: (licenseId: string, targetDid: string) =>
-			this.transport.request<T.BillingAssignment>(
-				'PUT',
-				`/v1/billing/licenses/${segment(licenseId)}/assignment`,
-				{ body: { targetDid } }
+		checkout: (tier: 'plus' | 'business') =>
+			this.transport.request<{ url: string }>(
+				'POST',
+				'/v1/billing/web-checkout',
+				{ body: { tier } }
 			),
-		unassign: (licenseId: string) =>
-			this.transport.request<void>(
-				'DELETE',
-				`/v1/billing/licenses/${segment(licenseId)}/assignment`,
-				{ response: 'empty' }
+		manage: () =>
+			this.transport.request<{ url: string }>(
+				'POST',
+				'/v1/billing/web-management'
 			)
 	};
 	readonly chat = {

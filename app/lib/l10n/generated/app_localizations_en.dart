@@ -15,6 +15,32 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get subscriptionsPlanChangeScheduled =>
+      'Your plan change is scheduled. Your current benefits continue until renewal.';
+
+  @override
+  String subscriptionsScheduledPlan(String tier) {
+    return 'Your plan will change to $tier at the next renewal.';
+  }
+
+  @override
+  String get subscriptionsPlanChangeUnavailable =>
+      'This plan change is not available yet. Your existing subscription stays active.';
+
+  @override
+  String get subscriptionsAccountPlan =>
+      'Your subscription belongs to this CraftSky account. Plus and Business are alternative plans.';
+
+  @override
+  String subscriptionsStoreAccountConflictKnown(String account) {
+    return 'This store purchase is linked to $account. Switch to that CraftSky account to manage or restore it.';
+  }
+
+  @override
+  String get subscriptionsStoreAccountConflict =>
+      'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.';
+
+  @override
   String get discoveryYourCrafts => 'Your crafts';
 
   @override
@@ -4393,7 +4419,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String subscriptionsDormantAssignment(String tier) {
-    return '$tier is assigned to this account but is not currently providing access.';
+    return 'Your $tier subscription is currently inactive.';
   }
 
   @override
