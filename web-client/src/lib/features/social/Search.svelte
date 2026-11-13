@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LoadMore from '#lib/LoadMore.svelte';
 	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
 	import { reportFailure } from '../diagnostics/client.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
@@ -490,11 +491,13 @@
 			detail="Try another search."
 			icon="search"
 		/>{/if}
-	{#if cursor}<button
-			class="button next"
-			disabled={work.busy}
-			onclick={() => load(true)}>Load more</button
-		>{/if}
+	{#if cursor}<LoadMore
+			loading={work.busy}
+			autoLoad={(tab === 'posts' || tab === 'projects') && !work.error}
+			pageKey={JSON.stringify([q, tab, cursor])}
+			loadingLabel="Loading more results"
+			onclick={() => load(true)}
+		/>{/if}
 {/if}
 
 <style>

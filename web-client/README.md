@@ -84,6 +84,14 @@ preservation of callback and association documents. They do not prove live
 AppView integration, actual search indexing, external share-card caches, real
 video playback, or device app-link resolution.
 
+Pagination uses the shared `LoadMore` text button, with a disabled button and
+accessible spinner while its request is pending. Home, craft, hashtag, profile,
+saved-post and post/project search feeds load their next page as the control
+approaches the viewport. Each page gets one automatic attempt; failures leave
+the manual button available instead of repeatedly retrying. Account lists,
+notifications, events and replies retain manual pagination. Public profile
+pagination still works through ordinary links when JavaScript is disabled.
+
 Backend tests live in `appview/internal/api/public_pages_test.go`. They exercise
 visibility/pagination against PostgreSQL, including the complete production
 migration history. With this worktree's PostgreSQL running, use the repository's

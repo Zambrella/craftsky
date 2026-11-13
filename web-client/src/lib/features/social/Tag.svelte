@@ -8,6 +8,7 @@
 	import MemberPost from './MemberPost.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, did, tag }: { api: CraftskyAPI; did?: string; tag: string } =
 		$props();
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
@@ -60,10 +61,13 @@
 			title={'#' + tag}
 			detail="No posts found for this hashtag."
 			icon="search"
-		/>{/if}{/each}{#if cursor}<button
-		class="button next"
-		onclick={() => load(true)}>Load more</button
-	>{/if}
+		/>{/if}{/each}{#if cursor}<LoadMore
+		loading={work.busy}
+		autoLoad={!work.error}
+		pageKey={cursor}
+		loadingLabel="Loading more posts"
+		onclick={() => load(true)}
+	/>{/if}
 
 <style>
 	.workspace-heading {

@@ -448,6 +448,7 @@ footer a {
 	margin-top: 16px;
 }
 .gallery {
+	width: 100%;
 	max-height: var(--post-image-max-height);
 	display: flex;
 	align-items: stretch;

@@ -22,8 +22,10 @@
 	import { notificationCopy, notificationCategories } from './presentation';
 	import EmptyState from './EmptyState.svelte';
 	import Icon from '../shell/Icon.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, did = '' }: { api: CraftskyAPI; did?: string } = $props();
 	const work = new Work('social.Activity.action');
+	let loadingMore = $state(false);
 	const beginSeen = getContext<BeginNotificationSeen | undefined>(
 		notificationBadgeContext
 	);
@@ -40,11 +42,17 @@
 		if (finish) pendingSeen = finish;
 		try {
 			await work.run(
-				() =>
-					api.notifications.list({
-						cursor: more ? cursor : undefined,
-						category
-					}),
+				async () => {
+					loadingMore = more;
+					try {
+						return await api.notifications.list({
+							cursor: more ? cursor : undefined,
+							category
+						});
+					} finally {
+						loadingMore = false;
+					}
+				},
 				(value) => {
 					items = more ? [...items, ...value.items] : value.items;
 					cursor = value.cursor || null;
@@ -257,25 +265,14 @@
 			>{#snippet actions()}{#if category}<a href="/notifications"
 						>Show all notifications</a
 					>{/if}{/snippet}</EmptyState
-		>{/if}{/each}{#if cursor}<button
-		class="next"
+		>{/if}{/each}{#if cursor}<LoadMore
+		loading={loadingMore}
 		disabled={work.busy}
-		onclick={() => load(true)}>Load more</button
-	>{/if}
+		loadingLabel="Loading more notifications"
+		onclick={() => load(true)}
+	/>{/if}
 
 <style>
-	.next {
-		display: block;
-		margin: 16px auto;
-		border: 0;
-		background: transparent;
-		color: var(--primary);
-		box-shadow: none;
-	}
-	.next:hover {
-		color: var(--primary-hover);
-		text-decoration: underline;
-	}
 	.notification-categories {
 		margin-left: auto;
 	}
