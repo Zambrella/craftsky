@@ -163,9 +163,14 @@ verified after a reload, and the existing Stripe webhook was enabled and read
 back. Live event delivery remains untested. The separate RevenueCat-to-AppView
 production receiver and development receiver filters still require configuration
 before live purchases. Production activation
-and application checkout/management validation remain separate, alongside the
-Apple single-group transition, missing Google products and real native-store
-sandbox tests. The three documented
+and application checkout/management validation remain separate. The approved
+native catalog batch has now applied: Apple Plus and replacement Business share
+one group with Business ranked above Plus, prices preserved and RevenueCat
+links verified. Both Google monthly plans are now ACTIVE after explicit approval
+of worldwide pricing and activation. Fresh reads matched every price and
+availability entry across 174 named regions plus future-market defaults, with
+GB/US prices retained. Genuine Apple review screenshots, AppView's additive new
+Business product mapping and real native-store sandbox tests remain outstanding. The three documented
 Stripe-to-RevenueCat sandbox purchases verified provider processing and customer
 isolation; they did not exercise the application's DID mapping or Checkout
 service. No production database migration or release was performed. No live

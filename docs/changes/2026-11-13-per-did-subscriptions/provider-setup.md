@@ -259,11 +259,12 @@ The application and its release validation must preserve these boundaries:
   Business catalog products across the three apps, and read back all six links.
   Keep the separate Plus/Business entitlements for tier reporting. AppView's
   catalog and provider reconciliation remain the paid-access authority.
-- Apple currently has separate CraftSky Plus and CraftSky Business subscription
-  groups. Both monthly products are Prepare for Submission / missing metadata.
-  Their current UK prices are GBP 2.49 and GBP 8.99; US prices are USD 2.99 and
-  USD 9.99. No Apple prices, availability or group membership were changed.
-- Play Console's subscription list is empty. RevenueCat's live store-state reads
+- At the initial native inspection, Apple had separate CraftSky Plus and CraftSky
+  Business groups, both monthly products missing metadata. UK prices were GBP
+  2.49 and GBP 8.99; US prices USD 2.99 and USD 9.99. The approved replacement
+  catalog changes and verified results are recorded below.
+- At the initial inspection, Play Console's subscription list was empty.
+  RevenueCat's live store-state reads
   returned **not_found** for both registered Play products, rather than merely
   missing prices. Catalog registration alone is not Google Play provisioning.
 - Paddle verification was submitted and the dashboard showed **In progress**
@@ -272,12 +273,12 @@ The application and its release validation must preserve these boundaries:
   product; it was archived and the active catalog was read back with exactly
   one Plus and one Business product. No
   Paddle prices, purchases, subscriptions or hosted checkout links were created.
-- An older RevenueCat Apple metadata plan from 22 September remains **planned**
-  and unapplied. It describes assignable licences and is obsolete. It was not
-  applied, replaced or discarded. Resolve it before making another store-state
-  plan, because RevenueCat permits only one active plan per project.
+- The older RevenueCat Apple metadata plan from 22 September was not applied.
+  Its obsolete assignable-licence desired states were replaced on 13 November
+  with the account-owned catalog preview described below. RevenueCat allows
+  only one active plan per project and one store per plan.
 
-## Concrete native catalog transition to review
+## Native catalog transition and verified first batch
 
 Apple does not offer moving an existing subscription between groups in the
 inspected UI. Preserve existing provider history and customer identifiers:
@@ -297,10 +298,33 @@ inspected UI. Preserve existing provider history and customer identifiers:
    reviewed prices and territories, keeping the registered identifiers where
    possible. Configure replacement behaviour and test Plus/Business changes.
 
-Do not apply the old September plan: its review text describes the superseded
-architecture. Prepare a replacement itemized store-state plan, review its actual
-store diffs/warnings, and obtain approval before applying production store
-changes or submitting anything to Apple for review.
+Do not restore or apply the old September desired states: their review text
+describes the superseded architecture. The replacement previews are in
+[native-store-preview.md](native-store-preview.md), with complete provider
+diffs and warnings in [native-store-preview.json](native-store-preview.json).
+The maintainer explicitly approved both previews, and both store plans reached
+**applied**. The verified results and runtime mapping handoff are in
+[native-store-results.md](native-store-results.md). Apple review submission is
+separate and has not occurred.
+
+The maintainer selected **all supported Google Play countries**. An empty Play
+catalog does not expose country-price generation until products exist. The
+Google creation batch first created monthly DRAFT base plans with the agreed
+GB/US seeds. After reviewing the complete Google-generated price maps, the
+maintainer approved worldwide pricing and activation. Both monthly plans now
+read **ACTIVE**, with all 174 named supported regions and future-market
+availability enabled. Independent reads exactly matched all approved prices,
+including unchanged GB/US prices and the USD/EUR future-market defaults.
+See the [full price list](google-worldwide-prices.csv) and
+[verification results](google-worldwide-results.json). No purchase was submitted.
+The Apple batch preserved all existing Plus prices, created the replacement
+Business product in the Plus group with all 175 Business territory prices, and
+updated account-owned wording, group display name, privacy URL and review notes.
+After creation, Business-above-Plus order was saved and verified after reload.
+RevenueCat Business and paid entitlements and the current Business offering now
+use the replacement, while legacy history remains intact. No genuine Apple
+review screenshot was supplied; the approved blank placeholders require
+replacement before review submission.
 
 ## Historical Paddle setup plan — blocked, do not execute
 

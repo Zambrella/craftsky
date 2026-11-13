@@ -1,0 +1,66 @@
+{
+  "planId": "514cf609-d6e0-48a5-a5ce-fbd9b903bf67",
+  "state": "applied",
+  "verified": true,
+  "regionCount": 174,
+  "priceMapsMatch": true,
+  "availabilityMatches": true,
+  "products": [
+    {
+      "productId": "prodd4066b7037",
+      "state": "ACTIVE",
+      "prices": 174,
+      "availableRegions": 174,
+      "billingPeriod": "P1M",
+      "gracePeriod": "P7D",
+      "GB": {
+        "amount_micros": 2490000,
+        "currency": "GBP"
+      },
+      "US": {
+        "amount_micros": 2990000,
+        "currency": "USD"
+      },
+      "futureMarketConfig": {
+        "new_subscriber_availability": true,
+        "usd_price": {
+          "amount_micros": 2990000,
+          "currency": "USD"
+        },
+        "eur_price": {
+          "amount_micros": 2710000,
+          "currency": "EUR"
+        }
+      },
+      "fetchedAt": "2026-11-13T17:35:51Z"
+    },
+    {
+      "productId": "prod5c81704246",
+      "state": "ACTIVE",
+      "prices": 174,
+      "availableRegions": 174,
+      "billingPeriod": "P1M",
+      "gracePeriod": "P7D",
+      "GB": {
+        "amount_micros": 8990000,
+        "currency": "GBP"
+      },
+      "US": {
+        "amount_micros": 9990000,
+        "currency": "USD"
+      },
+      "futureMarketConfig": {
+        "new_subscriber_availability": true,
+        "usd_price": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "eur_price": {
+          "amount_micros": 9050000,
+          "currency": "EUR"
+        }
+      },
+      "fetchedAt": "2026-11-13T17:35:51Z"
+    }
+  ]
+}
