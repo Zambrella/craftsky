@@ -47,6 +47,16 @@ Linked Git worktrees receive isolated Compose projects, volumes, and alternate p
 
 Keep a PR focused on one problem. Add regression coverage for changed behavior and update the relevant documentation. Avoid unrelated formatting, generated output, or dependency upgrades.
 
+Find historical decisions through the [change archive](docs/changes/README.md):
+`./scripts/docs search "topic or symbol"` returns short, filtered results. Read
+the selected summary and linked current guidance before opening original
+requirements or plans. When adding a change package or standalone change note,
+add its catalogue card; when extending a package, update its summary and evidence
+references. Run `just docs-index` to regenerate discovery files and
+`just docs-check` to validate metadata, references and generated output. A package
+date, approved plan or archived status alone does not establish implementation
+or production verification.
+
 Read [AGENTS.md](AGENTS.md) for the full conventions. In particular:
 
 - Flutter reads from AppView; record writes are AppView-mediated and go to the PDS. OAuth access/refresh tokens and DPoP keys stay server-side.

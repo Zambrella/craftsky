@@ -13,6 +13,15 @@ config-status:
 config-reference:
     ./scripts/config reference
 
+# Regenerate the change archive's human index and machine-readable catalogue.
+docs-index:
+    ./scripts/docs update
+
+# Validate every change card/reference and bounded discovery behavior.
+docs-check:
+    python3 -m unittest discover -s scripts -p 'test_docs_catalog.py'
+    ./scripts/docs check
+
 default:
     @just --list
 

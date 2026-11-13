@@ -36,4 +36,9 @@ Start with the [repository README](../README.md) for the product and quick start
 
 ## Design history
 
+[Search the change archive](changes/README.md) by topic, component or code symbol.
+Its [generated index](changes/INDEX.md) links concise summaries, status and open
+follow-ups. From the repository root, use `./scripts/docs search "search terms"`
+and retrieve individual historical sections as described in the archive guide.
+
 [Specs](superpowers/specs/), [plans](superpowers/plans/), and [change packages](changes/) preserve the reasoning and verification for individual changes. They are historical context, not a sequential setup guide. Start with the component README and current code, then consult the relevant package. If an older design conflicts with a later ADR or implementation, flag the mismatch and update the contributor-facing guidance.

@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Search the change archive without loading its original documents."""
+from docs_catalog import main
+
+if __name__ == '__main__':
+    raise SystemExit(main())
