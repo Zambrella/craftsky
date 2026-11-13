@@ -60,15 +60,17 @@ final class BillingAccountGuard {
   Future<T> dispatchRevenueCat<T>(
     BillingAccountLease lease,
     RevenueCatIdentityGuard identityGuard,
-    Future<T> Function() operation,
-  ) async {
+    Future<T> Function() operation, {
+    bool Function()? isOperationCurrent,
+  }) async {
     _requireCurrent(lease);
     late final T result;
     try {
       result = await identityGuard.dispatch(
         lease.revenueCatAppUserId,
         operation,
-        isCurrent: () => isCurrent(lease),
+        isCurrent: () =>
+            isCurrent(lease) && (isOperationCurrent?.call() ?? true),
       );
     } on RevenueCatIdentityException catch (error) {
       if (error.code == 'account_session_changed') {

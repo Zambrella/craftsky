@@ -229,3 +229,61 @@ test('shows a safe receipt fallback when account-specific Stripe management is u
 	await expect(page).toHaveURL(/\/settings\/subscriptions$/);
 	await expect(page.locator('body')).not.toContainText(privateId);
 });
+
+for (const [initial, updated] of [
+	['free', 'plus'],
+	['plus', 'free']
+] as const)
+	test(`reconciled ${initial} to ${updated} access reaches scheduling without reloading`, async ({
+		page
+	}) => {
+		await billingFixture(page);
+		let tier: 'free' | 'plus' = initial;
+		await page.route(`**${appview}/subscriptions/access`, (route) =>
+			route.fulfill({
+				json: {
+					did: alice.did,
+					effectiveTier: tier,
+					givesAccess: tier !== 'free'
+				}
+			})
+		);
+		await page.goto('/settings/subscriptions');
+		await expect(
+			page.getByRole('heading', {
+				name: `Current access: ${initial === 'plus' ? 'Plus' : 'Free'}`
+			})
+		).toBeVisible();
+		const documentStarted = await page.evaluate(() => performance.timeOrigin);
+		tier = updated;
+		await page
+			.getByRole('button', { name: 'Refresh status', exact: true })
+			.click();
+		await expect(
+			page.getByRole('heading', {
+				name: `Current access: ${updated === 'plus' ? 'Plus' : 'Free'}`
+			})
+		).toBeVisible();
+		await page
+			.getByRole('button', { name: 'Create post', exact: true })
+			.click();
+		await page.getByRole('link', { name: /^Regular post/ }).click();
+		await expect(
+			page.getByRole('heading', { name: 'New post', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'When', exact: true }).click();
+		if (updated === 'plus')
+			await expect(
+				page.getByRole('menuitemradio', {
+					name: 'Schedule for later',
+					exact: true
+				})
+			).toBeVisible();
+		else
+			await expect(
+				page.getByRole('dialog', { name: 'Scheduled posts with CraftSky Plus' })
+			).toBeVisible();
+		expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+			documentStarted
+		);
+	});

@@ -16,6 +16,7 @@ final class PendingSubscriptionOperation {
     required this.kind,
     required this.phase,
     required this.ownerDid,
+    required this.operationId,
     this.beforeProvider,
     this.tier,
   });
@@ -23,10 +24,12 @@ final class PendingSubscriptionOperation {
   const new purchaseInFlight(
     Did ownerDid,
     SubscriptionTier tier,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.purchase,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
         tier: tier,
       );
 
@@ -34,48 +37,56 @@ final class PendingSubscriptionOperation {
     Did ownerDid,
     SubscriptionTier tier,
     BillingState beforeProvider,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.purchase,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
+        operationId: operationId,
         tier: tier,
         beforeProvider: beforeProvider,
       );
 
-  const new restoreInFlight(Did ownerDid)
+  const new restoreInFlight(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.restore,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
       );
 
   const new restorePending(
     Did ownerDid,
     BillingState beforeProvider,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.restore,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
+        operationId: operationId,
         beforeProvider: beforeProvider,
       );
 
-  const new customerCenterInFlight(Did ownerDid)
+  const new customerCenterInFlight(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
       );
 
-  const new customerCenterPending(Did ownerDid)
+  const new customerCenterPending(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
+        operationId: operationId,
       );
 
   final PendingSubscriptionOperationKind kind;
   final PendingSubscriptionOperationPhase phase;
   final Did ownerDid;
+  final Object operationId;
   final SubscriptionTier? tier;
   final BillingState? beforeProvider;
 
@@ -96,25 +107,37 @@ final class SubscriptionPendingOperationController
 
   bool beginPurchase(Did ownerDid, SubscriptionTier tier) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.purchaseInFlight(ownerDid, tier);
+    state = PendingSubscriptionOperation.purchaseInFlight(
+      ownerDid,
+      tier,
+      Object(),
+    );
     return true;
   }
 
   bool beginRestore(Did ownerDid) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.restoreInFlight(ownerDid);
+    state = PendingSubscriptionOperation.restoreInFlight(ownerDid, Object());
     return true;
   }
 
   bool beginCustomerCenter(Did ownerDid) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.customerCenterInFlight(ownerDid);
+    state = PendingSubscriptionOperation.customerCenterInFlight(
+      ownerDid,
+      Object(),
+    );
     return true;
   }
 
-  void recordPurchase(SubscriptionTier tier, BillingState beforeProvider) {
+  void recordPurchase(
+    Object operationId,
+    SubscriptionTier tier,
+    BillingState beforeProvider,
+  ) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.purchase ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight ||
         current.tier != tier) {
@@ -124,12 +147,14 @@ final class SubscriptionPendingOperationController
       current.ownerDid,
       tier,
       beforeProvider,
+      operationId,
     );
   }
 
-  void recordRestore(BillingState beforeProvider) {
+  void recordRestore(Object operationId, BillingState beforeProvider) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.restore ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
       return;
@@ -137,20 +162,31 @@ final class SubscriptionPendingOperationController
     state = PendingSubscriptionOperation.restorePending(
       current.ownerDid,
       beforeProvider,
+      operationId,
     );
   }
 
-  void recordCustomerCenterMutation() {
+  void recordCustomerCenterMutation(Object operationId) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.customerCenter ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
       return;
     }
     state = PendingSubscriptionOperation.customerCenterPending(
       current.ownerDid,
+      operationId,
     );
   }
 
-  void clear() => state = null;
+  void clear(Object operationId) {
+    if (identical(state?.operationId, operationId)) state = null;
+  }
+
+  void clearUnconfirmed(Object operationId) {
+    if (state?.phase == PendingSubscriptionOperationPhase.nativeInFlight) {
+      clear(operationId);
+    }
+  }
 }

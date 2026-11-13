@@ -85,6 +85,31 @@ void main() {
       expect(model.access.effectiveTier, SubscriptionTier.free);
     },
   );
+  test('a conflicting local store does not hide AppView paid access', () async {
+    final registry = _registry();
+    final api = _Api('did:plc:alice', SubscriptionTier.plus);
+    final revenueCat = _ConflictingRevenueCat();
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(registry),
+        ),
+        revenueCatServiceProvider.overrideWithValue(revenueCat),
+        subscriptionRepositoryProvider.overrideWith(
+          (ref, account) async => api,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(subscriptionPageModelProvider, (_, _) {});
+    final model = await container.read(subscriptionPageModelProvider.future);
+    expect(model.access.allowsPlus, isTrue);
+    expect(model.billingState?.revenueCatAppUserId, api.revenueCatAppUserId);
+    expect(revenueCat.identityCalls, 0);
+    expect(revenueCat.identifyCalls, 0);
+    expect(revenueCat.offeringCalls, isEmpty);
+  });
 }
 
 SessionRegistry _registry() => SessionRegistry.empty()
@@ -153,7 +178,7 @@ final class _Api implements SubscriptionApi {
   Future<void> requestReconciliation() => throw UnimplementedError();
 }
 
-final class _RevenueCat implements RevenueCatService {
+class _RevenueCat implements RevenueCatService {
   new();
   String appUserId = '20000000-0000-4000-8000-000000000001';
   int identityCalls = 0;
@@ -192,6 +217,19 @@ final class _RevenueCat implements RevenueCatService {
 
   @override
   Future<void> restorePurchases() => throw UnimplementedError();
+}
+
+final class _ConflictingRevenueCat extends _RevenueCat
+    implements NativeStoreOwnershipService {
+  @override
+  String get store => 'app_store';
+  @override
+  bool get supportsPlanChanges => true;
+  @override
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async => throw const StoreAccountConflictException();
 }
 
 final class _Offering implements RevenueCatOffering {

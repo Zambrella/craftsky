@@ -53,13 +53,17 @@ class MainActivity : FlutterActivity() {
                 result.success(mapOf("status" to "unverified"))
             }
         }
-        fun finish(status: String, ownerHash: String? = null) {
+        fun finish(status: String, ownerHash: String? = null, hasActiveSubscription: Boolean? = null) {
             main.post {
                 if (!completed) {
                     completed = true
                     main.removeCallbacks(timeout)
                     client.endConnection()
-                    result.success(mapOf("status" to status, "ownerHash" to ownerHash))
+                    result.success(mapOf(
+                        "status" to status,
+                        "ownerHash" to ownerHash,
+                        "hasActiveSubscription" to hasActiveSubscription
+                    ))
                 }
             }
         }
@@ -76,7 +80,10 @@ class MainActivity : FlutterActivity() {
                     return
                 }
                 client.queryPurchasesAsync(
-                    QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
+                    QueryPurchasesParams.newBuilder()
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .includeSuspendedSubscriptions(true)
+                        .build()
                 ) { queryResult, purchases ->
                     if (queryResult.responseCode != BillingClient.BillingResponseCode.OK) {
                         finish("unverified")
@@ -88,7 +95,7 @@ class MainActivity : FlutterActivity() {
                     } else if (purchases.any { it.accountIdentifiers?.obfuscatedAccountId != expected }) {
                         finish("conflict", purchases.first { it.accountIdentifiers?.obfuscatedAccountId != expected }.accountIdentifiers?.obfuscatedAccountId)
                     } else {
-                        finish("allowed")
+                        finish("allowed", hasActiveSubscription = purchases.isNotEmpty())
                     }
                 }
             }

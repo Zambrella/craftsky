@@ -29,13 +29,15 @@ RevenueCat's initial validation caught seven obsolete country aliases in the nam
 
 ## Application release handoff
 
-Add this entry **additively** to AppView's runtime `REVENUECAT_PRODUCT_MAPPINGS`:
+The maintainer clarified that subscriptions are not live and no legacy mapping is required. The clean current catalog has now been saved on Render's `craftsky-appview` service and independently read back:
 
-```json
-"prod21eeb1c1b6": {"appId":"app118e6a032e","tier":"business"}
-```
+- `REVENUECAT_PROJECT_ID` points to the existing CraftSky RevenueCat project.
+- `REVENUECAT_APP_IDS` lists the App Store, Google Play and live Stripe apps.
+- `REVENUECAT_PRODUCT_MAPPINGS` contains exactly six current products: Plus and Business for each of those providers. Apple Business uses `prod21eeb1c1b6`; the superseded `prod65a34336b0` is excluded. Test Store and Stripe Sandbox products are excluded from this production catalog.
 
-Retain `prod65a34336b0` and all existing mappings. The RevenueCat App Store app and client public key do not change. Local examples intentionally target Test Store and were not rewritten with production IDs. No runtime credentials, Render configuration, migrations or releases were changed.
+The complete non-secret catalog snapshot is [appview-current-catalog.json](appview-current-catalog.json). Only those three service variables were added; read-back verified unrelated settings unchanged. Billing remains disabled. Saving through the API did not trigger a deployment, and the latest deploy remained unchanged. These settings become available to the running application on a later deploy. Integration credentials, the production RevenueCat-to-AppView webhook and release activation remain separate.
+
+The RevenueCat App Store app and client public key do not change. Local examples intentionally target Test Store and were not rewritten with production IDs. No credentials, migrations or releases were changed by this mapping update.
 
 Real iOS/Android acceptance remains: offerings/prices, same-group StoreKit ownership, purchase/restore to the original account UUID, account switching, Business upgrade and deferred Plus downgrade. SDK/provider configuration alone does not prove these paths.
 

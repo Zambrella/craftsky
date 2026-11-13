@@ -64,4 +64,70 @@ void main() {
       throwsA(isA<StoreOwnershipUnverifiedException>()),
     );
   });
+
+  for (final active in [false, true]) {
+    test(
+      'new purchase requires explicit store vacancy: active=$active',
+      () async {
+        messenger.setMockMethodCallHandler(
+          channel,
+          (_) async => {
+            'status': 'allowed',
+            'hasActiveSubscription': active,
+          },
+        );
+        const service = NativeRevenueCatService();
+        // Restore/replacement may inspect the same owner's existing purchase.
+        await service.verifyStoreOwnership(customer);
+        final newPurchase = service.verifyStoreOwnership(
+          customer,
+          requireNoActiveSubscription: true,
+        );
+        if (active) {
+          await expectLater(
+            newPurchase,
+            throwsA(isA<StoreSubscriptionExistsException>()),
+          );
+        } else {
+          await newPurchase;
+        }
+      },
+    );
+  }
+
+  for (final active in [null, 'false', 0]) {
+    test(
+      'missing or malformed vacancy evidence $active blocks checkout',
+      () async {
+        messenger.setMockMethodCallHandler(
+          channel,
+          (_) async => {'status': 'allowed', 'hasActiveSubscription': active},
+        );
+        await expectLater(
+          const NativeRevenueCatService().verifyStoreOwnership(
+            customer,
+            requireNoActiveSubscription: true,
+          ),
+          throwsA(isA<StoreOwnershipUnverifiedException>()),
+        );
+      },
+    );
+  }
+
+  test(
+    'foreign ownership takes precedence over an existing purchase',
+    () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {'status': 'conflict', 'hasActiveSubscription': true},
+      );
+      await expectLater(
+        const NativeRevenueCatService().verifyStoreOwnership(
+          customer,
+          requireNoActiveSubscription: true,
+        ),
+        throwsA(isA<StoreAccountConflictException>()),
+      );
+    },
+  );
 }

@@ -93,9 +93,15 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 			return subscriptions.CompleteSnapshot{}, err
 		}
 		for _, item := range response.Items {
-			result.Subscriptions = append(result.Subscriptions, item.snapshot())
+			snapshot, err := item.snapshot()
+			if err != nil {
+				return subscriptions.CompleteSnapshot{}, err
+			}
+			result.Subscriptions = append(result.Subscriptions, snapshot)
 		}
-		if response.NextPage == nil || *response.NextPage == "" {
+		// RevenueCat documents both an omitted and a null next_page as terminal.
+		// A present but empty/invalid URL must fail pagination instead.
+		if response.NextPage == nil {
 			result.Complete = true
 			return result, nil
 		}
@@ -130,18 +136,18 @@ type subscriptionPage struct {
 }
 
 type subscriptionResource struct {
-	ID                    string `json:"id"`
-	ProductID             string `json:"product_id"`
-	Store                 string `json:"store"`
-	Environment           string `json:"environment"`
-	Status                string `json:"status"`
-	GivesAccess           bool   `json:"gives_access"`
-	PendingPayment        bool   `json:"pending_payment"`
-	AutoRenewalStatus     string `json:"auto_renewal_status"`
-	StartsAt              *int64 `json:"starts_at"`
-	CurrentPeriodStartsAt *int64 `json:"current_period_starts_at"`
-	CurrentPeriodEndsAt   *int64 `json:"current_period_ends_at"`
-	EndsAt                *int64 `json:"ends_at"`
+	ID                    string          `json:"id"`
+	ProductID             json.RawMessage `json:"product_id"`
+	Store                 string          `json:"store"`
+	Environment           string          `json:"environment"`
+	Status                string          `json:"status"`
+	GivesAccess           *bool           `json:"gives_access"`
+	PendingPayment        *bool           `json:"pending_payment"`
+	AutoRenewalStatus     string          `json:"auto_renewal_status"`
+	StartsAt              *int64          `json:"starts_at"`
+	CurrentPeriodStartsAt *int64          `json:"current_period_starts_at"`
+	CurrentPeriodEndsAt   *int64          `json:"current_period_ends_at"`
+	EndsAt                *int64          `json:"ends_at"`
 	PendingChanges        *struct {
 		Product *struct {
 			ID string `json:"id"`
@@ -172,25 +178,40 @@ func (c *Client) fetchPage(ctx context.Context, endpoint string) (subscriptionPa
 		return subscriptionPage{}, errors.New("RevenueCat response exceeds configured limit")
 	}
 	var page subscriptionPage
-	if err := json.Unmarshal(body, &page); err != nil {
+	if err := json.Unmarshal(body, &page); err != nil || page.Items == nil {
 		return subscriptionPage{}, errors.New("invalid RevenueCat response")
 	}
 	return page, nil
 }
 
-func (resource subscriptionResource) snapshot() subscriptions.ProviderSubscriptionSnapshot {
+func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscriptionSnapshot, error) {
+	// Absence is not authoritative false/empty state. Reject malformed items
+	// before allowing a complete snapshot to replace confirmed paid access.
+	// product_id is explicitly nullable for promotional subscriptions; retaining
+	// its raw value distinguishes that documented null from an omitted field.
+	var productID *string
+	if strings.TrimSpace(resource.ID) == "" || strings.TrimSpace(resource.Store) == "" ||
+		strings.TrimSpace(resource.Environment) == "" || strings.TrimSpace(resource.Status) == "" ||
+		resource.GivesAccess == nil || resource.PendingPayment == nil || len(resource.ProductID) == 0 ||
+		json.Unmarshal(resource.ProductID, &productID) != nil || (productID != nil && strings.TrimSpace(*productID) == "") {
+		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription response")
+	}
+	product := ""
+	if productID != nil {
+		product = *productID
+	}
 	pendingProductID := ""
 	if resource.PendingChanges != nil && resource.PendingChanges.Product != nil {
 		pendingProductID = resource.PendingChanges.Product.ID
 	}
 	return subscriptions.ProviderSubscriptionSnapshot{
-		ID: resource.ID, ProductID: resource.ProductID, PendingProductID: pendingProductID, Store: resource.Store,
+		ID: resource.ID, ProductID: product, PendingProductID: pendingProductID, Store: resource.Store,
 		Environment: resource.Environment, Status: resource.Status,
-		GivesAccess: resource.GivesAccess, PendingPayment: resource.PendingPayment,
+		GivesAccess: *resource.GivesAccess, PendingPayment: *resource.PendingPayment,
 		AutoRenewalStatus: resource.AutoRenewalStatus,
 		StartsAt:          millisTime(resource.StartsAt), CurrentPeriodStartsAt: millisTime(resource.CurrentPeriodStartsAt),
 		CurrentPeriodEndsAt: millisTime(resource.CurrentPeriodEndsAt), EndsAt: millisTime(resource.EndsAt),
-	}
+	}, nil
 }
 
 func millisTime(value *int64) *time.Time {

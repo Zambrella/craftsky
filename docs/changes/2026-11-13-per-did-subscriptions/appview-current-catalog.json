@@ -1,0 +1,45 @@
+{
+  "savedAt": "2026-11-13",
+  "workspace": "CraftSky",
+  "service": "craftsky-appview",
+  "status": "saved_in_render_not_deployed",
+  "billingEnabled": false,
+  "REVENUECAT_PROJECT_ID": "proj9446d6b1",
+  "REVENUECAT_APP_IDS": [
+    "app118e6a032e",
+    "appb0f4f0db7e",
+    "app4a59f652fd"
+  ],
+  "REVENUECAT_PRODUCT_MAPPINGS": {
+    "prod0db95aa400": {
+      "appId": "app118e6a032e",
+      "tier": "plus"
+    },
+    "prod21eeb1c1b6": {
+      "appId": "app118e6a032e",
+      "tier": "business"
+    },
+    "prodd4066b7037": {
+      "appId": "appb0f4f0db7e",
+      "tier": "plus"
+    },
+    "prod5c81704246": {
+      "appId": "appb0f4f0db7e",
+      "tier": "business"
+    },
+    "prod5a9ce539e5": {
+      "appId": "app4a59f652fd",
+      "tier": "plus"
+    },
+    "prod5ed642d29f": {
+      "appId": "app4a59f652fd",
+      "tier": "business"
+    }
+  },
+  "supersededAppleBusinessExcluded": "prod65a34336b0",
+  "testStoreAndStripeSandboxExcludedFromProductionCatalog": true,
+  "readBackVerified": true,
+  "unrelatedServiceSettingsUnchanged": true,
+  "deploymentTriggered": false,
+  "effectiveOnNextDeploy": true
+}

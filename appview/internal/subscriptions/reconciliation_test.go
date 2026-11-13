@@ -69,8 +69,9 @@ func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
 	`, account.ID).Scan(&requested, &reconciled); err != nil {
 		t.Fatal(err)
 	}
-	if requested != 5 || reconciled != 4 {
-		t.Fatalf("generations after trigger during fetch = requested %d reconciled %d, want 5/4", requested, reconciled)
+	wantReconciled := account.RequestedGeneration + 4
+	if requested != wantReconciled+1 || reconciled != wantReconciled {
+		t.Fatalf("generations after trigger during fetch = requested %d reconciled %d, want %d/%d", requested, reconciled, wantReconciled+1, wantReconciled)
 	}
 	processed, err = reconciler.ProcessOne(context.Background())
 	if err != nil || !processed || provider.calls != 2 {

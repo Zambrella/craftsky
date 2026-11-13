@@ -7,6 +7,47 @@ import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'new purchase cannot duplicate an existing same-owner store plan',
+    () async {
+      final service = _PaywallService(
+        offerings: {
+          'business': const _Offering('business', {r'$rc_monthly'}),
+        },
+        result: DirectPaywallResult.purchased,
+        hasActiveSubscription: true,
+      );
+      expect(
+        await _present(service, SubscriptionTier.business),
+        PaywallOutcome.existingStoreSubscription,
+      );
+      expect(service.ownershipRequirements, [false, true]);
+      expect(service.presentedOfferings, isEmpty);
+    },
+  );
+
+  test(
+    'explicit replacement permits the same-owner existing store plan',
+    () async {
+      final service = _PaywallService(
+        offerings: {
+          'business': const _Offering('business', {r'$rc_monthly'}),
+        },
+        result: DirectPaywallResult.purchased,
+        hasActiveSubscription: true,
+      );
+      const guard = BillingAccountGuard(_ownerRegistry);
+      final outcome = await PaywallCoordinator(
+        service,
+        guard,
+        RevenueCatIdentityGuard(service),
+      ).changePlan(guard.capture(), SubscriptionTier.business);
+      expect(outcome, PaywallOutcome.reconcile);
+      expect(service.ownershipRequirements, [false, false]);
+      expect(service.presentedOfferings, ['business']);
+    },
+  );
+
   test('conflicting ownership stops before native checkout', () async {
     final service = _PaywallService(
       offerings: {
@@ -210,7 +251,10 @@ final class _Offering implements RevenueCatOffering {
 }
 
 final class _PaywallService
-    implements RevenueCatService, NativeStoreOwnershipService {
+    implements
+        RevenueCatService,
+        NativeStoreOwnershipService,
+        NativePlanChangeService {
   new({
     required this.offerings,
     required this.result,
@@ -218,19 +262,29 @@ final class _PaywallService
     this.ownershipError,
     this.onOffering,
     this.onPresentation,
+    this.hasActiveSubscription = false,
   });
 
   final Map<String, RevenueCatOffering> offerings;
   final DirectPaywallResult result;
   final bool failPresentation;
   final Exception? ownershipError;
+  final bool hasActiveSubscription;
+  final ownershipRequirements = <bool>[];
   @override
   String get store => 'app_store';
   @override
-  bool get supportsPlanChanges => false;
+  bool get supportsPlanChanges => true;
   @override
-  Future<void> verifyStoreOwnership(String appUserId) async {
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async {
+    ownershipRequirements.add(requireNoActiveSubscription);
     if (ownershipError case final error?) throw error;
+    if (requireNoActiveSubscription && hasActiveSubscription) {
+      throw const StoreSubscriptionExistsException();
+    }
   }
 
   final void Function()? onOffering;
@@ -269,6 +323,12 @@ final class _PaywallService
 
   @override
   Future<void> restorePurchases() => throw UnimplementedError();
+
+  @override
+  Future<DirectPaywallResult> changePlan(
+    RevenueCatOffering offering, {
+    required bool Function() isCurrent,
+  }) => presentPaywall(offering);
 
   @override
   Future<void> presentCustomerCenter(

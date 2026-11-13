@@ -10,6 +10,27 @@ import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'existing store purchase requests sync without confirming a new tier',
+    () async {
+      final api = _ScriptedApi([_state(1, 1)]);
+      var confirmations = 0;
+      final result = await _controller(
+        api,
+        presentPaywall: (_, _) async =>
+            PaywallOutcome.existingStoreSubscription,
+        onProviderConfirmed: (_, _) => confirmations++,
+      ).purchase(SubscriptionTier.business);
+      expect(
+        result.outcome,
+        SubscriptionPurchaseOutcome.existingStoreSubscription,
+      );
+      expect(api.reconciliationCalls, 1);
+      expect(confirmations, 0);
+      expect(result.retry, isNull);
+    },
+  );
+
   test('same-store upgrade replaces the plan and completes '
       'same-ID access', () async {
     final before = _state(1, 1, licenses: [_pair('old')]);

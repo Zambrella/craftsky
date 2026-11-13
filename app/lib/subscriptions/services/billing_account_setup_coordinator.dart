@@ -44,11 +44,17 @@ final class BillingAccountSetupCoordinator {
     );
     requireCurrent();
     if (revenueCat.availability == BillingAvailability.available) {
-      await RevenueCatIdentityGuard(revenueCat).dispatch(
-        state.revenueCatAppUserId,
-        () async {},
-        isCurrent: () => readRegistry().isCurrent(lease),
-      );
+      try {
+        await RevenueCatIdentityGuard(revenueCat).dispatch(
+          state.revenueCatAppUserId,
+          () async {},
+          isCurrent: () => readRegistry().isCurrent(lease),
+        );
+      } on Object {
+        // AppView remains authoritative even when this device's store belongs
+        // to another account or its SDK is unavailable. Native actions perform
+        // the same ownership/identity checks before any provider operation.
+      }
       requireCurrent();
     }
     return state;

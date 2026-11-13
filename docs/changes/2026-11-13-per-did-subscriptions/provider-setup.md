@@ -290,10 +290,14 @@ inspected UI. Preserve existing provider history and customer identifiers:
    tiers. Update purchase descriptions to refer to the purchasing account,
    removing the old assignable-licence wording.
 4. Register the replacement Business product with RevenueCat, attach Business
-   and paid entitlements, replace its offering package mapping, and add its
-   RevenueCat product-to-tier mapping in AppView configuration.
-5. Retain old Business history. Resolve any existing provider subscriptions
-   explicitly before retiring the separate-group product from new sales.
+   and paid entitlements, replace its offering package mapping, and configure
+   the current RevenueCat product-to-tier catalog in AppView. These provider
+   associations and saved Render catalog are now verified; billing remains
+   disabled pending complete integration activation and deployment.
+5. The maintainer confirmed subscriptions are not live and legacy mapping
+   compatibility is unnecessary. The superseded Apple Business product is
+   excluded from AppView's current catalog. Existing store records were not
+   deleted as part of this configuration task.
 6. Create the two missing monthly Google Play subscriptions/base plans with
    reviewed prices and territories, keeping the registered identifiers where
    possible. Configure replacement behaviour and test Plus/Business changes.

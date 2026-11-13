@@ -15,6 +15,8 @@
   "subscriptionsStoreAccountConflictKnown": "This store purchase is linked to {account}. Switch to that CraftSky account to manage or restore it.",
   "@subscriptionsStoreAccountConflictKnown": { "placeholders": { "account": { "type": "String" } } },
   "subscriptionsStoreAccountConflict": "This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.",
+  "subscriptionsExistingStoreSubscription": "This store already has a subscription for this CraftSky account. Refresh status or restore purchases before changing plans.",
+  "@subscriptionsExistingStoreSubscription": { "description": "A verified existing store subscription blocked a new independent purchase before payment." },
   "discoveryYourCrafts": "Your crafts",
   "@discoveryYourCrafts": {"description": "Desktop discovery sidebar section copy."},
   "discoveryNewMembers": "New to CraftSky",

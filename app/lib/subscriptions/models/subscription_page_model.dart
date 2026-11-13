@@ -7,6 +7,7 @@ enum SubscriptionOperationNotice {
   offeringUnavailable,
   providerFailure,
   storeAccountConflict,
+  existingStoreSubscription,
   planChangeUnavailable,
   planChangeScheduled,
   unauthorized,

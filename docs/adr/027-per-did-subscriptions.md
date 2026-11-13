@@ -29,8 +29,22 @@ records and subscriptions still require explicit migration controls.
 Each DID owns its own subscription and is a separate RevenueCat customer. AppView
 maintains a stable random UUID for that customer, rather than using the public
 DID as RevenueCat's externally queryable identifier. Reinstallation and another
-device recover the same UUID through authenticated AppView requests. Switching
-accounts changes the SDK identity; it never transfers purchases or access.
+device recover the same UUID through authenticated AppView requests. Activating
+an account synchronizes SDK identity when ownership checks allow; it never
+transfers purchases or access.
+
+When the subscription integration is enabled, eligible accounts that have
+completed onboarding synchronize billing identity when they become active:
+after sign-in, account switching and session restoration on launch. This is
+optional background work outside account-critical initialization. AppView
+creates or recovers the DID's UUID and durably queues initial RevenueCat
+customer registration through reconciliation. The browser uses this server
+registration path without a RevenueCat SDK. Native clients also attempt SDK
+configuration/login through the serialized ownership guard. Store conflicts or
+provider failures must not prevent sign-in or account switching; native billing
+continues to require the exact current identity before any operation. Guests
+remain unconfigured, and clients never call SDK logout to create an anonymous
+customer between identified accounts. Integration enablement remains explicit.
 
 Plus and Business are alternative tiers, with Business including Plus benefits.
 Apple products belong in one subscription group, Business above Plus. Google

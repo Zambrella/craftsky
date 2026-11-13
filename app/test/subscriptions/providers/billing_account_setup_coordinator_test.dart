@@ -72,6 +72,25 @@ void main() {
     );
     expect(events, isEmpty);
   });
+
+  test(
+    'store conflict preserves the authenticated AppView billing state',
+    () async {
+      var registry = _aliceRegistry();
+      final events = <String>[];
+      final state = await BillingAccountSetupCoordinator(
+        readRegistry: () => registry,
+        setCustomer: (did, id) async {
+          registry = registry.setBillingCustomer(did, id);
+        },
+        api: _FakeSubscriptionApi(ensure: () async => _billingState()),
+        revenueCat: _ConflictingRevenueCat(events),
+      ).setup(registry.activeLease!);
+      expect(state.revenueCatAppUserId, _revenueCatAppUserId);
+      expect(registry.billingCustomers.values.single, _revenueCatAppUserId);
+      expect(events, ['ownership']);
+    },
+  );
 }
 
 SessionRegistry _aliceRegistry() => SessionRegistry.empty().upsertAndActivate(
@@ -92,7 +111,7 @@ BillingState _billingState() => const BillingState(
   licenses: [],
 );
 
-final class _FakeRevenueCat implements RevenueCatIdentityService {
+class _FakeRevenueCat implements RevenueCatIdentityService {
   new(this.events);
 
   final List<String> events;
@@ -113,6 +132,26 @@ final class _FakeRevenueCat implements RevenueCatIdentityService {
   Future<void> identify(String appViewUuid) async {
     events.add('identify');
     appUserId = appViewUuid;
+  }
+}
+
+final class _ConflictingRevenueCat extends _FakeRevenueCat
+    implements NativeStoreOwnershipService {
+  new(super.events);
+
+  @override
+  String get store => 'app_store';
+
+  @override
+  bool get supportsPlanChanges => true;
+
+  @override
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async {
+    events.add('ownership');
+    throw const StoreAccountConflictException();
   }
 }
 

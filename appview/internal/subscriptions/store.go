@@ -42,8 +42,11 @@ func NewStoreForEnvironment(pool *pgxpool.Pool, environment string, observers ..
 
 func (s *Store) EnsureAccount(ctx context.Context, owner syntax.DID) (BillingAccount, bool, error) {
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO billing_accounts(owner_did, revenuecat_app_user_id)
-		VALUES ($1, gen_random_uuid())
+		INSERT INTO billing_accounts(
+			owner_did, revenuecat_app_user_id, requested_generation,
+			reconciliation_requested_at, next_attempt_at
+		)
+		VALUES ($1, gen_random_uuid(), 1, now(), now())
 		ON CONFLICT (owner_did) DO NOTHING
 		RETURNING id, owner_did, revenuecat_app_user_id,
 			requested_generation, reconciled_generation,
@@ -58,7 +61,31 @@ func (s *Store) EnsureAccount(ctx context.Context, owner syntax.DID) (BillingAcc
 	}
 
 	account, err = s.OwnerAccount(ctx, owner)
-	return account, false, err
+	if err != nil || account.ReconciledAt != nil || account.RequestedGeneration != account.ReconciledGeneration {
+		return account, false, err
+	}
+
+	// Registration uses the normal durable worker, which creates a missing
+	// RevenueCat customer with this exact UUID. Repair an earlier, unqueued
+	// account without superseding an in-flight claim or resetting retry backoff.
+	account, err = scanBillingAccount(s.pool.QueryRow(ctx, `
+		UPDATE billing_accounts
+		SET requested_generation=requested_generation+1,
+			reconciliation_requested_at=now(),next_attempt_at=now(),updated_at=now()
+		WHERE owner_did=$1 AND state='active' AND reconciled_at IS NULL
+			AND requested_generation=reconciled_generation AND lease_token IS NULL
+		RETURNING id, owner_did, revenuecat_app_user_id,
+			requested_generation, reconciled_generation,
+			reconciliation_requested_at, reconciled_at
+	`, owner))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// A concurrent ensure, worker or lifecycle transition won the row.
+		account, err = s.OwnerAccount(ctx, owner)
+	}
+	if err != nil {
+		return BillingAccount{}, false, fmt.Errorf("queue billing account registration: %w", err)
+	}
+	return account, false, nil
 }
 
 func (s *Store) OwnerAccount(ctx context.Context, owner syntax.DID) (BillingAccount, error) {
@@ -197,8 +224,16 @@ const effectiveLicenseAccessSQL = `subscription.gives_access
 		  AND customer.owner_did=license.assigned_did AND customer.state='active')`
 
 func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (SelfAccess, error) {
+	return s.selfAccessUsing(ctx, s.pool, did)
+}
+
+type subscriptionAccessQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func (s *Store) selfAccessUsing(ctx context.Context, db subscriptionAccessQuerier, did syntax.DID) (SelfAccess, error) {
 	var assignment LocalAssignment
-	err := s.pool.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		SELECT license.tier, `+effectiveLicenseAccessSQL+`,
 			subscription.current_period_ends_at
 		FROM billing_licenses license

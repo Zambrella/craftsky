@@ -47,7 +47,10 @@ abstract interface class NativeStoreOwnershipService {
 
   /// Reads store-owned transactions without posting or transferring receipts.
   /// Unknown ownership must fail closed before opening a purchase sheet.
-  Future<void> verifyStoreOwnership(String appUserId);
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  });
 }
 
 abstract interface class NativePlanChangeService {
@@ -126,4 +129,10 @@ final class StoreOwnershipUnverifiedException implements Exception {
   const new();
   @override
   String toString() => 'StoreOwnershipUnverifiedException()';
+}
+
+final class StoreSubscriptionExistsException implements Exception {
+  const new();
+  @override
+  String toString() => 'StoreSubscriptionExistsException()';
 }

@@ -260,19 +260,48 @@
     }
   },
   "runtime_handoff": {
-    "REVENUECAT_PRODUCT_MAPPINGS_add": {
+    "same_revenuecat_app_and_public_sdk_key": true,
+    "production_runtime_changed": false,
+    "REVENUECAT_PRODUCT_MAPPINGS_current": {
+      "prod0db95aa400": {
+        "appId": "app118e6a032e",
+        "tier": "plus"
+      },
       "prod21eeb1c1b6": {
         "appId": "app118e6a032e",
         "tier": "business"
+      },
+      "prodd4066b7037": {
+        "appId": "appb0f4f0db7e",
+        "tier": "plus"
+      },
+      "prod5c81704246": {
+        "appId": "appb0f4f0db7e",
+        "tier": "business"
+      },
+      "prod5a9ce539e5": {
+        "appId": "app4a59f652fd",
+        "tier": "plus"
+      },
+      "prod5ed642d29f": {
+        "appId": "app4a59f652fd",
+        "tier": "business"
       }
     },
-    "retain_legacy_mapping": "prod65a34336b0",
-    "same_revenuecat_app_and_public_sdk_key": true,
-    "production_runtime_changed": false
+    "REVENUECAT_APP_IDS_current": [
+      "app118e6a032e",
+      "appb0f4f0db7e",
+      "app4a59f652fd"
+    ],
+    "REVENUECAT_PROJECT_ID_current": "proj9446d6b1",
+    "superseded_apple_business_excluded": "prod65a34336b0",
+    "render_catalog_saved_and_verified": true,
+    "billing_enabled": false,
+    "effective_on_next_deploy": true
   },
   "limitations": [
     "No store purchase, restore or tier-change acceptance test performed.",
     "Apple requires genuine submitted-build review screenshots before submission.",
-    "Production AppView mapping, migrations, webhook and release remain separate."
+    "AppView catalog saved on Render without deploying or enabling billing; complete integration credentials, production webhook, migrations, release and real-store acceptance remain separate."
   ]
 }

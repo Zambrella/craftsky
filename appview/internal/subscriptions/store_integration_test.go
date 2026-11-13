@@ -189,6 +189,9 @@ func TestEnsureBillingAccountIsExplicitStableAndConcurrent(t *testing.T) {
 	if created || repeated.ID != stable.ID || repeated.RevenueCatAppUserID != stable.RevenueCatAppUserID {
 		t.Fatalf("repeated ensure = %+v, created=%t; first %+v", repeated, created, stable)
 	}
+	if repeated.RequestedGeneration != 1 || repeated.ReconciledGeneration != 0 || repeated.ReconciliationRequested == nil {
+		t.Fatalf("initial registration was not queued exactly once: %+v", repeated)
+	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM billing_accounts`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}

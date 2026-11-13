@@ -16,8 +16,10 @@ final class NativeRevenueCatConfigurator implements RevenueCatConfigurator {
     await Purchases.setLogLevel(
       logLevel == RevenueCatSdkLogLevel.debug ? LogLevel.debug : LogLevel.info,
     );
-    await Purchases.configure(PurchasesConfiguration(publicKey));
-    return NativeRevenueCatService(
+    // Configuration starts native receipt synchronization. Wait until AppView
+    // supplies the authenticated customer's UUID and ownership is verified.
+    return NativeRevenueCatService._deferred(
+      publicKey: publicKey,
       isTestStore: kDebugMode && publicKey.startsWith('test_'),
     );
   }
@@ -28,8 +30,22 @@ final class NativeRevenueCatService
         RevenueCatService,
         NativeStoreOwnershipService,
         NativePlanChangeService {
-  const new({this.isTestStore = false});
+  const new({this.isTestStore = false}) : _activation = null;
+  new _deferred({
+    required String publicKey,
+    required this.isTestStore,
+  }) : _activation = _NativeRevenueCatActivation(publicKey);
+
   final bool isTestStore;
+  final _NativeRevenueCatActivation? _activation;
+
+  bool get _configured => _activation?.configured ?? true;
+
+  void _requireConfigured() {
+    if (!_configured) {
+      throw const RevenueCatServiceException('identified_customer_required');
+    }
+  }
 
   @override
   String get store => isTestStore
@@ -45,7 +61,10 @@ final class NativeRevenueCatService
   static const _ownership = MethodChannel('social.craftsky/store_ownership');
 
   @override
-  Future<void> verifyStoreOwnership(String appUserId) async {
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async {
     if (isTestStore) return;
     Map<String, dynamic>? ownership;
     try {
@@ -64,6 +83,15 @@ final class NativeRevenueCatService
     if (ownership?['status'] != 'allowed') {
       throw const StoreOwnershipUnverifiedException();
     }
+    if (requireNoActiveSubscription) {
+      final hasActiveSubscription = ownership?['hasActiveSubscription'];
+      if (hasActiveSubscription is! bool) {
+        throw const StoreOwnershipUnverifiedException();
+      }
+      if (hasActiveSubscription) {
+        throw const StoreSubscriptionExistsException();
+      }
+    }
   }
 
   @override
@@ -71,6 +99,7 @@ final class NativeRevenueCatService
 
   @override
   Future<RevenueCatIdentity> currentIdentity() async {
+    if (!_configured) return const RevenueCatIdentity.anonymous();
     try {
       final anonymous = await Purchases.isAnonymous;
       final appUserId = await Purchases.appUserID;
@@ -85,7 +114,15 @@ final class NativeRevenueCatService
   @override
   Future<void> identify(String appViewUuid) async {
     try {
-      await Purchases.logIn(appViewUuid);
+      final activation = _activation;
+      if (activation != null && !activation.configured) {
+        await Purchases.configure(
+          PurchasesConfiguration(activation.publicKey)..appUserID = appViewUuid,
+        );
+        activation.configured = true;
+      } else {
+        await Purchases.logIn(appViewUuid);
+      }
     } on Object {
       throw const RevenueCatServiceException('identity_write_failed');
     }
@@ -93,6 +130,7 @@ final class NativeRevenueCatService
 
   @override
   Future<RevenueCatOffering?> getOffering(String identifier) async {
+    _requireConfigured();
     try {
       final offering = (await Purchases.getOfferings()).all[identifier];
       return offering == null ? null : _NativeRevenueCatOffering(offering);
@@ -105,6 +143,7 @@ final class NativeRevenueCatService
   Future<DirectPaywallResult> presentPaywall(
     RevenueCatOffering offering,
   ) async {
+    _requireConfigured();
     if (offering is! _NativeRevenueCatOffering) {
       throw const RevenueCatServiceException('invalid_offering');
     }
@@ -144,6 +183,7 @@ final class NativeRevenueCatService
     RevenueCatOffering offering, {
     required bool Function() isCurrent,
   }) async {
+    _requireConfigured();
     if (offering is! _NativeRevenueCatOffering || isTestStore) {
       throw const NativePlanChangeUnavailableException();
     }
@@ -209,6 +249,7 @@ final class NativeRevenueCatService
 
   @override
   Future<void> restorePurchases() async {
+    _requireConfigured();
     try {
       await Purchases.restorePurchases();
     } on PlatformException catch (error) {
@@ -227,6 +268,7 @@ final class NativeRevenueCatService
   Future<void> presentCustomerCenter(
     void Function(CustomerCenterEvent) onEvent,
   ) async {
+    _requireConfigured();
     try {
       await RevenueCatUI.presentCustomerCenter(
         onRestoreCompleted: (_) =>
@@ -242,6 +284,13 @@ final class NativeRevenueCatService
       throw const RevenueCatServiceException('customer_center_failed');
     }
   }
+}
+
+final class _NativeRevenueCatActivation {
+  new(this.publicKey);
+
+  final String publicKey;
+  bool configured = false;
 }
 
 final class _NativeRevenueCatOffering implements RevenueCatOffering {

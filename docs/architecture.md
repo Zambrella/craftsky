@@ -115,7 +115,12 @@ Follow the [configuration guide](development/configuration.md) and
 
 Subscriptions belong to individual DIDs, each mapped to a private RevenueCat
 customer UUID. Plus and Business are alternative tiers; licences cannot be
-assigned to another DID. AppView creates hosted Stripe Checkout sessions with
+assigned to another DID. When the integration is enabled, eligible accounts
+that have completed onboarding start optional customer setup on sign-in,
+switching and session restoration. AppView queues initial RevenueCat customer
+registration; native clients also synchronize SDK identity through store
+ownership checks. Provider failures do not block account readiness.
+AppView creates hosted Stripe Checkout sessions with
 Managed Payments required and verified on the returned session; Stripe is
 merchant of record. A durable per-account pending operation and provider
 idempotency fence concurrent checkout attempts and uncertain retries. RevenueCat

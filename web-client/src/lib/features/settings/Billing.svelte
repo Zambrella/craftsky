@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack } from 'svelte';
 	import {
 		APIError,
 		type CraftskyAPI,
@@ -14,6 +14,10 @@
 	import { storeManagementURL } from './navigation.ts';
 	import { tierState, tierStateLabel } from './native-settings.ts';
 	import {
+		subscriptionAccessContext,
+		type SubscriptionAccessState
+	} from '../shell/subscription-access.svelte';
+	import {
 		canStartWebCheckout,
 		hasCurrentSubscription,
 		isCurrentSubscription,
@@ -26,19 +30,24 @@
 	} from './subscription-checkout.ts';
 	let { api, session }: { api: CraftskyAPI; session: Session } = $props();
 	const work = new Work('settings.Billing.action');
+	const account = untrack(() => `${session.id}:${session.did}`);
+	const ownerDid = untrack(() => session.did);
+	const sharedAccess = getContext<SubscriptionAccessState | undefined>(
+		subscriptionAccessContext
+	);
 	let active = true;
 	let access = $state<SubscriptionAccess | null>(null),
 		billing = $state<BillingState | null>(null),
 		purchasingTier = $state<SubscriptionTier | null>(null),
 		managingSubscription = $state(false);
 	const checkout = new SubscriptionCheckout(
-		untrack(() => `${session.id}:${session.did}`),
+		account,
 		() => `${session.id}:${session.did}`,
 		(tier) => api.billing.checkout(tier),
 		(url) => location.assign(url)
 	);
 	const management = new SubscriptionManagement(
-		untrack(() => `${session.id}:${session.did}`),
+		account,
 		() => `${session.id}:${session.did}`,
 		() => api.billing.manage(),
 		(url) => location.assign(url)
@@ -48,20 +57,36 @@
 			isCurrentSubscription(subscription)
 		) || []
 	);
+	function requireCurrent() {
+		if (!active || `${session.id}:${session.did}` !== account)
+			throw new DOMException('View closed', 'AbortError');
+	}
 	async function read() {
+		requireCurrent();
+		const publishAccess = sharedAccess?.beginRead(account);
 		const state = await api.billing.get().catch((error: unknown) => {
+			requireCurrent();
 			if (error instanceof APIError && error.status === 404)
 				return api.billing.ensure();
 			throw error;
 		});
-		if (!active) throw new DOMException('View closed', 'AbortError');
-		return { access: await api.billing.access(), billing: state };
+		requireCurrent();
+		const currentAccess = await api.billing.access();
+		requireCurrent();
+		if (currentAccess.did !== ownerDid)
+			throw new UserFacingError(
+				'Subscription status is unavailable. Please try again.'
+			);
+		return { access: currentAccess, billing: state, publishAccess };
 	}
-	function apply(value: { access: SubscriptionAccess; billing: BillingState }) {
+	function apply(value: Awaited<ReturnType<typeof read>>) {
+		requireCurrent();
+		if (value.publishAccess && !value.publishAccess(value.access)) return;
 		access = value.access;
 		billing = value.billing;
 	}
 	async function reconciled() {
+		requireCurrent();
 		await api.billing.reconcile();
 		let value = await read();
 		for (

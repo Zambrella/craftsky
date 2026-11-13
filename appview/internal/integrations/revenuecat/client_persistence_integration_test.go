@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,107 @@ import (
 	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
+
+func TestMalformedProviderResponsePreservesReconciledAccessAndPins(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:malformed-provider-owner")
+	postURI := "at://" + owner.String() + "/social.craftsky.feed.post/pinned"
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'cid')`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES($1,'active',1,1,'test',now(),now(),now())`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at) VALUES($1,$2,'pinned','cid','Pinned','{}',now())`, postURI, owner); err != nil {
+		t.Fatal(err)
+	}
+	store := subscriptions.NewStore(pool)
+	account, _, err := store.EnsureAccount(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := subscriptions.NewCatalog(subscriptions.CatalogConfig{
+		ProjectID: "project", AppIDs: []string{"app"},
+		Products: map[string]subscriptions.ProductMapping{"prod-plus": {AppID: "app", Tier: subscriptions.TierPlus}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := `{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_renew"}]}`
+	var firstPage string
+	requests := 0
+	client, err := NewClient(ClientConfig{BaseURL: "https://revenuecat.invalid/v2", APIKey: "secret", ProjectID: "project"}, &http.Client{Transport: responseTransport(func(request *http.Request) *http.Response {
+		requests++
+		body := response
+		if firstPage != "" && request.URL.Query().Get("starting_after") == "" {
+			body = firstPage
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	reconciler := subscriptions.NewReconciler(store, client, catalog, time.Minute, func() time.Time { return now })
+	if err := reconciler.Trigger(ctx, account.ID, subscriptions.TriggerOwnerRefresh); err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := reconciler.ProcessOne(ctx); !processed || err != nil {
+		t.Fatalf("initial paid reconciliation = %t, error %v", processed, err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at) VALUES($1,'standard',$2,gen_random_uuid(),now(),now())`, owner, postURI); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.OwnerAccount(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, malformed := range []string{
+		`null`, `{}`, `{"items":null}`,
+		`{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"expired","pending_payment":false}]}`,
+		`{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"expired","gives_access":false}]}`,
+	} {
+		for _, laterPage := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/later=%t", malformed, laterPage), func(t *testing.T) {
+				response, firstPage, requests = malformed, "", 0
+				if laterPage {
+					path := "/v2/projects/project/customers/" + account.RevenueCatAppUserID.String() + "/subscriptions"
+					firstPage = `{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false}],"next_page":"` + path + `?starting_after=sub-preserve"}`
+				}
+				now = now.Add(2 * time.Minute)
+				if err := reconciler.Trigger(ctx, account.ID, subscriptions.TriggerOwnerRefresh); err != nil {
+					t.Fatal(err)
+				}
+				if processed, err := reconciler.ProcessOne(ctx); !processed || err == nil {
+					t.Fatalf("malformed reconciliation = %t, error %v; want failed claim", processed, err)
+				}
+				wantRequests := 1
+				if laterPage {
+					wantRequests = 2
+				}
+				if requests != wantRequests {
+					t.Fatalf("provider requests = %d, want %d", requests, wantRequests)
+				}
+				access, err := store.SelfAccess(ctx, owner, now)
+				if err != nil || !access.AllowsPlus() {
+					t.Fatalf("preserved access = %+v, error %v", access, err)
+				}
+				var pins int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM profile_pins WHERE owner_did=$1 AND post_uri=$2`, owner, postURI).Scan(&pins); err != nil || pins != 1 {
+					t.Fatalf("preserved pins = %d, error %v", pins, err)
+				}
+				after, err := store.OwnerAccount(ctx, owner)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if after.ReconciledGeneration != before.ReconciledGeneration || after.ReconciledAt == nil || before.ReconciledAt == nil || !after.ReconciledAt.Equal(*before.ReconciledAt) || after.RequestedGeneration <= after.ReconciledGeneration {
+					t.Fatalf("malformed response changed confirmed reconciliation: before=%+v after=%+v", before, after)
+				}
+			})
+		}
+	}
+}
 
 func TestPendingProductChangeReachesPersistedFailClosedAnomaly(t *testing.T) {
 	migration, err := os.ReadFile("../../../migrations/000076_subscription_accounts.up.sql")
@@ -41,8 +143,8 @@ func TestPendingProductChangeReachesPersistedFailClosedAnomaly(t *testing.T) {
 		t.Fatal(err)
 	}
 	responses := []string{
-		`{"items":[{"id":"sub-plus","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
-		`{"items":[{"id":"sub-plus","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_change_product","pending_changes":{"product":{"id":"prod-business","future_product_field":"ignored"},"future_change_field":{"ignored":true}},"future_field":true},{"id":"sub-business","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
+		`{"items":[{"id":"sub-plus","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
+		`{"items":[{"id":"sub-plus","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_change_product","pending_changes":{"product":{"id":"prod-business","future_product_field":"ignored"},"future_change_field":{"ignored":true}},"future_field":true},{"id":"sub-business","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
 	}
 	responseIndex := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -151,17 +253,17 @@ func TestCompletedSameIDProductChangesUpdateOwnedTier(t *testing.T) {
 		{
 			name: "pending change completes",
 			responses: []string{
-				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
-				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"auto_renewal_status":"will_change_product","pending_changes":{"product":{"id":"prod-business"}}}],"next_page":null}`,
-				`{"items":[{"id":"sub-change","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_change_product","pending_changes":{"product":{"id":"prod-business"}}}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
 			},
 		},
 		{
 			name: "supported becomes unsupported then different tier",
 			responses: []string{
-				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
-				`{"items":[{"id":"sub-change","product_id":"unknown-product","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
-				`{"items":[{"id":"sub-change","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"unknown-product","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
+				`{"items":[{"id":"sub-change","product_id":"prod-business","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":null}`,
 			},
 		},
 	}
@@ -281,7 +383,7 @@ func TestPaginationFailureDoesNotApplyPartialSnapshot(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests++
 		if requests == 1 {
-			_, _ = w.Write([]byte(`{"items":[{"id":"sub-partial","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true}],"next_page":"` + path + `?starting_after=sub-partial"}`))
+			_, _ = w.Write([]byte(`{"items":[{"id":"sub-partial","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":"` + path + `?starting_after=sub-partial"}`))
 			return
 		}
 		http.Error(w, "provider-private-canary", http.StatusBadGateway)
@@ -352,7 +454,7 @@ func TestScheduledDowngradeSerializesMappedPendingTierWithoutChangingAccess(t *t
 				if r.Method != http.MethodGet {
 					t.Errorf("unexpected provider mutation %s", r.Method)
 				}
-				_, _ = fmt.Fprintf(w, `{"items":[{"id":"subscription","product_id":%q,"store":"play_store","environment":"production","status":"active","gives_access":true,"auto_renewal_status":%q,"pending_changes":{"product":{"id":%q}}}],"next_page":null}`, tc.product, tc.renewal, tc.pending)
+				_, _ = fmt.Fprintf(w, `{"items":[{"id":"subscription","product_id":%q,"store":"play_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":%q,"pending_changes":{"product":{"id":%q}}}],"next_page":null}`, tc.product, tc.renewal, tc.pending)
 			}))
 			defer server.Close()
 			client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "secret", ProjectID: "project"}, server.Client())

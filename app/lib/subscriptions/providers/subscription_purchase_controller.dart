@@ -16,6 +16,7 @@ enum SubscriptionPurchaseOutcome {
   providerError,
   storeAccountConflict,
   planChangeUnavailable,
+  existingStoreSubscription,
   pending,
   anomaly,
   failed,
@@ -130,6 +131,18 @@ final class SubscriptionPurchaseController {
       case PaywallOutcome.storeAccountConflict:
         return const SubscriptionPurchaseResult(
           outcome: SubscriptionPurchaseOutcome.storeAccountConflict,
+        );
+      case PaywallOutcome.existingStoreSubscription:
+        // A prior store purchase can outlive this process before AppView has
+        // indexed it. Refresh provider state without claiming the requested
+        // tier was purchased or starting a second independent payment.
+        try {
+          await ownerGuard.dispatch(owner, api.requestReconciliation);
+        } on Object {
+          // The native store fence still blocks purchase if refresh fails.
+        }
+        return const SubscriptionPurchaseResult(
+          outcome: SubscriptionPurchaseOutcome.existingStoreSubscription,
         );
       case PaywallOutcome.providerError:
         return const SubscriptionPurchaseResult(

@@ -78,7 +78,7 @@ final class CustomerCenterCoordinator {
               owner.revenueCatAppUserId,
             );
           }
-          if (!ownerGuard.isCurrent(owner)) {
+          if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
             throw const BillingAccountGuardException('owner_session_changed');
           }
           await service.presentCustomerCenter((_) {
@@ -87,9 +87,10 @@ final class CustomerCenterCoordinator {
             onProviderMutationConfirmed?.call();
           });
         },
+        isOperationCurrent: isCurrent,
       );
     } on StoreAccountConflictException catch (error) {
-      if (!ownerGuard.isCurrent(owner)) {
+      if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
         return const CustomerCenterResult(
           outcome: CustomerCenterOutcome.cancelled,
         );

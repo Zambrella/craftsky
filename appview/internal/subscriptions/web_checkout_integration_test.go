@@ -64,7 +64,11 @@ func checkoutFixture(t *testing.T) (*Store, *pgxpool.Pool, *checkoutFake, syntax
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	if _, err := pool.Exec(t.Context(), `UPDATE billing_accounts SET reconciled_at=$2 WHERE id=$1`, account.ID, now); err != nil {
+	if _, err := pool.Exec(t.Context(), `UPDATE billing_accounts SET reconciled_generation=requested_generation,reconciled_at=$2 WHERE id=$1`, account.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	account, err = store.OwnerAccount(t.Context(), did)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetWebCheckoutProvider(fake, WebCheckoutConfig{AccountID: "acct_merchant", PlusPriceID: "price_plus", BusinessPriceID: "price_business", SuccessURL: "https://app.example/settings/subscriptions", CancelURL: "https://app.example/settings/subscriptions", BillingReturnURL: "https://app.example/settings/subscriptions"}); err != nil {
@@ -151,7 +155,7 @@ func TestStripeCheckoutRequiresObservedExpirationAndFreshProviderState(t *testin
 		t.Fatalf("complete empty snapshot=%v", err)
 	}
 	fake.session.SubscriptionCanceled = true
-	if _, err := pool.Exec(t.Context(), `UPDATE billing_accounts SET requested_generation=1 WHERE id=$1`, account.ID); err != nil {
+	if _, err := pool.Exec(t.Context(), `UPDATE billing_accounts SET requested_generation=requested_generation+1 WHERE id=$1`, account.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.ResolveWebCheckoutForDeletion(t.Context(), did, now); err != nil {

@@ -30,6 +30,13 @@ final class RevenueCatIdentityGuard {
       if (_service.availability != BillingAvailability.available) {
         throw const RevenueCatIdentityException('billing_unavailable');
       }
+      final service = _service;
+      if (service is NativeStoreOwnershipService) {
+        await (service as NativeStoreOwnershipService).verifyStoreOwnership(
+          expectedAppUserId,
+        );
+        requireCurrent();
+      }
       final identity = await _service.currentIdentity();
       requireCurrent();
       if (identity.kind != RevenueCatIdentityKind.identified ||

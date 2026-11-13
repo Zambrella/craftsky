@@ -136,6 +136,12 @@ abstract class AppLocalizations {
   /// **'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.'**
   String get subscriptionsStoreAccountConflict;
 
+  /// A verified existing store subscription blocked a new independent purchase before payment.
+  ///
+  /// In en, this message translates to:
+  /// **'This store already has a subscription for this CraftSky account. Refresh status or restore purchases before changing plans.'**
+  String get subscriptionsExistingStoreSubscription;
+
   /// Desktop discovery sidebar section copy.
   ///
   /// In en, this message translates to:

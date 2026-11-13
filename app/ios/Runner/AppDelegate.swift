@@ -60,6 +60,7 @@ import StoreKit
         // association can survive expiry. Never sync or transfer a receipt here.
         var status = "allowed"
         var conflictingOwner: UUID?
+        var hasActiveSubscription = false
         for await verification in StoreKit.Transaction.all {
           switch verification {
           case .verified(let transaction):
@@ -78,8 +79,54 @@ import StoreKit
           }
           if status == "conflict" { break }
         }
+        // Current entitlements are store evidence independent of RevenueCat
+        // indexing. Unfinished purchases also prevent a second independent
+        // subscription while the first transaction is still being delivered.
+        if status != "conflict" {
+          for await verification in StoreKit.Transaction.currentEntitlements {
+            switch verification {
+            case .verified(let transaction):
+              guard transaction.productType == .autoRenewable else { continue }
+              hasActiveSubscription = true
+              guard let owner = transaction.appAccountToken else {
+                status = "unverified"
+                continue
+              }
+              if owner != expected {
+                status = "conflict"
+                conflictingOwner = owner
+              }
+            case .unverified:
+              status = "unverified"
+            }
+            if status == "conflict" { break }
+          }
+        }
+        if status != "conflict" {
+          for await verification in StoreKit.Transaction.unfinished {
+            switch verification {
+            case .verified(let transaction):
+              guard transaction.productType == .autoRenewable else { continue }
+              hasActiveSubscription = true
+              guard let owner = transaction.appAccountToken else {
+                status = "unverified"
+                continue
+              }
+              if owner != expected {
+                status = "conflict"
+                conflictingOwner = owner
+              }
+            case .unverified:
+              status = "unverified"
+            }
+            if status == "conflict" { break }
+          }
+        }
         await MainActor.run {
-          var response: [String: Any] = ["status": status]
+          var response: [String: Any] = [
+            "status": status,
+            "hasActiveSubscription": hasActiveSubscription
+          ]
           if let owner = conflictingOwner { response["ownerAppUserId"] = owner.uuidString.lowercased() }
           result(response)
         }

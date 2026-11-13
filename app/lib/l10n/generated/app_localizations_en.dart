@@ -41,6 +41,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.';
 
   @override
+  String get subscriptionsExistingStoreSubscription =>
+      'This store already has a subscription for this CraftSky account. Refresh status or restore purchases before changing plans.';
+
+  @override
   String get discoveryYourCrafts => 'Your crafts';
 
   @override

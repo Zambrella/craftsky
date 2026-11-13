@@ -169,8 +169,11 @@ one group with Business ranked above Plus, prices preserved and RevenueCat
 links verified. Both Google monthly plans are now ACTIVE after explicit approval
 of worldwide pricing and activation. Fresh reads matched every price and
 availability entry across 174 named regions plus future-market defaults, with
-GB/US prices retained. Genuine Apple review screenshots, AppView's additive new
-Business product mapping and real native-store sandbox tests remain outstanding. The three documented
+GB/US prices retained. AppView's clean six-product catalog, app allowlist and
+project ID are now saved and read-back verified on Render; the superseded Apple
+Business mapping is excluded, billing remains disabled and no deploy was
+triggered. Genuine Apple review screenshots, integration activation/release and
+real native-store sandbox tests remain outstanding. The three documented
 Stripe-to-RevenueCat sandbox purchases verified provider processing and customer
 isolation; they did not exercise the application's DID mapping or Checkout
 service. No production database migration or release was performed. No live
@@ -180,3 +183,48 @@ The current conservative web deletion gate can require the paid period to end
 after cancellation at period end, because its completed checkout recovery row
 remains retained until Stripe cancellation and non-blocking RevenueCat state
 are established. Include that lifecycle in application sandbox acceptance.
+
+## Subscription code review and corrections
+
+The [collated review](06-implementation-review.md) records seven corrected
+findings covering malformed provider snapshots, SDK activation before ownership
+verification, stale shared access in both clients, native operation disposal,
+database pool starvation and duplicate native purchase risk after restart.
+
+Final local checks passed the complete subscriptions, RevenueCat and Stripe
+race suites and filtered subscription/billing/webhook route tests. Flutter's
+final subscription suite passed 175 tests with five existing skips; full
+analysis, the iOS simulator build and Android debug build passed. The broader
+native subscription/AppShell/settings/Business check before the last restart
+guard passed 210 tests with 12 existing skips. Web passed 104 focused unit tests,
+eight authenticated billing fixture tests, Svelte checks, lint and production
+build.
+
+The broader backend race attempt covered API, account deletion, configuration,
+authentication and Business. It exposed a five-second wait in the image-upload
+stress probe that was too short for instrumented decoding. A diagnostic overlay
+established that the handler completed; the probe's wait and early-failure
+reporting were corrected and three focused race repeats passed. Runtime image
+limits were unchanged. The unrelated remainder of that broad run was stopped
+after the final subscription gate passed, so this is not a clean complete
+repository race run. Details and exact commands are in the review.
+
+These are local checks. No running DTD target was available for hot reload;
+physical-store purchase/application sandbox acceptance and production release
+gates remain separate. This review made no deployment or provider changes.
+
+## Identity setup on account activation
+
+The subsequent [eager identity update](eager-identity.md) moves optional setup
+to eligible, onboarded account activation: sign-in, switching and session
+restoration. It preserves nonblocking readiness, native store checks and the
+existing integration flags. AppView queues new customer registration durably;
+web and native accounts can therefore be registered without opening billing or
+successfully identifying the native SDK.
+
+Final targeted backend race checks passed. Flutter passed 213 tests with five
+existing skips and clean full analysis. Web passed 12 focused unit tests,
+14 browser fixtures plus a separate disabled-flag case, Svelte checks, lint and
+production build. Exact commands, resource-lifetime and race coverage, isolated
+fixture ports and the unavailable matching hot-reload target are recorded in
+the linked update. No deployment or provider changes were made.

@@ -23,7 +23,6 @@
 		CraftskyAPI,
 		type OnboardingStatus,
 		type EligibilityStatus,
-		type SubscriptionAccess,
 		type Profile
 	} from '#lib/api/client.ts';
 	import Icon from './Icon.svelte';
@@ -41,6 +40,12 @@
 		notificationBadgeContext
 	} from './notification-badge.svelte';
 	import { PageHistory, pageHistoryContext } from './page-history';
+	import { BillingIdentity } from './billing-identity';
+	import { subscriptionsEnabled } from './release-config';
+	import {
+		SubscriptionAccessState,
+		subscriptionAccessContext
+	} from './subscription-access.svelte';
 	import {
 		Publications,
 		publicationsContext
@@ -215,6 +220,13 @@
 		};
 	});
 	const accountId = untrack(() => session.id);
+	const account = untrack(() => `${session.id}:${session.did}`);
+	const subscriptionAccess = new SubscriptionAccessState(
+		account,
+		untrack(() => session.did),
+		() => `${session.id}:${session.did}`
+	);
+	setContext(subscriptionAccessContext, subscriptionAccess);
 	let expired = $state(false);
 	const api = new CraftskyAPI(
 		async (input, init) => {
@@ -241,8 +253,7 @@
 		newMessages = $state(0),
 		onboarding = $state<OnboardingStatus>(),
 		eligibility = $state<EligibilityStatus>(),
-		ready = $state(false),
-		access = $state<SubscriptionAccess>();
+		ready = $state(false);
 	const activityBadge = new NotificationBadge();
 	setContext(notificationBadgeContext, () => {
 		const finish = activityBadge.beginSeen();
@@ -274,6 +285,24 @@
 	let discovery = $derived(
 		desktop && !gated && eligibility?.state === 'eligible'
 	);
+	const billingIdentityAllowed = $derived(
+		ready &&
+			!expired &&
+			eligibility?.state === 'eligible' &&
+			onboarding?.completed === true &&
+			subscriptionsEnabled()
+	);
+	const billingIdentity = new BillingIdentity(
+		account,
+		() => `${session.id}:${session.did}`,
+		api.billing,
+		subscriptionAccess,
+		() => billingIdentityAllowed
+	);
+	$effect(() => {
+		if (billingIdentityAllowed)
+			untrack(() => void billingIdentity.synchronize());
+	});
 	function choosePostType(event: MouseEvent) {
 		event.preventDefault();
 		postTypeTrigger = event.currentTarget as HTMLElement;
@@ -335,7 +364,7 @@
 	let notice = $state('');
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
-	setContext('craftsky-access', () => access);
+	setContext('craftsky-access', () => subscriptionAccess.value);
 	const nav = [
 		['home', 'Home', '/feed'],
 		['search', 'Search', '/search'],
@@ -354,6 +383,7 @@
 			if (dead) return;
 			eligibility = policy;
 			if (policy.state === 'eligible') {
+				const acceptAccess = subscriptionAccess.beginRead(account);
 				const [status, tier, , profile] = await Promise.all([
 					api.account.onboarding(),
 					api.billing.access().catch(() => undefined),
@@ -365,7 +395,7 @@
 				]);
 				if (dead) return;
 				onboarding = status;
-				access = tier;
+				if (tier) acceptAccess(tier);
 				identity = profile;
 			}
 			ready = true;
@@ -453,6 +483,8 @@
 	});
 	onDestroy(() => {
 		dead = true;
+		billingIdentity.dispose();
+		subscriptionAccess.dispose();
 		pageHistory.dispose();
 	});
 	async function changeAccount(id: string) {

@@ -81,19 +81,20 @@ final class SubscriptionRestoreController {
               owner.revenueCatAppUserId,
             );
           }
-          if (!ownerGuard.isCurrent(owner)) {
+          if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
             throw const BillingAccountGuardException('owner_session_changed');
           }
           await service.restorePurchases();
           providerConfirmed = true;
           onProviderConfirmed?.call(beforeProvider);
         },
+        isOperationCurrent: isCurrent,
       );
       if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
         return _pendingRetry(beforeProvider);
       }
     } on StoreAccountConflictException catch (error) {
-      if (!ownerGuard.isCurrent(owner)) {
+      if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
         return const SubscriptionRestoreResult(
           outcome: SubscriptionRestoreOutcome.cancelled,
         );
@@ -117,6 +118,7 @@ final class SubscriptionRestoreController {
         outcome: SubscriptionRestoreOutcome.cancelled,
       );
     } on Object {
+      if (providerConfirmed) return _pendingRetry(beforeProvider);
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
       );

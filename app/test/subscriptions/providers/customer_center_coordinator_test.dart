@@ -277,7 +277,10 @@ final class _CustomerCenterService
   @override
   bool get supportsPlanChanges => false;
   @override
-  Future<void> verifyStoreOwnership(String appUserId) async {
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async {
     if (ownershipError case final error?) throw error;
   }
 

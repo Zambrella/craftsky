@@ -50,10 +50,18 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   Did? _visibleDid;
   String? _conflictingAccountLabel;
   Future<SubscriptionOperationNotice?> Function()? _pendingRetry;
+  late final ProviderContainer _operationContainer;
+  late final SubscriptionPendingOperationController _pendingOperations;
 
   @override
   void initState() {
     super.initState();
+    // Provider operations can outlive this route. Keep their state and cleanup
+    // independent of ConsumerState.ref, which is unusable after disposal.
+    _operationContainer = ProviderScope.containerOf(context, listen: false);
+    _pendingOperations = _operationContainer.read(
+      subscriptionPendingOperationProvider.notifier,
+    );
     WidgetsBinding.instance.addObserver(this);
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _foreground =
@@ -145,7 +153,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     Future<SubscriptionOperationNotice?> Function() action,
   ) async {
     if (_busy) return;
-    final started = ref.read(sessionRegistryProvider).value?.activeLease;
+    final started = _operationContainer
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
     setState(() {
       _busy = true;
       _conflictingAccountLabel = null;
@@ -163,12 +174,24 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       }
       if (!mounted ||
           started == null ||
-          !ref.read(sessionRegistryProvider).requireValue.isCurrent(started)) {
+          !_operationContainer
+              .read(sessionRegistryProvider)
+              .requireValue
+              .isCurrent(started)) {
         return;
       }
       setState(() => _notice = notice);
       ref.invalidate(subscriptionPageModelProvider);
     } finally {
+      final session = started?.session;
+      if (session != null &&
+          _operationContainer
+                  .read(sessionRegistryProvider)
+                  .value
+                  ?.leaseFor(session.account) ==
+              session) {
+        _operationContainer.invalidate(subscriptionAccessProvider(session));
+      }
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -198,7 +221,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   }
 
   void _recordStoreConflict(StoreAccountConflictException conflict) {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
+    if (!mounted) return;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     _conflictingAccountLabel = null;
     for (final entry in registry.billingCustomers.entries) {
       final matches =
@@ -217,12 +243,12 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   void _purchase(SubscriptionTier tier) {
     final registry = ref.read(sessionRegistryProvider).value;
     final ownerDid = registry?.activeLease?.session.account.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginPurchase(ownerDid, tier)) {
+    if (ownerDid == null || !_pendingOperations.beginPurchase(ownerDid, tier)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
@@ -232,6 +258,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             dependencies.guard,
             RevenueCatIdentityGuard(dependencies.service),
             onStoreConflict: _recordStoreConflict,
+            isCurrent: () => _operationIsCurrent,
           );
           final controller = SubscriptionPurchaseController(
             ownerGuard: dependencies.guard,
@@ -243,14 +270,16 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             wait: Future<void>.delayed,
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
-            onProviderConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordPurchase,
+            onProviderConfirmed: (tier, before) =>
+                _pendingOperations.recordPurchase(operationId, tier, before),
             readAccess: _readAssignedAccess,
           );
-          return await _handlePurchaseResult(await controller.purchase(tier));
+          return await _handlePurchaseResult(
+            await controller.purchase(tier),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -259,14 +288,15 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handlePurchaseResult(
     SubscriptionPurchaseResult result,
+    Object operationId,
   ) async {
     if (result.outcome != SubscriptionPurchaseOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handlePurchaseResult(await retry());
+        : () async => await _handlePurchaseResult(await retry(), operationId);
     return switch (result.outcome) {
       SubscriptionPurchaseOutcome.completed =>
         result.state?.subscriptions.any(
@@ -287,6 +317,8 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         SubscriptionOperationNotice.planChangeUnavailable,
       SubscriptionPurchaseOutcome.storeAccountConflict =>
         SubscriptionOperationNotice.storeAccountConflict,
+      SubscriptionPurchaseOutcome.existingStoreSubscription =>
+        SubscriptionOperationNotice.existingStoreSubscription,
       SubscriptionPurchaseOutcome.providerError =>
         SubscriptionOperationNotice.providerFailure,
       SubscriptionPurchaseOutcome.anomaly =>
@@ -299,12 +331,12 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   void _restore() {
     final registry = ref.read(sessionRegistryProvider).value;
     final ownerDid = registry?.activeLease?.session.account.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginRestore(ownerDid)) {
+    if (ownerDid == null || !_pendingOperations.beginRestore(ownerDid)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
@@ -317,13 +349,15 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             wait: Future<void>.delayed,
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
-            onProviderConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordRestore,
+            onProviderConfirmed: (before) =>
+                _pendingOperations.recordRestore(operationId, before),
           );
-          return await _handleRestoreResult(await controller.restore());
+          return await _handleRestoreResult(
+            await controller.restore(),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -332,14 +366,15 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handleRestoreResult(
     SubscriptionRestoreResult result,
+    Object operationId,
   ) async {
     if (result.outcome != SubscriptionRestoreOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handleRestoreResult(await retry());
+        : () async => await _handleRestoreResult(await retry(), operationId);
     return switch (result.outcome) {
       SubscriptionRestoreOutcome.completed ||
       SubscriptionRestoreOutcome.cancelled => null,
@@ -374,6 +409,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           isCurrent: () => _operationIsCurrent,
           isForeground: () => _operationIsForeground,
         ).reconcilePending(pending.tier!, pending.beforeProvider!),
+        pending.operationId,
       ),
       PendingSubscriptionOperationKind.restore => _handleRestoreResult(
         await SubscriptionRestoreController(
@@ -384,6 +420,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           isCurrent: () => _operationIsCurrent,
           isForeground: () => _operationIsForeground,
         ).reconcilePending(pending.beforeProvider!),
+        pending.operationId,
       ),
       PendingSubscriptionOperationKind.customerCenter =>
         _handleCustomerCenterResult(
@@ -395,21 +432,26 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
           ).reconcilePending(),
+          pending.operationId,
         ),
     };
   }
 
   Future<SubscriptionAccess> _readAssignedAccess(Did did) async {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     final target = registry.leaseFor(AccountKey(did.value));
     if (target == null) {
       throw DiagnosticStateError('Assigned account unavailable');
     }
-    final api = await ref.read(
+    final api = await _operationContainer.read(
       subscriptionRepositoryProvider(target.account).future,
     );
     final access = await api.getAccess();
-    final current = ref.read(sessionRegistryProvider).requireValue;
+    final current = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     if (!mounted || current.leaseFor(target.account) != target) {
       throw DiagnosticStateError('Assigned account session changed');
     }
@@ -419,12 +461,12 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   void _manage() {
     final registry = ref.read(sessionRegistryProvider).value;
     final ownerDid = registry?.activeLease?.session.account.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginCustomerCenter(ownerDid)) {
+    if (ownerDid == null || !_pendingOperations.beginCustomerCenter(ownerDid)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
@@ -437,13 +479,15 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
             onStoreConflict: _recordStoreConflict,
-            onProviderMutationConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordCustomerCenterMutation,
+            onProviderMutationConfirmed: () =>
+                _pendingOperations.recordCustomerCenterMutation(operationId),
           );
-          return await _handleCustomerCenterResult(await coordinator.present());
+          return await _handleCustomerCenterResult(
+            await coordinator.present(),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -452,14 +496,16 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handleCustomerCenterResult(
     CustomerCenterResult result,
+    Object operationId,
   ) async {
     if (result.outcome != CustomerCenterOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handleCustomerCenterResult(await retry());
+        : () async =>
+              await _handleCustomerCenterResult(await retry(), operationId);
     return switch (result.outcome) {
       CustomerCenterOutcome.completed ||
       CustomerCenterOutcome.refreshed ||
@@ -485,25 +531,34 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     })
   >
   _ownerDependencies() async {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
-    final lease = registry.activeLease!.session;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
+    final activeLease = registry.activeLease!;
+    final lease = activeLease.session;
+    final service = _operationContainer.read(revenueCatServiceProvider);
+    final api = await _operationContainer.read(
+      subscriptionRepositoryProvider(lease.account).future,
+    );
+    if (!mounted ||
+        !_operationContainer
+            .read(sessionRegistryProvider)
+            .requireValue
+            .isCurrent(activeLease)) {
+      throw const BillingAccountGuardException('owner_session_changed');
+    }
     return (
       guard: BillingAccountGuard(
-        () => ref.read(sessionRegistryProvider).requireValue,
+        () => _operationContainer.read(sessionRegistryProvider).requireValue,
       ),
-      service: ref.read(revenueCatServiceProvider),
+      service: service,
       allowNativeTierChanges:
-          ref.read(revenueCatServiceProvider) is NativeStoreOwnershipService &&
-          (ref.read(
-            revenueCatServiceProvider,
-          ) as NativeStoreOwnershipService).supportsPlanChanges,
-      nativeStore:
-          ref.read(revenueCatServiceProvider) is NativeStoreOwnershipService
-          ? (ref.read(
-              revenueCatServiceProvider,
-            ) as NativeStoreOwnershipService).store
+          service is NativeStoreOwnershipService &&
+          (service as NativeStoreOwnershipService).supportsPlanChanges,
+      nativeStore: service is NativeStoreOwnershipService
+          ? (service as NativeStoreOwnershipService).store
           : null,
-      api: await ref.read(subscriptionRepositoryProvider(lease.account).future),
+      api: api,
     );
   }
 }
@@ -931,6 +986,8 @@ class _OperationNotice extends StatelessWidget {
         accountLabel == null
             ? l10n.subscriptionsStoreAccountConflict
             : l10n.subscriptionsStoreAccountConflictKnown(accountLabel!),
+      SubscriptionOperationNotice.existingStoreSubscription =>
+        l10n.subscriptionsExistingStoreSubscription,
       SubscriptionOperationNotice.providerFailure =>
         l10n.subscriptionsProviderFailure,
       SubscriptionOperationNotice.unauthorized =>

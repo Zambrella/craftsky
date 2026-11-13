@@ -16,6 +16,42 @@ results; it never reassigns provider transactions. Keep RevenueCat configured
 with **Keep with original App User ID** for production and sandbox. Do not use
 anonymous checkout, redemption links or receipt transfers.
 
+With the existing subscription integration flag enabled, customer setup starts
+after an account becomes active and its onboarding and eligibility checks have
+completed. This covers sign-in, switching accounts and restoring a signed-in
+session on launch. It runs separately from account readiness; network, provider
+or store errors must not prevent normal sign-in or switching. Guests and
+disabled integrations do not initiate this background setup.
+
+AppView durably queues initial customer registration when it ensures the UUID.
+Its RevenueCat worker creates the exact identified customer if absent, so web
+accounts and accounts blocked by a native store conflict can still be
+registered. Repeated setup preserves pending work and retry backoff, and does
+not repeatedly advance completed reconciliation generations. Provider calls run
+in the worker, outside the sign-in request. The worker still requires
+`REVENUECAT_ENABLED`; changing this lifecycle does not enable the integration.
+
+On mobile, first SDK setup includes the server-issued UUID; later identity
+changes use direct identified-to-identified login without SDK logout. SDK work
+remains serialized with purchases, restores and management, with current-session
+checks around asynchronous boundaries. Billing-screen setup remains available
+as a retry and every billing operation still verifies the current identity.
+
+Native SDK activation must wait for that server-issued UUID and a successful
+store ownership preflight. Configure the SDK with the UUID explicitly; an
+anonymous startup can sync interrupted purchases before the app's own purchase
+controls run. Recheck ownership before changing SDK identities. A conflict in
+the local Apple or Google account must still allow the app to display AppView's
+confirmed subscription and access for the signed-in CraftSky account.
+
+A new independent native purchase also requires explicit store evidence that
+there is no current subscription. An existing receipt with the same UUID is not
+permission to buy another tier independently: a payment can survive process
+death or reinstallation while RevenueCat and AppView are still catching up.
+Refresh status or restore purchases in that case. Only the explicit plan-change
+path may replace an owned current subscription. SDK startup synchronization and
+paywall product-change settings do not substitute for this final store check.
+
 The native preflight reads store transaction ownership before dispatching a
 purchase or restore. A conflicting or unverifiable transaction prevents the
 operation. This is a safety gate, not proof that a store account cannot change
