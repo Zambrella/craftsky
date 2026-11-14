@@ -1,4 +1,7 @@
 <script lang="ts">
+	import LoadMore from '#lib/LoadMore.svelte';
+	import AccountProvider from './AccountProvider.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { APIError } from '#lib/api/client.ts';
 	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { usePrompt } from '../social/prompt';
@@ -33,6 +36,7 @@
 	const work = new Work('settings.Account.action');
 	const version = __CRAFTSKY_VERSION__.trim();
 	let businessAccess = $state(false);
+	let loadingMore = $state(false);
 	let profile = $state<Profile | null>(null),
 		eligibility = $state<EligibilityStatus | null>(null);
 	let standing = $state<Record<string, unknown>>({}),
@@ -108,7 +112,10 @@
 						: Promise.resolve(null),
 					browser<{ pending: boolean; jobId?: string; did?: string }>('status'),
 					eligible.state === 'eligible'
-						? api.billing.access().catch(() => null)
+						? api.billing.access().catch((error) => {
+								void reportFailure(error, 'settings.Account.access');
+								return null;
+							})
 						: Promise.resolve(null)
 				]);
 				return [me, eligible, status, access] as const;
@@ -219,9 +226,16 @@
 	}
 	function more() {
 		const next = cursor;
-		if (!next) return;
+		if (!next || work.busy || work.retry) return;
 		void work.run(
-			() => api.moderation.history({ cursor: next }),
+			async () => {
+				loadingMore = true;
+				try {
+					return await api.moderation.history({ cursor: next });
+				} finally {
+					loadingMore = false;
+				}
+			},
 			(page) => {
 				history = [...history, ...page.items];
 				cursor = page.cursor || null;
@@ -272,6 +286,12 @@
 	</nav>
 {:else if !work.loading && section === 'account' && eligibility}
 	<div class="native-list">
+		{#key session.id ?? session.did}<AccountProvider {api} {session} />{/key}
+		<h2 class="section-label">CraftSky account</h2>
+		<p class="account-type">
+			Deleting your CraftSky account removes your CraftSky data. It does not
+			delete your Bluesky or AT Protocol account.
+		</p>
 		{#if profile}<h2 class="section-label">Account type</h2>
 			<p class="account-type">
 				{businessAccess ? 'Business' : 'Regular'}
@@ -282,7 +302,7 @@
 			disabled={work.busy}
 			onclick={beginDeletion}
 			><SettingsIcon name="delete" bold /><span class="tile-copy"
-				>Delete account</span
+				>Delete CraftSky account</span
 			></button
 		>
 	</div>
@@ -456,9 +476,12 @@
 			</article>{:else}<p class="empty">
 				<SettingsIcon name="moderation" /><strong>No moderation history.</strong
 				>There are no moderation decisions to show for this account.
-			</p>{/each}{#if cursor}<button disabled={work.busy} onclick={more}
-				>Load more</button
-			>{/if}
+			</p>{/each}{#if cursor}<LoadMore
+				loading={loadingMore}
+				disabled={work.busy || !!work.retry}
+				loadingLabel="Loading more moderation history"
+				onclick={more}
+			/>{/if}
 	</section>
 {/if}
 

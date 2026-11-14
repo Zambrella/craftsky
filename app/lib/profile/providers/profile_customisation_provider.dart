@@ -15,12 +15,14 @@ part 'profile_customisation_provider.g.dart';
 /// Loaded server value and the user's editable local draft.
 final class ProfileCustomisationEditorState {
   const new({
+    required this.profileDid,
     required this.confirmed,
     required this.draft,
     required this.previewSeed,
     this.previewAvatarUrl,
   });
 
+  final Did profileDid;
   final ProfileCustomisation confirmed;
   final ProfileCustomisation draft;
   final String previewSeed;
@@ -32,6 +34,7 @@ final class ProfileCustomisationEditorState {
     ProfileCustomisation? confirmed,
     ProfileCustomisation? draft,
   }) => ProfileCustomisationEditorState(
+    profileDid: profileDid,
     confirmed: confirmed ?? this.confirmed,
     draft: draft ?? this.draft,
     previewSeed: previewSeed,
@@ -41,13 +44,11 @@ final class ProfileCustomisationEditorState {
 
 @riverpod
 class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
-  Did? _profileDid;
-
   @override
   Future<ProfileCustomisationEditorState> build() async {
     final profile = await ref.watch(profileRepositoryProvider).fetchMe();
-    _profileDid = profile.did;
     return ProfileCustomisationEditorState(
+      profileDid: profile.did,
       confirmed: profile.customisation,
       draft: profile.customisation,
       previewSeed: profile.displayName?.trim().isNotEmpty == true
@@ -93,19 +94,16 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
       if (!accountOperation.isCurrent) return;
 
       state = AsyncData(current.copyWith(confirmed: saved, draft: saved));
-      for (final id in <Did?>{_profileDid}) {
-        if (id == null) continue;
-        final profileProvider = userProfileProvider(
-          id,
-          audience: ref.read(browsingContextProvider),
-        );
-        if (ref.exists(profileProvider)) {
-          final profile = ref.read(profileProvider).value;
-          if (profile != null) {
-            ref
-                .read(profileProvider.notifier)
-                .setCached(profile.copyWith(customisation: saved));
-          }
+      final profileProvider = userProfileProvider(
+        current.profileDid,
+        audience: ref.read(browsingContextProvider),
+      );
+      if (ref.exists(profileProvider)) {
+        final profile = ref.read(profileProvider).value;
+        if (profile != null) {
+          ref
+              .read(profileProvider.notifier)
+              .setCached(profile.copyWith(customisation: saved));
         }
       }
       ref.read(profileIdentityCacheInvalidatorProvider)();

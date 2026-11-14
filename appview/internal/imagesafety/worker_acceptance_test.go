@@ -6,14 +6,18 @@ import (
 	"errors"
 	"image"
 	"image/jpeg"
+	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"social.craftsky/appview/internal/imagesafety"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -88,7 +92,10 @@ func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
 	}
 
 	store := imagesafety.NewWorkerStore(pool, clock)
-	fetcher := &workerFetcher{err: context.DeadlineExceeded}
+	const privateCanary = "PRIVATE_IMAGE_SCAN_PROVIDER_CANARY"
+	fetcher := &workerFetcher{err: &pgconn.PgError{Code: "40001", Message: privateCanary}}
+	var diagnostics bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&diagnostics, nil)))
 	config := imagesafety.Config{
 		Environment: imagesafety.EnvironmentProduction, Mode: imagesafety.ScannerModeManual,
 		ScannerID: "fixture", PolicyVersion: "policy-1", CorpusVersion: "corpus-1",
@@ -102,7 +109,7 @@ func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
 				MaxAttempts: 3, InitialBackoff: time.Minute, MaxBackoff: 2 * time.Minute,
 			},
 			WorkerID: "worker", LeaseDuration: time.Minute,
-			OperationLimit: 30 * time.Second, PollInterval: time.Second, Now: clock,
+			OperationLimit: 30 * time.Second, PollInterval: time.Second, Now: clock, Logger: logger,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +123,16 @@ func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
 			t.Fatalf("attempt %d: processed=%t err=%v", attempt+1, processed, err)
 		}
 		now = now.Add(advance)
+	}
+	for _, want := range []string{`"operation":"image_safety.scan"`, `"failure_stage":"fetch"`, `"result":"retry"`, `"result":"exhausted"`, `"attempt":3`, jobID.String(), "*pgconn.PgError", "40001"} {
+		if !strings.Contains(diagnostics.String(), want) {
+			t.Fatalf("diagnostics missing %s: %s", want, diagnostics.String())
+		}
+	}
+	for _, forbidden := range []string{privateCanary, subjectURI, "bafyworker", "record-cid"} {
+		if strings.Contains(diagnostics.String(), forbidden) {
+			t.Fatalf("diagnostics leaked %s: %s", forbidden, diagnostics.String())
+		}
 	}
 	var state, category string
 	var attempts int

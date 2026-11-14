@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
@@ -10,6 +11,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_reposts_provider.g.dart';
@@ -39,15 +41,28 @@ class UserReposts extends _$UserReposts {
     if (!ref.watch(isGuestBrowsingProvider)) {
       ref.watch(activeContentLanguagePolicyProvider);
     }
-    final accountOperation = ContentReadGuard.capture(ref);
-    final page = await ref
-        .watch(postRepositoryProvider)
-        .listRepostsByAuthor(
+    ref.watch(postRepositoryProvider);
+    final page = await _reload(state.value?.items.length ?? 0);
+    return _stateFor(page);
+  }
+
+  Future<PostPage> _reload(int count) async {
+    final operation = ContentReadGuard.capture(ref);
+    final repo = ref.read(postRepositoryProvider);
+    final page = await reloadLoadedRange<Post, String>(
+      minimumItems: count,
+      key: (post) => post.uri,
+      fetch: (cursor) async {
+        final page = await repo.listRepostsByAuthor(
           did,
+          cursor: cursor,
           limit: userRepostsPageLimit,
         );
-    accountOperation.requireCurrent(discarded: const ApiCanceled());
-    return _stateFor(page);
+        operation.requireCurrent(discarded: const ApiCanceled());
+        return (items: page.items, cursor: page.cursor);
+      },
+    );
+    return PostPage(items: page.items, cursor: page.cursor);
   }
 
   Future<void> loadMore() async {
@@ -69,10 +84,7 @@ class UserReposts extends _$UserReposts {
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
         accountOperation.requireCurrent(discarded: const ApiCanceled());
-        final restarted = await repo.listRepostsByAuthor(
-          did,
-          limit: userRepostsPageLimit,
-        );
+        final restarted = await _reload(current.items.length);
         accountOperation.requireCurrent(discarded: const ApiCanceled());
         return _stateFor(restarted);
       }

@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/postfence"
 	"social.craftsky/appview/internal/postpublication"
@@ -510,6 +511,7 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 // processClaim owns exactly one active worker slot. No delivery is leased
 // before a worker enters this capability.
 func (d *Dispatcher) processClaim(ctx context.Context, item claimedDelivery) error {
+	ctx = ctxkeys.WithDiagnosticOccurrence(ctx)
 	owners := []syntax.DID{item.recipientDID}
 	if item.actorDID != nil {
 		owners = append(owners, *item.actorDID)
@@ -997,13 +999,18 @@ func (d *Dispatcher) Run(
 		// simply no work available.
 		// Individual Firebase outcomes are handled per delivery, so a returned
 		// error more often means queue/storage state could not be read or updated.
-		if _, err := d.ProcessBatch(ctx, worker); err != nil {
+		batchCtx := ctxkeys.WithDiagnosticOccurrence(ctx)
+		if _, err := d.ProcessBatch(batchCtx, worker); err != nil {
 			// Check whether the dispatcher context has been cancelled.
 			//
 			// This does not inspect whether err itself is a context error.
 			// It checks the current state of ctx.
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+
+			if observer, ok := d.options.Observer.(DispatcherFailureObserver); ok {
+				observer.ObservePrivateFailure(batchCtx, err, "", "", "push.dispatch", "queue", "retry", 1)
 			}
 
 			// Treat the ProcessBatch error as transient and wait before

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -13,6 +12,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/subscriptions"
 )
 
@@ -35,7 +35,7 @@ func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time
 		}
 		_, created, err := store.EnsureAccount(r.Context(), owner)
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		status := http.StatusOK
@@ -44,7 +44,7 @@ func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time
 		}
 		state, err := store.OwnerState(r.Context(), owner, now())
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, status, state)
@@ -59,7 +59,7 @@ func GetBillingAccountHandler(store BillingAccountStore, now func() time.Time) h
 		}
 		account, err := store.OwnerState(r.Context(), owner, now())
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, http.StatusOK, account)
@@ -94,14 +94,14 @@ func RequestSubscriptionReconciliationHandler(store BillingAccountStore, now fun
 				ResolveWebCheckoutForDeletion(context.Context, syntax.DID, time.Time) error
 			}); ok {
 				if resolveErr := resolver.ResolveWebCheckoutForDeletion(r.Context(), owner, now()); resolveErr != nil {
-					writeBillingAccountError(w, middleware.GetRunID(r.Context()), resolveErr)
+					writeBillingAccountError(w, r, resolveErr)
 					return
 				}
 			}
 			err = store.RequestReconciliation(r.Context(), account.ID, now())
 		}
 		if err != nil {
-			writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+			writeBillingAccountError(w, r, err)
 			return
 		}
 		envelope.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
@@ -117,11 +117,13 @@ func subscriptionOwnerScope(w http.ResponseWriter, r *http.Request) (syntax.DID,
 	return owner, true
 }
 
-func writeBillingAccountError(w http.ResponseWriter, runID string, err error) {
+func writeBillingAccountError(w http.ResponseWriter, r *http.Request, err error) {
+	runID := middleware.GetRunID(r.Context())
 	if errors.Is(err, subscriptions.ErrBillingAccountNotFound) {
 		envelope.WriteError(w, http.StatusNotFound, "billing_account_not_found", "billing account not found", runID, nil)
 		return
 	}
+	observability.ReportRequestFailure(r.Context(), err, "billing.account", "store")
 	envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "billing operation failed", runID, nil)
 }
 
@@ -154,7 +156,7 @@ func CreateWebSubscriptionCheckoutHandler(store WebSubscriptionCheckoutStore, no
 			case errors.Is(err, subscriptions.ErrSubscriptionAlreadyExists):
 				envelope.WriteError(w, http.StatusConflict, "subscription_already_exists", "this account already has a subscription", middleware.GetRunID(r.Context()), nil)
 			default:
-				writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+				writeBillingAccountError(w, r, err)
 			}
 			return
 		}
@@ -187,7 +189,7 @@ func CreateWebSubscriptionManagementHandler(store WebSubscriptionManagementStore
 			if errors.Is(err, subscriptions.ErrWebManagementUnavailable) || errors.Is(err, subscriptions.ErrWebCheckoutUnavailable) {
 				envelope.WriteError(w, http.StatusServiceUnavailable, "web_management_unavailable", "subscription management is unavailable", middleware.GetRunID(r.Context()), nil)
 			} else {
-				writeBillingAccountError(w, middleware.GetRunID(r.Context()), err)
+				writeBillingAccountError(w, r, err)
 			}
 			return
 		}

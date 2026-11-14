@@ -17,25 +17,75 @@ it('fetches only anonymous data without following redirects', async () => {
 	expect(options?.credentials).toBe('omit');
 	expect(options?.headers).toEqual({ accept: 'application/json' });
 });
-it.each([400, 403, 404, 429, 500, 503])(
-	'maps upstream %s without reflecting error payloads',
-	async (status) => {
-		const fake = vi
+it('decodes UTF-8 characters split across streamed chunks', async () => {
+	const bytes = new TextEncoder().encode(JSON.stringify({ text: '🧶 café' }));
+	const fake = vi.fn<typeof fetch>().mockResolvedValue(
+		new Response(
+			new ReadableStream({
+				start(controller) {
+					for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
+					controller.close();
+				}
+			})
+		)
+	);
+	expect(await publicAPI(fake, 'posts/a/b')).toEqual({ text: '🧶 café' });
+});
+it.each(['json', 'caption'] as const)(
+	'enforces the exact streamed byte boundary for %s',
+	async (format) => {
+		const limit = format === 'caption' ? 20000 : 2 * 1024 * 1024;
+		const text =
+			format === 'caption'
+				? 'WEBVTT\n' + 'x'.repeat(limit - 7)
+				: '"' + 'x'.repeat(limit - 2) + '"';
+		const bytes = new TextEncoder().encode(text);
+		const accepted = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response('PRIVATE_CANARY', { status }));
-		await expect(publicAPI(fake, 'posts/a/b')).rejects.toMatchObject({
-			status: status === 500 ? 503 : status
-		});
+			.mockResolvedValue(new Response(bytes));
+		expect(await publicAPI(accepted, 'posts/a/b', format)).toBe(
+			format === 'caption' ? text : JSON.parse(text)
+		);
+		const cancel = vi.fn();
+		const oversized = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response(
+				new ReadableStream({
+					start(controller) {
+						controller.enqueue(bytes);
+						controller.enqueue(Uint8Array.of(32));
+					},
+					cancel
+				})
+			)
+		);
+		await expect(
+			publicAPI(oversized, 'posts/a/b', format)
+		).rejects.toMatchObject({ status: 503 });
+		expect(cancel).toHaveBeenCalledOnce();
 	}
 );
-it('bounds streamed response size', async () => {
-	const fake = vi
-		.fn<typeof fetch>()
-		.mockResolvedValue(new Response('x'.repeat(2 * 1024 * 1024 + 1)));
-	await expect(publicAPI(fake, 'posts/a/b')).rejects.toMatchObject({
-		status: 503
-	});
-});
+it.each([302, 400, 403, 404, 429, 500, 503])(
+	'maps upstream %s and cancels its unread body without reflecting it',
+	async (status) => {
+		const cancel = vi.fn();
+		const fake = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response(
+				new ReadableStream({
+					start(controller) {
+						controller.enqueue(new TextEncoder().encode('PRIVATE_CANARY'));
+					},
+					cancel
+				}),
+				{ status }
+			)
+		);
+		await expect(publicAPI(fake, 'posts/a/b')).rejects.toMatchObject({
+			status: status === 302 || status === 500 ? 503 : status,
+			body: { message: expect.not.stringContaining('PRIVATE_CANARY') }
+		});
+		expect(cancel).toHaveBeenCalledOnce();
+	}
+);
 it('does not reflect malformed JSON or network errors', async () => {
 	for (const fake of [
 		vi.fn<typeof fetch>().mockResolvedValue(new Response('PRIVATE_CANARY')),

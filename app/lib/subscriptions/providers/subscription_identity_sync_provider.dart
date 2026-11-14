@@ -5,10 +5,12 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:craftsky_app/subscriptions/services/billing_account_setup_coordinator.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,6 +79,10 @@ subscriptionIdentitySyncProvider = FutureProvider.autoDispose
         }
 
         if (!isCurrent()) return;
+        final diagnostics = SubscriptionDiagnostics(
+          reporter: ref.read(errorReporterProvider),
+          accountDid: lease.session.account.did.value,
+        );
         try {
           final api = await ref.watch(
             subscriptionRepositoryProvider(lease.session.account).future,
@@ -89,6 +95,7 @@ subscriptionIdentitySyncProvider = FutureProvider.autoDispose
                 .setBillingCustomer,
             api: api,
             revenueCat: ref.read(revenueCatServiceProvider),
+            diagnostics: diagnostics,
           ).setup(lease);
           if (isCurrent()) {
             ref.invalidate(subscriptionAccessProvider(lease.session));

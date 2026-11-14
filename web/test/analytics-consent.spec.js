@@ -8,11 +8,23 @@ const publicRoutes = [
   '/community-guidelines',
   '/reporting',
   '/copyright',
+  '/safety',
   '/instagram-import',
   '/why-instagram-sucks-for-crafters',
 ];
 const postHogHost = 'https://t.craftsky.social';
 const consentKey = 'craftsky.analytics-consent';
+
+// Exercise local scripts without depending on fonts, Brevo or Turnstile.
+// Individual tests install a more specific PostHog stub after this route.
+test.beforeEach(async ({ context }) => {
+  await context.route('**/*', route => {
+    const url = new URL(route.request().url());
+    return url.origin === 'http://127.0.0.1:4173'
+      ? route.continue()
+      : route.abort('blockedbyclient');
+  });
+});
 
 async function observePostHog(context) {
   const requests = [];
@@ -41,66 +53,57 @@ async function postHogStorage(page, context) {
 }
 
 for (const route of publicRoutes) {
-  test(`withholds PostHog before consent on ${route}`, async ({ browser }) => {
-    const context = await browser.newContext();
+  test(`withholds PostHog before consent on ${route}`, async ({ page, context }) => {
     const requests = await observePostHog(context);
-    const page = await context.newPage();
 
-    await page.goto(route);
-    await page.waitForLoadState('networkidle');
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const response = await page.goto(route);
+    expect(response.ok()).toBe(true);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(errors).toEqual([]);
 
     expect(requests).toEqual([]);
     expect(await page.locator(`script[src^="${postHogHost}"]`).count()).toBe(0);
     expect(await postHogStorage(page, context)).toEqual({local: [], session: [], cookies: []});
-    await context.close();
   });
 }
 
-test('denial persists a consent choice but creates no PostHog request or identifier', async ({ browser }) => {
-  const context = await browser.newContext();
+test('denial persists a consent choice but creates no PostHog request or identifier', async ({ page, context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'doNotTrack', {configurable: true, get: () => '0'});
   });
   const requests = await observePostHog(context);
-  const page = await context.newPage();
   await page.goto('/');
   await page.getByRole('button', {name: 'No thanks'}).click();
 
   expect(await page.evaluate(key => localStorage.getItem(key), consentKey)).toBe('denied');
   expect(requests).toEqual([]);
   expect(await postHogStorage(page, context)).toEqual({local: [], session: [], cookies: []});
-  await context.close();
 });
 
-test('valid consent loads PostHog only from the approved host', async ({ browser }) => {
-  const context = await browser.newContext();
+test('valid consent loads PostHog only from the approved host', async ({ page, context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'doNotTrack', {configurable: true, get: () => '0'});
   });
   const requests = await observePostHog(context);
-  const page = await context.newPage();
   await page.goto('/');
   await page.getByRole('button', {name: 'Allow analytics'}).click();
 
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0]).toBe(`${postHogHost}/static/array.js`);
   expect(await page.evaluate(key => localStorage.getItem(key), consentKey)).toBe('granted');
-  await context.close();
 });
 
-test('Do Not Track overrides a stored grant', async ({ browser }) => {
-  const context = await browser.newContext();
+test('Do Not Track overrides a stored grant', async ({ page, context }) => {
   await context.addInitScript(key => {
     Object.defineProperty(Navigator.prototype, 'doNotTrack', {configurable: true, get: () => '1'});
     localStorage.setItem(key, 'granted');
   }, consentKey);
   const requests = await observePostHog(context);
-  const page = await context.newPage();
   await page.goto('/');
-  await page.waitForLoadState('networkidle');
 
   expect(requests).toEqual([]);
   expect(await page.locator(`script[src^="${postHogHost}"]`).count()).toBe(0);
   expect(await postHogStorage(page, context)).toEqual({local: [], session: [], cookies: []});
-  await context.close();
 });

@@ -19,6 +19,7 @@ import 'package:craftsky_app/search/providers/post_search_provider.dart';
 import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -38,6 +39,7 @@ final class _Preferences extends Notifier<LanguagePreferences> {
     contentLanguages: ['en'],
   );
 
+  @visibleForTesting
   LanguagePreferences get preferences => state;
 
   set preferences(LanguagePreferences preferences) => state = preferences;

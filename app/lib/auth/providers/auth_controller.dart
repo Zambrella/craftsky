@@ -54,6 +54,9 @@ final authUrlLauncherProvider = Provider<AuthUrlLauncher>(
 @Riverpod(keepAlive: true)
 class AuthController extends _$AuthController {
   ActiveAccountLease? _completedChatLease;
+  // One-shot handoff result read by the auth-completion listener, which checks
+  // the active lease before navigating. Reactive loading/error UI uses state.
+  // ignore: riverpod_lint/avoid_public_notifier_properties
   ActiveAccountLease? get completedChatLease => _completedChatLease;
   String? _confirmingReceiptId;
   Future<void>? _confirmationOperation;
@@ -364,10 +367,16 @@ class AuthController extends _$AuthController {
       final lease = registry.activeLease?.session;
       if (lease == null) return;
       try {
-        final api = await ref.read(
-          accountAuthApiClientProvider(lease.account).future,
-        );
-        await api.logout();
+        final target = accountAuthApiClientProvider(lease.account);
+        // This operation has no widget watching the account-scoped client.
+        // Own it until the request completes so auto-disposal cannot close Dio.
+        final subscription = ref.listen(target, (_, _) {});
+        try {
+          final api = await ref.read(target.future);
+          await api.logout();
+        } finally {
+          subscription.close();
+        }
       } on ApiUnauthorized {
         // The server has already made this credential unusable, which is an
         // authoritative confirmation that local removal is safe.

@@ -16,9 +16,9 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -220,11 +220,11 @@ class OnboardingFlow extends _$OnboardingFlow {
       );
     } on Object catch (error, stack) {
       unawaited(
-        reportProfileImageFailure(
+        reportImagePickFailure(
           reporter: reporter,
           error: error,
           stackTrace: stack,
-          operation: ProfileImageOperation.onboarding,
+          operation: ImagePickOperation.onboarding,
           accountDid: initiatingAccountDid,
         ),
       );

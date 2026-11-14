@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 )
 
@@ -192,7 +193,7 @@ func (w *WebhookWorker) ProcessBatch(ctx context.Context) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return processed, err
 		}
-		if err := w.processOne(ctx, item); err != nil {
+		if err := w.processOne(ctxkeys.WithDiagnosticOccurrence(ctx), item); err != nil {
 			return processed, err
 		}
 		processed++
@@ -313,10 +314,12 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		if !classified || kind == instagrammeta.ProviderErrorTransient || kind == instagrammeta.ProviderErrorRateLimited {
 			return w.retryFailure(ctx, item, &redemption, now, retryAfter, lookupErr, "profile_lookup")
 		}
-		if w.options.Observer != nil {
-			w.options.Observer.ObservePrivateFailure(ctx, lookupErr, redemption.OwnerDID, item.ID.String(), "instagram.verify", "profile_lookup", "terminal", item.Attempts)
+		if err := w.rejectProviderFailure(ctx, item, redemption, kind, now); err != nil {
+			w.observeFailure(ctx, item, &redemption, errors.Join(lookupErr, err), "failure_persistence", "retry")
+			return errors.Join(lookupErr, err)
 		}
-		return w.rejectProviderFailure(ctx, item, redemption, kind, now)
+		w.observeFailure(ctx, item, &redemption, lookupErr, "profile_lookup", "terminal")
+		return nil
 	}
 	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
@@ -342,7 +345,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		return w.retryFailure(ctx, item, &redemption, now, 0, candidateErr, "candidate")
 	}
 	if err := w.queue.CompleteWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonProcessed); err != nil {
-		w.observeFailure(ctx, item, &redemption, err, "completion", "error")
+		w.observeFailure(ctx, item, &redemption, err, "completion", "retry")
 		return err
 	}
 	replyNow := w.options.Now().UTC()
@@ -398,11 +401,13 @@ func (w *WebhookWorker) retryFailure(ctx context.Context, item WebhookWork, rede
 	if retry {
 		outcome = "retry"
 	}
-	w.observeFailure(ctx, item, redemption, cause, stage, outcome)
 	if err := w.retryWork(ctx, item, redemption, now, delay); err != nil {
-		w.observeFailure(ctx, item, redemption, errors.Join(cause, err), "failure_persistence", "error")
-		return err
+		// The durable failure was not finalized; log selected job context while
+		// the enclosing batch owns capture of the propagated joined causes.
+		w.observeFailure(ctx, item, redemption, errors.Join(cause, err), "failure_persistence", "retry")
+		return errors.Join(cause, err)
 	}
+	w.observeFailure(ctx, item, redemption, cause, stage, outcome)
 	return nil
 }
 

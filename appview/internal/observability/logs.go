@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -58,8 +57,6 @@ func (s sentryLogSink) Emit(ctx context.Context, level slog.Level, message strin
 		selected["error.type"] = safeDiagnosticType(cause.Type)
 		if sqlStatePattern.MatchString(cause.Code) {
 			selected["error.code"] = cause.Code
-		} else if code, err := strconv.Atoi(cause.Code); err == nil && code >= 100 && code <= 599 {
-			selected["http_status"] = code
 		}
 	}
 

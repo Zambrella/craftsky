@@ -162,7 +162,7 @@ Operational dashboards/alerts should cover pending count, oldest pending age, pr
 ## References
 
 - [Moderation flow coding plan](../changes/2026-05-30-moderation-flow-mvp/04-coding-plan.md)
-- [Instagram post importer coding plan](../changes/2026-07-23-instagram-post-importer/04-coding-plan.md)
+- [Historical Instagram post importer coding plan (standalone website retired)](../changes/2026-07-23-instagram-post-importer/04-coding-plan.md)
 - [API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [PostgreSQL explicit locking](https://www.postgresql.org/docs/16/explicit-locking.html)
 - [Google Go Style Guide](https://google.github.io/styleguide/go/guide)

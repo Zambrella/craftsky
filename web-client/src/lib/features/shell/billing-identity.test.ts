@@ -23,8 +23,12 @@ const access = (tier: 'free' | 'plus' = 'free'): SubscriptionAccess => ({
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((complete) => (resolve = complete));
-	return { promise, resolve };
+	let reject!: (error: unknown) => void;
+	const promise = new Promise<T>((complete, fail) => {
+		resolve = complete;
+		reject = fail;
+	});
+	return { promise, resolve, reject };
 }
 
 function fixture(current = () => account, allowed = () => true) {
@@ -34,14 +38,16 @@ function fixture(current = () => account, allowed = () => true) {
 		ensure: vi.fn(async () => state),
 		access: vi.fn(async () => access('plus'))
 	};
+	const report = vi.fn<(error: unknown) => void | Promise<void>>();
 	const identity = new BillingIdentity(
 		account,
 		current,
 		billing,
 		shared,
-		allowed
+		allowed,
+		report
 	);
-	return { billing, identity, shared };
+	return { billing, identity, shared, report };
 }
 
 describe('active browser billing identity', () => {
@@ -62,15 +68,55 @@ describe('active browser billing identity', () => {
 		expect(billing.ensure).toHaveBeenCalledOnce();
 	});
 
-	it('contains optional registration and refresh failures', async () => {
+	it('reports original optional registration and refresh failures once without rejecting', async () => {
 		for (const failure of ['ensure', 'access'] as const) {
-			const { billing, identity, shared } = fixture();
-			billing[failure].mockRejectedValue(new Error('offline'));
+			const { billing, identity, shared, report } = fixture();
+			const error = new Error('setup unavailable');
+			billing[failure].mockRejectedValue(error);
 			await expect(identity.synchronize()).resolves.toBeUndefined();
+			await identity.synchronize();
+			expect(report).toHaveBeenCalledExactlyOnceWith(error);
 			expect(shared.value).toEqual(access());
 			if (failure === 'ensure') expect(billing.access).not.toHaveBeenCalled();
 		}
 	});
+
+	for (const failure of ['ensure', 'access'] as const)
+		for (const fence of ['account', 'disposal', 'readiness'])
+			it(`discards a delayed ${failure} failure after ${fence} changes`, async () => {
+				let current = account,
+					allowed = true;
+				const { billing, identity, shared, report } = fixture(
+					() => current,
+					() => allowed
+				);
+				const response = deferred<never>();
+				billing[failure].mockReturnValue(response.promise);
+				const pending = identity.synchronize();
+				await vi.waitFor(() => expect(billing[failure]).toHaveBeenCalledOnce());
+				if (fence === 'account') current = 'session-b:did:plc:bob';
+				else if (fence === 'disposal') identity.dispose();
+				else allowed = false;
+				response.reject(new Error('late failure'));
+				await expect(pending).resolves.toBeUndefined();
+				expect(report).not.toHaveBeenCalled();
+				expect(shared.value).toEqual(access());
+			});
+
+	for (const asynchronous of [false, true])
+		it(`contains ${asynchronous ? 'asynchronous' : 'synchronous'} reporting failures`, async () => {
+			const { billing, identity, shared, report } = fixture();
+			billing.ensure.mockRejectedValue(new Error('setup unavailable'));
+			report.mockImplementation(() => {
+				const error = new Error('reporter unavailable');
+				if (asynchronous) return Promise.reject(error);
+				throw error;
+			});
+			await expect(identity.synchronize()).resolves.toBeUndefined();
+			expect(report).toHaveBeenCalledOnce();
+			expect(billing.access).not.toHaveBeenCalled();
+			expect(shared.value).toEqual(access());
+		});
 
 	it('does not dispatch or publish after its account scope is closed', async () => {
 		for (const afterEnsure of [false, true]) {

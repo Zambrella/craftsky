@@ -2,7 +2,7 @@
 
 A crafting-focused social platform built on the [AT Protocol](https://atproto.com), where makers share projects, techniques, and works in progress while keeping ownership of their identity and public records.
 
-CraftSky is being developed for private beta. The Flutter client and Go backend are implemented, and production infrastructure is deployed. Full public launch still has [readiness checks and approvals](docs/operations/releases.md#private-beta-and-full-public-launch) to complete.
+CraftSky is being developed for private beta. The Flutter and SvelteKit clients and Go backend are implemented, and production infrastructure is deployed. Full public launch still has [readiness checks and approvals](docs/operations/releases.md#private-beta-and-full-public-launch) to complete.
 
 [Website](https://craftsky.social) · [Contribute](CONTRIBUTING.md) · [Roadmap](docs/roadmap.md) · [Documentation](docs/README.md) · [Report a bug](https://github.com/Zambrella/craftsky/issues/new/choose)
 
@@ -74,10 +74,11 @@ Read the [architecture overview](docs/architecture.md) and [architecture decisio
 | Path | Purpose |
 | --- | --- |
 | [app/](app/README.md) | Flutter client |
+| [web-client/](web-client/README.md) | SvelteKit browser client and Worker session boundary |
 | [appview/](appview/README.md) | Go API, OAuth backend, and firehose indexing |
 | [lexicon/](lexicon/README.md) | `social.craftsky.*` public record schemas |
 | [web/](web/README.md) | Public website and policy pages |
-| [instagram-importer/](instagram-importer/README.md) | Standalone browser importer |
+| [stats/](stats/README.md) | Public aggregate statistics website |
 | [service-status/](service-status/README.md) | Public service-status Worker |
 | [verified-links/](verified-links/README.md) | Native app-link association files and OAuth fallbacks |
 | [docs/](docs/README.md) | Development guides, roadmap, and operations |

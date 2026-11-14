@@ -14,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/eligibility"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type AgeEligibilityStatusReader interface {
@@ -45,7 +46,7 @@ func AgeEligibilityStatusHandler(reader AgeEligibilityStatusReader, logger *slog
 		}
 		status, err := reader.Status(r.Context(), did)
 		if err != nil {
-			logger.Error("age eligibility status failed", slog.String("operation", "eligibility.status"), slog.String("run_id", middleware.GetRunID(r.Context())))
+			logger.ErrorContext(r.Context(), "age eligibility status failed", apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "eligibility.status", "store", err)...)
 			envelope.WriteError(w, http.StatusServiceUnavailable, "eligibility_unavailable", "account eligibility unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -86,6 +87,7 @@ func AgeEligibilityReviewHandler(reviewer AgeEligibilityReviewer, now func() tim
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "eligibility.review", "store")
 			envelope.WriteError(w, http.StatusServiceUnavailable, "eligibility_review_unavailable", "eligibility review unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}

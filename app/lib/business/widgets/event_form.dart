@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
@@ -12,6 +13,8 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -623,6 +626,7 @@ class EventFormState extends ConsumerState<EventForm> {
 
   Future<void> _pickImage(ImageSource source) async {
     final ownership = _captureOwnership();
+    final reporter = ref.read(errorReporterProvider);
     final previousPending = _pendingImage;
     final previousPreview = _preview;
     final picker =
@@ -646,12 +650,25 @@ class EventFormState extends ConsumerState<EventForm> {
           _notifyChanged();
         });
       }
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      unawaited(
+        reportImagePickFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stackTrace,
+          operation: ImagePickOperation.businessEvent,
+          accountDid: ownership?.session.account.did.value,
+        ),
+      );
       if (!_isCurrent(ownership)) return;
       setState(() {
         _pendingImage = previousPending;
         _preview = previousPreview;
-        _uploadError = AppLocalizations.of(context).businessEventUploadError;
+        _uploadError = imagePickFailureMessage(
+          error,
+          AppLocalizations.of(context),
+          fallback: AppLocalizations.of(context).businessEventUploadError,
+        );
       });
     } finally {
       if (mounted) {

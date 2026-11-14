@@ -11,9 +11,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"social.craftsky/appview/internal/profilelinks"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/profilelinks"
 )
 
 // ErrProfileNotFound is returned by ProfileStore.Read when the DID has
@@ -369,7 +369,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "pds_set_aggregates") {
-			return nil, fmt.Errorf("%w: %v", ErrProfileCountsUnavailable, err)
+			return nil, fmt.Errorf("%w: %w", ErrProfileCountsUnavailable, err)
 		}
 		return nil, fmt.Errorf("profile read %s: %w", profileDID, err)
 	}

@@ -14,7 +14,9 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -218,6 +220,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final pendingImage = submission.pendingImage;
     if (pendingImage != null) {
       final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+      final reporter = ref.read(errorReporterProvider);
       try {
         final uploaded =
             await (widget.uploadImage?.call(pendingImage) ??
@@ -242,7 +245,20 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         );
         _formKey.currentState?.acceptUploadedImage(pendingImage, image);
         draft = draft.copyWith(image: image);
-      } on Object {
+      } on Object catch (error, stackTrace) {
+        unawaited(
+          reportImagePickFailure(
+            reporter: reporter,
+            error: error,
+            stackTrace: stackTrace,
+            operation: ImagePickOperation.businessEvent,
+            accountDid: ownership?.session.account.did.value,
+          ),
+        );
+        if (!_isCurrent(ownership)) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
         _formKey.currentState?.showImageUploadError();
         if (mounted) setState(() => _saving = false);
         return;

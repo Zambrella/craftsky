@@ -15,6 +15,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/subscriptions"
 )
@@ -66,7 +67,7 @@ func CreateScheduledPostHandler(
 		acceptedAt := now().UTC()
 		operationID, mediaIDs, payloadBytes, err := validateScheduledPostRequest(acceptedAt, decoded, limits)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.create", "validation")
 			return
 		}
 		payloadHash := sha256.Sum256(payloadBytes)
@@ -83,7 +84,7 @@ func CreateScheduledPostHandler(
 		})
 		if err != nil {
 			logger.Warn("scheduled post create failed", slog.String("error_class", scheduledPostErrorClass(err)))
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.create", "store")
 			return
 		}
 		status := http.StatusOK
@@ -114,13 +115,14 @@ func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger, a
 		resources, err := store.List(request.Context(), ownerDID)
 		if err != nil {
 			logger.Warn("scheduled post list failed", slog.String("error_class", scheduledPostErrorClass(err)))
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.list", "store")
 			return
 		}
 		subscriptionRequired := false
 		if len(accessReaders) > 0 {
 			access, err := accessReaders[0].SelfAccess(request.Context(), ownerDID, time.Now())
 			if err != nil {
+				observability.ReportRequestFailure(request.Context(), err, "scheduled.post.list", "subscription_access")
 				envelope.WriteError(writer, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(request.Context()), nil)
 				return
 			}
@@ -130,7 +132,7 @@ func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger, a
 		for _, resource := range resources {
 			payload, err := scheduledposts.DecodePayload(resource.PayloadBytes)
 			if err != nil {
-				writeScheduledPostError(writer, request, err)
+				writeScheduledPostError(writer, request, err, "scheduled.post.list", "decode")
 				return
 			}
 			item := scheduledPostSummaryResponse{
@@ -176,13 +178,14 @@ func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger, acc
 		resource, err := store.Get(request.Context(), ownerDID, id)
 		if err != nil {
 			logger.Warn("scheduled post get failed", slog.String("error_class", scheduledPostErrorClass(err)))
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.read", "store")
 			return
 		}
 		subscriptionRequired := false
 		if len(accessReaders) > 0 && (resource.Status == scheduledposts.StatusScheduled || resource.Status == scheduledposts.StatusRetrying) {
 			access, err := accessReaders[0].SelfAccess(request.Context(), ownerDID, time.Now())
 			if err != nil {
+				observability.ReportRequestFailure(request.Context(), err, "scheduled.post.read", "subscription_access")
 				envelope.WriteError(writer, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(request.Context()), nil)
 				return
 			}
@@ -190,7 +193,7 @@ func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger, acc
 		}
 		payload, err := scheduledposts.DecodePayload(resource.PayloadBytes)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.read", "decode")
 			return
 		}
 		envelope.WriteJSON(writer, http.StatusOK, scheduledPostResponse{
@@ -236,7 +239,7 @@ func UpdateScheduledPostHandler(
 		}
 		_, mediaIDs, payloadBytes, err := validateScheduledPostRequest(acceptedAt, validationRequest, limits)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.update", "validation")
 			return
 		}
 		payloadHash := sha256.Sum256(payloadBytes)
@@ -246,17 +249,17 @@ func UpdateScheduledPostHandler(
 			MediaIDs: mediaIDs, Now: acceptedAt,
 		}); err != nil {
 			logger.Warn("scheduled post update failed", slog.String("error_class", scheduledPostErrorClass(err)))
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.update", "store")
 			return
 		}
 		resource, err := store.Get(request.Context(), ownerDID, id)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.update", "readback")
 			return
 		}
 		payload, err := scheduledposts.DecodePayload(resource.PayloadBytes)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.update", "decode")
 			return
 		}
 		envelope.WriteJSON(writer, http.StatusOK, scheduledPostResponse{
@@ -290,7 +293,7 @@ func DeleteScheduledPostHandler(
 		}
 		if err := store.Delete(request.Context(), ownerDID, id, now().UTC()); err != nil {
 			logger.Warn("scheduled post delete failed", slog.String("error_class", scheduledPostErrorClass(err)))
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.delete", "store")
 			return
 		}
 		writer.WriteHeader(http.StatusNoContent)
@@ -314,12 +317,12 @@ func PublishScheduledPostHandler(
 		}
 		id, err := uuid.Parse(request.PathValue("id"))
 		if err != nil {
-			writeScheduledPostError(writer, request, scheduledposts.ErrScheduleNotFound)
+			writeScheduledPostError(writer, request, scheduledposts.ErrScheduleNotFound, "scheduled.post.publish", "validation")
 			return
 		}
 		decoded, err := decodeScheduledPostPublication(request.Body)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			envelope.WriteError(writer, http.StatusBadRequest, "malformed_body", "could not parse body", middleware.GetRunID(request.Context()), nil)
 			return
 		}
 		acceptedAt := now().UTC()
@@ -328,7 +331,7 @@ func PublishScheduledPostHandler(
 		}
 		_, mediaIDs, payloadBytes, err := validateScheduledPostRequest(acceptedAt, validation, limits)
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.publish", "validation")
 			return
 		}
 		outcome, err := publisher.PublishManual(request.Context(), scheduledposts.UpdateParams{
@@ -337,7 +340,7 @@ func PublishScheduledPostHandler(
 			MediaIDs: mediaIDs, Now: acceptedAt,
 		})
 		if err != nil {
-			writeScheduledPostError(writer, request, err)
+			writeScheduledPostError(writer, request, err, "scheduled.post.publish", "publication")
 			return
 		}
 		if outcome == scheduledposts.ManualPublicationReconciling {
@@ -367,7 +370,7 @@ func boundedScheduledPreview(value string, limit int) string {
 	return string(runes[:limit])
 }
 
-func writeScheduledPostError(writer http.ResponseWriter, request *http.Request, err error) {
+func writeScheduledPostError(writer http.ResponseWriter, request *http.Request, err error, operation, stage string) {
 	runID := middleware.GetRunID(request.Context())
 	var fieldError *FieldError
 	switch {
@@ -392,6 +395,7 @@ func writeScheduledPostError(writer http.ResponseWriter, request *http.Request, 
 	case errors.As(err, &fieldError):
 		envelope.WriteError(writer, http.StatusUnprocessableEntity, "scheduled_post_invalid", "scheduled post is invalid", runID, fieldError.Fields)
 	default:
+		observability.ReportRequestFailure(request.Context(), err, operation, stage)
 		envelope.WriteError(writer, http.StatusInternalServerError, "internal_error", "scheduled post request failed", runID, nil)
 	}
 }

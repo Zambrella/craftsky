@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/data/language_preferences_repository.dart
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,11 +15,15 @@ final class _AccountRepository implements LanguagePreferencesRepository {
 
   final Future<LanguagePreferences> loaded;
   Completer<LanguagePreferences>? replacement;
+  int initializationCalls = 0;
 
   @override
   Future<LanguagePreferences> initialize(
     LanguagePreferences proposal,
-  ) async => proposal;
+  ) async {
+    initializationCalls++;
+    return proposal;
+  }
 
   @override
   Future<LanguagePreferences> load() => loaded;
@@ -51,6 +56,30 @@ void main() {
     session: AccountSessionLease(account: bob, sessionGeneration: 2),
     activationGeneration: 2,
   );
+
+  test('pending preference load cannot initialize after disposal', () async {
+    final loaded = Completer<LanguagePreferences>();
+    final repository = _AccountRepository(loaded.future);
+    final container = ProviderContainer.test(
+      overrides: [
+        languagePreferencesRepositoryProvider.overrideWith(
+          (ref, account) async => repository,
+        ),
+      ],
+    );
+    final provider = accountLanguagePreferencesProvider(aliceLease);
+    final subscription = container.listen(provider, (_, _) {});
+    final result = container.read(provider.future);
+    final canceled = expectLater(result, throwsA(isA<ApiCanceled>()));
+    await Future<void>.delayed(Duration.zero);
+    subscription.close();
+    await container.pump();
+    expect(container.exists(provider), isFalse);
+
+    loaded.completeError(const ApiBadRequest('language_preferences_not_found'));
+    await canceled;
+    expect(repository.initializationCalls, 0);
+  });
 
   test('UT-012 late account result cannot populate another account', () async {
     final aliceLoad = Completer<LanguagePreferences>();

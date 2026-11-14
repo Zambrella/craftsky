@@ -173,7 +173,9 @@ void main() {
             feature: 'Post',
             operation: 'post.read',
             classification: 'post.failed',
-            safeDiagnostics: {'appViewRequestId': 'request-123'},
+            safeDiagnostics: {
+              'appViewRequestId': 'c0000000-0000-4000-8000-00000000000c',
+            },
             workflow: PublicRecordContext(targetDid: 'did:plc:target'),
           ),
         ),
@@ -203,7 +205,10 @@ void main() {
         events.single['breadcrumbs'].toString(),
         contains('Post read failed'),
       );
-      expect(events.single['breadcrumbs'].toString(), contains('request-123'));
+      expect(
+        events.single['breadcrumbs'].toString(),
+        contains('c0000000-0000-4000-8000-00000000000c'),
+      );
       expect(
         events.single['breadcrumbs'].toString(),
         contains('did:plc:target'),
@@ -347,7 +352,9 @@ void main() {
           feature: 'Post',
           operation: 'post.read',
           classification: 'post.failed',
-          safeDiagnostics: {'appViewRequestId': 'request-123'},
+          safeDiagnostics: {
+            'appViewRequestId': 'c0000000-0000-4000-8000-00000000000c',
+          },
         ),
       );
       await Sentry.close();
@@ -360,7 +367,10 @@ void main() {
       );
       expect(exceptions.toString(), contains('decodeRecord'));
       expect((event['contexts'] as Map).containsKey('failure'), isFalse);
-      expect(event.toString(), contains('request-123'));
+      expect(
+        event.toString(),
+        contains('c0000000-0000-4000-8000-00000000000c'),
+      );
       for (final private in [
         'private-server-prose',
         'private-body-prose',

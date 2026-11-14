@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/shared/image/clear_image_cache_provider.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,5 +62,57 @@ void main() {
 
       expect(container.read(clearImageCacheProvider), isA<AsyncError<void>>());
     });
+
+    for (final rebuild in [false, true]) {
+      test(
+        'pending clear discards failure after '
+        '${rebuild ? 'rebuild' : 'disposal'}',
+        () async {
+          final profile = _PendingCacheManager();
+          final container = ProviderContainer.test(
+            overrides: [
+              profileImageCacheManagerProvider.overrideWith((ref) => profile),
+              feedImageCacheManagerProvider.overrideWith(
+                (ref) => FakeBaseCacheManager(),
+              ),
+            ],
+          );
+          final subscription = container.listen(
+            clearImageCacheProvider,
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          final clearing = container
+              .read(clearImageCacheProvider.notifier)
+              .clear();
+          final completed = expectLater(clearing, completes);
+
+          if (rebuild) {
+            container.invalidate(clearImageCacheProvider);
+            await container.read(clearImageCacheProvider.future);
+          } else {
+            subscription.close();
+            await container.pump();
+            expect(container.exists(clearImageCacheProvider), isFalse);
+          }
+          profile.pending.completeError(StateError('old cache failure'));
+          await completed;
+
+          if (rebuild) {
+            expect(
+              container.read(clearImageCacheProvider),
+              isA<AsyncData<void>>(),
+            );
+          }
+        },
+      );
+    }
   });
+}
+
+class _PendingCacheManager extends FakeBaseCacheManager {
+  final pending = Completer<void>();
+
+  @override
+  Future<void> emptyCache() => pending.future;
 }

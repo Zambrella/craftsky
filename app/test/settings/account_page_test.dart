@@ -17,6 +17,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
+import 'package:craftsky_app/settings/providers/account_hosting_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -40,6 +41,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            accountHostingProvider.overrideWith((ref) async => null),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             activeAccountIdentityProvider.overrideWith(
               (_) async => _identity(AccountType.business),
@@ -83,6 +85,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              accountHostingProvider.overrideWith((ref) async => null),
               ..._businessAccessOverrides(),
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               activeAccountIdentityProvider.overrideWith(
@@ -106,8 +109,16 @@ void main() {
         expect(find.text('Business'), findsOneWidget);
         await expectKeyboardFocus(tester);
 
-        final delete = find.text('Delete account');
-        await tester.ensureVisible(delete);
+        final delete = find.text('Delete CraftSky account');
+        for (
+          var attempt = 0;
+          attempt < 20 && delete.hitTestable().evaluate().isEmpty;
+          attempt++
+        ) {
+          await tester.drag(find.byType(ListView), const Offset(0, -300));
+          await tester.pumpAndSettle();
+        }
+        expect(delete.hitTestable(), findsOneWidget);
         await tester.tap(delete);
         await tester.pumpAndSettle();
         expect(find.text('Delete CraftSky account?'), findsOneWidget);
@@ -131,6 +142,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            accountHostingProvider.overrideWith((ref) async => null),
             ..._businessAccessOverrides(),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             activeAccountIdentityProvider.overrideWith(
@@ -165,6 +177,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          accountHostingProvider.overrideWith((ref) async => null),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountIdentityProvider.overrideWith(
             (_) async => _identity(AccountType.regular),
@@ -198,6 +211,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          accountHostingProvider.overrideWith((ref) async => null),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
         ],
         child: MaterialApp(
@@ -212,7 +226,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Delete account'));
+    await tester.ensureVisible(find.text('Delete CraftSky account'));
+    await tester.tap(find.text('Delete CraftSky account'));
     await tester.pumpAndSettle();
     expect(find.byType(CraftskyDialog), findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
@@ -255,6 +270,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          accountHostingProvider.overrideWith((ref) async => null),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           activeAccountIdentityProvider.overrideWith(
             (_) async => _identity(AccountType.business),
@@ -287,7 +303,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SegmentedButton<AccountType>), findsNothing);
-    expect(find.text('Delete account'), findsOneWidget);
+    expect(find.text('Delete CraftSky account'), findsOneWidget);
   });
 }
 

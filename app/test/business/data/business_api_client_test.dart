@@ -194,7 +194,7 @@ void main() {
       (server) => server.reply(404, {
         'error': 'event_not_found',
         'message': 'event unavailable',
-        'requestId': 'request-event-missing',
+        'requestId': 'f0000000-0000-4000-8000-000000000001',
       }),
     );
 
@@ -209,7 +209,7 @@ void main() {
             .having(
               (error) => error.details.requestId,
               'requestId',
-              'request-event-missing',
+              'f0000000-0000-4000-8000-000000000001',
             ),
       ),
     );

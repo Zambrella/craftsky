@@ -10,7 +10,7 @@ import (
 )
 
 func TestSafetyDependenciesDoNotRequireUnconfiguredEvidenceStorage(t *testing.T) {
-	deps, err := newSafetyDependencies(context.Background(), nil, Config{Env: EnvProd})
+	deps, err := newSafetyDependencies(context.Background(), nil, Config{Env: EnvProd}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestSafetyDependenciesDoNotRequireUnconfiguredEvidenceStorage(t *testing.T)
 func TestSafetyDependenciesUseExplicitIntimateImageDeadline(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	received := time.Now().UTC().Truncate(time.Second)
-	deps, err := newSafetyDependencies(t.Context(), pool, Config{Env: EnvDev, SafetyIntimateImageResponseWithin: 24 * time.Hour})
+	deps, err := newSafetyDependencies(t.Context(), pool, Config{Env: EnvDev, SafetyIntimateImageResponseWithin: 24 * time.Hour}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

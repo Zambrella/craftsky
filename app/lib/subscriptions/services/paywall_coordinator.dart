@@ -2,6 +2,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum PaywallOutcome {
   reconcile,
@@ -20,12 +21,14 @@ final class PaywallCoordinator {
     this._identityGuard, {
     this.onStoreConflict,
     this.isCurrent = _alwaysCurrent,
+    this.diagnostics = const SubscriptionDiagnostics(),
   });
 
   static const requiredPackageIdentifier = r'$rc_monthly';
 
   final RevenueCatService _service;
   final void Function(StoreAccountConflictException)? onStoreConflict;
+  final SubscriptionDiagnostics diagnostics;
   final BillingAccountGuard _ownerGuard;
   final RevenueCatIdentityGuard _identityGuard;
   final bool Function() isCurrent;
@@ -107,11 +110,13 @@ final class PaywallCoordinator {
       return error.ownerSessionChanged
           ? PaywallOutcome.cancelled
           : PaywallOutcome.providerError;
-    } on RevenueCatIdentityException catch (error) {
+    } on RevenueCatIdentityException catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'paywall.present');
       return error.code == 'account_session_changed'
           ? PaywallOutcome.cancelled
           : PaywallOutcome.providerError;
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'paywall.present');
       return PaywallOutcome.providerError;
     }
   }

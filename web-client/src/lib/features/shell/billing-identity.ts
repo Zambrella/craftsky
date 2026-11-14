@@ -11,7 +11,10 @@ export class BillingIdentity {
 		private readonly currentAccount: () => string,
 		private readonly billing: Pick<CraftskyAPI['billing'], 'ensure' | 'access'>,
 		private readonly access: SubscriptionAccessState,
-		private readonly isAllowed: () => boolean = () => true
+		private readonly isAllowed: () => boolean = () => true,
+		private readonly onFailure: (
+			error: unknown
+		) => void | Promise<void> = () => {}
 	) {}
 
 	async synchronize() {
@@ -25,9 +28,15 @@ export class BillingIdentity {
 			if (!this.isCurrent()) return;
 			const value = await this.billing.access();
 			if (this.isCurrent()) publish(value);
-		} catch {
+		} catch (error) {
 			// Billing setup is optional. Its failure must not hide the signed-in
 			// app; billing actions retry setup through their guarded flow.
+			if (!this.isCurrent()) return;
+			try {
+				await this.onFailure(error);
+			} catch {
+				// Reporting is independent of optional billing setup.
+			}
 		}
 	}
 

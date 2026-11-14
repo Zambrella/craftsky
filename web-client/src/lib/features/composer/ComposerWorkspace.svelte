@@ -113,7 +113,7 @@
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
 	let existingDraft = $state(false);
-	let closeDestination = $state('/feed');
+	let closeDestination = $state(origin || '/feed');
 	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
 	let context = $state<Post>();
@@ -370,6 +370,17 @@
 									: '';
 			const did = query.get(`${mode}Did`) || query.get('did');
 			const rkey = query.get(`${mode}Rkey`) || query.get('rkey');
+			// Closing remains available while initialization is pending or fails.
+			closeDestination =
+				origin ||
+				(saved
+					? '/drafts'
+					: scheduled
+						? '/scheduled'
+						: did && rkey
+							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+							: '/feed');
+			closeTarget = closeDestination;
 			if (saved) {
 				const value = await drafts.get(owner, saved);
 				if (!value)
@@ -491,7 +502,10 @@
 					throw new InputError('Choose a post to reply to or quote.');
 				const [target, preferences] = await Promise.all([
 					ownedApi.posts.get(did, rkey),
-					ownedApi.languages.get().catch(() => undefined)
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					})
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
 				if (!('author' in target))
@@ -513,9 +527,15 @@
 				}
 			} else {
 				const [preferences, profile] = await Promise.all([
-					ownedApi.languages.get().catch(() => undefined),
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					}),
 					next.kind === 'project'
-						? ownedApi.profiles.me().catch(() => undefined)
+						? ownedApi.profiles.me().catch((error) => {
+								void reportFailure(error, 'composer.profile');
+								return undefined;
+							})
 						: Promise.resolve(undefined)
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
@@ -545,7 +565,7 @@
 						if (seq === generation && !destroyed)
 							scheduleFull = !next.scheduleId && capacity.items.length >= 3;
 					})
-					.catch(() => {});
+					.catch((error) => void reportFailure(error, 'composer.capacity'));
 			}
 			if (next.kind === 'project' && !next.project)
 				next.project = defaultProject();
@@ -554,16 +574,6 @@
 				notice =
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
-			closeDestination =
-				origin ||
-				(saved
-					? '/drafts'
-					: scheduled
-						? '/scheduled'
-						: did && rkey
-							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-							: '/feed');
-			closeTarget = closeDestination;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
 			externalFrozen =

@@ -812,6 +812,8 @@ Widget _testApp({
   final account = registry.activeLease!.session.account;
   return ProviderScope(
     overrides: [
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       subscriptionAccessProvider.overrideWith(
         (ref, lease) async => SubscriptionAccess(
           did: lease.account.did,
@@ -820,15 +822,21 @@ Widget _testApp({
           assignedTier: SubscriptionTier.plus,
         ),
       ),
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(registry),
       ),
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       activeLanguagePreferencesProvider.overrideWith(
         (ref) => const LanguagePreferences(
           primaryLanguage: 'en',
           contentLanguages: ['en'],
         ),
       ),
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       postRepositoryProvider.overrideWithValue(publicPosts),
       if (imageNotifier != null)
         composerImagesProvider(composerId).overrideWith(() => imageNotifier)
@@ -846,6 +854,8 @@ Widget _testApp({
       scheduledComposerMediaMaterializerProvider.overrideWithValue(
         _testMaterializer,
       ),
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       accountScheduledPostRepositoryProvider(
         account,
       ).overrideWith((ref) async => scheduled),

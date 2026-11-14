@@ -16,6 +16,15 @@ func safeFollowerGrowthResult(result string) string {
 	}
 }
 
+func (o *Observer) FollowerGrowthFailure(ctx context.Context, cause error, attempt int) {
+	outcome := "retry"
+	if attempt >= 5 {
+		outcome = "exhausted"
+	}
+	// Run is long-lived; each attempt owns its own capture episode.
+	o.ObservePrivateFailure(WithDiagnosticOccurrence(ctx), cause, "", "", "follower_growth.capture", "capture", outcome, attempt)
+}
+
 func safeFollowerGrowthErrorCategory(category string) string {
 	switch strings.TrimSpace(category) {
 	case "none", "capture":

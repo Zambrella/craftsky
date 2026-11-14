@@ -7,8 +7,8 @@ import (
 )
 
 // Client is the complete provider surface needed by the verification worker.
-// Implementations must not expose IGSIDs, usernames, message text, tokens, or
-// upstream response bodies through returned errors.
+// Ordinary error text must not expose IGSIDs, usernames, message text, tokens
+// or upstream response bodies. Native causes are for protected sinks only.
 type Client interface {
 	LookupUsername(ctx context.Context, senderIGSID string) (string, error)
 	SendReply(ctx context.Context, senderIGSID, text string) error
@@ -26,12 +26,13 @@ const (
 )
 
 // ProviderError carries only bounded control-plane facts. It intentionally
-// omits the request URL, identity, response body, token, and wrapped transport
-// error so ordinary diagnostic formatting cannot disclose provider data.
+// omits the request URL, identity, response body, token, and rendered dependency prose. Native causes stay in memory for the protected
+// diagnostic boundary; ordinary formatting never exposes them.
 type ProviderError struct {
 	kind       ProviderErrorKind
 	retryAfter time.Duration
 	statusCode int
+	cause      error
 }
 
 func (e *ProviderError) Error() string {
@@ -39,6 +40,7 @@ func (e *ProviderError) Error() string {
 }
 
 func (e *ProviderError) StatusCode() int { return e.statusCode }
+func (e *ProviderError) Unwrap() error   { return e.cause }
 
 func (e *ProviderError) Kind() ProviderErrorKind {
 	return e.kind

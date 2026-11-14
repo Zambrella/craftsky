@@ -51,6 +51,7 @@ class PostInteractionAccountsPage extends ConsumerWidget {
         ),
         (final state?, _) => AutoPaginatedListView(
           itemCount: state.items.length,
+          identities: [for (final item in state.items) item.did],
           emptyState: _emptyState(context, l10n),
           isLoadingMore: accounts.isLoading && state.hasMore,
           hasLoadMoreError: accounts.hasError && state.hasMore,

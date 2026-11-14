@@ -478,7 +478,7 @@ void main() {
         (server) => server.reply(503, {
           'error': 'instagram_verification_unavailable',
           'message': privateCanary,
-          'requestId': 'synthetic-request-id',
+          'requestId': 'f0000000-0000-4000-8000-000000000002',
         }),
         data: <String, Object?>{},
       );
@@ -497,7 +497,7 @@ void main() {
         error.details.appViewError,
         'instagram_verification_unavailable',
       );
-      expect(error.details.requestId, 'synthetic-request-id');
+      expect(error.details.requestId, 'f0000000-0000-4000-8000-000000000002');
       expect(error.toString(), isNot(contains(privateCanary)));
     });
 

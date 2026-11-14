@@ -27,6 +27,7 @@ class MessageOnboarding extends OnboardingStatus {
   @override
   Future<OnboardingCompletion> build(AccountSessionLease lease) async =>
       const OnboardingCompletion(completed: false);
+  @visibleForTesting
   AsyncValue<OnboardingCompletion> get completion => state;
   set completion(AsyncValue<OnboardingCompletion> value) => state = value;
 }

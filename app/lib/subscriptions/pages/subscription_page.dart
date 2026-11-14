@@ -6,7 +6,10 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -25,6 +28,7 @@ import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -135,14 +139,22 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      AsyncError() => Scaffold(
+      AsyncError(:final error) => Scaffold(
         appBar: AppBar(
           title: Text(AppLocalizations.of(context).subscriptionsTitle),
         ),
         body: Center(
-          child: _ActionButton(
-            label: AppLocalizations.of(context).subscriptionsRefresh,
-            onPressed: _refresh,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                AppErrorMapper.map(error).message(AppLocalizations.of(context)),
+              ),
+              _ActionButton(
+                label: AppLocalizations.of(context).subscriptionsRefresh,
+                onPressed: _refresh,
+              ),
+            ],
           ),
         ),
       ),
@@ -157,6 +169,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         .read(sessionRegistryProvider)
         .value
         ?.activeLease;
+    final diagnostics = SubscriptionDiagnostics(
+      reporter: _operationContainer.read(errorReporterProvider),
+      accountDid: started?.session.account.did.value,
+    );
     setState(() {
       _busy = true;
       _conflictingAccountLabel = null;
@@ -167,9 +183,11 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         notice = await action();
       } on ApiUnauthorized {
         notice = SubscriptionOperationNotice.unauthorized;
-      } on ApiException {
+      } on ApiException catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.action');
         notice = SubscriptionOperationNotice.actionFailed;
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.action');
         notice = SubscriptionOperationNotice.providerFailure;
       }
       if (!mounted ||
@@ -257,11 +275,13 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             dependencies.service,
             dependencies.guard,
             RevenueCatIdentityGuard(dependencies.service),
+            diagnostics: dependencies.diagnostics,
             onStoreConflict: _recordStoreConflict,
             isCurrent: () => _operationIsCurrent,
           );
           final controller = SubscriptionPurchaseController(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             nativeStore: dependencies.nativeStore,
             allowNativeTierChanges: dependencies.allowNativeTierChanges,
@@ -343,6 +363,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           final dependencies = await _ownerDependencies();
           final controller = SubscriptionRestoreController(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             onStoreConflict: _recordStoreConflict,
@@ -398,6 +419,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       PendingSubscriptionOperationKind.purchase => _handlePurchaseResult(
         await SubscriptionPurchaseController(
           ownerGuard: dependencies.guard,
+          diagnostics: dependencies.diagnostics,
           api: dependencies.api,
           nativeStore: dependencies.nativeStore,
           allowNativeTierChanges: dependencies.allowNativeTierChanges,
@@ -414,6 +436,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       PendingSubscriptionOperationKind.restore => _handleRestoreResult(
         await SubscriptionRestoreController(
           ownerGuard: dependencies.guard,
+          diagnostics: dependencies.diagnostics,
           api: dependencies.api,
           revenueCat: dependencies.service,
           wait: Future<void>.delayed,
@@ -426,6 +449,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         _handleCustomerCenterResult(
           await CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             wait: Future<void>.delayed,
@@ -473,6 +497,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           final dependencies = await _ownerDependencies();
           final coordinator = CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             wait: Future<void>.delayed,
@@ -524,6 +549,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   Future<
     ({
       BillingAccountGuard guard,
+      SubscriptionDiagnostics diagnostics,
       RevenueCatService service,
       SubscriptionApi api,
       String? nativeStore,
@@ -536,6 +562,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         .requireValue;
     final activeLease = registry.activeLease!;
     final lease = activeLease.session;
+    final diagnostics = SubscriptionDiagnostics(
+      reporter: _operationContainer.read(errorReporterProvider),
+      accountDid: lease.account.did.value,
+    );
     final service = _operationContainer.read(revenueCatServiceProvider);
     final api = await _operationContainer.read(
       subscriptionRepositoryProvider(lease.account).future,
@@ -549,8 +579,17 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     }
     return (
       guard: BillingAccountGuard(
-        () => _operationContainer.read(sessionRegistryProvider).requireValue,
+        () {
+          final current = _operationContainer
+              .read(sessionRegistryProvider)
+              .requireValue;
+          if (!current.isCurrent(activeLease)) {
+            throw const BillingAccountGuardException('owner_session_changed');
+          }
+          return current;
+        },
       ),
+      diagnostics: diagnostics,
       service: service,
       allowNativeTierChanges:
           service is NativeStoreOwnershipService &&

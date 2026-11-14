@@ -1,8 +1,12 @@
 <script lang="ts">
+	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
+	let savedElement = $state<HTMLElement>();
+
+	import { reloadPages } from '#lib/pagination.ts';
 	import { goto } from '$app/navigation';
 	import { contextMenu } from './context-menu';
 	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import {
 		APIError,
@@ -17,8 +21,10 @@
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
 	const work = new Work('social.Saved.action');
+	let loadingMore = $state(false);
 	let items = $state<SavedItem[]>([]),
 		folders = $state<SavedFolder[]>([]),
 		cursor = $state<string | null>(null),
@@ -47,23 +53,35 @@
 		subscriptionsEnabled() && page.url.searchParams.get('unfiled') === 'true';
 	const showAll = page.url.searchParams.get('all') === 'true';
 	async function load(more = false) {
+		if (work.busy) return;
 		await work.run(
 			async () => {
-				if (!more && subscriptionsEnabled())
-					try {
-						folders = await allFolders(api);
-					} catch (error) {
-						if (!(error instanceof APIError) || error.status !== 403)
-							throw error;
-						folderSupport = false;
-					}
-				return api.saved.list({
-					cursor: more ? cursor : undefined,
-					folderId: folderId || undefined,
-					unfiled: !folderId && (unfiled || (folderSupport && !showAll)),
-					sort:
-						page.url.searchParams.get('sort') === 'oldest' ? 'oldest' : 'newest'
-				});
+				loadingMore = more;
+				try {
+					if (!more && subscriptionsEnabled())
+						try {
+							folders = await allFolders(api);
+						} catch (error) {
+							if (!(error instanceof APIError) || error.status !== 403)
+								throw error;
+							folderSupport = false;
+						}
+					const fetchPage = (next?: string | null) =>
+						api.saved.list({
+							cursor: next,
+							folderId: folderId || undefined,
+							unfiled: !folderId && (unfiled || (folderSupport && !showAll)),
+							sort:
+								page.url.searchParams.get('sort') === 'oldest'
+									? 'oldest'
+									: 'newest'
+						});
+					return more
+						? fetchPage(cursor)
+						: reloadPages(fetchPage, 1, (item) => item.post.uri, items.length);
+				} finally {
+					loadingMore = false;
+				}
 			},
 			(value) => {
 				items = more ? [...items, ...value.items] : value.items;
@@ -111,6 +129,12 @@
 
 	onMount(() => load());
 	onDestroy(() => work.dispose());
+	$effect.pre(() => {
+		void items;
+		if (!savedElement) return;
+		const restore = untrack(() => captureScrollAnchor(savedElement!));
+		void tick().then(restore);
+	});
 </script>
 
 <div class="workspace-heading">
@@ -195,26 +219,33 @@
 			>Unfiled</a
 		>
 	</nav>{/if}
-{#each items as item}<MemberPost
-		value={item.post}
-		{api}
-		{did}
-		savedAt={item.savedAt}
-		onMoved={() => load()}
-		onRemove={() => {
-			items = items.filter((old) => old !== item);
-		}}
-	/>{:else}{#if !work.busy && !work.error}<EmptyState
-			fill
-			title="Saved posts"
-			detail="Nothing saved yet"
-			icon="saved"
-		/>{/if}{/each}
-{#if cursor}<button
-		class="button next"
-		disabled={work.busy}
-		onclick={() => load(true)}>Load more</button
-	>{/if}
+<div bind:this={savedElement}>
+	{#each items as item (item.post.uri)}<div data-scroll-anchor={item.post.uri}>
+			<MemberPost
+				value={item.post}
+				{api}
+				{did}
+				savedAt={item.savedAt}
+				onMoved={() => load()}
+				onRemove={() => {
+					items = items.filter((old) => old !== item);
+				}}
+			/>
+		</div>{:else}{#if !work.busy && !work.error}<EmptyState
+				fill
+				title="Saved posts"
+				detail="Nothing saved yet"
+				icon="saved"
+			/>{/if}{/each}
+	{#if cursor}<LoadMore
+			loading={work.busy && loadingMore}
+			disabled={work.busy}
+			autoLoad={!work.error}
+			pageKey={cursor}
+			loadingLabel="Loading more saved posts"
+			onclick={() => load(true)}
+		/>{/if}
+</div>
 <dialog bind:this={folderDialog} aria-labelledby="folder-dialog-title">
 	<form
 		class="stack"

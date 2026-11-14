@@ -356,7 +356,7 @@ void _notifyNearEnd(WidgetTester tester) {
   final context = tester.element(
     find.descendant(
       of: find.byType(AutoPaginatedListView),
-      matching: find.byType(ListView),
+      matching: find.byType(Scrollable),
     ),
   );
   ScrollUpdateNotification(

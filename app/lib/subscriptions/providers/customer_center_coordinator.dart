@@ -4,6 +4,7 @@ import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum CustomerCenterOutcome {
   completed,
@@ -31,12 +32,14 @@ final class CustomerCenterCoordinator {
     required this.revenueCat,
     required this.wait,
     this.isCurrent = _alwaysCurrent,
+    this.diagnostics = const SubscriptionDiagnostics(),
     this.isForeground = _alwaysCurrent,
     this.onProviderMutationConfirmed,
     this.onStoreConflict,
     this.maxReconciliationAttempts = 30,
   });
 
+  final SubscriptionDiagnostics diagnostics;
   final BillingAccountGuard ownerGuard;
   final SubscriptionApi api;
   final RevenueCatService revenueCat;
@@ -56,7 +59,8 @@ final class CustomerCenterCoordinator {
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'customerCenter.load');
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.providerError,
       );
@@ -107,7 +111,8 @@ final class CustomerCenterCoordinator {
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'customerCenter.present');
       if (providerMutationPossible) {
         return _pending(reconcilePending);
       }
@@ -147,7 +152,8 @@ final class CustomerCenterCoordinator {
       return const CustomerCenterResult(
         outcome: CustomerCenterOutcome.cancelled,
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'customerCenter.refresh');
       return _pending(() => _refreshOwner(owner));
     }
   }
@@ -166,10 +172,12 @@ final class CustomerCenterCoordinator {
     } on BillingAccountGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pending(reconcilePending);
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'customerCenter.reconcile');
       return _pending(reconcilePending);
     }
     final result = await ReconciliationCoordinator(
+      diagnostics: diagnostics,
       requestReconciliation: () => ownerGuard.dispatch(
         owner,
         api.requestReconciliation,

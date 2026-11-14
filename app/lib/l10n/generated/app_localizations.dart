@@ -1078,6 +1078,12 @@ abstract class AppLocalizations {
   /// **'CraftSky is having trouble right now. Please try again.'**
   String get errorServiceUnavailable;
 
+  /// Recovery guidance when an API request is rate limited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests. Please wait a moment and try again.'**
+  String get errorRateLimited;
+
   /// Safe generic error message shown when the user's session is no longer valid.
   ///
   /// In en, this message translates to:
@@ -9548,6 +9554,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a valid email address.'**
   String get reportContactEmailInvalid;
+
+  /// No description provided for @accountProviderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky / account provider'**
+  String get accountProviderTitle;
+
+  /// No description provided for @accountProviderExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Your handle, password and email belong to your shared AT Protocol account. Changes made with your provider also affect other apps that use this account.'**
+  String get accountProviderExplanation;
+
+  /// No description provided for @accountHandleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Handle'**
+  String get accountHandleLabel;
+
+  /// No description provided for @accountDidLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Account ID (DID)'**
+  String get accountDidLabel;
+
+  /// No description provided for @accountHostingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosting provider'**
+  String get accountHostingLabel;
+
+  /// No description provided for @accountManageProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage account with provider'**
+  String get accountManageProvider;
+
+  /// No description provided for @accountChangePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change password in Bluesky'**
+  String get accountChangePassword;
+
+  /// No description provided for @accountProviderAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Available settings vary by provider. You may need to sign in again. In Bluesky account settings, select Password to change it.'**
+  String get accountProviderAvailability;
+
+  /// No description provided for @accountProviderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosting details are unavailable. Try again to load your provider links.'**
+  String get accountProviderUnavailable;
+
+  /// No description provided for @accountCraftskyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky account'**
+  String get accountCraftskyTitle;
+
+  /// No description provided for @accountDeleteBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your CraftSky account removes your CraftSky data. It does not delete your Bluesky or AT Protocol account.'**
+  String get accountDeleteBoundary;
+
+  /// No description provided for @accountDeleteCraftskyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete CraftSky account'**
+  String get accountDeleteCraftskyAction;
+
+  /// No description provided for @accountCopyDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy account detail'**
+  String get accountCopyDetail;
+
+  /// No description provided for @accountProviderAvailabilityGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Available settings vary by provider. You may need to sign in again.'**
+  String get accountProviderAvailabilityGeneric;
 }
 
 class _AppLocalizationsDelegate

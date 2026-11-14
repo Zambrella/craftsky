@@ -31,7 +31,7 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 		}
 		logger.Debug("whoami: resolving handle",
 			apiLogAttrs(runID, "whoami.get")...)
-		handle, err := resolver.ResolveHandle(r.Context(), did)
+		info, err := resolveAccountInfo(r.Context(), resolver, did)
 		if err != nil {
 			logger.Warn("whoami: handle resolution failed",
 				apiLogErrorAttrs(r.Context(), runID, "whoami.get", "identity", err)...)
@@ -42,8 +42,9 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 		}
 		logger.Debug("whoami: resolved handle",
 			apiLogSuccessAttrs(runID, "whoami.get")...)
+		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(WhoAmIResponse{DID: did, Handle: handle})
+		_ = json.NewEncoder(w).Encode(info)
 	})
 }

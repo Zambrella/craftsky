@@ -52,12 +52,7 @@ func NewProjectionWorker(config ProjectionWorkerConfig) (*ProjectionWorker, erro
 
 func (worker *ProjectionWorker) Run(ctx context.Context) error {
 	return runWorkerLoop(ctx, worker.config.PollInterval, func(ctx context.Context) error {
-		_, err := worker.RunOnce(ctx)
-		if err != nil {
-			worker.logger.Error("Tap projection batch failed",
-				slog.String("component", "tap_projection"),
-				slog.String("error_category", "batch"))
-		}
+		_, _ = worker.RunOnce(ctx) // Source-owned diagnostics retain each failure.
 		return nil
 	})
 }
@@ -68,12 +63,14 @@ func (worker *ProjectionWorker) RunOnce(ctx context.Context) (int, error) {
 		LeaseDuration: worker.config.LeaseDuration, Limit: worker.config.BatchSize,
 	})
 	if err != nil {
+		input := observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_projection", "operation": "tap.projection.claim", "failure_stage": "claim", "result": "retry"}}
+		observability.LogDiagnostic(ctx, worker.logger, input)
 		return 0, err
 	}
 	var batchErr error
 	for _, claim := range claims {
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		occurrenceCtx := observability.WithCaptureMarker(ctx)
+		occurrenceCtx := observability.WithDiagnosticOccurrence(ctx)
 		if worker.config.Observer != nil {
 			occurrenceCtx = observability.WithRequestObserver(occurrenceCtx, worker.config.Observer)
 		}
@@ -146,6 +143,7 @@ type QuarantineReplayWorkerConfig struct {
 	OperationTimeout time.Duration
 	BatchSize        int
 	Logger           *slog.Logger
+	Observer         *observability.Observer
 }
 
 type QuarantineReplayWorker struct {
@@ -181,12 +179,7 @@ func NewQuarantineReplayWorker(config QuarantineReplayWorkerConfig) (*Quarantine
 
 func (worker *QuarantineReplayWorker) Run(ctx context.Context) error {
 	return runWorkerLoop(ctx, worker.config.PollInterval, func(ctx context.Context) error {
-		_, err := worker.RunOnce(ctx)
-		if err != nil {
-			worker.logger.Error("Tap quarantine replay batch failed",
-				slog.String("component", "tap_quarantine"),
-				slog.String("error_category", "batch"))
-		}
+		_, _ = worker.RunOnce(ctx) // Source-owned diagnostics retain each failure.
 		return nil
 	})
 }
@@ -197,16 +190,21 @@ func (worker *QuarantineReplayWorker) RunOnce(ctx context.Context) (int, error) 
 		LeaseDuration: worker.config.LeaseDuration, Limit: worker.config.BatchSize,
 	})
 	if err != nil {
+		observability.LogDiagnostic(ctx, worker.logger, observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_quarantine", "operation": "tap.quarantine.claim", "failure_stage": "claim", "result": "retry"}})
 		return 0, err
 	}
 	var batchErr error
 	for _, claim := range claims {
-		replayErr := worker.config.Store.ReplayQuarantine(ctx, claim, func(_ context.Context, envelope []byte) (tap.Outcome, error) {
-			operationCtx, cancel := context.WithTimeout(ctx, worker.config.OperationTimeout)
+		occurrenceCtx := observability.WithRequestObserver(observability.WithDiagnosticOccurrence(ctx), worker.config.Observer)
+		replayErr := worker.config.Store.ReplayQuarantine(occurrenceCtx, claim, func(_ context.Context, envelope []byte) (tap.Outcome, error) {
+			operationCtx, cancel := context.WithTimeout(occurrenceCtx, worker.config.OperationTimeout)
 			defer cancel()
 			return worker.config.Handler(operationCtx, envelope)
 		})
 		if replayErr != nil {
+			input := observability.DiagnosticInput{Error: replayErr, Context: observability.EventContext{"component": "tap_quarantine", "operation": "tap.quarantine.replay", "failure_stage": "replay", "result": "error"}, Workflow: observability.TapEventFailureContext{EventID: claim.TapEventID}}
+			observability.LogDiagnostic(occurrenceCtx, worker.logger, input)
+			worker.config.Observer.CaptureDiagnostic(occurrenceCtx, input)
 			batchErr = errors.Join(batchErr, replayErr)
 		}
 	}
@@ -258,7 +256,7 @@ func (worker *RepositoryWorker) RunOnce(ctx context.Context) (int, error) {
 	for _, claim := range claims {
 		started := time.Now()
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		occurrenceCtx := observability.WithCaptureMarker(ctx)
+		occurrenceCtx := observability.WithDiagnosticOccurrence(ctx)
 		runErr := worker.config.Store.runRepositoryJob(occurrenceCtx, claim, worker.config.Handler, delay)
 		if worker.config.Observer != nil {
 			result, reason := "success", "none"
@@ -301,6 +299,7 @@ func (worker *RepositoryWorker) observeRepositoryHealth(ctx context.Context) {
 	}
 	health, err := worker.config.Store.RepositoryBacklogHealth(ctx)
 	if err != nil {
+		observability.LogDiagnostic(ctx, worker.logger, observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_repository", "operation": "tap.repository.health", "failure_stage": "snapshot", "result": "retry"}})
 		return
 	}
 	alert := health.OldestAge >= worker.config.AlertAge || health.MaxAttempts >= worker.config.AlertAttempts

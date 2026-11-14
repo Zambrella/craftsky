@@ -10,6 +10,37 @@ import 'package:flutter_test/flutter_test.dart';
 
 // IT-001 / FR-002, FR-008: independent shared inbox/request pagination.
 void main() {
+  test(
+    'background refresh retains loaded conversations until every page succeeds',
+    () async {
+      final repository = _PagedRepository();
+      final inbox = ChatInboxController(
+        account: AccountKey('did:plc:owner'),
+        bucket: ChatBucket.accepted,
+        repository: repository,
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+      );
+      addTearDown(inbox.dispose);
+      await inbox.refresh();
+      await inbox.loadMore();
+      expect(inbox.items, hasLength(2));
+      repository.refreshing = true;
+      final refresh = inbox.refresh();
+      await Future<void>.delayed(Duration.zero);
+      expect(inbox.items, hasLength(2));
+      repository.finish.complete();
+      await refresh;
+      expect(inbox.items, hasLength(2));
+      repository.fail = true;
+      await inbox.refresh();
+      expect(inbox.items, hasLength(2));
+      expect(inbox.failed, isTrue);
+    },
+  );
+
   for (final boundary in ['current', 'changed owner', 'disposed']) {
     test(
       'RETURN-002 post-action refresh coalesces after pending fetch: $boundary',
@@ -148,3 +179,27 @@ Map<String, dynamic> _item(
   'canSend': bucket == ChatBucket.accepted,
   'peer': {'did': 'did:plc:external', 'handle': 'external.test'},
 };
+
+class _PagedRepository implements ChatRepository {
+  bool refreshing = false;
+  bool fail = false;
+  final finish = Completer<void>();
+  @override
+  Future<ChatConversationPage> conversations({
+    required ChatBucket bucket,
+    ChatCursor? cursor,
+    int limit = 50,
+  }) async {
+    if (cursor != null && refreshing) {
+      await finish.future;
+      if (fail) throw StateError('offline');
+    }
+    return ChatConversationPage.fromMap({
+      'items': [_item(cursor == null ? 'newest' : 'older', bucket)],
+      if (cursor == null) 'cursor': '00000000-0000-4000-8000-000000000123',
+    });
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}

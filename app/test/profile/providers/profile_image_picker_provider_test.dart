@@ -253,9 +253,13 @@ void main() {
     },
   );
 
-  test('resizes a 48 MP profile photo below the upload limit', () async {
+  test('resizes a profile photo above the target pixel budget', () async {
+    // The shared media-service and native codec suites cover real 48 MP
+    // input, while the geometry tests below cover the picker's 48 MP boundary.
+    // This smaller 4:3 source still requires the same 4000x3000 resize without
+    // repeating a costly 48 MP encode/decode in the profile integration.
     final original = Uint8List.fromList(
-      img.encodeJpg(img.Image(width: 8000, height: 6000)),
+      img.encodeJpg(img.Image(width: 4800, height: 3600)),
     );
     final container = ProviderContainer.test(
       overrides: [
@@ -278,8 +282,7 @@ void main() {
     final decoded = img.decodeJpg(prepared.bytes)!;
     expect(decoded.width, 4000);
     expect(decoded.height, 3000);
-    // The host codec processes all 48 million pixels in Dart. Allow for the
-    // CPU cost under a concurrent full-suite run; retain the output assertions.
+    // Allow for host Dart codec work under a concurrent full-suite run.
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('accepts 48 MP source geometry and files up to 100 MB', () async {

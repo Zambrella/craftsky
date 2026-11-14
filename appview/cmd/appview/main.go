@@ -30,6 +30,7 @@ import (
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/observability"
 )
 
 const (
@@ -174,26 +175,23 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	// consumerCtx is cancelled, which happens on signal or if the HTTP
 	// listener dies (we cancel explicitly below in both paths).
 	consumerCtx, consumerCancel := context.WithCancel(ctx)
+	consumerCtx = context.WithValue(consumerCtx, workerObserverKey{}, deps.Observability)
 	defer consumerCancel()
 	consumerDone := make(chan struct{})
 	go func() {
 		defer close(consumerDone)
-		if err := deps.Consumer.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-			deps.Logger.Error("tap consumer exited",
-				slog.String("component", "tap"),
-				slog.String("operation", "tap.consume"),
-				slog.String("result", "error"),
-				slog.String("error_category", "consumer"))
+		runCtx := workerAttemptContext(consumerCtx)
+		if err := deps.Consumer.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+			reportWorkerFailure(runCtx, deps.Logger, err, "tap", "tap.consume", "run", "consumer")
 		}
 	}()
 	tapProjectionDone := make(chan struct{})
 	if deps.TapProjectionWorker != nil {
 		go func() {
 			defer close(tapProjectionDone)
-			if err := deps.TapProjectionWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Logger.Error("tap projection worker exited",
-					slog.String("component", "tap_projection"),
-					slog.String("result", "error"))
+			runCtx := workerAttemptContext(consumerCtx)
+			if err := deps.TapProjectionWorker.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				reportWorkerFailure(runCtx, deps.Logger, err, "tap_projection", "tap.projection.run", "run", "worker")
 			}
 		}()
 	} else {
@@ -203,10 +201,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.TapRepositoryWorker != nil {
 		go func() {
 			defer close(tapRepositoryDone)
-			if err := deps.TapRepositoryWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Logger.Error("tap repository worker exited",
-					slog.String("component", "tap_repository"),
-					slog.String("result", "error"))
+			runCtx := workerAttemptContext(consumerCtx)
+			if err := deps.TapRepositoryWorker.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				reportWorkerFailure(runCtx, deps.Logger, err, "tap_repository", "tap.repository.run", "run", "worker")
 			}
 		}()
 	} else {
@@ -216,10 +213,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.TapQuarantineWorker != nil {
 		go func() {
 			defer close(tapQuarantineDone)
-			if err := deps.TapQuarantineWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Logger.Error("tap quarantine replay worker exited",
-					slog.String("component", "tap_quarantine"),
-					slog.String("result", "error"))
+			runCtx := workerAttemptContext(consumerCtx)
+			if err := deps.TapQuarantineWorker.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				reportWorkerFailure(runCtx, deps.Logger, err, "tap_quarantine", "tap.quarantine.run", "run", "worker")
 			}
 		}()
 	} else {
@@ -229,10 +225,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.ImageSafetyWorker != nil {
 		go func() {
 			defer close(imageSafetyDone)
-			if err := deps.ImageSafetyWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Logger.Error("image safety worker exited",
-					slog.String("component", "image_safety"),
-					slog.String("result", "error"))
+			runCtx := workerAttemptContext(consumerCtx)
+			if err := deps.ImageSafetyWorker.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				reportWorkerFailure(runCtx, deps.Logger, err, "image_safety", "image_safety.run", "run", "worker")
 			}
 		}()
 	} else {
@@ -250,8 +245,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.ChatDispatcher != nil {
 		go func() {
 			defer close(chatDeliveryDone)
-			if err := deps.ChatDispatcher.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.push", "worker", "error", 1)
+			runCtx := privateWorkerAttemptContext(consumerCtx)
+			if err := deps.ChatDispatcher.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(runCtx, err, "", "", "chat.push", "worker", "error", 1)
 			}
 		}()
 	} else {
@@ -260,8 +256,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.Chat != nil {
 		go func() {
 			defer close(chatMaintenanceDone)
-			if err := deps.Chat.RunMaintenance(consumerCtx, deps.Observability); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.retention", "worker", "error", 1)
+			runCtx := privateWorkerAttemptContext(consumerCtx)
+			if err := deps.Chat.RunMaintenance(runCtx, deps.Observability); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(runCtx, err, "", "", "chat.retention", "worker", "error", 1)
 			}
 		}()
 	} else {
@@ -270,8 +267,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.ChatSynchronizer != nil {
 		go func() {
 			defer close(chatSyncDone)
-			if err := deps.ChatSynchronizer.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.sync", "scheduler", "error", 1)
+			runCtx := privateWorkerAttemptContext(consumerCtx)
+			if err := deps.ChatSynchronizer.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(runCtx, err, "", "", "chat.sync", "scheduler", "error", 1)
 			}
 		}()
 	} else {
@@ -280,8 +278,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if deps.PushDispatcher != nil {
 		go func() {
 			defer close(pushDone)
-			if err := deps.PushDispatcher.Run(consumerCtx, deps.Config.PushPollInterval, "appview"); err != nil && !errors.Is(err, context.Canceled) {
-				deps.Logger.Error("push dispatcher exited", slog.String("result", "error"))
+			runCtx := workerAttemptContext(consumerCtx)
+			if err := deps.PushDispatcher.Run(runCtx, deps.Config.PushPollInterval, "appview"); err != nil && !errors.Is(err, context.Canceled) {
+				reportWorkerFailure(runCtx, deps.Logger, err, "push", "push.dispatch", "run", "worker")
 			}
 		}()
 	} else {
@@ -592,12 +591,9 @@ func startRevenueCatProcessor(ctx context.Context, processor revenueCatProcessor
 	go func() {
 		defer close(done)
 		schedule := func() {
-			if _, err := processor.ScheduleActiveAccounts(ctx); err != nil && ctx.Err() == nil && logger != nil {
-				logger.Error("RevenueCat reconciliation scheduling failed",
-					slog.String("component", "revenuecat_reconciliation"),
-					slog.String("operation", "schedule"),
-					slog.String("result", "error"),
-					slog.String("error_category", "worker"))
+			attemptCtx := privateWorkerAttemptContext(ctx)
+			if _, err := processor.ScheduleActiveAccounts(attemptCtx); err != nil && ctx.Err() == nil && logger != nil {
+				reportWorkerFailure(attemptCtx, logger, err, "revenuecat_reconciliation", "schedule", "schedule", "worker")
 			}
 		}
 		schedule()
@@ -606,16 +602,13 @@ func startRevenueCatProcessor(ctx context.Context, processor revenueCatProcessor
 		defer poll.Stop()
 		defer periodic.Stop()
 		for {
-			processed, err := processor.ProcessOne(ctx)
+			attemptCtx := privateWorkerAttemptContext(ctx)
+			processed, err := processor.ProcessOne(attemptCtx)
 			if ctx.Err() != nil {
 				return
 			}
 			if err != nil && logger != nil {
-				logger.Error("RevenueCat reconciliation failed",
-					slog.String("component", "revenuecat_reconciliation"),
-					slog.String("operation", "process"),
-					slog.String("result", "error"),
-					slog.String("error_category", "provider"))
+				reportWorkerFailure(attemptCtx, logger, err, "revenuecat_reconciliation", "process", "process", "provider")
 			}
 			select {
 			case <-periodic.C:
@@ -671,12 +664,9 @@ func startFollowerGrowthWorker(
 	}
 	go func() {
 		defer close(done)
-		if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			logger.Error("follower growth worker exited",
-				slog.String("component", "follower_growth"),
-				slog.String("operation", "capture"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+		attemptCtx := workerAttemptContext(ctx)
+		if err := worker.Run(attemptCtx); err != nil && !errors.Is(err, context.Canceled) {
+			reportWorkerFailure(attemptCtx, logger, err, "follower_growth", "capture", "run", "worker")
 		}
 	}()
 	return done
@@ -693,16 +683,13 @@ func runSafetyRetentionWorker(
 		return
 	}
 	for {
-		processed, err := worker.RunOnce(ctx, batchSize)
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		processed, err := worker.RunOnce(attemptCtx, batchSize)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("safety retention worker failed",
-				slog.String("component", "safety_retention"),
-				slog.String("operation", "process"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+			reportWorkerFailure(attemptCtx, logger, err, "safety_retention", "process", "process", "worker")
 		}
 		if err == nil && processed == batchSize {
 			continue
@@ -724,16 +711,13 @@ func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcess
 		return
 	}
 	for {
-		processed, err := worker.ProcessOne(ctx)
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		processed, err := worker.ProcessOne(attemptCtx)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("account deletion worker failed",
-				slog.String("component", "account_deletion"),
-				slog.String("operation", "process"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+			reportWorkerFailure(attemptCtx, logger, err, "account_deletion", "process", "process", "worker")
 		}
 		if err == nil && processed {
 			continue
@@ -751,7 +735,7 @@ func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcess
 }
 
 func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, logger *slog.Logger, pollInterval time.Duration, operation string) {
-	runBatchWorker(ctx, worker, logger, pollInterval, "scheduled_posts", operation)
+	runBatchWorker(ctx, worker, logger, pollInterval, "scheduled_posts", operation, false)
 }
 
 func startBatchWorker(
@@ -769,7 +753,7 @@ func startBatchWorker(
 	}
 	go func() {
 		defer close(done)
-		runBatchWorker(ctx, worker, logger, pollInterval, component, operation)
+		runBatchWorker(ctx, worker, logger, pollInterval, component, operation, true)
 	}()
 	return done
 }
@@ -781,21 +765,23 @@ func runBatchWorker(
 	pollInterval time.Duration,
 	component string,
 	operation string,
+	captureFailure bool,
 ) {
 	if worker == nil || pollInterval <= 0 {
 		return
 	}
 	for {
-		processed, err := worker.ProcessBatch(ctx)
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		processed, err := worker.ProcessBatch(attemptCtx)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("background worker batch failed",
-				slog.String("component", component),
-				slog.String("operation", operation),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+			if captureFailure {
+				reportWorkerFailure(attemptCtx, logger, err, component, operation, "process", "worker")
+			} else {
+				observability.LogDiagnostic(attemptCtx, logger, workerFailureInput(err, component, operation, "process", "worker"))
+			}
 		}
 		if err == nil && processed > 0 {
 			continue
@@ -817,16 +803,13 @@ func runInstagramWebhookWorker(ctx context.Context, worker instagramWebhookBatch
 		return
 	}
 	for {
-		processed, err := worker.ProcessBatch(ctx)
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		processed, err := worker.ProcessBatch(attemptCtx)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("Instagram webhook worker batch failed",
-				slog.String("component", "instagram_webhook"),
-				slog.String("operation", "instagram.webhook.process"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+			reportWorkerFailure(attemptCtx, logger, err, "instagram_webhook", "instagram.webhook.process", "process", "worker")
 		}
 		if err == nil && processed > 0 {
 			continue
@@ -854,16 +837,13 @@ func runInstagramReconciliationWorker(
 		return
 	}
 	for {
-		processed, err := worker.ProcessBatch(ctx, batchSize)
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		processed, err := worker.ProcessBatch(attemptCtx, batchSize)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("Instagram reconciliation worker batch failed",
-				slog.String("component", "instagram_reconciliation"),
-				slog.String("operation", "instagram.reconciliation.process"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+			reportWorkerFailure(attemptCtx, logger, err, "instagram_reconciliation", "instagram.reconciliation.process", "process", "worker")
 		}
 		if err == nil && processed > 0 {
 			continue
@@ -891,12 +871,9 @@ func runInstagramRetention(
 		return
 	}
 	for {
-		if _, err := runner.Run(ctx, batchSize); err != nil && ctx.Err() == nil && logger != nil {
-			logger.Error("Instagram retention batch failed",
-				slog.String("component", "instagram_retention"),
-				slog.String("operation", "instagram.retention.run"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
+		attemptCtx := privateWorkerAttemptContext(ctx)
+		if _, err := runner.Run(attemptCtx, batchSize); err != nil && ctx.Err() == nil && logger != nil {
+			reportWorkerFailure(attemptCtx, logger, err, "instagram_retention", "instagram.retention.run", "process", "worker")
 		}
 		if ctx.Err() != nil {
 			return
@@ -911,4 +888,33 @@ func runInstagramRetention(
 		case <-timer.C:
 		}
 	}
+}
+
+// Keep the observer on the worker tree, but clone its scope and ownership marker
+// for each attempt so unrelated polls cannot share breadcrumbs or captures.
+type workerObserverKey struct{}
+
+func workerAttemptContext(ctx context.Context) context.Context {
+	observer, _ := ctx.Value(workerObserverKey{}).(*observability.Observer)
+	return observability.WithRequestObserver(observability.WithDiagnosticOccurrence(ctx), observer)
+}
+
+func privateWorkerAttemptContext(ctx context.Context) context.Context {
+	return observability.WithPrivateDiagnosticContext(workerAttemptContext(ctx), "", "")
+}
+
+func reportWorkerFailure(ctx context.Context, logger *slog.Logger, cause error, component, operation, stage, category string) {
+	input := workerFailureInput(cause, component, operation, stage, category)
+	observability.LogDiagnostic(ctx, logger, input)
+	observability.CaptureRequestDiagnostic(ctx, input)
+}
+
+func workerFailureInput(cause error, component, operation, stage, category string) observability.DiagnosticInput {
+	result := "retry"
+	if stage == "run" {
+		result = "error"
+	}
+	return observability.DiagnosticInput{Error: cause, Context: observability.EventContext{
+		"component": component, "operation": operation, "failure_stage": stage, "result": result, "error_category": category,
+	}}
 }

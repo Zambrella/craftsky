@@ -205,7 +205,9 @@ func executeLikeCommand(
 		AcceptedAbsent: func() pdscommands.TerminalResult {
 			return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
 		},
-		Rejected: func(err error) pdscommands.TerminalResult { return RejectedCommandResult(runID, err) },
+		Rejected: func(err error) pdscommands.TerminalResult {
+			return RejectedCommandResult(runID, err, request.Context())
+		},
 	})
 }
 

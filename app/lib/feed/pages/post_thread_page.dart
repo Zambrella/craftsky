@@ -107,9 +107,12 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         destinationError != null &&
         classifyNotificationDestinationError(destinationError) ==
             NotificationDestinationErrorKind.permanentUnavailable;
-    final visibleSection = isPermanentError
+    final retainedSection = isPermanentError
         ? null
         : sectionAsync.value ?? _lastSection;
+    final visibleSection = retainedSection == null
+        ? null
+        : ref.watch(postCommentSectionPresentationProvider(retainedSection));
     if (sectionAsync case AsyncData(:final value)) {
       _lastSection = value;
     }

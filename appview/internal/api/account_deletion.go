@@ -13,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 func CreateAccountDeletionIntentHandler(service accountdeletion.Service, browserOrigins ...string) http.Handler {
@@ -60,7 +61,7 @@ func CreateAccountDeletionIntentHandler(service accountdeletion.Service, browser
 			BrowserRedirectURI: body.BrowserRedirectURI,
 		})
 		if err != nil {
-			writeAccountDeletionError(w, runID, err)
+			writeAccountDeletionError(w, r, err, "account.deletion.intent")
 			return
 		}
 		envelope.WriteJSON(w, http.StatusCreated, result)
@@ -105,7 +106,7 @@ func AcceptAccountDeletionHandler(service accountdeletion.Service) http.Handler 
 			ConfirmationDID: body.ConfirmationDID,
 		})
 		if err != nil {
-			writeAccountDeletionError(w, runID, err)
+			writeAccountDeletionError(w, r, err, "account.deletion.accept")
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
@@ -129,7 +130,7 @@ func CancelAccountDeletionIntentHandler(service accountdeletion.Service) http.Ha
 			return
 		}
 		if err := service.CancelIntent(r.Context(), jobID, owner); err != nil {
-			writeAccountDeletionError(w, runID, err)
+			writeAccountDeletionError(w, r, err, "account.deletion.cancel")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -145,7 +146,8 @@ func accountDeletionScope(w http.ResponseWriter, r *http.Request) (owner syntax.
 	return did, true
 }
 
-func writeAccountDeletionError(w http.ResponseWriter, runID string, err error) {
+func writeAccountDeletionError(w http.ResponseWriter, r *http.Request, err error, operation string) {
+	runID := middleware.GetRunID(r.Context())
 	switch {
 	case errors.Is(err, accountdeletion.ErrReauthenticationRequired):
 		envelope.WriteError(w, http.StatusUnauthorized, "reauthentication_required", "fresh account reauthentication is required", runID, nil)
@@ -154,12 +156,14 @@ func writeAccountDeletionError(w http.ResponseWriter, runID string, err error) {
 	case errors.Is(err, accountdeletion.ErrDeletionAlreadyPending):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_pending", "account deletion is already pending", runID, nil)
 	case errors.Is(err, accountdeletion.ErrIdentityUnavailable):
+		observability.ReportRequestFailure(r.Context(), err, operation, "identity")
 		envelope.WriteError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable", runID, nil)
 	case errors.Is(err, accountdeletion.ErrPointOfNoReturn):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_accepted", "account deletion has already been accepted", runID, nil)
 	case errors.Is(err, accountdeletion.ErrProviderBillingMustBeResolved):
 		envelope.WriteError(w, http.StatusConflict, "provider_billing_must_be_resolved", "Resolve provider billing and refresh subscription status before deleting this account.", runID, nil)
 	default:
+		observability.ReportRequestFailure(r.Context(), err, operation, "store")
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "account deletion operation failed", runID, nil)
 	}
 }

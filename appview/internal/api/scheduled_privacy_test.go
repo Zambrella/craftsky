@@ -179,8 +179,42 @@ func TestIR017ScheduledSaveLifecycleExcludesCanariesFromApplicableSinks(t *testi
 		t.Fatal("observer flush failed")
 	}
 
-	// Allow the reviewed operation owner only in one failed issue context.
-	captured := collector.localLogs.String() + collector.externalLogs.String()
+	// The failure owner is selected on its issue and cause-bearing supporting
+	// logs, never on success/request history or metric labels.
+	captured := ""
+	selectedLogFailures := 0
+	selectLog := func(raw []byte) {
+		t.Helper()
+		var fields map[string]any
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if diagnostic, ok := fields["diagnostic"].(map[string]any); ok && diagnostic["operation_account_did"] != nil {
+			if fields["operation"] != "scheduled.post.create" || fields["failure_stage"] != "store" || fields["result"] != "error" || fields["causes"] == nil || diagnostic["operation_account_did"] != canaries[1] || len(diagnostic) != 1 {
+				t.Fatalf("unexpected private log context %#v", fields)
+			}
+			delete(diagnostic, "operation_account_did")
+			selectedLogFailures++
+		}
+		selected, err := json.Marshal(fields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		captured += string(selected)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(collector.localLogs.String()), "\n") {
+		selectLog([]byte(line))
+	}
+	for _, event := range collector.externalLogs.events {
+		raw, err := json.Marshal(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selectLog(raw)
+	}
+	if selectedLogFailures != 2 {
+		t.Fatalf("selected failure logs=%d want2", selectedLogFailures)
+	}
 	metricBytes, _ := json.Marshal(collector.metrics.Calls())
 	captured += string(metricBytes)
 	selectedFailures := 0

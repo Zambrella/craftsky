@@ -109,7 +109,8 @@ void main() {
   test('IT-012 native dependencies, targets, and key inputs are explicit', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final podfile = File('ios/Podfile').readAsStringSync();
-    final config = File('config/.env.production.local.example').readAsStringSync();
+    final config = File('config/.env.production.local.example')
+        .readAsStringSync();
     final nativeService = File(
       'lib/subscriptions/services/revenuecat_service_native.dart',
     ).readAsStringSync();

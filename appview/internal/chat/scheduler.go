@@ -6,6 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/chatdb"
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ func (worker *Synchronizer) Run(ctx context.Context) error {
 		pulses = ticker.C
 	}
 	type completion struct {
+		ctx   context.Context
 		owner syntax.DID
 		err   error
 	}
@@ -57,7 +59,11 @@ func (worker *Synchronizer) Run(ctx context.Context) error {
 				}
 				active[owner] = true
 				tasks.Add(1)
-				go func() { defer tasks.Done(); completed <- completion{owner: owner, err: worker.Poll(runCtx, owner)} }()
+				go func() {
+					defer tasks.Done()
+					jobCtx := ctxkeys.WithDiagnosticOccurrence(runCtx)
+					completed <- completion{ctx: jobCtx, owner: owner, err: worker.Poll(jobCtx, owner)}
+				}()
 			}
 		}
 		select {
@@ -93,7 +99,7 @@ func (worker *Synchronizer) Run(ctx context.Context) error {
 				if errors.As(item.err, &failure) {
 					stage, attempt = failure.stage, failure.attempt
 				}
-				worker.observer.ObservePrivateFailure(runCtx, item.err, item.owner, "", "chat.sync", stage, "error", attempt)
+				worker.observer.ObservePrivateFailure(item.ctx, item.err, item.owner, "", "chat.sync", stage, "error", attempt)
 			}
 		}
 	}

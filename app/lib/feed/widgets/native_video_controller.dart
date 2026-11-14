@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -452,9 +456,11 @@ final class NativeVideoController {
 
 final class MediaKitNativeVideoAdapter
     implements NativeVideoViewAdapter, NativeVideoFullscreenAdapter {
-  new({Player? player}) : _player = player ?? Player();
+  new({Player? player, this._reporter = const NoopErrorReporter()})
+    : _player = player ?? Player();
 
   final Player _player;
+  final ErrorReporter _reporter;
   Orientation? _orientationBeforeFullscreen;
   bool _fullscreen = false;
 
@@ -478,15 +484,16 @@ final class MediaKitNativeVideoAdapter
       controller: VideoController(_player),
       aspectRatio: aspectRatio,
       controls: nativeVideoControls,
-      onEnterFullscreen: () => _enterFullscreen(
+      onEnterFullscreen: () => enterFullscreen(
         context,
         isPortraitVideo: aspectRatio < 1,
       ),
-      onExitFullscreen: _exitFullscreen,
+      onExitFullscreen: exitFullscreen,
     ),
   );
 
-  Future<void> _enterFullscreen(
+  @visibleForTesting
+  Future<void> enterFullscreen(
     BuildContext context, {
     required bool isPortraitVideo,
   }) async {
@@ -506,11 +513,14 @@ final class MediaKitNativeVideoAdapter
         ),
       ]);
     } on Object catch (error, stackTrace) {
-      debugPrint('$error\n$stackTrace');
+      unawaited(
+        _reportFullscreenFailure(error, stackTrace, 'fullscreen_enter'),
+      );
     }
   }
 
-  Future<void> _exitFullscreen() async {
+  @visibleForTesting
+  Future<void> exitFullscreen() async {
     _fullscreen = false;
     if (defaultTargetPlatform != TargetPlatform.android &&
         defaultTargetPlatform != TargetPlatform.iOS) {
@@ -526,10 +536,37 @@ final class MediaKitNativeVideoAdapter
       await Future<void>.delayed(const Duration(milliseconds: 300));
       await SystemChrome.setPreferredOrientations(const []);
     } on Object catch (error, stackTrace) {
-      debugPrint('$error\n$stackTrace');
+      unawaited(_reportFullscreenFailure(error, stackTrace, 'fullscreen_exit'));
     } finally {
       _orientationBeforeFullscreen = null;
     }
+  }
+
+  Future<void> _reportFullscreenFailure(
+    Object error,
+    StackTrace stackTrace,
+    String stage,
+  ) async {
+    final context = ReportContext(
+      feature: 'Video',
+      operation: 'video.fullscreen',
+      classification: 'video.fullscreen.failed',
+      safeDiagnostics: {'failureStage': stage},
+    );
+    final message = DiagnosticMessage(
+      'Video fullscreen failed',
+      context: context,
+    );
+    if (isExpectedDiagnostic(error, context)) {
+      Logger('NativeVideoPlayer').warning(message, error, stackTrace);
+      return;
+    }
+    Logger('NativeVideoPlayer').severe(message, error, stackTrace);
+    await GuardedErrorReporter(_reporter).captureException(
+      error,
+      stackTrace: stackTrace,
+      context: context,
+    );
   }
 
   @override

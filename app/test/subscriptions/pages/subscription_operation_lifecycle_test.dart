@@ -4,6 +4,8 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -18,7 +20,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/recording_error_reporter.dart';
+
 void main() {
+  testWidgets('consumed paywall failure reports its original cause once', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    addTearDown(harness.dispose);
+    await harness.pump(tester);
+    final cause = StateError('PRIVATE_BILLING_PAYLOAD');
+    final presentation = Completer<DirectPaywallResult>();
+    harness.service.paywall = () => presentation.future;
+    await _tap(tester, 'purchase');
+    await tester.pump();
+    presentation.completeError(cause, StackTrace.current);
+    await tester.pumpAndSettle();
+
+    expect(harness.reporter.errors, [same(cause)]);
+    expect(
+      (harness.reporter.contexts.single.workflow!
+              as PrivateOperationalFailureContext)
+          .accountDid,
+      'did:plc:alice',
+    );
+    expect(harness.pending, isNull);
+    expect(find.textContaining('PRIVATE_BILLING_PAYLOAD'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'complimentary Business can buy Plus without repeated payment or pending',
     (tester) async {
@@ -259,6 +289,7 @@ final class _Harness {
           (ref, account) async => api,
         ),
         revenueCatServiceProvider.overrideWithValue(service),
+        errorReporterProvider.overrideWithValue(reporter),
       ],
     );
     // AppShell keeps this provider alive while the settings route is open.
@@ -269,6 +300,7 @@ final class _Harness {
   }
 
   final api = _Api();
+  final reporter = RecordingErrorReporter();
   final ValueNotifier<bool> showPage = ValueNotifier(true);
   late final _Service service;
   late final SessionRegistry registry;

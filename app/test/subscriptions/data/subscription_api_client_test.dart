@@ -86,7 +86,7 @@ void main() {
         (server) => server.reply(500, {
           'error': 'internal_error',
           'message': 'sensitive database details',
-          'requestId': 'request-500',
+          'requestId': 'e0000000-0000-4000-8000-000000000015',
         }),
       );
       await expectLater(
@@ -95,7 +95,7 @@ void main() {
           isA<ApiServerError>().having(
             (error) => error.details.requestId,
             'requestId',
-            'request-500',
+            'e0000000-0000-4000-8000-000000000015',
           ),
         ),
       );

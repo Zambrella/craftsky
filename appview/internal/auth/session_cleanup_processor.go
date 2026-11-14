@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/ctxkeys"
 )
 
 const maximumAuthCleanupBatchSize = 1000
@@ -80,6 +81,12 @@ type OAuthRevocationProcessorOptions struct {
 	MaxCredentialRetention time.Duration
 }
 
+// AuthCleanupFailureObserver receives only failed operations. Session IDs,
+// OAuth state, credentials and installation routing never enter this boundary.
+type AuthCleanupFailureObserver interface {
+	ObservePrivateFailure(context.Context, error, syntax.DID, string, string, string, string, int)
+}
+
 type OAuthCleanupObserver interface {
 	ObserveOAuthCleanup(ctx context.Context, credentialKind, result, reason string, duration time.Duration, attempt int)
 }
@@ -145,7 +152,8 @@ func (processor *OAuthRevocationProcessor) ProcessBatch(ctx context.Context) (in
 	}
 	var processingErrors []error
 	for _, claim := range claims {
-		if err := processor.processClaim(ctx, claim, now); err != nil {
+		jobCtx := ctxkeys.WithDiagnosticOccurrence(ctx)
+		if err := processor.processClaim(jobCtx, claim, now); err != nil {
 			processingErrors = append(processingErrors, err)
 		}
 	}
@@ -174,6 +182,7 @@ func (processor *OAuthRevocationProcessor) processCallbackCredentials(
 	}
 	var processingErrors []error
 	for _, claim := range claims {
+		ctx := ctxkeys.WithDiagnosticOccurrence(ctx)
 		started := time.Now()
 		var data oauth.ClientSessionData
 		if err := json.Unmarshal(claim.Data, &data); err != nil {
@@ -192,8 +201,9 @@ func (processor *OAuthRevocationProcessor) processCallbackCredentials(
 			}
 			if applied || finishErr != nil {
 				processor.observeCleanup(ctx, "callback", cleanupResult(finishErr, false, exhausted), cleanupReason(finishErr, reason), started, claim.Attempts+1)
+				processor.observeFailure(ctx, errors.Join(err, finishErr), "", "callback_decode", finishErr, exhausted, claim.Attempts+1)
 			}
-			processingErrors = append(processingErrors, finishErr)
+			processingErrors = append(processingErrors, authCleanupResultError(err, finishErr))
 			continue
 		}
 		operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
@@ -219,8 +229,15 @@ func (processor *OAuthRevocationProcessor) processCallbackCredentials(
 		}
 		if applied || finishErr != nil {
 			processor.observeCleanup(ctx, "callback", result, reason, started, claim.Attempts+1)
+			if cause := errors.Join(revokeErr, finishErr); cause != nil {
+				stage := "callback_revoke"
+				if finishErr != nil {
+					stage = "callback_finalization"
+				}
+				processor.observeFailure(ctx, cause, "", stage, finishErr, exhausted, claim.Attempts+1)
+			}
 		}
-		processingErrors = append(processingErrors, finishErr)
+		processingErrors = append(processingErrors, authCleanupResultError(revokeErr, finishErr))
 	}
 	return len(claims), errors.Join(processingErrors...)
 }
@@ -466,8 +483,9 @@ func (processor *OAuthRevocationProcessor) processClaim(
 		}
 		if applied || retryErr != nil {
 			processor.observeCleanup(ctx, "parent", cleanupResult(retryErr, false, exhausted), cleanupReason(retryErr, reason), started, claim.Attempts+1)
+			processor.observeFailure(ctx, errors.Join(err, retryErr), claim.Owner, "parent_decode", retryErr, exhausted, claim.Attempts+1)
 		}
-		return retryErr
+		return authCleanupResultError(err, retryErr)
 	}
 	operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
 	err := processor.revoker.RevokeSession(operationCtx, data)
@@ -489,8 +507,13 @@ func (processor *OAuthRevocationProcessor) processClaim(
 	}
 	if applied || retryErr != nil {
 		processor.observeCleanup(ctx, "parent", cleanupResult(retryErr, false, exhausted), cleanupReason(retryErr, reason), started, claim.Attempts+1)
+		stage := "parent_revoke"
+		if retryErr != nil {
+			stage = "parent_finalization"
+		}
+		processor.observeFailure(ctx, errors.Join(err, retryErr), claim.Owner, stage, retryErr, exhausted, claim.Attempts+1)
 	}
-	return retryErr
+	return authCleanupResultError(err, retryErr)
 }
 
 func (processor *OAuthRevocationProcessor) observeCleanup(
@@ -504,6 +527,34 @@ func (processor *OAuthRevocationProcessor) observeCleanup(
 	if processor.observer != nil {
 		processor.observer.ObserveOAuthCleanup(ctx, credentialKind, result, reason, time.Since(started), attempt)
 	}
+}
+
+func (processor *OAuthRevocationProcessor) observeFailure(ctx context.Context, cause error, owner syntax.DID, stage string, finalErr error, exhausted bool, attempt int) {
+	if cause == nil || finalErr != nil {
+		return
+	}
+	if observer, ok := processor.observer.(AuthCleanupFailureObserver); ok {
+		observer.ObservePrivateFailure(ctx, cause, owner, "", "auth.oauth_cleanup", stage, authCleanupFailureOutcome(finalErr, exhausted), attempt)
+	}
+}
+
+// Successfully persisted retries consume the provider failure. Propagated
+// finalization failures retain both causes for the enclosing batch owner.
+func authCleanupResultError(cause, finalErr error) error {
+	if finalErr == nil {
+		return nil
+	}
+	return errors.Join(cause, finalErr)
+}
+
+func authCleanupFailureOutcome(finalErr error, exhausted bool) string {
+	if finalErr != nil {
+		return "error"
+	}
+	if exhausted {
+		return "exhausted"
+	}
+	return "retry"
 }
 
 func cleanupResult(err error, success, exhausted bool) string {
@@ -571,6 +622,7 @@ func (processor *OAuthRevocationProcessor) deleteClaim(
 }
 
 type AuxiliaryCleanupProcessorOptions struct {
+	Observer         AuthCleanupFailureObserver
 	Pool             *pgxpool.Pool
 	Cleaner          FencedNotificationSubscriptionCleaner
 	Now              func() time.Time
@@ -584,6 +636,7 @@ type AuxiliaryCleanupProcessorOptions struct {
 }
 
 type AuxiliaryCleanupProcessor struct {
+	observer         AuthCleanupFailureObserver
 	pool             *pgxpool.Pool
 	cleaner          FencedNotificationSubscriptionCleaner
 	now              func() time.Time
@@ -631,7 +684,7 @@ func NewAuxiliaryCleanupProcessor(
 		options.NewLeaseToken = uuid.New
 	}
 	return &AuxiliaryCleanupProcessor{
-		pool: options.Pool, cleaner: options.Cleaner, now: options.Now,
+		pool: options.Pool, cleaner: options.Cleaner, observer: options.Observer, now: options.Now,
 		newLeaseToken: options.NewLeaseToken, batchSize: options.BatchSize,
 		leaseDuration: options.LeaseDuration, operationTimeout: options.OperationTimeout,
 		maxAttempts: options.MaxAttempts, baseBackoff: options.BaseBackoff, maxBackoff: options.MaxBackoff,
@@ -649,7 +702,8 @@ func (processor *AuxiliaryCleanupProcessor) ProcessBatch(ctx context.Context) (i
 	}
 	var processingErrors []error
 	for _, claim := range claims {
-		if err := processor.processClaim(ctx, claim, now); err != nil {
+		jobCtx := ctxkeys.WithDiagnosticOccurrence(ctx)
+		if err := processor.processClaim(jobCtx, claim, now); err != nil {
 			processingErrors = append(processingErrors, err)
 		}
 	}
@@ -726,7 +780,8 @@ func (processor *AuxiliaryCleanupProcessor) processClaim(
 	claimedAt time.Time,
 ) error {
 	if claim.Attempts >= processor.maxAttempts {
-		return processor.finishFailure(ctx, claim, claimedAt, "attempts_exhausted")
+		_, err := processor.finishFailure(ctx, claim, claimedAt, "attempts_exhausted")
+		return err
 	}
 	operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
 	var err error
@@ -748,7 +803,11 @@ func (processor *AuxiliaryCleanupProcessor) processClaim(
 	}
 	cancel()
 	if err != nil {
-		return processor.finishFailure(ctx, claim, claimedAt, cleanupFailureCategory(err))
+		applied, finishErr := processor.finishFailure(ctx, claim, claimedAt, cleanupFailureCategory(err))
+		if applied && processor.observer != nil && finishErr == nil {
+			processor.observer.ObservePrivateFailure(ctx, err, claim.Owner, claim.ID.String(), "auth.auxiliary_cleanup", "cleanup", authCleanupFailureOutcome(nil, claim.Attempts+1 >= processor.maxAttempts), claim.Attempts+1)
+		}
+		return authCleanupResultError(err, finishErr)
 	}
 	finalCtx, finalCancel := finalizationContext(ctx, processor.operationTimeout)
 	defer finalCancel()
@@ -770,7 +829,7 @@ func (processor *AuxiliaryCleanupProcessor) finishFailure(
 	claim auxiliaryCleanupClaim,
 	now time.Time,
 	category string,
-) error {
+) (bool, error) {
 	nextAttempts := claim.Attempts + 1
 	state := "pending"
 	if nextAttempts >= processor.maxAttempts {
@@ -786,10 +845,9 @@ func (processor *AuxiliaryCleanupProcessor) finishFailure(
 		WHERE id=$1 AND state='leased' AND lease_token=$2
 	`, claim.ID, claim.LeaseToken, state, nextAttempts, nextAt, category, now)
 	if err != nil {
-		return fmt.Errorf("record auxiliary cleanup failure: %w", err)
+		return false, fmt.Errorf("record auxiliary cleanup failure: %w", err)
 	}
-	_ = command.RowsAffected()
-	return nil
+	return command.RowsAffected() == 1, nil
 }
 
 func cleanupBackoff(base, maximum time.Duration, attempt int) time.Duration {

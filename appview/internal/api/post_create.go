@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"path"
 	"slices"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/postpublication"
@@ -248,12 +248,13 @@ func CreatePostHandler(
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
 					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
+						observability.ReportRequestFailure(r.Context(), err, "post.create", "rejection")
 						body, _ := json.Marshal(envelope.Error{
 							Error: "video_blob_missing", Message: "processed video blob is unavailable", RequestID: runID,
 						})
 						return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusBadGateway, ResponseBody: body}
 					}
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter/foundation.dart';
@@ -106,8 +107,15 @@ final class NativeRevenueCatService
       return anonymous
           ? const RevenueCatIdentity.anonymous()
           : RevenueCatIdentity.identified(appUserId);
-    } on Object {
-      throw const RevenueCatServiceException('identity_read_failed');
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'identity_read_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -123,8 +131,15 @@ final class NativeRevenueCatService
       } else {
         await Purchases.logIn(appViewUuid);
       }
-    } on Object {
-      throw const RevenueCatServiceException('identity_write_failed');
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'identity_write_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -134,8 +149,15 @@ final class NativeRevenueCatService
     try {
       final offering = (await Purchases.getOfferings()).all[identifier];
       return offering == null ? null : _NativeRevenueCatOffering(offering);
-    } on Object {
-      throw const RevenueCatServiceException('offering_read_failed');
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'offering_read_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -173,8 +195,15 @@ final class NativeRevenueCatService
         PaywallResult.error ||
         PaywallResult.notPresented => DirectPaywallResult.error,
       };
-    } on Object {
-      throw const RevenueCatServiceException('paywall_failed');
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'paywall_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -242,15 +271,34 @@ final class NativeRevenueCatService
     _requireConfigured();
     try {
       await Purchases.restorePurchases();
-    } on PlatformException catch (error) {
-      final code = PurchasesErrorHelper.getErrorCode(error);
+    } on PlatformException catch (error, stackTrace) {
+      PurchasesErrorCode? code;
+      try {
+        code = PurchasesErrorHelper.getErrorCode(error);
+      } on Object {
+        // Unknown SDK codes retain the original native cause below.
+      }
       if (code == PurchasesErrorCode.receiptAlreadyInUseError ||
           code == PurchasesErrorCode.productAlreadyPurchasedError) {
         throw const StoreAccountConflictException();
       }
-      rethrow;
-    } on Object {
-      throw const RevenueCatServiceException('restore_failed');
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'restore_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'restore_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -270,8 +318,15 @@ final class NativeRevenueCatService
         onPromotionalOfferSucceeded: (_, _, _) =>
             onEvent(CustomerCenterEvent.promotionalOfferSucceeded),
       );
-    } on Object {
-      throw const RevenueCatServiceException('customer_center_failed');
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        RevenueCatServiceException(
+          'customer_center_failed',
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 }
@@ -342,10 +397,31 @@ final class _NativeRevenueCatOffering implements RevenueCatOffering {
       value.getPackage(identifier)?.storeProduct.priceString;
 }
 
-final class RevenueCatServiceException implements Exception {
-  const new(this.code);
+final class RevenueCatServiceException
+    implements Exception, DiagnosticFailureCause {
+  const new(this.code, {this.diagnosticCause, this.diagnosticStack});
 
   final String code;
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
+
+  /// Select only SDK-defined recoverable causes; SDK descriptions stay private.
+  bool get expectedFailure {
+    final cause = diagnosticCause;
+    if (cause is! PlatformException) return false;
+    try {
+      return switch (PurchasesErrorHelper.getErrorCode(cause)) {
+        PurchasesErrorCode.purchaseCancelledError ||
+        PurchasesErrorCode.networkError => true,
+        _ => false,
+      };
+    } on Object {
+      // Unknown or malformed native codes remain actionable.
+      return false;
+    }
+  }
 
   @override
   String toString() => 'RevenueCatServiceException($code)';

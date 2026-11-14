@@ -22,7 +22,7 @@ type safetyDependencies struct {
 	retention *retention.Worker
 }
 
-func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*safetyDependencies, error) {
+func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config, observer *observability.Observer) (*safetyDependencies, error) {
 	targets := map[safetyincident.WorkflowClass]safetyincident.DeadlineTarget{}
 	if cfg.SafetyIntimateImageResponseWithin > 0 {
 		targets[safetyincident.WorkflowIntimateImage] = safetyincident.DeadlineTarget{ResponseWithin: cfg.SafetyIntimateImageResponseWithin}
@@ -49,7 +49,7 @@ func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) 
 	}
 	result.objects = objects
 	result.evidence = safetyincident.NewEvidenceService(pool, objects, time.Now)
-	result.retention = retention.NewWorker(pool, objects, time.Now)
+	result.retention = retention.NewWorker(pool, objects, time.Now, observer)
 	return result, nil
 }
 

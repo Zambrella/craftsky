@@ -79,8 +79,8 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 		}
 		seen[pageKey] = struct{}{}
 		response, err := c.fetchPage(ctx, pageURL.String())
-		var status *providerStatusError
-		if page == 0 && errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
+		var status *ProviderError
+		if page == 0 && errors.As(err, &status) && status.StatusCode() == http.StatusNotFound {
 			// Web checkout has no SDK login to create a first-time customer.
 			// Create the exact server-owned UUID, then re-read: a project/path
 			// misconfiguration must never be mistaken for an empty account.
@@ -114,7 +114,7 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 		}
 		next, err := c.resolveNextPage(*response.NextPage, endpointPath)
 		if err != nil {
-			return subscriptions.CompleteSnapshot{}, errors.New("invalid RevenueCat pagination URL")
+			return subscriptions.CompleteSnapshot{}, fmt.Errorf("invalid RevenueCat pagination URL: %w", err)
 		}
 		pageURL = next
 	}
@@ -177,27 +177,27 @@ func (c *Client) fetchPage(ctx context.Context, endpoint string) (subscriptionPa
 func (c *Client) fetchJSON(ctx context.Context, endpoint string, destination any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("create RevenueCat request: %w", err)
+		return &ProviderError{stage: "create", cause: err}
 	}
 	request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	request.Header.Set("Accept", "application/json")
 	response, err := c.http.Do(request)
 	if err != nil {
-		return errors.New("RevenueCat request failed")
+		return &ProviderError{stage: "request", cause: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return &providerStatusError{StatusCode: response.StatusCode}
+		return &ProviderError{stage: "response", statusCode: response.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, c.config.MaxResponseBytes+1))
 	if err != nil {
-		return errors.New("read RevenueCat response")
+		return &ProviderError{stage: "read", statusCode: response.StatusCode, cause: err}
 	}
 	if int64(len(body)) > c.config.MaxResponseBytes {
-		return errors.New("RevenueCat response exceeds configured limit")
+		return &ProviderError{stage: "oversized", statusCode: response.StatusCode}
 	}
 	if err := json.Unmarshal(body, destination); err != nil {
-		return errors.New("invalid RevenueCat response")
+		return &ProviderError{stage: "decode", statusCode: response.StatusCode, cause: err}
 	}
 	return nil
 }
@@ -210,18 +210,28 @@ func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscript
 	var productID *string
 	if strings.TrimSpace(resource.ID) == "" || strings.TrimSpace(resource.Store) == "" ||
 		strings.TrimSpace(resource.Environment) == "" || strings.TrimSpace(resource.Status) == "" ||
-		resource.GivesAccess == nil || resource.PendingPayment == nil || len(resource.ProductID) == 0 ||
-		json.Unmarshal(resource.ProductID, &productID) != nil || (productID != nil && strings.TrimSpace(*productID) == "") {
+		resource.GivesAccess == nil || resource.PendingPayment == nil || len(resource.ProductID) == 0 {
+		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription response")
+	}
+	if err := json.Unmarshal(resource.ProductID, &productID); err != nil {
+		return subscriptions.ProviderSubscriptionSnapshot{}, &ProviderError{stage: "decode", statusCode: http.StatusOK, cause: err}
+	}
+	if productID != nil && strings.TrimSpace(*productID) == "" {
 		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription response")
 	}
 	product := ""
 	if productID != nil {
 		product = *productID
 	}
-	periodEnd, periodErr := nullableMillis(resource.CurrentPeriodEndsAt)
-	endsAt, endsErr := nullableMillis(resource.EndsAt)
-	if periodErr != nil || endsErr != nil || (resource.Store == "promotional" &&
-		(len(resource.CurrentPeriodEndsAt) == 0 || len(resource.EndsAt) == 0)) {
+	periodEnd, err := nullableMillis(resource.CurrentPeriodEndsAt)
+	if err != nil {
+		return subscriptions.ProviderSubscriptionSnapshot{}, &ProviderError{stage: "decode", statusCode: http.StatusOK, cause: err}
+	}
+	endsAt, err := nullableMillis(resource.EndsAt)
+	if err != nil {
+		return subscriptions.ProviderSubscriptionSnapshot{}, &ProviderError{stage: "decode", statusCode: http.StatusOK, cause: err}
+	}
+	if resource.Store == "promotional" && (len(resource.CurrentPeriodEndsAt) == 0 || len(resource.EndsAt) == 0) {
 		// A missing grant expiry must not turn malformed timed access into a
 		// lifetime grant. Explicit null bounds are documented lifetime access.
 		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription expiry")
@@ -288,7 +298,7 @@ func (c *Client) promotionalEntitlements(ctx context.Context, resource subscript
 		}
 		next, err := c.resolveNextPage(*page.NextPage, endpointPath)
 		if err != nil {
-			return nil, errors.New("invalid RevenueCat entitlement pagination URL")
+			return nil, fmt.Errorf("invalid RevenueCat entitlement pagination URL: %w", err)
 		}
 		if _, duplicate := seenPages[next.String()]; duplicate {
 			return nil, errors.New("RevenueCat entitlement pagination loop detected")
@@ -313,14 +323,6 @@ func millisTime(value *int64) *time.Time {
 	return &timestamp
 }
 
-// providerStatusError preserves the safe provider status without retaining a
-// response body or a customer-bearing URL in diagnostics.
-type providerStatusError struct{ StatusCode int }
-
-func (e *providerStatusError) Error() string {
-	return fmt.Sprintf("RevenueCat request returned status %d", e.StatusCode)
-}
-
 func (c *Client) createCustomer(ctx context.Context, customerID uuid.UUID) error {
 	endpoint := *c.base
 	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/projects/" + url.PathEscape(c.config.ProjectID) + "/customers"
@@ -328,22 +330,22 @@ func (c *Client) createCustomer(ctx context.Context, customerID uuid.UUID) error
 		ID string `json:"id"`
 	}{ID: customerID.String()})
 	if err != nil {
-		return fmt.Errorf("encode RevenueCat customer: %w", err)
+		return &ProviderError{stage: "encode", cause: err}
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), strings.NewReader(string(body)))
 	if err != nil {
-		return fmt.Errorf("create RevenueCat customer request: %w", err)
+		return &ProviderError{stage: "create", cause: err}
 	}
 	request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 	response, err := c.http.Do(request)
 	if err != nil {
-		return fmt.Errorf("RevenueCat customer creation request failed: %w", err)
+		return &ProviderError{stage: "request", cause: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusConflict {
-		return &providerStatusError{StatusCode: response.StatusCode}
+		return &ProviderError{stage: "response", statusCode: response.StatusCode}
 	}
 	return nil
 }

@@ -20,6 +20,7 @@ import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -81,6 +82,7 @@ final class _RetryPreferencesRepository
 }
 
 final class _RecordingAuthController extends AuthController {
+  @visibleForTesting
   int signOutCalls = 0;
 
   @override
@@ -140,6 +142,63 @@ final _eligibilityOverride = accountEligibilityProvider.overrideWith(
 );
 
 void main() {
+  for (final (error, message) in <(ApiException, String)>[
+    (
+      const ApiNetworkError('PRIVATE_NETWORK'),
+      "You're offline. Check your connection and try again.",
+    ),
+    (
+      const ApiServerError('PRIVATE_SERVER'),
+      'CraftSky is having trouble right now. Please try again.',
+    ),
+    (
+      const ApiBadRequest(
+        'rate_limited',
+        details: ApiFailureDetails(statusCode: 429),
+      ),
+      'Too many requests. Please wait a moment and try again.',
+    ),
+  ]) {
+    testWidgets('account recovery explains ${error.runtimeType}', (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'test-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          retry: (_, _) => null,
+          overrides: [
+            _onboardingOverride,
+            _eligibilityOverride,
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            activeAccountInitializationProvider.overrideWith((ref) async {
+              await ref.watch(sessionRegistryProvider.future);
+              throw error;
+            }),
+            authControllerProvider.overrideWith(_RecordingAuthController.new),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => ActiveAccountInitializationGate(
+              child: child!,
+            ),
+            home: const Text('signed-in-content'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(message), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
+      expect(find.textContaining('PRIVATE_'), findsNothing);
+    });
+  }
+
   testWidgets(
     'root initialization gate keeps a pending snackbar inside an Overlay',
     (tester) async {

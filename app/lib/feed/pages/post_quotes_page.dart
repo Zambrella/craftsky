@@ -59,6 +59,7 @@ class PostQuotesPage extends ConsumerWidget {
         ),
         (final state?, _) => AutoPaginatedListView(
           itemCount: state.items.length,
+          identities: [for (final item in state.items) item.uri],
           emptyState: Semantics(
             label: l10n.postInteractionQuotesEmpty,
             liveRegion: true,

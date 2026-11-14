@@ -8,7 +8,10 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -164,6 +167,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final generation = _generation;
     final accountOperation = ContentReadGuard.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
@@ -199,7 +203,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
           incrementalError: null,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
@@ -207,6 +211,15 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         _retainAfterStaleRead(current, lease);
         return;
       }
+      reportConsumedFailure(
+        error,
+        stack,
+        reporter: reporter,
+        feature: 'BusinessEvents',
+        operation: 'events.profile_load_more',
+        accountDid: ownership?.session.account.did.value,
+        fallbackKind: AppErrorKind.backgroundLoadFailed,
+      );
       state = AsyncData(
         current.copyWith(isLoadingMore: false, incrementalError: error),
       );
@@ -224,6 +237,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final generation = ++_generation;
     final accountOperation = ContentReadGuard.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
@@ -256,7 +270,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
           refreshGeneration: generation,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
@@ -264,6 +278,15 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         _retainAfterStaleRead(current, lease);
         return;
       }
+      reportConsumedFailure(
+        error,
+        stack,
+        reporter: reporter,
+        feature: 'BusinessEvents',
+        operation: 'events.profile_refresh',
+        accountDid: ownership?.session.account.did.value,
+        fallbackKind: AppErrorKind.backgroundLoadFailed,
+      );
       state = AsyncData(
         current.copyWith(isRefreshing: false, refreshError: error),
       );
@@ -276,6 +299,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       return;
     }
     final read = ContentReadGuard.capture(ref);
+    final reporter = ref.read(errorReporterProvider);
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
     );
@@ -293,11 +317,21 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
           ),
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       read.publish(
-        () => state = AsyncData(
-          current.copyWith(incrementalError: error, isLoadingMore: false),
-        ),
+        () {
+          reportConsumedFailure(
+            error,
+            stack,
+            reporter: reporter,
+            feature: 'BusinessEvents',
+            operation: 'events.profile_load_more',
+            fallbackKind: AppErrorKind.backgroundLoadFailed,
+          );
+          state = AsyncData(
+            current.copyWith(incrementalError: error, isLoadingMore: false),
+          );
+        },
       );
     }
   }

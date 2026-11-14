@@ -4,6 +4,7 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 final class BillingAccountSetupException implements Exception {
   const new(this.code);
@@ -21,12 +22,14 @@ final class BillingAccountSetupCoordinator {
     required this.setCustomer,
     required this.api,
     required this.revenueCat,
+    this.diagnostics = const SubscriptionDiagnostics(),
   });
 
   final SessionRegistry Function() readRegistry;
   final Future<void> Function(String did, String appUserId) setCustomer;
   final SubscriptionApi api;
   final RevenueCatIdentityService revenueCat;
+  final SubscriptionDiagnostics diagnostics;
 
   Future<BillingState> setup(ActiveAccountLease lease) async {
     void requireCurrent() {
@@ -50,7 +53,8 @@ final class BillingAccountSetupCoordinator {
           () async {},
           isCurrent: () => readRegistry().isCurrent(lease),
         );
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.identify');
         // AppView remains authoritative even when this device's store belongs
         // to another account or its SDK is unavailable. Native actions perform
         // the same ownership/identity checks before any provider operation.
