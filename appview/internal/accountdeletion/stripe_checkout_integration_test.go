@@ -19,7 +19,7 @@ func TestDeletionCannotOrphanAnUnresolvedStripeCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accounts)+stripeCheckoutDeletionDDL(t))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accounts)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Now().UTC()
 	participant := subscriptions.NewDeletionParticipant()

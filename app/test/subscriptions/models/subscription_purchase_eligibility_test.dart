@@ -5,6 +5,72 @@ import 'package:craftsky_app/subscriptions/models/subscription_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'complimentary-only access permits either paid tier in either native store',
+    () {
+      final state = _state().copyWith(
+        subscriptions: [],
+        licenses: [],
+        promotionalGrants: const [
+          PromotionalGrant(
+            id: '50000000-0000-4000-8000-000000000001',
+            tier: SubscriptionTier.plus,
+            givesAccess: true,
+          ),
+        ],
+      );
+      for (final store in ['app_store', 'play_store']) {
+        for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+          expect(
+            purchaseEligibility(state, tier, store: store).eligible,
+            isTrue,
+          );
+        }
+      }
+    },
+  );
+
+  test(
+    'complimentary overlap preserves paid duplicate and replacement rules',
+    () {
+      final state = _state().copyWith(
+        promotionalGrants: const [
+          PromotionalGrant(
+            id: '50000000-0000-4000-8000-000000000001',
+            tier: SubscriptionTier.business,
+            givesAccess: true,
+          ),
+        ],
+      );
+      expect(
+        purchaseEligibility(
+          state,
+          SubscriptionTier.plus,
+          store: 'app_store',
+          allowTierChanges: true,
+        ).eligible,
+        isFalse,
+      );
+      expect(
+        purchaseEligibility(
+          state,
+          SubscriptionTier.business,
+          store: 'app_store',
+          allowTierChanges: true,
+        ).eligible,
+        isTrue,
+      );
+      expect(
+        purchaseEligibility(
+          state,
+          SubscriptionTier.business,
+          store: 'play_store',
+          allowTierChanges: true,
+        ).eligible,
+        isFalse,
+      );
+    },
+  );
   for (final store in ['app_store', 'play_store']) {
     test(
       'pending web checkout blocks a new $store purchase before indexing',

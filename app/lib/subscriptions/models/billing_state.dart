@@ -95,6 +95,24 @@ final class BillingLicense with BillingLicenseMappable {
 }
 
 @MappableClass(ignoreNull: true, generateMethods: _billingDecodeMethods)
+final class PromotionalGrant with PromotionalGrantMappable {
+  const new({
+    required this.id,
+    required this.tier,
+    required this.givesAccess,
+    this.expiresAt,
+  });
+
+  final String id;
+  final SubscriptionTier tier;
+  final bool givesAccess;
+  final DateTime? expiresAt;
+
+  @override
+  String toString() => 'PromotionalGrant([REDACTED])';
+}
+
+@MappableClass(ignoreNull: true, generateMethods: _billingDecodeMethods)
 final class BillingState with BillingStateMappable {
   const new({
     required this.billingAccountId,
@@ -104,6 +122,7 @@ final class BillingState with BillingStateMappable {
     required this.reconciliationStale,
     required this.subscriptions,
     required this.licenses,
+    this.promotionalGrants = const [],
     this.webCheckoutPending = false,
     this.reconciliationRequestedAt,
     this.reconciledAt,
@@ -134,6 +153,13 @@ final class BillingState with BillingStateMappable {
         throw const FormatException('Duplicate billing license relationship');
       }
     }
+    final promotionalIds = <String>{};
+    for (final grant in state.promotionalGrants) {
+      _requireUuid(grant.id, 'promotionalGrants.id');
+      if (!promotionalIds.add(grant.id)) {
+        throw const FormatException('Duplicate promotional grant');
+      }
+    }
     return state;
   }
 
@@ -146,11 +172,30 @@ final class BillingState with BillingStateMappable {
   final bool reconciliationStale;
   final List<BillingSubscription> subscriptions;
   final List<BillingLicense> licenses;
+  final List<PromotionalGrant> promotionalGrants;
   final bool webCheckoutPending;
 
   Map<String, BillingLicense> get licensesBySubscriptionId => {
     for (final license in licenses) license.subscriptionId: license,
   };
+
+  /// Complimentary access is separate from paid provider obligations. Keep
+  /// access authority on the server, including when a refresh is delayed.
+  Map<SubscriptionTier, DateTime?> get promotionalAccessEndsByTier {
+    final result = <SubscriptionTier, DateTime?>{};
+    for (final grant in promotionalGrants.where((value) => value.givesAccess)) {
+      if (!result.containsKey(grant.tier)) {
+        result[grant.tier] = grant.expiresAt;
+      } else {
+        final previous = result[grant.tier];
+        if (previous != null &&
+            (grant.expiresAt == null || grant.expiresAt!.isAfter(previous))) {
+          result[grant.tier] = grant.expiresAt;
+        }
+      }
+    }
+    return result;
+  }
 
   @override
   String toString() => 'BillingState([REDACTED])';
@@ -200,6 +245,26 @@ void _validateBillingStateMap(Map<String, dynamic> map) {
   _requireType<bool>(map, 'reconciliationStale');
   if (map.containsKey('webCheckoutPending')) {
     _requireType<bool>(map, 'webCheckoutPending');
+  }
+
+  if (map.containsKey('promotionalGrants')) {
+    final grants = _requireType<List<dynamic>>(map, 'promotionalGrants');
+    for (final value in grants) {
+      if (value is! Map<String, dynamic>) {
+        throw const FormatException('Invalid promotionalGrants item');
+      }
+      _requireType<String>(value, 'id');
+      final tier = _requireType<String>(value, 'tier');
+      if (tier != 'plus' && tier != 'business') {
+        throw const FormatException('Invalid promotional tier');
+      }
+      _requireType<bool>(value, 'givesAccess');
+      _requireOptionalType<String>(value, 'expiresAt');
+      final expiresAt = value['expiresAt'];
+      if (expiresAt is String && DateTime.tryParse(expiresAt) == null) {
+        throw const FormatException('Invalid promotional expiry');
+      }
+    }
   }
 
   final subscriptions = _requireType<List<dynamic>>(map, 'subscriptions');

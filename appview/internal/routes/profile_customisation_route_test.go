@@ -52,7 +52,7 @@ func TestProfileCustomisationRoutePersistsForAuthenticatedOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(profileMigration)+string(removeBorderMigration)+string(subscriptionMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, profileCustomisationRouteTestDDL+string(profileMigration)+string(removeBorderMigration)+string(subscriptionMigration))
 	seedPlusRouteAccess(t, pool, "did:plc:test")
 	deps := testDeps()
 	deps.DB = pool

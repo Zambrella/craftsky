@@ -25,7 +25,7 @@ func TestSubscriptionDeletionParticipantBlocksClosesAndUnassigns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration)+string(eventsMigration)+stripeCheckoutDeletionDDL(t))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+string(eventsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:deleting-billing-owner")
@@ -147,7 +147,7 @@ func TestSubscriptionDeletionParticipantBlocksMixedProviderBilling(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 	participant := subscriptions.NewDeletionParticipant()
@@ -236,7 +236,7 @@ func TestAcceptedSelfAssignedDeletionSerializesWithSnapshotApply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 13, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:deletion-snapshot-race")

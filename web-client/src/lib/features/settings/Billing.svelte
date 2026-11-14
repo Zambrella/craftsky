@@ -18,6 +18,7 @@
 		type SubscriptionAccessState
 	} from '../shell/subscription-access.svelte';
 	import {
+		activePromotionalGrants,
 		canStartWebCheckout,
 		hasCurrentSubscription,
 		isCurrentSubscription,
@@ -56,6 +57,9 @@
 		billing?.subscriptions.filter((subscription) =>
 			isCurrentSubscription(subscription)
 		) || []
+	);
+	const promotionalGrants = $derived(
+		billing ? activePromotionalGrants(billing) : []
 	);
 	function requireCurrent() {
 		if (!active || `${session.id}:${session.did}` !== account)
@@ -194,6 +198,22 @@
 				Access until {dateTime(access.accessEndsAt)}
 			</p>{/if}
 	</section>
+	{#each promotionalGrants as grant (grant.id)}
+		<section
+			class="panel"
+			aria-label={`Complimentary CraftSky ${title(grant.tier)}`}
+		>
+			<h2>Complimentary CraftSky {title(grant.tier)}</h2>
+			<p>This complimentary access has no recurring charge.</p>
+			{#if grant.expiresAt !== undefined && grant.expiresAt !== null}<p
+					class="muted"
+				>
+					Complimentary access ends {dateTime(grant.expiresAt)}.
+				</p>{:else}<p class="muted">
+					Complimentary access has no expiry date.
+				</p>{/if}
+		</section>
+	{/each}
 	<div class="billing-refresh">
 		<button disabled={work.busy} onclick={refresh}>
 			{work.busy && !purchasingTier && !managingSubscription
@@ -256,6 +276,13 @@
 	{:else if !billing.webCheckoutAvailable}
 		<p class="muted">Web subscriptions are not available yet.</p>
 	{:else}
+		{#if promotionalGrants.length}
+			<p class="notice">
+				You can subscribe while your complimentary access is active. Paid
+				billing starts immediately. Unused complimentary time is not added to
+				your paid subscription.
+			</p>
+		{/if}
 		<p class="muted">
 			Choose Plus or Business for this account. You can review the price and
 			billing details before paying securely with Stripe.
@@ -294,7 +321,9 @@
 					onclick={() => purchase(tier)}
 					>{purchasingTier === tier
 						? 'Opening checkout…'
-						: `Choose ${title(tier)}`}</button
+						: promotionalGrants.length
+							? `Subscribe to ${title(tier)}`
+							: `Choose ${title(tier)}`}</button
 				>
 			{/if}
 		</section>

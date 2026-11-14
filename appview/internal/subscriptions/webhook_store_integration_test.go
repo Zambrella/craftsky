@@ -22,7 +22,7 @@ func TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accounts)+string(events))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accounts)+string(events))
 	store := NewStore(pool)
 	account, _, err := store.EnsureAccount(context.Background(), syntax.DID("did:plc:webhook-owner"))
 	if err != nil {

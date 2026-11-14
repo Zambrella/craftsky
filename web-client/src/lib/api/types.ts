@@ -594,6 +594,12 @@ export interface BillingLicense {
 	assignable: boolean;
 	anomaly: string;
 }
+export interface BillingPromotionalGrant {
+	id: string;
+	tier: 'plus' | 'business';
+	givesAccess: boolean;
+	expiresAt?: string | null;
+}
 export interface BillingState {
 	billingAccountId: string;
 	revenueCatAppUserId: string;
@@ -605,8 +611,10 @@ export interface BillingState {
 	webCheckoutAvailable?: boolean;
 	/** A retained checkout may be resumed; AppView enforces its original tier. */
 	webCheckoutPending?: boolean;
+	/** Actual paid subscriptions and their projections, excluding complimentary grants. */
 	subscriptions: BillingSubscription[];
 	licenses: BillingLicense[];
+	promotionalGrants?: BillingPromotionalGrant[];
 }
 export interface ChatActor {
 	did: DID;

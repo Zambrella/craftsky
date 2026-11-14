@@ -32,8 +32,7 @@ func TestClientRejectsMalformedSuccessfulSubscriptionPages(t *testing.T) {
 	}
 	for _, key := range []string{"id", "product_id", "store", "environment", "status", "gives_access", "pending_payment"} {
 		for _, value := range []string{"missing", "null"} {
-			// A null product is documented for promotional subscriptions. It is
-			// unsupported by the catalog, rather than malformed provider state.
+			// A null product is documented for promotional subscriptions.
 			if key == "product_id" && value == "null" {
 				continue
 			}
@@ -99,6 +98,7 @@ func TestClientAcceptsExplicitFalseNullableProductsAndAdditiveFields(t *testing.
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{
 			"items":[{"id":"sub-promo","product_id":null,"store":"promotional",
 			"environment":"production","status":"future_provider_state","gives_access":false,
+			"current_period_ends_at":null,"ends_at":null,"entitlements":{"items":[]},
 			"pending_payment":false,"future_field":{"ignored":true}}],"future_list_field":true
 		}`)), Header: make(http.Header)}
 	})

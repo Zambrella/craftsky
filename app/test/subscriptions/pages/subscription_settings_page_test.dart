@@ -10,6 +10,47 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
+    'complimentary Plus shows its expiry and both paid subscribe choices',
+    (tester) async {
+      var selected = SubscriptionTier.free;
+      await _pump(
+        tester,
+        _model(promo: true, onPurchase: (tier) => selected = tier),
+      );
+      expect(find.text('Current access: Plus'), findsOneWidget);
+      expect(find.text('Complimentary access'), findsOneWidget);
+      expect(find.textContaining('Plus until'), findsOneWidget);
+      expect(find.textContaining('paid billing immediately'), findsOneWidget);
+      expect(find.text('Manage subscription'), findsNothing);
+      expect(find.text('Subscribe to Plus'), findsOneWidget);
+      await tester.ensureVisible(find.text('Subscribe to Business'));
+      await tester.tap(find.text('Subscribe to Business'));
+      expect(selected, SubscriptionTier.business);
+      await tester.ensureVisible(find.text('Subscribe to Plus'));
+      await tester.tap(find.text('Subscribe to Plus'));
+      expect(selected, SubscriptionTier.plus);
+    },
+  );
+
+  testWidgets(
+    'paid plus complimentary access keeps management without purchase timing',
+    (tester) async {
+      await _pump(tester, _model(store: 'app_store', promo: true));
+      expect(find.text('Complimentary access'), findsOneWidget);
+      expect(find.text('Manage subscription'), findsOneWidget);
+      expect(find.textContaining('paid billing immediately'), findsNothing);
+      expect(find.text('Subscribe to Plus'), findsNothing);
+    },
+  );
+  testWidgets('complimentary lifetime access has a clear no-expiry label', (
+    tester,
+  ) async {
+    await _pump(tester, _model(promo: true, lifetimePromo: true));
+    expect(find.text('Plus with no expiry date'), findsOneWidget);
+    expect(find.textContaining('Plus until'), findsNothing);
+    expect(find.text('Subscribe to Plus'), findsOneWidget);
+  });
+  testWidgets(
     'free account chooses a tier without a payer or assignment step',
     (tester) async {
       var selected = SubscriptionTier.free;
@@ -71,15 +112,17 @@ void main() {
 
 SubscriptionPageModel _model({
   String? store,
+  bool promo = false,
+  bool lifetimePromo = false,
   ValueChanged<SubscriptionTier>? onPurchase,
   SubscriptionOperationNotice? notice,
 }) => SubscriptionPageModel(
   access: SubscriptionAccess(
     did: Did.parse('did:plc:alice'),
-    effectiveTier: store == null
+    effectiveTier: store == null && !promo
         ? SubscriptionTier.free
         : SubscriptionTier.plus,
-    givesAccess: store != null,
+    givesAccess: store != null || promo,
   ),
   billingAvailability: BillingAvailability.available,
   nativeStore: 'app_store',
@@ -115,6 +158,16 @@ SubscriptionPageModel _model({
               anomaly: 'none',
             ),
           ],
+    promotionalGrants: promo
+        ? [
+            PromotionalGrant(
+              id: '50000000-0000-4000-8000-000000000001',
+              tier: SubscriptionTier.plus,
+              givesAccess: true,
+              expiresAt: lifetimePromo ? null : DateTime.utc(2027, 5, 13),
+            ),
+          ]
+        : const [],
   ),
   operationNotice: notice,
   onPurchase: onPurchase ?? (_) {},

@@ -19,7 +19,7 @@ func TestOwnerRefreshUsesOnlyServerStoredBillingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles(did) VALUES('did:plc:identity-owner'),('did:plc:identity-other');
 	`+string(migration))

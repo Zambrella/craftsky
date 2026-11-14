@@ -106,7 +106,7 @@ func TestBillingLifecycleIsIsolatedFromSocialAndRetainedPrivateState(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, isolationSocialDDL+string(migration)+string(checkoutMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, isolationSocialDDL+string(migration)+string(checkoutMigration))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:isolation-owner")

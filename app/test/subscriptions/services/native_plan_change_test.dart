@@ -16,6 +16,7 @@ void main() {
   var grouped = true;
   var changeDuringLookup = false;
   var target = 'business';
+  Map<String, dynamic>? customerOverride;
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     calls.clear();
@@ -23,6 +24,7 @@ void main() {
     grouped = true;
     changeDuringLookup = false;
     target = 'business';
+    customerOverride = null;
     messenger
       ..setMockMethodCallHandler(purchases, (call) async {
         calls.add(call);
@@ -34,11 +36,12 @@ void main() {
           };
         }
         if (call.method == 'getCustomerInfo') {
-          return _customer(
-            debugDefaultTargetPlatformOverride == TargetPlatform.iOS
-                ? 'APP_STORE'
-                : 'PLAY_STORE',
-          );
+          return customerOverride ??
+              _customer(
+                debugDefaultTargetPlatformOverride == TargetPlatform.iOS
+                    ? 'APP_STORE'
+                    : 'PLAY_STORE',
+              );
         }
         if (call.method == 'purchasePackage') {
           throw PlatformException(
@@ -111,6 +114,65 @@ void main() {
     expect(calls.where((call) => call.method == 'purchasePackage'), isEmpty);
   });
   test(
+    'paid replacement uses product evidence when grants shadow access',
+    () async {
+      customerOverride = _promotionalCustomer('PLAY_STORE');
+      const service = NativeRevenueCatService();
+      final offering = await service.getOffering(target);
+      await service.changePlan(offering!, isCurrent: () => current);
+      final purchase = calls.singleWhere(
+        (call) => call.method == 'purchasePackage',
+      );
+      expect(
+        (purchase.arguments
+            as Map<Object?, Object?>)['googleOldProductIdentifier'],
+        'old.plan',
+      );
+      expect(
+        (purchase.arguments as Map<Object?, Object?>)['storeReplacementMode'],
+        'CHARGE_PRORATED_PRICE',
+      );
+    },
+  );
+  test(
+    'promo-only and multiple paid plans cannot replace a fallback',
+    () async {
+      for (final mode in [
+        'promo-only',
+        'wrong-store',
+        'multiple',
+        'one-time',
+      ]) {
+        final customer = _promotionalCustomer(
+          mode == 'wrong-store' ? 'STRIPE' : 'PLAY_STORE',
+        );
+        final subscriptions =
+            customer['subscriptionsByProductIdentifier']
+                as Map<String, dynamic>;
+        if (mode == 'promo-only') subscriptions.remove('old.plan');
+        if (mode == 'multiple') {
+          subscriptions['other.plan'] = _purchaseInfo(
+            'other.plan',
+            'PLAY_STORE',
+          );
+          (customer['activeSubscriptions'] as List<String>).add('other.plan');
+        }
+        if (mode == 'one-time') {
+          (customer['activeSubscriptions'] as List<String>).remove('old.plan');
+        }
+        customerOverride = customer;
+        const service = NativeRevenueCatService();
+        final offering = await service.getOffering(target);
+        await expectLater(
+          service.changePlan(offering!, isCurrent: () => current),
+          throwsA(isA<NativePlanChangeUnavailableException>()),
+          reason: mode,
+        );
+      }
+      expect(calls.where((call) => call.method == 'purchasePackage'), isEmpty);
+    },
+  );
+  test(
     'account switch while iOS groups load cancels before purchase',
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -125,6 +187,41 @@ void main() {
     },
   );
 }
+
+Map<String, dynamic> _promotionalCustomer(String paidStore) {
+  final customer = _customer(paidStore);
+  final promotional = {
+    'identifier': 'plus',
+    'isActive': true,
+    'willRenew': false,
+    'latestPurchaseDate': '2026-11-01T00:00:00Z',
+    'originalPurchaseDate': '2026-11-01T00:00:00Z',
+    'productIdentifier': 'rc_promo_plus',
+    'isSandbox': false,
+    'store': 'PROMOTIONAL',
+  };
+  return {
+    ...customer,
+    'entitlements': {
+      'all': {'plus': promotional},
+      'active': {'plus': promotional},
+    },
+    'activeSubscriptions': ['old.plan', 'rc_promo_plus'],
+    'subscriptionsByProductIdentifier': {
+      'old.plan': _purchaseInfo('old.plan', paidStore),
+      'rc_promo_plus': _purchaseInfo('rc_promo_plus', 'PROMOTIONAL'),
+    },
+  };
+}
+
+Map<String, dynamic> _purchaseInfo(String product, String store) => {
+  'productIdentifier': product,
+  'purchaseDate': '2026-11-01T00:00:00Z',
+  'isSandbox': false,
+  'isActive': true,
+  'willRenew': store != 'PROMOTIONAL',
+  'store': store,
+};
 
 Map<String, dynamic> _offering(String tier) => {
   'identifier': tier,

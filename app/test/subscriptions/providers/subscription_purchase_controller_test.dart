@@ -350,7 +350,74 @@ void main() {
   });
 
   test(
-    'IT-006 recovered assignment requires exact self-access predicates',
+    'complimentary access cannot confirm an unobserved paid purchase',
+    () async {
+      final promoOnly = _state(8, 8).copyWith(
+        promotionalGrants: [
+          const PromotionalGrant(
+            id: '50000000-0000-4000-8000-000000000001',
+            tier: SubscriptionTier.plus,
+            givesAccess: true,
+          ),
+        ],
+      );
+      var presentations = 0;
+      final api = _ScriptedApi([
+        _state(7, 7),
+        _state(7, 7),
+        promoOnly,
+        promoOnly,
+        promoOnly,
+      ]);
+      final result = await _controller(
+        api,
+        presentPaywall: (_, _) async {
+          presentations++;
+          return PaywallOutcome.reconcile;
+        },
+      ).purchase(SubscriptionTier.plus);
+
+      expect(result.outcome, SubscriptionPurchaseOutcome.pending);
+      expect(result.retry, isNotNull);
+      expect(presentations, 1);
+    },
+  );
+
+  test('recognized paid Plus completes when owner has higher access', () async {
+    // Effective access is server-authoritative even when grant display metadata
+    // has not arrived yet. Exact paid license recognition stays required.
+    final dormant = _pair(
+      'same',
+      givesAccess: false,
+      renewal: 'will_not_renew',
+      assigned: 'did:plc:alice',
+    );
+    var presentations = 0;
+    final result = await _controller(
+      _ScriptedApi([
+        _state(7, 7, licenses: [dormant]),
+        _state(7, 7, licenses: [dormant]),
+        _state(8, 8, licenses: [_pair('same', assigned: 'did:plc:alice')]),
+      ]),
+      presentPaywall: (_, _) async {
+        presentations++;
+        return PaywallOutcome.reconcile;
+      },
+      readAccess: (did) async => SubscriptionAccess(
+        did: did,
+        effectiveTier: SubscriptionTier.business,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.business,
+      ),
+    ).purchase(SubscriptionTier.plus);
+
+    expect(result.outcome, SubscriptionPurchaseOutcome.completed);
+    expect(result.retry, isNull);
+    expect(presentations, 1);
+  });
+
+  test(
+    'IT-006 recovered assignment requires matching DID and granted access',
     () async {
       final dormant = _pair(
         'same',
@@ -365,12 +432,6 @@ void main() {
           effectiveTier: SubscriptionTier.plus,
           givesAccess: true,
           assignedTier: SubscriptionTier.plus,
-        ),
-        SubscriptionAccess(
-          did: Did.parse('did:plc:bob'),
-          effectiveTier: SubscriptionTier.business,
-          givesAccess: true,
-          assignedTier: SubscriptionTier.business,
         ),
         SubscriptionAccess(
           did: Did.parse('did:plc:bob'),

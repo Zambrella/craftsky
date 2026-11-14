@@ -29,6 +29,8 @@ PurchaseEligibility purchaseEligibility(
   String? store,
   bool allowTierChanges = false,
 }) {
+  // Promotional grants contribute to access, independently of the paid
+  // subscriptions and licenses used below to prevent duplicate billing.
   // An identified web checkout can still be payable before RevenueCat has a
   // subscription to reconcile. Do not start a separate native purchase then.
   if (state.webCheckoutPending) {

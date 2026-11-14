@@ -16,7 +16,7 @@ import (
 func TestClaimedScheduledPostCannotAppendAfterAccessLossCommits(t *testing.T) {
 	pool := newScheduledPostStoreTestPool(t)
 	ctx := context.Background()
-	if err := testdb.ApplyMigrations(ctx, pool, "000076_subscription_accounts.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(ctx, pool, "000076_subscription_accounts.up.sql", "000126_billing_promotional_grants.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

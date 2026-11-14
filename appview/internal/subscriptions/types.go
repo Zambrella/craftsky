@@ -81,6 +81,15 @@ type BillingState struct {
 	WebCheckoutPending      bool                  `json:"webCheckoutPending"`
 	Subscriptions           []BillingSubscription `json:"subscriptions"`
 	Licenses                []BillingLicense      `json:"licenses"`
+	PromotionalGrants       []PromotionalGrant    `json:"promotionalGrants"`
+}
+
+// PromotionalGrant is complimentary, non-renewing access without a billing obligation.
+type PromotionalGrant struct {
+	ID          uuid.UUID  `json:"id"`
+	Tier        Tier       `json:"tier"`
+	GivesAccess bool       `json:"givesAccess"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
 }
 
 // BillingSubscription exposes provider subscription state for its customer DID.
@@ -126,6 +135,14 @@ type ProviderSubscriptionSnapshot struct {
 	CurrentPeriodStartsAt *time.Time
 	CurrentPeriodEndsAt   *time.Time
 	EndsAt                *time.Time
+	Entitlements          []ProviderEntitlementSnapshot
+}
+
+// ProviderEntitlementSnapshot carries provider-verified entitlement identity.
+type ProviderEntitlementSnapshot struct {
+	ID        string
+	ProjectID string
+	LookupKey string
 }
 
 // CompleteSnapshot groups a provider customer's subscriptions and records whether enumeration completed.

@@ -55,7 +55,7 @@ func checkoutFixture(t *testing.T) (*Store, *pgxpool.Pool, *checkoutFake, syntax
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(old)+`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`+string(migration)+`CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_suspended BOOLEAN NOT NULL DEFAULT false);`)
+	pool := testdb.WithSubscriptionAccessSchema(t, string(old)+`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`+string(migration)+`CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_suspended BOOLEAN NOT NULL DEFAULT false);`)
 	store := NewStore(pool)
 	fake := &checkoutFake{}
 	did := syntax.DID("did:plc:checkout")

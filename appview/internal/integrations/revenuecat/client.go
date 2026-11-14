@@ -97,6 +97,13 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 			if err != nil {
 				return subscriptions.CompleteSnapshot{}, err
 			}
+			if item.Store == "promotional" {
+				entitlements, err := c.promotionalEntitlements(ctx, item)
+				if err != nil {
+					return subscriptions.CompleteSnapshot{}, err
+				}
+				snapshot.Entitlements = entitlements
+			}
 			result.Subscriptions = append(result.Subscriptions, snapshot)
 		}
 		// RevenueCat documents both an omitted and a null next_page as terminal.
@@ -136,18 +143,19 @@ type subscriptionPage struct {
 }
 
 type subscriptionResource struct {
-	ID                    string          `json:"id"`
-	ProductID             json.RawMessage `json:"product_id"`
-	Store                 string          `json:"store"`
-	Environment           string          `json:"environment"`
-	Status                string          `json:"status"`
-	GivesAccess           *bool           `json:"gives_access"`
-	PendingPayment        *bool           `json:"pending_payment"`
-	AutoRenewalStatus     string          `json:"auto_renewal_status"`
-	StartsAt              *int64          `json:"starts_at"`
-	CurrentPeriodStartsAt *int64          `json:"current_period_starts_at"`
-	CurrentPeriodEndsAt   *int64          `json:"current_period_ends_at"`
-	EndsAt                *int64          `json:"ends_at"`
+	ID                    string           `json:"id"`
+	ProductID             json.RawMessage  `json:"product_id"`
+	Store                 string           `json:"store"`
+	Environment           string           `json:"environment"`
+	Status                string           `json:"status"`
+	GivesAccess           *bool            `json:"gives_access"`
+	PendingPayment        *bool            `json:"pending_payment"`
+	AutoRenewalStatus     string           `json:"auto_renewal_status"`
+	StartsAt              *int64           `json:"starts_at"`
+	CurrentPeriodStartsAt *int64           `json:"current_period_starts_at"`
+	CurrentPeriodEndsAt   json.RawMessage  `json:"current_period_ends_at"`
+	EndsAt                json.RawMessage  `json:"ends_at"`
+	Entitlements          *entitlementPage `json:"entitlements"`
 	PendingChanges        *struct {
 		Product *struct {
 			ID string `json:"id"`
@@ -156,32 +164,42 @@ type subscriptionResource struct {
 }
 
 func (c *Client) fetchPage(ctx context.Context, endpoint string) (subscriptionPage, error) {
+	var page subscriptionPage
+	if err := c.fetchJSON(ctx, endpoint, &page); err != nil {
+		return subscriptionPage{}, err
+	}
+	if page.Items == nil {
+		return subscriptionPage{}, errors.New("invalid RevenueCat response")
+	}
+	return page, nil
+}
+
+func (c *Client) fetchJSON(ctx context.Context, endpoint string, destination any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return subscriptionPage{}, fmt.Errorf("create RevenueCat request: %w", err)
+		return fmt.Errorf("create RevenueCat request: %w", err)
 	}
 	request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	request.Header.Set("Accept", "application/json")
 	response, err := c.http.Do(request)
 	if err != nil {
-		return subscriptionPage{}, errors.New("RevenueCat request failed")
+		return errors.New("RevenueCat request failed")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return subscriptionPage{}, &providerStatusError{StatusCode: response.StatusCode}
+		return &providerStatusError{StatusCode: response.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, c.config.MaxResponseBytes+1))
 	if err != nil {
-		return subscriptionPage{}, errors.New("read RevenueCat response")
+		return errors.New("read RevenueCat response")
 	}
 	if int64(len(body)) > c.config.MaxResponseBytes {
-		return subscriptionPage{}, errors.New("RevenueCat response exceeds configured limit")
+		return errors.New("RevenueCat response exceeds configured limit")
 	}
-	var page subscriptionPage
-	if err := json.Unmarshal(body, &page); err != nil || page.Items == nil {
-		return subscriptionPage{}, errors.New("invalid RevenueCat response")
+	if err := json.Unmarshal(body, destination); err != nil {
+		return errors.New("invalid RevenueCat response")
 	}
-	return page, nil
+	return nil
 }
 
 func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscriptionSnapshot, error) {
@@ -200,6 +218,14 @@ func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscript
 	if productID != nil {
 		product = *productID
 	}
+	periodEnd, periodErr := nullableMillis(resource.CurrentPeriodEndsAt)
+	endsAt, endsErr := nullableMillis(resource.EndsAt)
+	if periodErr != nil || endsErr != nil || (resource.Store == "promotional" &&
+		(len(resource.CurrentPeriodEndsAt) == 0 || len(resource.EndsAt) == 0)) {
+		// A missing grant expiry must not turn malformed timed access into a
+		// lifetime grant. Explicit null bounds are documented lifetime access.
+		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription expiry")
+	}
 	pendingProductID := ""
 	if resource.PendingChanges != nil && resource.PendingChanges.Product != nil {
 		pendingProductID = resource.PendingChanges.Product.ID
@@ -210,8 +236,73 @@ func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscript
 		GivesAccess: *resource.GivesAccess, PendingPayment: *resource.PendingPayment,
 		AutoRenewalStatus: resource.AutoRenewalStatus,
 		StartsAt:          millisTime(resource.StartsAt), CurrentPeriodStartsAt: millisTime(resource.CurrentPeriodStartsAt),
-		CurrentPeriodEndsAt: millisTime(resource.CurrentPeriodEndsAt), EndsAt: millisTime(resource.EndsAt),
+		CurrentPeriodEndsAt: millisTime(periodEnd), EndsAt: millisTime(endsAt),
 	}, nil
+}
+
+func nullableMillis(raw json.RawMessage) (*int64, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var value *int64
+	err := json.Unmarshal(raw, &value)
+	return value, err
+}
+
+type entitlementPage struct {
+	Items []struct {
+		ID        string `json:"id"`
+		ProjectID string `json:"project_id"`
+		LookupKey string `json:"lookup_key"`
+	} `json:"items"`
+	NextPage *string `json:"next_page"`
+}
+
+// Grants have no product mapping. Only a complete, project-scoped entitlement
+// list may identify their tier; partial nested pagination is not authoritative.
+func (c *Client) promotionalEntitlements(ctx context.Context, resource subscriptionResource) ([]subscriptions.ProviderEntitlementSnapshot, error) {
+	endpoint := *c.base
+	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/projects/" + url.PathEscape(c.config.ProjectID) +
+		"/subscriptions/" + url.PathEscape(resource.ID) + "/entitlements"
+	endpointPath := endpoint.EscapedPath()
+	page := resource.Entitlements
+	result := make([]subscriptions.ProviderEntitlementSnapshot, 0)
+	seenPages := make(map[string]struct{}, c.config.MaxPages)
+	seenEntitlements := make(map[string]struct{})
+	for count := 0; count < c.config.MaxPages; count++ {
+		if page == nil || page.Items == nil {
+			return nil, errors.New("invalid RevenueCat promotional entitlements")
+		}
+		for _, item := range page.Items {
+			if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.LookupKey) == "" || item.ProjectID != c.config.ProjectID {
+				return nil, errors.New("invalid RevenueCat promotional entitlement")
+			}
+			if _, exists := seenEntitlements[item.ID]; exists {
+				return nil, errors.New("duplicate RevenueCat promotional entitlement")
+			}
+			seenEntitlements[item.ID] = struct{}{}
+			result = append(result, subscriptions.ProviderEntitlementSnapshot{ID: item.ID, ProjectID: item.ProjectID, LookupKey: item.LookupKey})
+		}
+		if page.NextPage == nil {
+			return result, nil
+		}
+		next, err := c.resolveNextPage(*page.NextPage, endpointPath)
+		if err != nil {
+			return nil, errors.New("invalid RevenueCat entitlement pagination URL")
+		}
+		if _, duplicate := seenPages[next.String()]; duplicate {
+			return nil, errors.New("RevenueCat entitlement pagination loop detected")
+		}
+		seenPages[next.String()] = struct{}{}
+		if count+1 == c.config.MaxPages {
+			break
+		}
+		page = new(entitlementPage)
+		if err := c.fetchJSON(ctx, next.String(), page); err != nil {
+			return nil, err
+		}
+	}
+	return nil, errors.New("RevenueCat entitlement pagination limit exceeded")
 }
 
 func millisTime(value *int64) *time.Time {

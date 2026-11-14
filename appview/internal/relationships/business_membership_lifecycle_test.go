@@ -31,7 +31,7 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY,
 			state TEXT NOT NULL CHECK (state IN ('active', 'departed', 'deletion_pending', 'deleting', 'terminal')),

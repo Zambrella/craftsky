@@ -47,6 +47,23 @@ remain unconfigured, and clients never call SDK logout to create an anonymous
 customer between identified accounts. Integration enablement remains explicit.
 
 Plus and Business are alternative tiers, with Business including Plus benefits.
+RevenueCat promotional grants are a separate source of access, not a paid
+subscription. AppView recognizes the configured project's `plus` and `business`
+entitlements on verified `promotional` subscription snapshots, which need no
+product ID. Grants belong to the same customer-owner DID and never create an
+assignable licence. Effective access is the highest valid paid or promotional
+tier; Business includes Plus. Grant expiry or revocation must not remove access
+provided independently by another grant or paid subscription.
+
+An active promotion does not block buying a paid subscription or count as a
+duplicate paid purchase. Both clients display complimentary access and its
+expiry separately from actual paid billing. Buying during a promotion uses the
+ordinary store or Stripe purchase flow: paid billing starts immediately, and
+unused complimentary time is not added to the paid term. It does not revoke the
+independent promotion. Scheduling paid billing to begin at grant expiry is not
+part of this flow. Actual paid subscriptions and pending payment operations
+retain the existing duplicate-purchase protections and management rules.
+
 Apple products belong in one subscription group, Business above Plus. Google
 Play uses native replacement flows for tier changes. A store account cannot be
 treated as multiple independent customers merely by switching DIDs. Restores
@@ -134,6 +151,8 @@ and subscription history. Forward migrations must refuse ambiguous historical
 cross-DID allocations rather than silently moving benefits or provider records.
 Deletion still requires provider billing to be resolved and does not cancel a
 provider subscription simply by removing local state.
+Promotional grants carry no recurring payment obligation and do not block
+deletion. Their local access is disabled when the billing account closes.
 Any unresolved web-checkout operation, including one from another environment,
 blocks account deletion. Reconciliation may resolve known sessions only after
 observing provider terminal state; it must not create an unknown session while
@@ -159,6 +178,8 @@ the account is pending deletion.
 
 - [RevenueCat customer identity](https://www.revenuecat.com/docs/customers/identifying-customers)
 - [RevenueCat restore behaviour](https://www.revenuecat.com/docs/projects/restore-behavior)
+- [RevenueCat promotional grants](https://www.revenuecat.com/docs/dashboard-and-metrics/customer-profile#granting-promotional-entitlements)
+- [RevenueCat subscription schema](https://www.revenuecat.com/docs/api-v2/subscription-data-model)
 - [RevenueCat Stripe Billing integration](https://www.revenuecat.com/docs/web/integrations/stripe)
 - [RevenueCat Managed Payments fallback](https://www.revenuecat.com/docs/web/integrations/stripe/stripe-managed-payments)
 - [RevenueCat Stripe identity and notifications](https://www.revenuecat.com/docs/platform-resources/server-notifications/stripe-server-notifications)

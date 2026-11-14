@@ -126,7 +126,13 @@ merchant of record. A durable per-account pending operation and provider
 idempotency fence concurrent checkout attempts and uncertain retries. RevenueCat
 tracks paid Stripe invoices using the account's private UUID in session and
 subscription metadata. AppView authorizes paid access from reconciled provider
-state, never a checkout redirect. Web tier changes remain deferred, and native
+state, never a checkout redirect. Promotional grants are stored separately from
+paid subscriptions and licences. Verified `plus` and `business` grants contribute
+to effective access until expiry or revocation, without blocking an early paid
+subscription. Clients show complimentary expiry and explain that subscribing
+starts paid billing immediately. Paid and promotional overlap grants the highest
+valid tier; only paid duplicates trigger the billing anomaly protections.
+Web tier changes remain deferred, and native
 apps contain no web purchase promotion. Subscription management creates a
 customer-specific Stripe portal session through authenticated AppView; shared
 payer email is not an account selector. Billing state exposes retained checkout

@@ -76,7 +76,7 @@ func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
 		CREATE TABLE craftsky_account_types (
@@ -128,7 +128,7 @@ func TestBusinessRouteRejectsTamperedValidCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
 		CREATE TABLE craftsky_account_types (

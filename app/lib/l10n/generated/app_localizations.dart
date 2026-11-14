@@ -100,6 +100,36 @@ abstract class AppLocalizations {
   /// **'Use current image ({current} of {total})'**
   String postQuoteUseCurrentImage(int current, int total);
 
+  /// No description provided for @subscriptionsComplimentaryAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Complimentary access'**
+  String get subscriptionsComplimentaryAccess;
+
+  /// No description provided for @subscriptionsComplimentaryUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier} until {date}'**
+  String subscriptionsComplimentaryUntil(String tier, String date);
+
+  /// No description provided for @subscriptionsComplimentaryNoExpiry.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier} with no expiry date'**
+  String subscriptionsComplimentaryNoExpiry(String tier);
+
+  /// No description provided for @subscriptionsComplimentaryPurchaseTiming.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribing starts paid billing immediately. Remaining complimentary time is not added to your paid subscription.'**
+  String get subscriptionsComplimentaryPurchaseTiming;
+
+  /// No description provided for @subscriptionsSubscribeTier.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe to {tier}'**
+  String subscriptionsSubscribeTier(String tier);
+
   /// No description provided for @subscriptionsPlanChangeScheduled.
   ///
   /// In en, this message translates to:

@@ -217,9 +217,15 @@ final class SubscriptionPurchaseController {
           if (!isForeground()) {
             return _pendingRetry(tier, beforeProvider);
           }
+          // A separate grant can keep the assignee on Business after a
+          // recognized paid Plus purchase. Paid license reconciliation above
+          // still requires the requested tier; this checks access capability.
+          final higherAccess =
+              tier == SubscriptionTier.plus &&
+              access.effectiveTier == SubscriptionTier.business;
           if (access.did != assignedDid ||
               !access.givesAccess ||
-              access.effectiveTier != tier) {
+              (access.effectiveTier != tier && !higherAccess)) {
             return _pendingRetry(tier, beforeProvider);
           }
         } on Object {

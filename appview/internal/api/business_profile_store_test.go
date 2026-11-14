@@ -15,7 +15,7 @@ func TestBusinessProfileStoreEligibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (
 			did TEXT PRIMARY KEY,
 			record_cid TEXT NOT NULL

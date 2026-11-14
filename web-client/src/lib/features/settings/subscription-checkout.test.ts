@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BillingState, BillingSubscription } from '#lib/api/types.ts';
 import {
+	activePromotionalGrants,
 	canStartWebCheckout,
 	hasCurrentSubscription,
 	hostedCheckoutURL,
@@ -41,6 +42,44 @@ const subscription = (
 });
 
 describe('account subscription checkout eligibility', () => {
+	it('keeps complimentary access separate from paid-subscription eligibility', () => {
+		for (const tier of ['plus', 'business'] as const) {
+			const promotion = {
+				id: 'grant',
+				tier,
+				givesAccess: true,
+				expiresAt: new Date(Date.now() + 60_000).toISOString()
+			};
+			const complimentary = { ...state(), promotionalGrants: [promotion] };
+			expect(hasCurrentSubscription(complimentary)).toBe(false);
+			expect(canStartWebCheckout(complimentary)).toBe(true);
+			expect(activePromotionalGrants(complimentary)).toEqual([promotion]);
+			const paid = {
+				...complimentary,
+				subscriptions: [subscription({ tier: 'plus' })]
+			};
+			expect(hasCurrentSubscription(paid)).toBe(true);
+			expect(canStartWebCheckout(paid)).toBe(false);
+		}
+	});
+	it('omitted or ended complimentary grants leave ordinary checkout available', () => {
+		for (const promotionalGrants of [
+			undefined,
+			[],
+			[
+				{
+					id: 'ended',
+					tier: 'plus' as const,
+					givesAccess: false,
+					expiresAt: new Date(Date.now() - 1_000).toISOString()
+				}
+			]
+		]) {
+			const value = { ...state(), promotionalGrants };
+			expect(activePromotionalGrants(value)).toEqual([]);
+			expect(canStartWebCheckout(value)).toBe(true);
+		}
+	});
 	it('allows a retained checkout to be resumed while AppView enforces its tier', () => {
 		for (const webCheckoutPending of [undefined, false, true]) {
 			const billing = { ...state(), webCheckoutPending };

@@ -20,7 +20,7 @@ func TestBillingIdentityIsExplicitStableAndPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles(did) VALUES
 			('did:plc:billing-owner'), ('did:plc:unrelated');
@@ -96,7 +96,7 @@ func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles(did) VALUES ('did:plc:access-member');
 	`+string(migration))
@@ -172,7 +172,7 @@ func TestIT013OwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles(did) VALUES ('did:plc:state-owner'),('did:plc:state-non-owner');
 	`+string(migration))

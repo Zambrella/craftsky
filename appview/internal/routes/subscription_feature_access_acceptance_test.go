@@ -20,7 +20,7 @@ func TestSubscriptionFeatureAccessUsesEachDIDsOwnCustomer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:payer'),('did:plc:beneficiary'),('did:plc:business');`+string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:payer'),('did:plc:beneficiary'),('did:plc:business');`+string(migration))
 	ctx := context.Background()
 	for _, statement := range []string{
 		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:beneficiary','20000000-0000-4000-8000-000000000001')`,

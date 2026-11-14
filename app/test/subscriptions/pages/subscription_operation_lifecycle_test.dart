@@ -20,6 +20,30 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
+    'complimentary Business can buy Plus without repeated payment or pending',
+    (tester) async {
+      final harness = _Harness();
+      harness.api.promotionalTier = SubscriptionTier.business;
+      addTearDown(harness.dispose);
+      await harness.pump(tester);
+      expect(harness.access.effectiveTier, SubscriptionTier.business);
+      expect(find.text('Subscribe to Plus'), findsOneWidget);
+      expect(find.text('Subscribe to Business'), findsOneWidget);
+      expect(find.text('Manage subscription'), findsNothing);
+      await tester.ensureVisible(find.text('Subscribe to Plus'));
+      await tester.tap(find.text('Subscribe to Plus'));
+      await tester.pumpAndSettle();
+      expect(harness.service.effectCalls, 1);
+      expect(harness.pending, isNull);
+      expect(harness.api.tier, SubscriptionTier.plus);
+      expect(harness.access.effectiveTier, SubscriptionTier.business);
+      expect(find.text('Subscribe to Plus'), findsNothing);
+      expect(find.text('Manage subscription'), findsOneWidget);
+      expect(find.textContaining('paid billing immediately'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'restart with AppView Free and owned store plan '
     'blocks a second purchase',
     (tester) async {
@@ -289,6 +313,7 @@ const _subscription = '30000000-0000-4000-8000-000000000001';
 
 final class _Api implements SubscriptionApi {
   SubscriptionTier tier = SubscriptionTier.free;
+  SubscriptionTier? promotionalTier;
   int generation = 1;
   Future<BillingState> Function()? billingRead;
 
@@ -324,6 +349,16 @@ final class _Api implements SubscriptionApi {
               assignedDid: Did.parse('did:plc:alice'),
             ),
           ],
+    promotionalGrants: promotionalTier == null
+        ? const []
+        : [
+            PromotionalGrant(
+              id: '50000000-0000-4000-8000-000000000001',
+              tier: promotionalTier!,
+              givesAccess: true,
+              expiresAt: DateTime.utc(2027, 5, 13),
+            ),
+          ],
   );
 
   @override
@@ -336,9 +371,16 @@ final class _Api implements SubscriptionApi {
   @override
   Future<SubscriptionAccess> getAccess() async => SubscriptionAccess(
     did: Did.parse('did:plc:alice'),
-    effectiveTier: tier,
-    givesAccess: tier != SubscriptionTier.free,
-    assignedTier: tier == SubscriptionTier.free ? null : tier,
+    effectiveTier:
+        promotionalTier != null && promotionalTier!.index > tier.index
+        ? promotionalTier!
+        : tier,
+    givesAccess: tier != SubscriptionTier.free || promotionalTier != null,
+    assignedTier: promotionalTier != null && promotionalTier!.index > tier.index
+        ? promotionalTier
+        : tier == SubscriptionTier.free
+        ? null
+        : tier,
   );
 }
 

@@ -195,17 +195,7 @@ final class NativeRevenueCatService
     final expectedStore = defaultTargetPlatform == TargetPlatform.iOS
         ? Store.appStore
         : Store.playStore;
-    final active = customer.entitlements.active.values;
-    if (active.isEmpty || active.any((value) => value.store != expectedStore)) {
-      throw const NativePlanChangeUnavailableException();
-    }
-    final currentProducts = active
-        .map((value) => value.productIdentifier)
-        .toSet();
-    if (currentProducts.length != 1) {
-      throw const NativePlanChangeUnavailableException();
-    }
-    final oldProduct = currentProducts.single;
+    final oldProduct = _activePaidProduct(customer, expectedStore);
     if (oldProduct == package.storeProduct.identifier) {
       throw const NativePlanChangeUnavailableException();
     }
@@ -284,6 +274,49 @@ final class NativeRevenueCatService
       throw const RevenueCatServiceException('customer_center_failed');
     }
   }
+}
+
+String _activePaidProduct(CustomerInfo customer, Store expectedStore) {
+  // An entitlement may be supplied by a longer complimentary grant while the
+  // real store subscription remains active. Prefer purchase-level evidence.
+  final purchases = customer.subscriptionsByProductIdentifier;
+  final activeSubscriptions = customer.activeSubscriptions.toSet();
+  final active = purchases.isNotEmpty
+      ? purchases.entries
+            .where(
+              (entry) =>
+                  entry.value.isActive &&
+                  (activeSubscriptions.contains(entry.key) ||
+                      activeSubscriptions.contains(
+                        entry.value.productIdentifier,
+                      )) &&
+                  entry.value.store != Store.promotional,
+            )
+            .map(
+              (entry) => (
+                product: entry.value.productIdentifier,
+                store: entry.value.store,
+              ),
+            )
+      : customer.entitlements.active.values
+            .where((value) => value.store != Store.promotional)
+            .map(
+              (value) => (
+                product: value.productIdentifier,
+                store: value.store,
+              ),
+            );
+  final products = <String>{};
+  for (final value in active) {
+    if (value.store != expectedStore || value.product.trim().isEmpty) {
+      throw const NativePlanChangeUnavailableException();
+    }
+    products.add(value.product);
+  }
+  if (products.length != 1) {
+    throw const NativePlanChangeUnavailableException();
+  }
+  return products.single;
 }
 
 final class _NativeRevenueCatActivation {

@@ -15,7 +15,7 @@ func TestFeatureAccessBatchUsesSameEnvironmentAndProviderCriteriaAsSelfAccess(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	ctx := context.Background()
 	for _, statement := range []string{
 		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000091','did:plc:beneficiary','20000000-0000-4000-8000-000000000091')`,

@@ -17,7 +17,7 @@ func TestPerDIDSubscriptionFollowsOwnerAcrossTierChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT,slot TEXT);`)
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT,slot TEXT);`)
 	ctx := context.Background()
 	store := NewStore(pool)
 	alice := syntax.DID("did:plc:alice")

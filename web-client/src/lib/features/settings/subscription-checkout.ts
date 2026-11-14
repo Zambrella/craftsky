@@ -1,4 +1,8 @@
-import type { BillingState, BillingSubscription } from '#lib/api/types.ts';
+import type {
+	BillingPromotionalGrant,
+	BillingState,
+	BillingSubscription
+} from '#lib/api/types.ts';
 import { UserFacingError } from '#lib/user-facing-error.ts';
 
 export type SubscriptionTier = 'plus' | 'business';
@@ -27,6 +31,13 @@ export function hasCurrentSubscription(state: BillingState): boolean {
 	return state.subscriptions.some((subscription) =>
 		isCurrentSubscription(subscription)
 	);
+}
+
+/** AppView confirms promotional access separately from recurring billing obligations. */
+export function activePromotionalGrants(
+	state: BillingState
+): BillingPromotionalGrant[] {
+	return state.promotionalGrants?.filter((grant) => grant.givesAccess) || [];
 }
 
 export function subscriptionNeedsRefresh(state: BillingState): boolean {

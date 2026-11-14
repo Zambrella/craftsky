@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { BillingSubscription } from '../src/lib/api/types.ts';
+import type {
+	BillingPromotionalGrant,
+	BillingSubscription
+} from '../src/lib/api/types.ts';
 
 const alice = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
@@ -38,11 +41,19 @@ test.beforeEach(async ({ context, page }) => {
 async function billingFixture(
 	page: Page,
 	subscriptions: BillingSubscription[] = [],
-	available = true
+	available = true,
+	promotion: {
+		grants: BillingPromotionalGrant[];
+		effectiveTier: 'free' | 'plus' | 'business';
+	} = { grants: [], effectiveTier: 'free' }
 ) {
 	await page.route(`**${appview}/subscriptions/access`, (route) =>
 		route.fulfill({
-			json: { did: alice.did, effectiveTier: 'free', givesAccess: false }
+			json: {
+				did: alice.did,
+				effectiveTier: promotion.effectiveTier,
+				givesAccess: promotion.effectiveTier !== 'free'
+			}
 		})
 	);
 	await page.route(`**${appview}/billing/account`, (route) =>
@@ -55,12 +66,168 @@ async function billingFixture(
 				reconciliationStale: false,
 				reconciledAt: new Date().toISOString(),
 				webCheckoutAvailable: available,
+				promotionalGrants: promotion.grants,
 				subscriptions,
 				licenses: []
 			}
 		})
 	);
 }
+
+const grant: BillingPromotionalGrant = {
+	id: '50000000-0000-4000-8000-000000000001',
+	tier: 'plus',
+	givesAccess: true,
+	expiresAt: '2032-05-20T12:00:00Z'
+};
+
+for (const tier of ['plus', 'business'] as const)
+	test(`complimentary Plus permits choosing ${tier} before expiry`, async ({
+		page
+	}) => {
+		await billingFixture(page, [], true, {
+			grants: [grant],
+			effectiveTier: 'plus'
+		});
+		const requests: unknown[] = [];
+		await page.route(`**${appview}/billing/web-checkout`, (route) => {
+			requests.push(route.request().postDataJSON());
+			return route.fulfill({ json: { url: checkout } });
+		});
+		await page.route('https://checkout.stripe.com/**', (route) =>
+			route.fulfill({
+				contentType: 'text/html',
+				body: '<h1>Review subscription</h1>'
+			})
+		);
+		await page.goto('/settings/subscriptions');
+		await expect(
+			page.getByRole('heading', { name: 'Current access: Plus' })
+		).toBeVisible();
+		const complimentary = page.getByRole('region', {
+			name: 'Complimentary CraftSky Plus'
+		});
+		await expect(complimentary).toContainText('Complimentary access ends');
+		await expect(complimentary).toContainText('no recurring charge');
+		await expect(
+			page.getByText('Paid billing starts immediately.', { exact: false })
+		).toBeVisible();
+		await expect(
+			page.getByText(
+				'Unused complimentary time is not added to your paid subscription.',
+				{ exact: false }
+			)
+		).toBeVisible();
+		await expect(
+			page.getByRole('region', { name: 'Current subscription' })
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Subscribe to Plus', exact: true })
+		).toBeEnabled();
+		await expect(
+			page.getByRole('button', { name: 'Subscribe to Business', exact: true })
+		).toBeEnabled();
+		await page
+			.getByRole('button', {
+				name: `Subscribe to ${tier === 'plus' ? 'Plus' : 'Business'}`,
+				exact: true
+			})
+			.click();
+		await expect(page).toHaveURL(checkout);
+		expect(requests).toEqual([{ tier }]);
+	});
+
+test('paid billing stays authoritative when complimentary access overlaps', async ({
+	page
+}) => {
+	await billingFixture(
+		page,
+		[
+			{
+				id: 'paid-business',
+				productId: 'business-monthly',
+				tier: 'business',
+				store: 'stripe',
+				status: 'active',
+				givesAccess: true,
+				pendingPayment: false,
+				anomaly: 'none'
+			}
+		],
+		true,
+		{ grants: [grant], effectiveTier: 'business' }
+	);
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByRole('heading', { name: 'Current access: Business' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'Complimentary CraftSky Plus' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'Current subscription' })
+	).toContainText('CraftSky Business');
+	await expect(
+		page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', {
+			name: /^(Choose|Subscribe to) (Plus|Business)$/
+		})
+	).toHaveCount(0);
+});
+
+test('ended complimentary access returns to Free without a billing obligation', async ({
+	page
+}) => {
+	await billingFixture(page, [], true, {
+		grants: [
+			{ ...grant, givesAccess: false, expiresAt: '2020-05-20T12:00:00Z' }
+		],
+		effectiveTier: 'free'
+	});
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByRole('heading', { name: 'Current access: Free' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'Complimentary CraftSky Plus' })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Choose Plus', exact: true })
+	).toBeEnabled();
+	await expect(
+		page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+	).toHaveCount(0);
+});
+
+test('complimentary Business displays separately and keeps paid choices available', async ({
+	page
+}) => {
+	await billingFixture(page, [], true, {
+		grants: [{ ...grant, tier: 'business', expiresAt: null }],
+		effectiveTier: 'business'
+	});
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByRole('heading', { name: 'Current access: Business' })
+	).toBeVisible();
+	const complimentary = page.getByRole('region', {
+		name: 'Complimentary CraftSky Business'
+	});
+	await expect(complimentary).toBeVisible();
+	await expect(complimentary).not.toContainText('Not available');
+	await expect(complimentary).toContainText('no expiry date');
+	await expect(
+		page.getByRole('button', { name: 'Subscribe to Plus', exact: true })
+	).toBeEnabled();
+	await expect(
+		page.getByRole('button', { name: 'Subscribe to Business', exact: true })
+	).toBeEnabled();
+});
 
 for (const tier of ['plus', 'business'])
 	test(`opens identified Stripe checkout for ${tier} without accepting payment as access`, async ({

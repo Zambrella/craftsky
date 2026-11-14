@@ -19,7 +19,7 @@ func TestCoreBillingConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read subscription accounts migration: %v", err)
 	}
-	pool := testdb.WithSchema(t, string(up))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(up))
 	ctx := context.Background()
 
 	var accountID string
@@ -130,7 +130,7 @@ func TestEnsureBillingAccountIsExplicitStableAndConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(up))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(up))
 	store := NewStore(pool)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:concurrent-billing-owner")

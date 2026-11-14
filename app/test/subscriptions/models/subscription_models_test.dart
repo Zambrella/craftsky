@@ -47,7 +47,100 @@ void main() {
 
       expect(state.subscriptions, isEmpty);
       expect(state.licenses, isEmpty);
+      expect(state.promotionalGrants, isEmpty);
       expect(state.reconciledAt, isNull);
+    });
+
+    test(
+      'decodes complimentary tiers and optional expiry separately from billing',
+      () {
+        final state = BillingState.fromMap({
+          ..._ownerFixture(),
+          'promotionalGrants': [
+            _grantFixture(),
+            {
+              ..._grantFixture(),
+              'id': '50000000-0000-4000-8000-000000000002',
+              'tier': 'business',
+              'expiresAt': null,
+            },
+          ],
+        });
+        expect(state.promotionalGrants, hasLength(2));
+        expect(state.promotionalGrants.first.tier, SubscriptionTier.plus);
+        expect(state.promotionalGrants.first.givesAccess, isTrue);
+        expect(
+          state.promotionalGrants.first.expiresAt,
+          DateTime.utc(2027, 5, 13),
+        );
+        expect(state.promotionalGrants.last.expiresAt, isNull);
+        expect(
+          state.promotionalGrants.first.toString(),
+          'PromotionalGrant([REDACTED])',
+        );
+        expect(state.subscriptions, hasLength(2));
+        expect(state.licenses, hasLength(2));
+      },
+    );
+
+    test('rejects malformed promotional grants without accepting access', () {
+      for (final change in [
+        {'id': 'not-a-uuid'},
+        {'tier': 'free'},
+        {'tier': 'future_tier'},
+        {'givesAccess': 'true'},
+        {'givesAccess': null},
+        {'expiresAt': 123},
+        {'expiresAt': 'not-a-date'},
+      ]) {
+        expect(
+          () => BillingState.fromMap({
+            ..._ownerFixture(),
+            'promotionalGrants': [
+              {..._grantFixture(), ...change},
+            ],
+          }),
+          throwsA(anything),
+          reason: '$change',
+        );
+      }
+      for (final invalid in [
+        null,
+        'invalid',
+        [null],
+        [_grantFixture(), _grantFixture()],
+      ]) {
+        expect(
+          () => BillingState.fromMap({
+            ..._ownerFixture(),
+            'promotionalGrants': invalid,
+          }),
+          throwsA(anything),
+        );
+      }
+    });
+
+    test('complimentary display combines overlap using server access', () {
+      final state = BillingState.fromMap({
+        ..._ownerFixture(),
+        'promotionalGrants': [
+          _grantFixture(),
+          {
+            ..._grantFixture(),
+            'id': '50000000-0000-4000-8000-000000000002',
+            'expiresAt': '2027-06-13T00:00:00Z',
+          },
+          {
+            ..._grantFixture(),
+            'id': '50000000-0000-4000-8000-000000000003',
+            'tier': 'business',
+            'givesAccess': false,
+          },
+        ],
+      });
+      expect(state.promotionalAccessEndsByTier, {
+        SubscriptionTier.plus: DateTime.utc(2027, 6, 13),
+      });
     });
 
     test('rejects malformed UUIDs and unresolved relationships', () {
@@ -83,6 +176,13 @@ void main() {
     expect(assignment.toString(), 'BillingAssignment([REDACTED])');
   });
 }
+
+Map<String, dynamic> _grantFixture() => {
+  'id': '50000000-0000-4000-8000-000000000001',
+  'tier': 'plus',
+  'givesAccess': true,
+  'expiresAt': '2027-05-13T00:00:00Z',
+};
 
 Map<String, dynamic> _ownerFixture() => {
   'billingAccountId': '10000000-0000-4000-8000-000000000001',

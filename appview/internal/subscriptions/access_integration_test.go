@@ -17,7 +17,7 @@ func TestSelfAccessReadsLatestProviderTruthLocally(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	ctx := context.Background()
 	store := NewStore(pool)
 	beneficiary := syntax.DID("did:plc:access-beneficiary")

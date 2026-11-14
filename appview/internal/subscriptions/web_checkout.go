@@ -334,7 +334,7 @@ func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, n
 		return "", ErrWebCheckoutUnavailable
 	}
 	err = s.withCheckoutFence(ctx, did, false, func(conn *pgxpool.Conn) error {
-		state, err := s.ownerStateUsing(ctx, conn, did)
+		state, err := s.ownerStateUsing(ctx, conn, did, now)
 		if err != nil {
 			return err
 		}
@@ -406,7 +406,7 @@ func (s *Store) ResolveWebCheckoutForDeletion(ctx context.Context, did syntax.DI
 		return nil
 	}
 	return s.withCheckoutFence(ctx, did, true, func(conn *pgxpool.Conn) error {
-		state, err := s.ownerStateUsing(ctx, conn, did)
+		state, err := s.ownerStateUsing(ctx, conn, did, now)
 		if err != nil {
 			return err
 		}
@@ -429,7 +429,7 @@ func (s *Store) WebManagementURL(ctx context.Context, did syntax.DID, now time.T
 		return "", ErrWebManagementUnavailable
 	}
 	err = s.withCheckoutFence(ctx, did, false, func(conn *pgxpool.Conn) error {
-		state, err := s.ownerStateUsing(ctx, conn, did)
+		state, err := s.ownerStateUsing(ctx, conn, did, now)
 		if err != nil {
 			return err
 		}
@@ -462,6 +462,9 @@ func (s *Store) WebManagementURL(ctx context.Context, did syntax.DID, now time.T
 }
 
 func subscriptionBlocksCheckout(sub BillingSubscription, now time.Time) bool {
+	if sub.Store == "promotional" {
+		return false
+	}
 	if sub.PendingPayment || sub.GivesAccess || sub.Anomaly != "none" || (sub.CurrentPeriodEndsAt != nil && sub.CurrentPeriodEndsAt.After(now)) || (sub.EndsAt != nil && sub.EndsAt.After(now)) {
 		return true
 	}
@@ -480,6 +483,9 @@ func selectAccountSubscription(subs []ProviderSubscriptionSnapshot, catalog *Cat
 	var selected *ProviderSubscriptionSnapshot
 	for i := range subs {
 		candidate := &subs[i]
+		if candidate.Store == "promotional" {
+			continue
+		}
 		if _, ok := catalog.Authorize(catalog.projectID, candidate.Environment, candidate.ProductID); !ok {
 			continue
 		}

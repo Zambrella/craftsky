@@ -64,7 +64,7 @@ func (*DeletionParticipant) ConfirmDeletion(ctx context.Context, tx pgx.Tx, owne
 			SELECT 1 FROM billing_web_checkouts WHERE billing_account_id=$1
 		) OR EXISTS(
 			SELECT 1 FROM provider_subscriptions
-			WHERE billing_account_id=$1
+			WHERE billing_account_id=$1 AND store<>'promotional'
 			  AND (
 				pending_payment
 				OR auto_renewal_status IS DISTINCT FROM 'will_not_renew'
@@ -78,6 +78,9 @@ func (*DeletionParticipant) ConfirmDeletion(ctx context.Context, tx pgx.Tx, owne
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM provider_subscriptions WHERE billing_account_id=$1`, accountID); err != nil {
 		return false, fmt.Errorf("delete closed provider subscriptions: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE billing_promotional_grants SET gives_access=false,updated_at=$2 WHERE billing_account_id=$1`, accountID, now); err != nil {
+		return false, fmt.Errorf("close deleted promotional access: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE billing_accounts

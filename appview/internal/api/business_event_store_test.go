@@ -67,7 +67,11 @@ func subscriptionSchema(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(migration)
+	promotional, err := testdb.ReadMigration("000126_billing_promotional_grants.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(migration) + string(promotional)
 }
 
 func seedBusinessTestLicense(t *testing.T, pool *pgxpool.Pool, did syntax.DID) {

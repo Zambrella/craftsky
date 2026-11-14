@@ -19,7 +19,7 @@ func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 	ctx := context.Background()
 	store := NewStore(pool)
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
@@ -84,7 +84,7 @@ func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	ctx := context.Background()
 	beneficiary := syntax.DID("did:plc:sandbox-beneficiary")
 	for _, statement := range []string{
@@ -104,7 +104,7 @@ func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
 		t.Fatalf("sandbox access = %+v, error %v", sandboxAccess, err)
 	}
 	productionAccess, err := NewStore(pool).SelfAccess(ctx, beneficiary, time.Now())
-	if err != nil || productionAccess.GivesAccess || productionAccess.EffectiveTier != TierFree || productionAccess.AssignedTier == nil {
+	if err != nil || productionAccess.GivesAccess || productionAccess.EffectiveTier != TierFree || productionAccess.AssignedTier != nil {
 		t.Fatalf("production access = %+v, error %v", productionAccess, err)
 	}
 }

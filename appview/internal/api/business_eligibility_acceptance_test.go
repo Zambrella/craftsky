@@ -30,7 +30,7 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY, state TEXT NOT NULL, generation BIGINT NOT NULL,
 			auth_epoch BIGINT NOT NULL, transition_reason TEXT NOT NULL,

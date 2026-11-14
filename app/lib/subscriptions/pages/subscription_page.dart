@@ -619,6 +619,23 @@ class SubscriptionPageView extends StatelessWidget {
     return [
       Text(l10n.subscriptionsAccountPlan),
       const SizedBox(height: 16),
+      if (state.promotionalAccessEndsByTier.isNotEmpty) ...[
+        _ComplimentaryAccessCard(
+          state: state,
+          showPurchaseTiming:
+              model.billingAvailability == BillingAvailability.available &&
+              !state.subscriptions.any((value) => value.givesAccess) &&
+              const [SubscriptionTier.plus, SubscriptionTier.business].any(
+                (tier) => purchaseEligibility(
+                  state,
+                  tier,
+                  store: model.nativeStore,
+                  allowTierChanges: model.allowNativeTierChanges,
+                ).eligible,
+              ),
+        ),
+        const SizedBox(height: 16),
+      ],
       if (model.operationNotice case final notice?) ...[
         _OperationNotice(
           notice: notice,
@@ -692,6 +709,53 @@ class _AccessCard extends StatelessWidget {
               when !access.givesAccess) ...[
             const SizedBox(height: 6),
             Text(l10n.subscriptionsDormantAssignment(_tierLabel(l10n, tier))),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ComplimentaryAccessCard extends StatelessWidget {
+  const new({required this.state, required this.showPurchaseTiming});
+
+  final BillingState state;
+  final bool showPurchaseTiming;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final grants = state.promotionalAccessEndsByTier;
+    return CraftskyCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.subscriptionsComplimentaryAccess,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final tier in const [
+            SubscriptionTier.plus,
+            SubscriptionTier.business,
+          ])
+            if (grants.containsKey(tier)) ...[
+              const SizedBox(height: 6),
+              Text(
+                grants[tier] != null
+                    ? l10n.subscriptionsComplimentaryUntil(
+                        _tierLabel(l10n, tier),
+                        MaterialLocalizations.of(context)
+                            .formatMediumDate(grants[tier]!.toLocal()),
+                      )
+                    : l10n.subscriptionsComplimentaryNoExpiry(
+                        _tierLabel(l10n, tier),
+                      ),
+              ),
+            ],
+          if (showPurchaseTiming) ...[
+            const SizedBox(height: 10),
+            Text(l10n.subscriptionsComplimentaryPurchaseTiming),
           ],
         ],
       ),
@@ -901,7 +965,10 @@ class _TierCard extends StatelessWidget {
       allowTierChanges: model.allowNativeTierChanges,
     ).eligible) {
       return (
-        l10n.subscriptionsViewDetails,
+        state.promotionalAccessEndsByTier.isNotEmpty &&
+                !state.subscriptions.any((value) => value.givesAccess)
+            ? l10n.subscriptionsSubscribeTier(_tierLabel(l10n, tier))
+            : l10n.subscriptionsViewDetails,
         model.onPurchase == null ? null : () => model.onPurchase!(tier),
       );
     }

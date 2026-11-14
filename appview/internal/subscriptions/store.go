@@ -105,8 +105,8 @@ func (s *Store) OwnerAccount(ctx context.Context, owner syntax.DID) (BillingAcco
 	return account, nil
 }
 
-func (s *Store) OwnerState(ctx context.Context, owner syntax.DID, _ time.Time) (BillingState, error) {
-	return s.ownerStateUsing(ctx, s.pool, owner)
+func (s *Store) OwnerState(ctx context.Context, owner syntax.DID, now time.Time) (BillingState, error) {
+	return s.ownerStateUsing(ctx, s.pool, owner, now)
 }
 
 type billingStateBeginner interface {
@@ -115,7 +115,7 @@ type billingStateBeginner interface {
 
 // ownerStateUsing reads through the caller's connection when an owner effect
 // already holds one, so a bounded pool never needs a second connection.
-func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, owner syntax.DID) (BillingState, error) {
+func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, owner syntax.DID, now time.Time) (BillingState, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return BillingState{}, fmt.Errorf("begin billing state read: %w", err)
@@ -142,12 +142,12 @@ func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, ow
 		ReconciliationStale:  account.RequestedGeneration > account.ReconciledGeneration,
 		WebCheckoutAvailable: s.checkoutProvider != nil,
 		WebCheckoutPending:   checkoutPending,
-		Subscriptions:        []BillingSubscription{}, Licenses: []BillingLicense{},
+		Subscriptions:        []BillingSubscription{}, Licenses: []BillingLicense{}, PromotionalGrants: []PromotionalGrant{},
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT id,product_id,store,status,gives_access,pending_payment,auto_renewal_status,
 			current_period_starts_at,current_period_ends_at,ends_at,anomaly,mapped_tier,pending_mapped_tier
-		FROM provider_subscriptions WHERE billing_account_id=$1 AND environment=$2 ORDER BY created_at,id
+		FROM provider_subscriptions WHERE billing_account_id=$1 AND environment=$2 AND store<>'promotional' ORDER BY created_at,id
 	`, account.ID, s.accessEnvironment)
 	if err != nil {
 		return BillingState{}, fmt.Errorf("read owner subscriptions: %w", err)
@@ -172,7 +172,7 @@ func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, ow
 		SELECT license.id,subscription.id,license.tier,license.assigned_did,license.assigned_at,license.assignable,license.anomaly
 		FROM billing_licenses license
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE subscription.billing_account_id=$1 AND subscription.environment=$2 ORDER BY license.created_at,license.id
+		WHERE subscription.billing_account_id=$1 AND subscription.environment=$2 AND subscription.store<>'promotional' ORDER BY license.created_at,license.id
 	`, account.ID, s.accessEnvironment)
 	if err != nil {
 		return BillingState{}, fmt.Errorf("read owner licenses: %w", err)
@@ -184,6 +184,27 @@ func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, ow
 			return BillingState{}, err
 		}
 		state.Licenses = append(state.Licenses, license)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return BillingState{}, err
+	}
+	rows.Close()
+	rows, err = tx.Query(ctx, `
+		SELECT id,tier,gives_access AND (expires_at IS NULL OR expires_at>$3),expires_at
+		FROM billing_promotional_grants WHERE billing_account_id=$1 AND environment=$2
+		ORDER BY created_at,id
+	`, account.ID, s.accessEnvironment, accessTime(now))
+	if err != nil {
+		return BillingState{}, fmt.Errorf("read promotional grants: %w", err)
+	}
+	for rows.Next() {
+		var grant PromotionalGrant
+		if err := rows.Scan(&grant.ID, &grant.Tier, &grant.GivesAccess, &grant.ExpiresAt); err != nil {
+			rows.Close()
+			return BillingState{}, err
+		}
+		state.PromotionalGrants = append(state.PromotionalGrants, grant)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -216,6 +237,7 @@ func scanBillingAccount(row billingAccountRow) (BillingAccount, error) {
 
 const effectiveLicenseAccessSQL = `subscription.gives_access
 	AND subscription.environment=$2
+	AND subscription.store<>'promotional'
 	AND subscription.app_id IS NOT NULL
 	AND subscription.mapped_tier=license.tier
 	AND subscription.anomaly = 'none'
@@ -223,23 +245,20 @@ const effectiveLicenseAccessSQL = `subscription.gives_access
 		WHERE customer.id=subscription.billing_account_id
 		  AND customer.owner_did=license.assigned_did AND customer.state='active')`
 
-func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (SelfAccess, error) {
-	return s.selfAccessUsing(ctx, s.pool, did)
+func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, now time.Time) (SelfAccess, error) {
+	return s.selfAccessUsing(ctx, s.pool, did, now)
 }
 
 type subscriptionAccessQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func (s *Store) selfAccessUsing(ctx context.Context, db subscriptionAccessQuerier, did syntax.DID) (SelfAccess, error) {
+func (s *Store) selfAccessUsing(ctx context.Context, db subscriptionAccessQuerier, did syntax.DID, now time.Time) (SelfAccess, error) {
 	var assignment LocalAssignment
 	err := db.QueryRow(ctx, `
-		SELECT license.tier, `+effectiveLicenseAccessSQL+`,
-			subscription.current_period_ends_at
-		FROM billing_licenses license
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE license.assigned_did=$1
-	`, did, s.accessEnvironment).Scan(&assignment.Tier, &assignment.GivesAccess, &assignment.AccessEndsAt)
+		SELECT tier,gives_access,access_ends_at
+		FROM appview_effective_subscription_access($2,$3) WHERE owner_did=$1
+	`, did, s.accessEnvironment, accessTime(now)).Scan(&assignment.Tier, &assignment.GivesAccess, &assignment.AccessEndsAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProjectSelfAccess(did, nil), nil
 	}
@@ -264,10 +283,8 @@ func (s *Store) EffectiveTiers(ctx context.Context, dids []syntax.DID) (map[synt
 		return result, nil
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT license.assigned_did, license.tier, `+effectiveLicenseAccessSQL+`
-		FROM billing_licenses license
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE license.assigned_did=ANY($1)
+		SELECT owner_did,tier,gives_access
+		FROM appview_effective_subscription_access($2) WHERE owner_did=ANY($1)
 	`, values, s.accessEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("read effective subscription tiers: %w", err)
@@ -288,6 +305,13 @@ func (s *Store) EffectiveTiers(ctx context.Context, dids []syntax.DID) (map[synt
 		return nil, fmt.Errorf("iterate effective subscription tiers: %w", err)
 	}
 	return result, nil
+}
+
+func accessTime(now time.Time) time.Time {
+	if now.IsZero() {
+		return time.Now().UTC()
+	}
+	return now.UTC()
 }
 
 func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot CompleteSnapshot, catalog *Catalog) error {
@@ -349,10 +373,14 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 		return fmt.Errorf("iterate existing subscription assignments: %w", err)
 	}
 	rows.Close()
-	// Serialize any loss commit with a worker's final access check and append.
-	if _, exists := priorPaid[owner]; !exists {
-		priorPaid[owner] = false
+	var hadPromotionalAccess bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM billing_promotional_grants WHERE billing_account_id=$1 AND environment=$2 AND gives_access
+	)`, claim.BillingAccountID, s.accessEnvironment).Scan(&hadPromotionalAccess); err != nil {
+		return fmt.Errorf("read previous promotional access: %w", err)
 	}
+	priorPaid[owner] = false
+	// Serialize any loss commit with a worker's final access check and append.
 	affected := make([]syntax.DID, 0, len(priorPaid))
 	for did := range priorPaid {
 		affected = append(affected, did)
@@ -361,6 +389,23 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 	for _, did := range affected {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, accessFenceKey(did)); err != nil {
 			return fmt.Errorf("fence subscription snapshot access: %w", err)
+		}
+	}
+	// Evaluate timed grants after acquiring the access fence: a gift may expire
+	// while a pin mutation or scheduled effect holds the shared lock.
+	var priorEffective bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM appview_effective_subscription_access($2)
+		WHERE owner_did=$1 AND gives_access
+	)`, owner, s.accessEnvironment).Scan(&priorEffective); err != nil {
+		return fmt.Errorf("read existing effective access: %w", err)
+	}
+	priorPaid[owner] = priorEffective
+	// A timed gift may have expired between snapshots. Remove stale pins before
+	// applying renewed access so a later gift or purchase cannot resurrect them.
+	if hadPromotionalAccess && !priorEffective {
+		if _, err := tx.Exec(ctx, `DELETE FROM profile_pins WHERE owner_did=$1`, owner); err != nil {
+			return fmt.Errorf("clear expired subscription pins: %w", err)
 		}
 	}
 
@@ -372,7 +417,12 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 	mapped := make([]mappedSubscription, 0, len(snapshot.Subscriptions))
 	candidates := make([]LicenseCandidate, 0, len(snapshot.Subscriptions))
 	seen := make(map[string]struct{}, len(snapshot.Subscriptions))
+	promotional := make([]ProviderSubscriptionSnapshot, 0)
 	for _, provider := range snapshot.Subscriptions {
+		if provider.Store == "promotional" {
+			promotional = append(promotional, provider)
+			continue
+		}
 		mapping, allowed := catalog.Authorize(catalog.projectID, provider.Environment, provider.ProductID)
 		item := mappedSubscription{snapshot: provider, mapping: mapping, allowed: allowed}
 		mapped = append(mapped, item)
@@ -384,6 +434,9 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 			SubscriptionID: provider.ID, Tier: mapping.Tier, GivesAccess: provider.GivesAccess,
 		}
 		candidates = append(candidates, candidate)
+	}
+	if err := applyPromotionalGrants(ctx, tx, claim, promotional, catalog); err != nil {
+		return err
 	}
 	decisions := ClassifySnapshotAnomalies(candidates)
 	anomalyCount := len(mapped) - len(candidates)
@@ -523,15 +576,13 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 		}
 	}
 	for _, did := range affected {
-		if !priorPaid[did] {
+		if !priorPaid[did] && !hadPromotionalAccess {
 			continue
 		}
 		var stillPaid bool
 		if err := tx.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM billing_licenses license
-			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-			WHERE license.assigned_did=$1 AND license.tier IN ('plus','business')
-			  AND `+effectiveLicenseAccessSQL+`
+			SELECT 1 FROM appview_effective_subscription_access($2)
+			WHERE owner_did=$1 AND gives_access
 		)`, did, s.accessEnvironment).Scan(&stillPaid); err != nil {
 			return fmt.Errorf("read reconciled subscription access: %w", err)
 		}

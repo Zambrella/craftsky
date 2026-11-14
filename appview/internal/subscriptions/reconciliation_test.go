@@ -32,7 +32,7 @@ func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	store := NewStore(pool)
 	account, _, err := store.EnsureAccount(context.Background(), syntax.DID("did:plc:reconcile-owner"))
 	if err != nil {

@@ -60,6 +60,19 @@ func WithSchema(t *testing.T, ddl string) *pgxpool.Pool {
 	return pool
 }
 
+// WithSubscriptionAccessSchema extends a focused fixture that already defines
+// the billing account tables with the exact promotional-access migration.
+func WithSubscriptionAccessSchema(t *testing.T, ddl string) *pgxpool.Pool {
+	t.Helper()
+	pool := WithSchema(t, ddl)
+	ctx, cancel := context.WithTimeout(t.Context(), setupTimeout)
+	defer cancel()
+	if err := ApplyMigrations(ctx, pool, "000126_billing_promotional_grants.up.sql"); err != nil {
+		t.Fatalf("apply subscription access schema: %v", err)
+	}
+	return pool
+}
+
 // WithMigratedSchema creates an isolated schema and applies every production
 // up migration without rewriting it. It deliberately requires PostgreSQL 16 so
 // callers can use it as production-schema compatibility evidence.

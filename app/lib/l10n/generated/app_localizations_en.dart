@@ -15,6 +15,28 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get subscriptionsComplimentaryAccess => 'Complimentary access';
+
+  @override
+  String subscriptionsComplimentaryUntil(String tier, String date) {
+    return '$tier until $date';
+  }
+
+  @override
+  String subscriptionsComplimentaryNoExpiry(String tier) {
+    return '$tier with no expiry date';
+  }
+
+  @override
+  String get subscriptionsComplimentaryPurchaseTiming =>
+      'Subscribing starts paid billing immediately. Remaining complimentary time is not added to your paid subscription.';
+
+  @override
+  String subscriptionsSubscribeTier(String tier) {
+    return 'Subscribe to $tier';
+  }
+
+  @override
   String get subscriptionsPlanChangeScheduled =>
       'Your plan change is scheduled. Your current benefits continue until renewal.';
 
