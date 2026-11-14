@@ -129,16 +129,20 @@ func notificationPreferencesHandler(store NotificationPreferenceStore, logger *s
 				envelope.WriteError(w, 400, "invalid_request", "invalid preferences", runID, nil)
 				return
 			}
+			if _, err := notifications.ResolvePreferences(nil, request.Preferences); err != nil {
+				envelope.WriteError(w, 400, "invalid_preferences", "invalid notification preferences", runID, nil)
+				return
+			}
 			preferences, err = store.PatchNotificationPreferences(r.Context(), did.String(), request.Preferences)
 		} else {
 			preferences, err = store.NotificationPreferences(r.Context(), did.String())
 		}
 		if err != nil {
+			operation := "notification.preferences.read"
 			if patching {
-				envelope.WriteError(w, 400, "invalid_preferences", "invalid notification preferences", runID, nil)
-				return
+				operation = "notification.preferences.update"
 			}
-			logger.Error("notification preferences failed")
+			logger.ErrorContext(r.Context(), "notification preferences failed", apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, 500, "internal_error", "notification preferences failed", runID, nil)
 			return
 		}

@@ -432,6 +432,34 @@ func TestDiagnosticCaptureOwnershipPerOccurrence(t *testing.T) {
 	}
 }
 
+func TestWorkerOccurrencesIsolateSiblingOwnershipAndBreadcrumbs(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	batch := WithRequestObserver(WithCaptureMarker(context.Background()), observer)
+	sentry.GetHubFromContext(batch).Scope().AddBreadcrumb(&sentry.Breadcrumb{Category: "operation", Message: "batch preamble"}, 100)
+	// Auth uses the context callback to avoid an observability import cycle.
+	retry := ctxkeys.WithDiagnosticOccurrence(batch)
+	observer.ObservePrivateFailure(retry, context.DeadlineExceeded, "did:plc:initiator", "", "auth.cleanup", "provider", "retry", 1)
+	for _, message := range []string{"first job", "second job"} {
+		job := ctxkeys.WithDiagnosticOccurrence(batch)
+		sentry.GetHubFromContext(job).Scope().AddBreadcrumb(&sentry.Breadcrumb{Category: "operation", Message: message}, 100)
+		input := DiagnosticInput{Error: &pgconn.PgError{Code: "40001", Message: "PRIVATE_DATABASE"}, Context: EventContext{"component": "worker", "operation": "auth.cleanup", "failure_stage": "provider", "result": "terminal"}}
+		observer.CaptureDiagnostic(job, input)
+		observer.CaptureDiagnostic(job, input)
+	}
+	observer.Flush(time.Second)
+	events := transport.Events()
+	if len(events) != 2 {
+		t.Fatalf("sibling ownership suppressed or duplicated: issues=%d", len(events))
+	}
+	for i, event := range events {
+		want := []string{"first job", "second job"}[i]
+		if len(event.Breadcrumbs) != 1 || event.Breadcrumbs[0].Message != want {
+			t.Fatalf("job timeline not isolated: %+v", event.Breadcrumbs)
+		}
+	}
+}
+
 // AT-006 / FR-009, RULE-002: a public account is useful only on a private
 // operational failure; private targets and success history remain absent.
 func TestPrivateOperationalFailureContext(t *testing.T) {

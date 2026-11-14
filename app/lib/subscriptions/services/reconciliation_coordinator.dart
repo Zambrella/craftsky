@@ -1,5 +1,6 @@
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum ReconciliationIntent { purchase, restore }
 
@@ -146,6 +147,7 @@ final class ReconciliationCoordinator {
     ReconciliationWait? wait,
     bool Function()? isCurrent,
     this.maxAttempts = 30,
+    this.diagnostics = const SubscriptionDiagnostics(),
   }) : wait = wait ?? _defaultWait,
        isCurrent = isCurrent ?? _alwaysCurrent {
     if (maxAttempts < 1) throw ArgumentError.value(maxAttempts, 'maxAttempts');
@@ -156,6 +158,7 @@ final class ReconciliationCoordinator {
   final ReconciliationWait wait;
   final bool Function() isCurrent;
   final int maxAttempts;
+  final SubscriptionDiagnostics diagnostics;
 
   Future<ReconciliationResult> reconcile({
     required BillingState baseline,
@@ -166,7 +169,8 @@ final class ReconciliationCoordinator {
     if (!isCurrent()) return _result(ReconciliationOutcome.cancelled, null);
     try {
       await requestReconciliation();
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'reconciliation.request');
       return _result(
         isCurrent()
             ? ReconciliationOutcome.failed
@@ -181,6 +185,8 @@ final class ReconciliationCoordinator {
       comparisonBaseline: comparisonBaseline,
       expectedTier: expectedTier,
     );
+    Object? lastFailure;
+    StackTrace? lastStack;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       if (!isCurrent()) {
         return _result(
@@ -190,6 +196,8 @@ final class ReconciliationCoordinator {
       }
       try {
         final evaluation = tracker.evaluate(await readBillingState());
+        lastFailure = null;
+        lastStack = null;
         if (!isCurrent()) {
           return _result(
             ReconciliationOutcome.cancelled,
@@ -205,7 +213,9 @@ final class ReconciliationCoordinator {
             state: evaluation.state,
           );
         }
-      } on Object {
+      } on Object catch (error, stack) {
+        lastFailure = error;
+        lastStack = stack;
         if (!isCurrent()) {
           return _result(
             ReconciliationOutcome.cancelled,
@@ -216,6 +226,13 @@ final class ReconciliationCoordinator {
       if (attempt + 1 < maxAttempts) {
         await wait(const Duration(seconds: 1));
       }
+    }
+    if (lastFailure != null) {
+      diagnostics.report(
+        lastFailure,
+        lastStack!,
+        operation: 'reconciliation.poll',
+      );
     }
     return _result(ReconciliationOutcome.timedOut, tracker.targetGeneration);
   }

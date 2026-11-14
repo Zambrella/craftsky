@@ -228,6 +228,84 @@ void main() {
       ProfileCustomisation.defaults,
     );
   });
+
+  test(
+    'stale build cannot redirect a later save to another profile cache',
+    () async {
+      final oldLoad = Completer<Profile>();
+      final alice = _profile();
+      final bob = Profile(
+        did: 'did:plc:bob',
+        handle: 'bob.example',
+        crafts: const [],
+      );
+      final aliceCache = userProfileProvider(
+        alice.did,
+        audience: testMemberBrowsingAudience,
+      );
+      final bobCache = userProfileProvider(
+        bob.did,
+        audience: testMemberBrowsingAudience,
+      );
+      final initialRepository = FakeProfileRepository(
+        onFetchMe: () => oldLoad.future,
+      );
+      final currentRepository = FakeProfileRepository(
+        onFetchMe: () async => bob,
+        onUpdateCustomisation: (value) async => value,
+      );
+      final storage = _RegistryStorage(SessionRegistry.empty());
+      final container = ProviderContainer.test(
+        overrides: [
+          testMemberBrowsingOverride,
+          profileRepositoryProvider.overrideWithValue(initialRepository),
+          secureSessionRegistryStorageProvider.overrideWithValue(storage),
+          aliceCache.overrideWithBuild((ref, notifier) async => alice),
+          bobCache.overrideWithBuild((ref, notifier) async => bob),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      container
+        ..listen(aliceCache, (_, _) {})
+        ..listen(bobCache, (_, _) {})
+        ..listen(profileCustomisationEditorProvider, (_, _) {});
+      await container.read(aliceCache.future);
+      await container.read(bobCache.future);
+      final staleBuild = container.read(
+        profileCustomisationEditorProvider.future,
+      );
+      final notifier = container.read(
+        profileCustomisationEditorProvider.notifier,
+      );
+      container.updateOverrides([
+        testMemberBrowsingOverride,
+        profileRepositoryProvider.overrideWithValue(currentRepository),
+        secureSessionRegistryStorageProvider.overrideWithValue(storage),
+        aliceCache.overrideWithBuild((ref, notifier) async => alice),
+        bobCache.overrideWithBuild((ref, notifier) async => bob),
+      ]);
+      await container.read(profileCustomisationEditorProvider.future);
+      // Riverpod discards the old async result, but the same notifier object is
+      // reused. An assignment after its old await can still corrupt its fields.
+      oldLoad.complete(alice);
+      await staleBuild;
+      expect(
+        container.read(profileCustomisationEditorProvider.notifier),
+        same(notifier),
+      );
+      notifier.selectColour('rose');
+      await notifier.save();
+
+      expect(
+        container.read(aliceCache).requireValue.customisation,
+        ProfileCustomisation.defaults,
+      );
+      expect(
+        container.read(bobCache).requireValue.customisation.colour,
+        'rose',
+      );
+    },
+  );
 }
 
 Profile _profile() => Profile(

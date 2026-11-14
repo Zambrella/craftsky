@@ -36,8 +36,11 @@ class AppSessionValidationLauncher {
   Future<SessionValidationResult> _validate(
     AccountSessionLease lease,
   ) async {
+    final target = accountDioProvider(lease.account);
+    // Background validation has no widget retaining this auto-disposed client.
+    final subscription = ref.listen(target, (_, _) {});
     try {
-      final dio = await ref.read(accountDioProvider(lease.account).future);
+      final dio = await ref.read(target.future);
       final who = await AuthApiClient(dio).whoami();
       if (who.did != lease.account.did) {
         return SessionValidationResult.identityMismatch;
@@ -54,6 +57,8 @@ class AppSessionValidationLauncher {
       return SessionValidationResult.transientFailure;
     } on ApiCanceled {
       return SessionValidationResult.transientFailure;
+    } finally {
+      subscription.close();
     }
   }
 }

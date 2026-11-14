@@ -22,6 +22,19 @@ func TestPrimaryFeedPaginationQueriesAvoidFullHotTableScans(t *testing.T) {
 	capturedPool := newFeedQueryCapturePool(t, pool, tracer)
 	store := api.NewPostStore(capturedPool)
 
+	t.Run("engagement", func(t *testing.T) {
+		tracer.reset()
+		uris := []string{"at://did:plc:plan-actor-2/social.craftsky.feed.post/1"}
+		if _, err := store.EngagementSummaries(ctx, "did:plc:plan-viewer", nil, uris); err != nil {
+			t.Fatalf("hydrate engagement: %v", err)
+		}
+		query, args := tracer.queryContaining(t, "FROM pds_set_aggregates interaction")
+		plan := explainCapturedFeedQuery(t, pool, query, args...)
+		assertPlanHasIndexedAccess(t, plan, "pds_set_aggregates")
+		assertPlanHasIndexedAccess(t, plan, "craftsky_posts")
+		assertNoSequentialScan(t, plan, "pds_set_aggregates", "craftsky_posts")
+	})
+
 	t.Run("timeline", func(t *testing.T) {
 		_, cursor, err := store.ListTimeline(ctx, "did:plc:plan-viewer", 20, "")
 		if err != nil {

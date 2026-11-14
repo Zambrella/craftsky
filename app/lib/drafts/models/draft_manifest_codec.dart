@@ -62,8 +62,15 @@ abstract final class DraftManifestCodec {
       );
     } on DraftManifestException {
       rethrow;
-    } on Object {
-      throw const DraftManifestException(DraftManifestFailureReason.corrupt);
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftManifestException(
+          DraftManifestFailureReason.corrupt,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -198,9 +205,14 @@ abstract final class DraftManifestCodec {
       )..validate();
     } on DraftManifestException {
       rethrow;
-    } on Object {
-      throw const DraftManifestException(
-        DraftManifestFailureReason.invalidMedia,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftManifestException(
+          DraftManifestFailureReason.invalidMedia,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }

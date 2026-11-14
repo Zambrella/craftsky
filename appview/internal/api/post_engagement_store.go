@@ -87,49 +87,45 @@ func (s *PostStore) CountVisibleQuotes(ctx context.Context, postURIs []string) (
 	return out, nil
 }
 
-func (s *PostStore) countEligibleAccountInteractions(ctx context.Context, kind PostInteractionKind, viewerDID string, postURIs []string) (map[string]int, error) {
-	var label, kindFilter string
-	switch kind {
-	case PostInteractionLikes:
-		label, kindFilter = "like", "AND interaction.kind='like'"
-	case PostInteractionReposts:
-		label, kindFilter = "repost", "AND interaction.kind='repost'"
-	default:
-		return nil, fmt.Errorf("unsupported account interaction kind %q", kind)
-	}
-	out := make(map[string]int, len(postURIs))
-	for _, uri := range postURIs {
-		out[uri] = 0
-	}
+type accountInteractionCounts struct {
+	likes   int
+	reposts int
+}
+
+// Likes and reposts share the same account eligibility policy. Aggregate them
+// together so every hydrated page needs one scan and round trip for both.
+func (s *PostStore) countEligibleAccountInteractions(ctx context.Context, viewerDID string, postURIs []string) (map[string]accountInteractionCounts, error) {
+	out := make(map[string]accountInteractionCounts, len(postURIs))
 	if len(postURIs) == 0 {
 		return out, nil
 	}
 	query := `
-		SELECT interaction.subject_uri, count(*)::int
+		SELECT interaction.subject_uri,
+		       count(*) FILTER (WHERE interaction.kind='like')::int,
+		       count(*) FILTER (WHERE interaction.kind='repost')::int
 		FROM pds_set_aggregates interaction
 		JOIN craftsky_profiles actor ON actor.did = interaction.actor_did
 		JOIN craftsky_posts target ON target.uri = interaction.subject_uri
-		WHERE 1=1
-		  ` + kindFilter + `
+		WHERE interaction.kind IN ('like','repost')
 		  AND interaction.subject_uri = ANY($1::text[])
 		  ` + eligibleAccountInteractionPredicate("actor", "target.did", "$2") + `
 		GROUP BY interaction.subject_uri
 	`
 	rows, err := s.pool.Query(ctx, query, postURIs, viewerDID)
 	if err != nil {
-		return nil, fmt.Errorf("%s count eligible: %w", label, err)
+		return nil, fmt.Errorf("account interaction counts eligible: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var uri string
-		var count int
-		if err := rows.Scan(&uri, &count); err != nil {
-			return nil, fmt.Errorf("%s eligible count scan: %w", label, err)
+		var counts accountInteractionCounts
+		if err := rows.Scan(&uri, &counts.likes, &counts.reposts); err != nil {
+			return nil, fmt.Errorf("account interaction counts scan: %w", err)
 		}
-		out[uri] = count
+		out[uri] = counts
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%s eligible count iter: %w", label, err)
+		return nil, fmt.Errorf("account interaction counts iter: %w", err)
 	}
 	return out, nil
 }
@@ -368,11 +364,7 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 	if len(postURIs) == 0 {
 		return out, nil
 	}
-	likeCounts, err := s.countEligibleAccountInteractions(ctx, PostInteractionLikes, viewerDID, postURIs)
-	if err != nil {
-		return nil, err
-	}
-	repostCounts, err := s.countEligibleAccountInteractions(ctx, PostInteractionReposts, viewerDID, postURIs)
+	accountCounts, err := s.countEligibleAccountInteractions(ctx, viewerDID, postURIs)
 	if err != nil {
 		return nil, err
 	}
@@ -401,8 +393,8 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 		replyState := viewerReplyStates[uri]
 		savedState := viewerSavedStates[uri]
 		out[uri] = EngagementSummary{
-			LikeCount:           likeCounts[uri],
-			RepostCount:         repostCounts[uri],
+			LikeCount:           accountCounts[uri].likes,
+			RepostCount:         accountCounts[uri].reposts,
 			QuoteCount:          quoteCounts[uri],
 			ReplyCount:          replyCounts[uri],
 			ViewerHasLiked:      state.HasLiked,

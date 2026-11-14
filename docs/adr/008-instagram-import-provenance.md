@@ -5,6 +5,11 @@
 - Date: 2026-07-23
 - Decision: Add optional, self-asserted external-import provenance to CraftSky posts
 
+> Implementation update, 13 November 2026: the standalone browser website
+> has been removed from this repository. This accepted provenance decision
+> remains in force for public records and AppView/client handling. The
+> original importer architecture below records the context at decision time.
+
 ### Why I needed to decide this
 
 The historical Instagram importer publishes old posts directly to a member's

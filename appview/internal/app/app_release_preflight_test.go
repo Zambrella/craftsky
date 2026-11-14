@@ -19,8 +19,8 @@ func TestAppReleasePreflightRunsFlutterChecksWithoutTestsForTaggedHead(t *testin
 	if err != nil {
 		t.Fatalf("preflight: %v\n%s", err, output)
 	}
-	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\n" {
-		t.Fatalf("flutter calls = %q", got)
+	if got := mustReadFile(t, logPath); got != "flutter pub get\ndart analyze --fatal-infos\n" {
+		t.Fatalf("client check calls = %q", got)
 	}
 }
 
@@ -47,8 +47,8 @@ func TestAppReleasePreflightAcceptsConfiguredDistributionTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("iOS preflight: %v\n%s", err, output)
 	}
-	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\n" {
-		t.Fatalf("flutter calls = %q", got)
+	if got := mustReadFile(t, logPath); got != "flutter pub get\ndart analyze --fatal-infos\n" {
+		t.Fatalf("client check calls = %q", got)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestAppReleasePreflightRejectsMissingAndroidSigningMaterial(t *testing.T) {
 	}
 }
 
-func TestAppReleasePreflightPropagatesFlutterFailure(t *testing.T) {
+func TestAppReleasePreflightPropagatesAnalyzerFailure(t *testing.T) {
 	repo, _, releaseScript := newReleaseTestRepo(t)
 	notes := writeNotes(t, "- Ready for mobile stores.\n")
 	runRelease(t, repo, releaseScript, nil, "create", "app", "--version", "1.1.0+2", "--notes", notes)
@@ -100,14 +100,20 @@ func prepareAppReleaseEnvironment(t *testing.T, repo string, failAnalyze bool) (
 	writeTestFile(t, repo, "app/android/key.properties", "keyAlias=release\nkeyPassword=test\nstoreFile=release.jks\nstorePassword=test\n")
 	writeTestFile(t, repo, "app/android/app/release.jks", "test keystore\n")
 	binDir := t.TempDir()
-	logPath := filepath.Join(binDir, "flutter.log")
+	logPath := filepath.Join(binDir, "checks.log")
 	failure := ""
 	if failAnalyze {
-		failure = "[ \"$1\" != analyze ] || { printf 'analyze failed\\n' >&2; exit 1; }\n"
+		failure = "printf 'analyze failed\\n' >&2; exit 1\n"
 	}
 	fakeFlutter := filepath.Join(binDir, "flutter")
-	contents := "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\"$FAKE_FLUTTER_LOG\"\n" + failure
+	contents := "#!/bin/sh\nprintf 'flutter %s\\n' \"$*\" >>\"$FAKE_APP_CHECK_LOG\"\n"
 	if err := os.WriteFile(fakeFlutter, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeDart := filepath.Join(binDir, "dart")
+	contents = "#!/bin/sh\nprintf 'dart %s\\n' \"$*\" >>\"$FAKE_APP_CHECK_LOG\"\n" +
+		"[ \"$#\" -eq 2 ] && [ \"$1\" = analyze ] && [ \"$2\" = --fatal-infos ] || exit 2\n" + failure
+	if err := os.WriteFile(fakeDart, []byte(contents), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return binDir, logPath
@@ -120,10 +126,10 @@ func runAppReleasePreflight(repo, preflight, binDir string, extraEnv []string) (
 func runAppReleasePreflightTarget(repo, preflight, binDir, target string, extraEnv []string) ([]byte, error) {
 	command := exec.Command("/bin/bash", preflight, target, "app/config/production.env")
 	command.Dir = repo
-	logPath := filepath.Join(binDir, "flutter.log")
+	logPath := filepath.Join(binDir, "checks.log")
 	command.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"FAKE_FLUTTER_LOG="+logPath,
+		"FAKE_APP_CHECK_LOG="+logPath,
 		"SENTRY_AUTH_TOKEN=test-token",
 		"SENTRY_ORG=test-org",
 		"SENTRY_PROJECT=test-project",

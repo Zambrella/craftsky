@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -29,6 +33,7 @@ import 'package:craftsky_app/subscriptions/services/billing_owner_setup_coordina
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -123,14 +128,22 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      AsyncError() => Scaffold(
+      AsyncError(:final error) => Scaffold(
         appBar: AppBar(
           title: Text(AppLocalizations.of(context).subscriptionsTitle),
         ),
         body: Center(
-          child: _ActionButton(
-            label: AppLocalizations.of(context).subscriptionsRefresh,
-            onPressed: _refresh,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                AppErrorMapper.map(error).message(AppLocalizations.of(context)),
+              ),
+              _ActionButton(
+                label: AppLocalizations.of(context).subscriptionsRefresh,
+                onPressed: _refresh,
+              ),
+            ],
           ),
         ),
       ),
@@ -141,6 +154,15 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     Future<SubscriptionOperationNotice?> Function() action,
   ) async {
     if (_busy) return;
+    final registry = ref.read(sessionRegistryProvider).value;
+    final operation = ActiveAccountOperation.fromWidget(
+      ref,
+      registry?.activeLease,
+    );
+    final diagnostics = SubscriptionDiagnostics(
+      reporter: ref.read(errorReporterProvider),
+      accountDid: registry?.activeLease?.session.account.did.value,
+    );
     setState(() => _busy = true);
     try {
       SubscriptionOperationNotice? notice;
@@ -148,12 +170,14 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         notice = await action();
       } on ApiUnauthorized {
         notice = SubscriptionOperationNotice.unauthorized;
-      } on ApiException {
+      } on ApiException catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.action');
         notice = SubscriptionOperationNotice.actionFailed;
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.action');
         notice = SubscriptionOperationNotice.providerFailure;
       }
-      if (!mounted) return;
+      if (!operation.isCurrent) return;
       setState(() => _notice = notice);
       ref.invalidate(subscriptionPageModelProvider);
     } finally {
@@ -238,9 +262,11 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             dependencies.service,
             dependencies.guard,
             RevenueCatIdentityGuard(dependencies.service),
+            diagnostics: dependencies.diagnostics,
           );
           final controller = SubscriptionPurchaseController(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             presentPaywall: paywall.present,
             wait: Future<void>.delayed,
@@ -306,6 +332,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           final dependencies = await _ownerDependencies();
           final controller = SubscriptionRestoreController(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             wait: Future<void>.delayed,
@@ -359,6 +386,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       PendingSubscriptionOperationKind.purchase => _handlePurchaseResult(
         await SubscriptionPurchaseController(
           ownerGuard: dependencies.guard,
+          diagnostics: dependencies.diagnostics,
           api: dependencies.api,
           presentPaywall: (_, _) => throw DiagnosticStateError(
             'Pending reconciliation cannot present checkout',
@@ -372,6 +400,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       PendingSubscriptionOperationKind.restore => _handleRestoreResult(
         await SubscriptionRestoreController(
           ownerGuard: dependencies.guard,
+          diagnostics: dependencies.diagnostics,
           api: dependencies.api,
           revenueCat: dependencies.service,
           wait: Future<void>.delayed,
@@ -383,6 +412,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         _handleCustomerCenterResult(
           await CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             wait: Future<void>.delayed,
@@ -427,6 +457,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           final dependencies = await _ownerDependencies();
           final coordinator = CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
+            diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
             wait: Future<void>.delayed,
@@ -517,6 +548,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       final dependencies = await _ownerDependencies();
       final result = await SubscriptionAssignmentController(
         ownerGuard: dependencies.guard,
+        diagnostics: dependencies.diagnostics,
         readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
         api: dependencies.api,
         readTargetAccess: (lease) async {
@@ -559,6 +591,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         final dependencies = await _ownerDependencies();
         final result = await SubscriptionAssignmentController(
           ownerGuard: dependencies.guard,
+          diagnostics: dependencies.diagnostics,
           readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
           api: dependencies.api,
           readTargetAccess: (_) =>
@@ -578,19 +611,35 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   Future<
     ({
       BillingOwnerGuard guard,
+      SubscriptionDiagnostics diagnostics,
       RevenueCatService service,
       SubscriptionApi api,
     })
   >
   _ownerDependencies() async {
     final registry = ref.read(sessionRegistryProvider).requireValue;
-    final lease = registry.activeLease!.session;
+    final activeLease = registry.activeLease!;
+    final lease = activeLease.session;
+    final operation = ActiveAccountOperation.fromWidget(ref, activeLease);
+    final diagnostics = SubscriptionDiagnostics(
+      reporter: ref.read(errorReporterProvider),
+      accountDid: lease.account.did.value,
+    );
+    final service = ref.read(revenueCatServiceProvider);
+    final api = await ref.read(
+      subscriptionRepositoryProvider(lease.account).future,
+    );
+    operation.requireCurrent();
     return (
-      guard: BillingOwnerGuard(
-        () => ref.read(sessionRegistryProvider).requireValue,
-      ),
-      service: ref.read(revenueCatServiceProvider),
-      api: await ref.read(subscriptionRepositoryProvider(lease.account).future),
+      guard: BillingOwnerGuard(() {
+        if (!operation.isCurrent) {
+          throw const BillingOwnerGuardException('owner_session_changed');
+        }
+        return ref.read(sessionRegistryProvider).requireValue;
+      }),
+      diagnostics: diagnostics,
+      service: service,
+      api: api,
     );
   }
 

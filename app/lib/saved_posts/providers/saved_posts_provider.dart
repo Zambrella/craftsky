@@ -8,6 +8,8 @@ import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_prov
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
@@ -86,6 +88,7 @@ class SavedPosts extends _$SavedPosts {
   }
 
   Future<void> loadMore() async {
+    final reporter = ref.read(errorReporterProvider);
     final generation = captureSavedPostAccountBoundary(ref);
     final current = state.value;
     if (current == null || current.cursor == null || current.isLoadingMore) {
@@ -94,10 +97,12 @@ class SavedPosts extends _$SavedPosts {
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
     );
+    var dispatched = false;
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(key.account).future,
       );
+      dispatched = true;
       final page = await repository.list(
         scope: key.scope,
         sort: key.sort,
@@ -116,11 +121,21 @@ class SavedPosts extends _$SavedPosts {
           ],
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       if (isInvalidSavedPostCursorError(error)) {
         await _restart(current, generation);
       } else {
+        if (dispatched) {
+          reportConsumedFailure(
+            error,
+            stackTrace,
+            reporter: reporter,
+            feature: 'SavedPosts',
+            operation: 'savedPosts.loadMore',
+            accountDid: key.account.did.value,
+          );
+        }
         state = AsyncData(current.withIncrementalError(error));
       }
     }
@@ -135,16 +150,29 @@ class SavedPosts extends _$SavedPosts {
     SavedPostListState? previous,
     int generation,
   ) async {
+    final reporter = ref.read(errorReporterProvider);
+    var dispatched = false;
     try {
       final repository = await ref.read(
         accountSavedPostRepositoryProvider(key.account).future,
       );
+      dispatched = true;
       final page = await _reload(repository, previous?.items.length ?? 0);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       _reconcilePage(page);
       state = AsyncData(SavedPostListState.fromPage(_withPostEdits(page)));
     } on Object catch (error, stackTrace) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
+      if (previous != null && dispatched) {
+        reportConsumedFailure(
+          error,
+          stackTrace,
+          reporter: reporter,
+          feature: 'SavedPosts',
+          operation: 'savedPosts.refresh',
+          accountDid: key.account.did.value,
+        );
+      }
       state = previous == null
           ? AsyncError(error, stackTrace)
           : AsyncData(previous.withIncrementalError(error));

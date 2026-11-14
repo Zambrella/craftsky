@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"strconv"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type InstagramImportService interface {
@@ -249,7 +249,7 @@ func writeInstagramImportError(w http.ResponseWriter, r *http.Request, logger *s
 	case errors.Is(err, instagram.ErrInvalidInstagramPageLimit):
 		envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid request", runID, nil)
 	default:
-		logger.Error("Instagram import operation failed", slog.String("run_id", runID), slog.String("error_category", "internal"))
+		logger.ErrorContext(r.Context(), "Instagram import operation failed", apiLogErrorAttrs(r.Context(), runID, "instagram.import", "store", err)...)
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Instagram import failed", runID, nil)
 	}
 }

@@ -499,13 +499,13 @@ final chatConversationControllerProvider = ChatConversationControllerFamily._();
 final class ChatConversationControllerProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatConversationController>,
-          ChatConversationController,
-          FutureOr<ChatConversationController>
+          AsyncValue<Raw<ChatConversationController>>,
+          Raw<ChatConversationController>,
+          FutureOr<Raw<ChatConversationController>>
         >
     with
-        $FutureModifier<ChatConversationController>,
-        $FutureProvider<ChatConversationController> {
+        $FutureModifier<Raw<ChatConversationController>>,
+        $FutureProvider<Raw<ChatConversationController>> {
   ChatConversationControllerProvider._({
     required ChatConversationControllerFamily super.from,
     required (AccountKey, ChatConversationId) super.argument,
@@ -529,12 +529,12 @@ final class ChatConversationControllerProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatConversationController> $createElement(
+  $FutureProviderElement<Raw<ChatConversationController>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatConversationController> create(Ref ref) {
+  FutureOr<Raw<ChatConversationController>> create(Ref ref) {
     final argument = this.argument as (AccountKey, ChatConversationId);
     return chatConversationController(ref, argument.$1, argument.$2);
   }
@@ -552,12 +552,12 @@ final class ChatConversationControllerProvider
 }
 
 String _$chatConversationControllerHash() =>
-    r'97f3b27a8215885c3ea91a0f93a6ea61410df038';
+    r'94b9aacbff2534701c7a7b9845deeae562abb167';
 
 final class ChatConversationControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ChatConversationController>,
+          FutureOr<Raw<ChatConversationController>>,
           (AccountKey, ChatConversationId)
         > {
   ChatConversationControllerFamily._()
@@ -585,13 +585,13 @@ final chatInboxControllerProvider = ChatInboxControllerFamily._();
 final class ChatInboxControllerProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatInboxController>,
-          ChatInboxController,
-          FutureOr<ChatInboxController>
+          AsyncValue<Raw<ChatInboxController>>,
+          Raw<ChatInboxController>,
+          FutureOr<Raw<ChatInboxController>>
         >
     with
-        $FutureModifier<ChatInboxController>,
-        $FutureProvider<ChatInboxController> {
+        $FutureModifier<Raw<ChatInboxController>>,
+        $FutureProvider<Raw<ChatInboxController>> {
   ChatInboxControllerProvider._({
     required ChatInboxControllerFamily super.from,
     required (AccountKey, ChatBucket) super.argument,
@@ -615,12 +615,12 @@ final class ChatInboxControllerProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatInboxController> $createElement(
+  $FutureProviderElement<Raw<ChatInboxController>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatInboxController> create(Ref ref) {
+  FutureOr<Raw<ChatInboxController>> create(Ref ref) {
     final argument = this.argument as (AccountKey, ChatBucket);
     return chatInboxController(ref, argument.$1, argument.$2);
   }
@@ -637,12 +637,12 @@ final class ChatInboxControllerProvider
 }
 
 String _$chatInboxControllerHash() =>
-    r'84c7d8da88975fe821fe7b94c1c1f78cf4ffeb7b';
+    r'f37b8f49f887295925de4b20fa5e744d048b041e';
 
 final class ChatInboxControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ChatInboxController>,
+          FutureOr<Raw<ChatInboxController>>,
           (AccountKey, ChatBucket)
         > {
   ChatInboxControllerFamily._()
@@ -667,13 +667,13 @@ final chatSettingsControllerProvider = ChatSettingsControllerFamily._();
 final class ChatSettingsControllerProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatSettingsController>,
-          ChatSettingsController,
-          FutureOr<ChatSettingsController>
+          AsyncValue<Raw<ChatSettingsController>>,
+          Raw<ChatSettingsController>,
+          FutureOr<Raw<ChatSettingsController>>
         >
     with
-        $FutureModifier<ChatSettingsController>,
-        $FutureProvider<ChatSettingsController> {
+        $FutureModifier<Raw<ChatSettingsController>>,
+        $FutureProvider<Raw<ChatSettingsController>> {
   ChatSettingsControllerProvider._({
     required ChatSettingsControllerFamily super.from,
     required AccountKey super.argument,
@@ -697,12 +697,12 @@ final class ChatSettingsControllerProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatSettingsController> $createElement(
+  $FutureProviderElement<Raw<ChatSettingsController>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatSettingsController> create(Ref ref) {
+  FutureOr<Raw<ChatSettingsController>> create(Ref ref) {
     final argument = this.argument as AccountKey;
     return chatSettingsController(ref, argument);
   }
@@ -720,12 +720,12 @@ final class ChatSettingsControllerProvider
 }
 
 String _$chatSettingsControllerHash() =>
-    r'd0cf71e630a1f46f1ccf202916a89f2dfffe413c';
+    r'35f4066a0ab3db20a96268e4950d035900635cdc';
 
 final class ChatSettingsControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ChatSettingsController>,
+          FutureOr<Raw<ChatSettingsController>>,
           AccountKey
         > {
   ChatSettingsControllerFamily._()
@@ -750,13 +750,13 @@ final chatRecipientControllerProvider = ChatRecipientControllerFamily._();
 final class ChatRecipientControllerProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatRecipientController>,
-          ChatRecipientController,
-          FutureOr<ChatRecipientController>
+          AsyncValue<Raw<ChatRecipientController>>,
+          Raw<ChatRecipientController>,
+          FutureOr<Raw<ChatRecipientController>>
         >
     with
-        $FutureModifier<ChatRecipientController>,
-        $FutureProvider<ChatRecipientController> {
+        $FutureModifier<Raw<ChatRecipientController>>,
+        $FutureProvider<Raw<ChatRecipientController>> {
   ChatRecipientControllerProvider._({
     required ChatRecipientControllerFamily super.from,
     required AccountKey super.argument,
@@ -780,12 +780,12 @@ final class ChatRecipientControllerProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatRecipientController> $createElement(
+  $FutureProviderElement<Raw<ChatRecipientController>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatRecipientController> create(Ref ref) {
+  FutureOr<Raw<ChatRecipientController>> create(Ref ref) {
     final argument = this.argument as AccountKey;
     return chatRecipientController(ref, argument);
   }
@@ -803,12 +803,12 @@ final class ChatRecipientControllerProvider
 }
 
 String _$chatRecipientControllerHash() =>
-    r'04822d907a098e261fdb064a48c2ba860866a107';
+    r'556c620bf20d2a3c97ea46a8f028bbcc9cfa1cfd';
 
 final class ChatRecipientControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ChatRecipientController>,
+          FutureOr<Raw<ChatRecipientController>>,
           AccountKey
         > {
   ChatRecipientControllerFamily._()
@@ -833,13 +833,13 @@ final chatReportControllerProvider = ChatReportControllerFamily._();
 final class ChatReportControllerProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatReportController>,
-          ChatReportController,
-          FutureOr<ChatReportController>
+          AsyncValue<Raw<ChatReportController>>,
+          Raw<ChatReportController>,
+          FutureOr<Raw<ChatReportController>>
         >
     with
-        $FutureModifier<ChatReportController>,
-        $FutureProvider<ChatReportController> {
+        $FutureModifier<Raw<ChatReportController>>,
+        $FutureProvider<Raw<ChatReportController>> {
   ChatReportControllerProvider._({
     required ChatReportControllerFamily super.from,
     required (AccountKey, ChatConversationId, ChatMessageId?) super.argument,
@@ -863,12 +863,12 @@ final class ChatReportControllerProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatReportController> $createElement(
+  $FutureProviderElement<Raw<ChatReportController>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatReportController> create(Ref ref) {
+  FutureOr<Raw<ChatReportController>> create(Ref ref) {
     final argument =
         this.argument as (AccountKey, ChatConversationId, ChatMessageId?);
     return chatReportController(ref, argument.$1, argument.$2, argument.$3);
@@ -886,12 +886,12 @@ final class ChatReportControllerProvider
 }
 
 String _$chatReportControllerHash() =>
-    r'e2ea0bd3e71ce4875fd7e966d19c3c13255e905b';
+    r'3d4cf83d859dc2c319997687083b008cf539b20f';
 
 final class ChatReportControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
-          FutureOr<ChatReportController>,
+          FutureOr<Raw<ChatReportController>>,
           (AccountKey, ChatConversationId, ChatMessageId?)
         > {
   ChatReportControllerFamily._()
@@ -1009,13 +1009,13 @@ final chatSyncCoordinatorProvider = ChatSyncCoordinatorFamily._();
 final class ChatSyncCoordinatorProvider
     extends
         $FunctionalProvider<
-          AsyncValue<ChatSyncCoordinator>,
-          ChatSyncCoordinator,
-          FutureOr<ChatSyncCoordinator>
+          AsyncValue<Raw<ChatSyncCoordinator>>,
+          Raw<ChatSyncCoordinator>,
+          FutureOr<Raw<ChatSyncCoordinator>>
         >
     with
-        $FutureModifier<ChatSyncCoordinator>,
-        $FutureProvider<ChatSyncCoordinator> {
+        $FutureModifier<Raw<ChatSyncCoordinator>>,
+        $FutureProvider<Raw<ChatSyncCoordinator>> {
   ChatSyncCoordinatorProvider._({
     required ChatSyncCoordinatorFamily super.from,
     required AccountKey super.argument,
@@ -1039,12 +1039,12 @@ final class ChatSyncCoordinatorProvider
 
   @$internal
   @override
-  $FutureProviderElement<ChatSyncCoordinator> $createElement(
+  $FutureProviderElement<Raw<ChatSyncCoordinator>> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<ChatSyncCoordinator> create(Ref ref) {
+  FutureOr<Raw<ChatSyncCoordinator>> create(Ref ref) {
     final argument = this.argument as AccountKey;
     return chatSyncCoordinator(ref, argument);
   }
@@ -1061,10 +1061,14 @@ final class ChatSyncCoordinatorProvider
 }
 
 String _$chatSyncCoordinatorHash() =>
-    r'262a8ee0b55df71544949c7953356e65836cfda8';
+    r'1d43480366ffb08daf221544f2bb0464c8e691e6';
 
 final class ChatSyncCoordinatorFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<ChatSyncCoordinator>, AccountKey> {
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<Raw<ChatSyncCoordinator>>,
+          AccountKey
+        > {
   ChatSyncCoordinatorFamily._()
     : super(
         retry: null,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"social.craftsky/appview/internal/observability"
 )
 
 const (
@@ -101,6 +102,7 @@ func (processor *CleanupProcessor) ProcessBatch(ctx context.Context) (int, error
 					"cleanup", "failure", "dependency_unavailable", 0,
 				)
 			}
+			observeScheduledInfrastructureFailure(ctx, processor.observer, err, "schedule.cleanup", "snapshot")
 			return 0, err
 		}
 		if processor.observer != nil {
@@ -117,6 +119,7 @@ func (processor *CleanupProcessor) ProcessBatch(ctx context.Context) (int, error
 					"cleanup_sweep", "failure", "dependency_unavailable", 0,
 				)
 			}
+			observeScheduledInfrastructureFailure(ctx, processor.observer, err, "schedule.cleanup", "sweep")
 			return 0, fmt.Errorf("sweep scheduled lifecycle: %w", err)
 		}
 		if processor.observer != nil {
@@ -132,6 +135,7 @@ func (processor *CleanupProcessor) ProcessBatch(ctx context.Context) (int, error
 		processor.leaseDuration,
 	)
 	if err != nil {
+		observeScheduledInfrastructureFailure(ctx, processor.observer, err, "schedule.cleanup", "claim")
 		return 0, fmt.Errorf("claim scheduled cleanup: %w", err)
 	}
 	for index, claim := range claims {
@@ -147,11 +151,15 @@ func (processor *CleanupProcessor) processClaim(
 	claim CleanupClaim,
 	now time.Time,
 ) (processErr error) {
+	ctx = observability.WithPrivateDiagnosticContext(observability.WithDiagnosticOccurrence(ctx), claim.OwnerDID, claim.ID.String())
 	claimCtx, cancelClaim := context.WithTimeout(ctx, processor.leaseDuration)
 	defer cancelClaim()
 	started := time.Now()
 	outcomeErrorClass := "none"
 	defer func() {
+		if processErr != nil {
+			processor.observeFailure(ctx, claim, processErr, "processing", "error")
+		}
 		if processor.observer == nil {
 			return
 		}
@@ -210,8 +218,9 @@ func (processor *CleanupProcessor) processClaimFenced(
 			CleanupErrorObjectDeleteFailed,
 			now,
 		); retryErr != nil {
-			return errorClass, fmt.Errorf("retry scheduled cleanup: %w", retryErr)
+			return errorClass, fmt.Errorf("retry scheduled cleanup: %w", errors.Join(err, retryErr))
 		}
+		processor.observeFailure(ctx, claim, err, "delete", "retry")
 		return errorClass, nil
 	}
 	present, err := processor.objects.Exists(ctx, claim.ObjectKey)
@@ -223,8 +232,9 @@ func (processor *CleanupProcessor) processClaimFenced(
 			CleanupErrorObjectDeleteFailed,
 			now,
 		); retryErr != nil {
-			return errorClass, fmt.Errorf("retry scheduled cleanup existence check: %w", retryErr)
+			return errorClass, fmt.Errorf("retry scheduled cleanup existence check: %w", errors.Join(err, retryErr))
 		}
+		processor.observeFailure(ctx, claim, err, "existence", "retry")
 		return errorClass, nil
 	}
 	if present {
@@ -260,4 +270,13 @@ func (processor *CleanupProcessor) processClaimFenced(
 		return errorClass, fmt.Errorf("complete scheduled cleanup: %w", err)
 	}
 	return errorClass, nil
+}
+
+func (processor *CleanupProcessor) observeFailure(ctx context.Context, claim CleanupClaim, cause error, stage, outcome string) {
+	if outcome == "retry" && claim.AttemptCount >= 5 {
+		outcome = "exhausted"
+	}
+	if diagnostic, ok := processor.observer.(privateFailureObserver); ok {
+		diagnostic.ObservePrivateFailure(ctx, cause, claim.OwnerDID, claim.ID.String(), "schedule.cleanup", stage, outcome, claim.AttemptCount)
+	}
 }

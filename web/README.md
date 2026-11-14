@@ -9,6 +9,7 @@ Static public site served at https://craftsky.social.
 - `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
   `copyright.html` — generated policies; publication approval and remaining full-launch evidence are recorded in the readiness manifest
+- `safety.html` — generated safety and support guide
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
 - `main.js` — waiting-list modal + PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture
@@ -49,9 +50,11 @@ npx playwright install chromium
 npm run test:consent
 ```
 
-The suite uses clean browser contexts for every public route and verifies network,
+The suite uses automatically cleaned browser contexts for every public route and verifies network,
 script, cookie, local-storage, and session-storage behavior before consent, after
-denial, after grant, and under Do Not Track.
+denial, after grant, and under Do Not Track. External fonts, forms and challenge
+scripts are blocked; PostHog uses a local response stub. Page status, headings and
+uncaught script errors are checked without waiting for network idleness.
 
 ## Build and deploy
 
@@ -90,7 +93,7 @@ just web-check
 ```
 
 `web-build` creates a fresh `web/dist/` with the homepage, waitlist, all five
-policy pages, the Instagram import help article at `/instagram-import`,
+policy pages, the safety guide at `/safety`, the Instagram import help article at `/instagram-import`,
 JavaScript, CSS, robots.txt and image/font assets. It excludes
 packages, tests, email templates, documentation, configuration and policy
 approval metadata. New public pages must be added to `ROUTES` in
@@ -102,6 +105,8 @@ hashes of the public files. This metadata is public. Build output and local
 deployment receipts are Git-ignored. `web-check` runs the build/deployment unit
 tests and the consent browser suite **against the built artifact**. Existing
 `web-test-consent` still tests the source website.
+The build tests also check that local page links and referenced assets exist in
+the published artifact. GitHub Actions runs these checks for website changes.
 
 ### Preview
 

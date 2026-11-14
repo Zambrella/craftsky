@@ -21,7 +21,6 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
-import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_links_editor.dart';
@@ -33,6 +32,7 @@ import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -432,11 +432,11 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       );
     } on Object catch (error, stack) {
       unawaited(
-        reportProfileImageFailure(
+        reportImagePickFailure(
           reporter: reporter,
           error: error,
           stackTrace: stack,
-          operation: ProfileImageOperation.editor,
+          operation: ImagePickOperation.editor,
           accountDid: initiatingAccountDid,
         ),
       );

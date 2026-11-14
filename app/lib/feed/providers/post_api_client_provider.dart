@@ -11,5 +11,7 @@ PostApiClient postApiClient(Ref ref) => PostApiClient(
   ref.watch(dioProvider),
   blobClient: ref.watch(isGuestBrowsingProvider)
       ? null
+      // Own the disposable blob client while member access is active.
+      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
       : ref.watch(blobApiClientProvider),
 );

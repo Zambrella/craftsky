@@ -1,7 +1,8 @@
 import { CraftskyAPI } from './client';
 import { publicReadPath } from './public-path';
 import { publicReportPath } from './public-report-path';
-import type { Fetcher } from './transport';
+import { APIError, type Fetcher } from './transport';
+import { appViewRequestId } from './request-id';
 import type {
 	Profile as PublicProfile,
 	Post as PublicPost
@@ -129,49 +130,87 @@ function publicFetcher(fetcher: Fetcher): Fetcher {
 			signal: init?.signal
 		});
 		if (!response.ok || /\/video-captions\/[^/]+$/.test(path)) return response;
-		const value: unknown = await response.json();
-		let display = adapt(value);
-		if (
-			section &&
-			object(value) &&
-			object(value.replies) &&
-			Array.isArray(value.replies.items)
-		) {
-			const replies = {
-				items: value.replies.items.map((item) => ({ post: adapt(item) })),
-				cursor: value.replies.cursor,
-				loaded: true
-			} as ReplyPage;
-			display =
-				section === 'replies'
-					? replies
-					: ({
-							post: adapt(value.post),
-							sort: 'oldest',
-							ancestors: Array.isArray(value.ancestors)
-								? value.ancestors.map((item) =>
-										object(item)
-											? {
-													state: item.state,
-													post: object(item.post) ? adapt(item.post) : undefined
-												}
-											: undefined
-									)
-								: [],
-							comments: {
-								items: replies.items.map((item) => ({
-									post: item.post,
-									replies: { items: [], loaded: false },
-									placement: 'normal'
-								})),
-								cursor: replies.cursor
-							}
-						} as CommentSection);
+		const requestId = appViewRequestId(response.headers.get('X-Request-ID'));
+		let text: string;
+		try {
+			text = await response.text();
+		} catch (cause) {
+			if (cause instanceof DOMException && cause.name === 'AbortError')
+				throw cause;
+			throw new APIError(
+				0,
+				'network_unavailable',
+				'Could not read the CraftSky response. Please try again.',
+				requestId,
+				undefined,
+				undefined,
+				{ cause }
+			);
 		}
-		return Response.json(display, {
-			status: response.status,
-			headers: { 'cache-control': 'no-store' }
-		});
+		let responseKind: APIError['responseKind'] = text ? 'nonJson' : 'empty';
+		try {
+			const value: unknown = JSON.parse(text);
+			responseKind = 'json';
+			let display = adapt(value);
+			if (
+				section &&
+				object(value) &&
+				object(value.replies) &&
+				Array.isArray(value.replies.items)
+			) {
+				const replies = {
+					items: value.replies.items.map((item) => ({ post: adapt(item) })),
+					cursor: value.replies.cursor,
+					loaded: true
+				} as ReplyPage;
+				display =
+					section === 'replies'
+						? replies
+						: ({
+								post: adapt(value.post),
+								sort: 'oldest',
+								ancestors: Array.isArray(value.ancestors)
+									? value.ancestors.map((item) =>
+											object(item)
+												? {
+														state: item.state,
+														post: object(item.post)
+															? adapt(item.post)
+															: undefined
+													}
+												: undefined
+										)
+									: [],
+								comments: {
+									items: replies.items.map((item) => ({
+										post: item.post,
+										replies: { items: [], loaded: false },
+										placement: 'normal'
+									})),
+									cursor: replies.cursor
+								}
+							} as CommentSection);
+			}
+			return Response.json(display, {
+				status: response.status,
+				headers: {
+					'cache-control': 'no-store',
+					...(requestId ? { 'X-Request-ID': requestId } : {})
+				}
+			});
+		} catch (cause) {
+			const failure = new APIError(
+				response.status,
+				'invalid_response',
+				'CraftSky returned an unreadable response.',
+				requestId,
+				undefined,
+				undefined,
+				{ cause }
+			);
+			failure.responseKind = responseKind;
+			throw failure;
+		}
 	};
 }
 

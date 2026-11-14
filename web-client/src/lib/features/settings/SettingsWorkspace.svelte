@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { UserFacingError } from '#lib/user-facing-error.ts';
+	import { APITransport } from '#lib/api/transport.ts';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import type {
@@ -49,8 +51,20 @@
 				const [me, tier] =
 					policy.state === 'eligible'
 						? await Promise.all([
-								api.profiles.me().catch(() => undefined),
-								api.billing.access().catch(() => undefined)
+								api.profiles.me().catch((error) => {
+									void reportFailure(
+										error,
+										'settings.SettingsWorkspace.profile'
+									);
+									return undefined;
+								}),
+								api.billing.access().catch((error) => {
+									void reportFailure(
+										error,
+										'settings.SettingsWorkspace.access'
+									);
+									return undefined;
+								})
 							])
 						: [undefined, undefined];
 				return { policy, me, tier };
@@ -98,13 +112,10 @@
 				if (!session.id)
 					throw new UserFacingError('Reopen Settings to sign out.');
 				await disablePush(api, session.id).catch(() => {});
-				const response = await fetch('/api/auth/logout', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ accountId: session.id })
+				await new APITransport(fetch, '/api/auth').request('POST', '/logout', {
+					body: { accountId: session.id },
+					response: 'empty'
 				});
-				if (!response.ok)
-					throw new UserFacingError('Could not sign out. Try again.');
 				await forgetPush(session.id).catch(() => {});
 				try {
 					clearAccountChat(localStorage, session.id, session.did);

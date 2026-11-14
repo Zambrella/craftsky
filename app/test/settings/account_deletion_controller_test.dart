@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_deletion.dart';
@@ -34,6 +35,125 @@ final class _DeletionRegistryStorage implements SessionRegistryStorage {
 }
 
 void main() {
+  for (final action in ['start', 'cancel', 'confirm']) {
+    test(
+      'deletion $action owns its transport across the pending request',
+      () async {
+        const jobId = '10000000-0000-4000-8000-000000000001';
+        var initial = SessionRegistry.empty().upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+        if (action != 'start') {
+          initial = initial.stageAccountDeletion(
+            PendingAccountDeletion.capture(
+              jobId: jobId,
+              lease: initial.activeLease!,
+              confirmationDid: 'did:plc:alice',
+              expiresAt: DateTime.now().toUtc().add(
+                const Duration(minutes: 10),
+              ),
+            ),
+          );
+        }
+        final started = Completer<void>();
+        final finish = Completer<void>();
+        var disposed = false;
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.invalid'));
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) async {
+              started.complete();
+              await finish.future;
+              handler.resolve(
+                Response<Object?>(
+                  requestOptions: options,
+                  statusCode: switch (action) {
+                    'start' => 201,
+                    'confirm' => 202,
+                    _ => 204,
+                  },
+                  data: action == 'start'
+                      ? {
+                          'jobId': jobId,
+                          'authUrl': 'https://pds.invalid/oauth',
+                          'confirmationDid': 'did:plc:alice',
+                          'expiresAt': DateTime.now()
+                              .toUtc()
+                              .add(const Duration(minutes: 10))
+                              .toIso8601String(),
+                        }
+                      : null,
+                ),
+              );
+            },
+          ),
+        );
+        addTearDown(() => dio.close(force: true));
+        final router = GoRouter(
+          initialLocation: '/sign-in',
+          routes: [
+            GoRoute(path: '/sign-in', builder: (_, _) => const SizedBox()),
+            GoRoute(path: '/welcome', builder: (_, _) => const SizedBox()),
+          ],
+        );
+        addTearDown(router.dispose);
+        final storage = _DeletionRegistryStorage(initial);
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(storage),
+            accountDioProvider.overrideWith((ref, account) async {
+              ref.onDispose(() => disposed = true);
+              return dio;
+            }),
+            accountStateInvalidatorProvider.overrideWithValue(() async {}),
+            accountProductDataCleanerProvider.overrideWithValue((_) async {}),
+            authUrlLauncherProvider.overrideWithValue((_) async => true),
+            goRouterProvider.overrideWithValue(router),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final controller = container.read(
+          accountDeletionControllerProvider.notifier,
+        );
+        final operation = switch (action) {
+          'start' => controller.startReauthentication(),
+          'cancel' =>
+            controller.cancelPendingIntent(jobId).then<Object?>((_) => null),
+          _ => controller.confirm(
+            jobId: jobId,
+            reauthProof: 'one-time-proof',
+            confirmationDid: 'did:plc:alice',
+          ),
+        };
+        try {
+          await started.future;
+          await container.pump();
+          expect(
+            disposed,
+            isFalse,
+            reason: 'the pending deletion request still uses this transport',
+          );
+        } finally {
+          finish.complete();
+          await operation;
+        }
+        await container.pump();
+        expect(disposed, isTrue);
+        expect(
+          container.read(accountDeletionControllerProvider).hasError,
+          isFalse,
+        );
+        if (action == 'start') {
+          expect(storage.value.pendingAccountDeletion?.jobId, jobId);
+        } else {
+          expect(storage.value.pendingAccountDeletion, isNull);
+        }
+      },
+    );
+  }
+
   test('retries deletion after a persisted intent expired', () async {
     const oldJob = '10000000-0000-4000-8000-000000000001';
     const freshJob = '10000000-0000-4000-8000-000000000002';

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/subscriptions"
 )
 
@@ -109,6 +111,15 @@ func NewWebhookHandler(config WebhookConfig, store EventStore, now func() time.T
 			OccurredAt:          time.UnixMilli(envelope.Event.EventTimestampMS).UTC(),
 		}, acceptedAt)
 		if err != nil {
+			fields := map[string]any{"component": "revenuecat_webhook", "operation": "revenuecat.webhook", "failure_stage": "store", "result": "error", "http_status": http.StatusServiceUnavailable}
+			attrs := ctxkeys.DiagnosticFailureAttrs(ctx, err, fields)
+			for key, value := range fields {
+				attrs = append(attrs, slog.Any(key, value))
+			}
+			if runID := ctxkeys.GetRunID(ctx); runID != "" {
+				attrs = append(attrs, slog.String("run_id", runID))
+			}
+			slog.Default().LogAttrs(ctx, slog.LevelError, "RevenueCat webhook persistence failed", attrs...)
 			observe("store_error")
 			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
 			return

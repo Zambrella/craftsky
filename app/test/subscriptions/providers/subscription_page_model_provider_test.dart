@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -14,11 +17,107 @@ import 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
+import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/recording_error_reporter.dart';
+
 void main() {
+  test('consumed billing load reports its original failure once', () async {
+    final error = Exception('PRIVATE_BILLING_PAYLOAD');
+    final reporter = RecordingErrorReporter();
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(_registry()),
+        ),
+        errorReporterProvider.overrideWithValue(reporter),
+        revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+        subscriptionRepositoryProvider.overrideWith(
+          (_, _) async => _Api(
+            'did:plc:alice',
+            SubscriptionTier.plus,
+            ownerError: error,
+          ),
+        ),
+      ],
+    );
+    final subscription = container.listen(
+      subscriptionPageModelProvider,
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+
+    final model = await container.read(subscriptionPageModelProvider.future);
+
+    expect(model.operationNotice, SubscriptionOperationNotice.providerFailure);
+    expect(reporter.errors, [same(error)]);
+    expect(
+      reporter.contexts.single.workflow,
+      isA<PrivateOperationalFailureContext>(),
+    );
+  });
+
+  for (final phase in ['registry', 'access', 'billing']) {
+    test(
+      'closed subscription page cancels pending $phase work '
+      'without reading a disposed ref',
+      () async {
+        final gate = Completer<void>();
+        final registry = _registry();
+        final storage = _Storage(
+          registry,
+          readGate: phase == 'registry' ? gate.future : null,
+        );
+        final api = _Api(
+          'did:plc:alice',
+          SubscriptionTier.plus,
+          accessGate: phase == 'access' ? gate.future : null,
+          ownerGate: phase == 'billing' ? gate.future : null,
+        );
+        final container = ProviderContainer.test(
+          retry: (_, _) => null,
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(storage),
+            revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+            subscriptionRepositoryProvider.overrideWith(
+              (ref, account) async => api,
+            ),
+          ],
+        );
+        final subscription = container.listen(
+          subscriptionPageModelProvider,
+          (_, _) {},
+        );
+        final pending = container.read(subscriptionPageModelProvider.future);
+        await switch (phase) {
+          'registry' => storage.readStarted.future,
+          'access' => api.accessStarted.future,
+          _ => api.ownerStarted.future,
+        };
+        subscription.close();
+        await container.pump();
+        final cancelled = expectLater(
+          pending,
+          throwsA(
+            phase == 'billing'
+                ? isA<BillingOwnerGuardException>().having(
+                    (error) => error.ownerSessionChanged,
+                    'owner session ended',
+                    true,
+                  )
+                : isA<AccountOperationCancellation>(),
+          ),
+        );
+        gate.complete();
+        await cancelled;
+      },
+    );
+  }
+
   test(
     'AT-003 switching accounts uses only each AppView self-access',
     () async {
@@ -384,11 +483,17 @@ SessionRegistry _registry() => SessionRegistry.empty()
     );
 
 final class _Storage implements SessionRegistryStorage {
-  new(this.value);
+  new(this.value, {this.readGate});
   SessionRegistry value;
+  final Future<void>? readGate;
+  final readStarted = Completer<void>();
 
   @override
-  Future<SessionRegistry> read() async => value;
+  Future<SessionRegistry> read() async {
+    if (!readStarted.isCompleted) readStarted.complete();
+    if (readGate != null) await readGate;
+    return value;
+  }
 
   @override
   Future<void> write(SessionRegistry registry) async => value = registry;
@@ -400,23 +505,35 @@ final class _Api implements SubscriptionApi {
     this.tier, {
     this.revenueCatAppUserId = '20000000-0000-4000-8000-000000000001',
     this.ownerError,
+    this.accessGate,
+    this.ownerGate,
   });
   final String did;
   final SubscriptionTier tier;
   final String revenueCatAppUserId;
   final Exception? ownerError;
   int ownerReads = 0;
+  final Future<void>? accessGate;
+  final Future<void>? ownerGate;
+  final accessStarted = Completer<void>();
+  final ownerStarted = Completer<void>();
 
   @override
-  Future<SubscriptionAccess> getAccess() async => SubscriptionAccess(
-    did: Did.parse(did),
-    effectiveTier: tier,
-    givesAccess: tier != SubscriptionTier.free,
-  );
+  Future<SubscriptionAccess> getAccess() async {
+    if (!accessStarted.isCompleted) accessStarted.complete();
+    if (accessGate != null) await accessGate;
+    return SubscriptionAccess(
+      did: Did.parse(did),
+      effectiveTier: tier,
+      givesAccess: tier != SubscriptionTier.free,
+    );
+  }
 
   @override
   Future<BillingState> getBillingAccount() async {
     ownerReads++;
+    if (!ownerStarted.isCompleted) ownerStarted.complete();
+    if (ownerGate != null) await ownerGate;
     if (ownerError case final error?) throw error;
     return BillingState(
       billingAccountId: '10000000-0000-4000-8000-000000000001',

@@ -207,3 +207,40 @@ func TestAllUrgentReportReasonsPersistAndEnterDigest(t *testing.T) {
 		t.Fatalf("urgent coverage: %d/%d %v", count, len(reasons), err)
 	}
 }
+
+func TestDeliveryEscalatesPersistentProviderFailuresAndKeepsRetrying(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	now := time.Now().UTC()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO external_safety_intakes(id,reference,provider_message_ref,intake_kind,urgency,canonical_subject,owner_actor_id,attachment_status,received_at,created_at) VALUES($1,'reference','PRIVATE_PROVIDER_REF','allegation','urgent','PRIVATE_SUBJECT','operator','none',$2,$2)`, uuid.New(), now); err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	sender := &fakeSender{fail: true}
+	worker := NewWorker(pool, sender, observer)
+	worker.now = func() time.Time { return now }
+	for attempt := 1; attempt <= 6; attempt++ {
+		if count, err := worker.ProcessBatch(t.Context()); err != nil || count != 1 {
+			t.Fatalf("attempt %d: count=%d err=%v", attempt, count, err)
+		}
+		now = now.Add(retryDelay(attempt))
+	}
+	if len(sender.ids) != 6 {
+		t.Fatalf("provider attempts=%d", len(sender.ids))
+	}
+	for _, want := range []string{`"result":"retry"`, `"result":"exhausted"`, `"attempt":5`, `"attempt":6`, "*errors.errorString", sender.ids[0].String()} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("missing %s: %s", want, logs.String())
+		}
+	}
+	for _, forbidden := range []string{"PRIVATE_PROVIDER_REF", "PRIVATE_SUBJECT", "PRIVATE-PROVIDER-CANARY", "moderation@craftsky.social", "credential-canary"} {
+		if strings.Contains(logs.String(), forbidden) {
+			t.Fatalf("private value leaked: %s", logs.String())
+		}
+	}
+	for _, id := range sender.ids {
+		if id != sender.ids[0] {
+			t.Fatal("retry changed delivery identity")
+		}
+	}
+}

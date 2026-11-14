@@ -43,6 +43,39 @@ import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
   for (final route in _ownerRoutes) {
+    testWidgets('cold ${route.label} redirect retains pending access lookup', (
+      tester,
+    ) async {
+      final pendingAccess = Completer<SubscriptionAccess>();
+      final access = SubscriptionAccess(
+        did: Did.parse('did:plc:test'),
+        effectiveTier: SubscriptionTier.business,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.business,
+      );
+      addTearDown(() {
+        if (!pendingAccess.isCompleted) pendingAccess.complete(access);
+      });
+      var disposed = false;
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        initialLocation: route.location,
+        size: route.size,
+        pendingAccess: pendingAccess.future,
+        onAccessDispose: () => disposed = true,
+      );
+      expect(disposed, isFalse, reason: 'the redirect still needs the lookup');
+
+      pendingAccess.complete(access);
+      await tester.pumpAndSettle();
+
+      expect(harness.router.state.matchedLocation, route.location);
+      expect(find.byType(route.pageType), findsOneWidget);
+    });
+  }
+
+  for (final route in _ownerRoutes) {
     testWidgets('AT-008 ${route.label} route closes on Business lapse', (
       tester,
     ) async {
@@ -241,6 +274,8 @@ Future<_RouterHarness> _pumpRouter(
   required Size size,
   SubscriptionTier? accessTier,
   StateProvider<SubscriptionTier>? accessTierProvider,
+  Future<SubscriptionAccess>? pendingAccess,
+  VoidCallback? onAccessDispose,
   List<BusinessProductView> products = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -279,6 +314,8 @@ Future<_RouterHarness> _pumpRouter(
         ),
       ),
       subscriptionAccessProvider.overrideWith((ref, lease) async {
+        if (onAccessDispose != null) ref.onDispose(onAccessDispose);
+        if (pendingAccess != null) return await pendingAccess;
         final tier =
             (accessTierProvider == null
                 ? null

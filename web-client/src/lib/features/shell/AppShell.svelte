@@ -46,6 +46,8 @@
 		publicationsContext
 	} from '../social/publications.svelte';
 	import { reportFailure } from '../diagnostics/client.ts';
+	import { expectedFailure } from '../diagnostics/privacy.ts';
+	import { APITransport } from '#lib/api/transport.ts';
 	let {
 		session,
 		accounts,
@@ -356,12 +358,18 @@
 			if (policy.state === 'eligible') {
 				const [status, tier, , profile] = await Promise.all([
 					api.account.onboarding(),
-					api.billing.access().catch(() => undefined),
+					api.billing.access().catch((error) => {
+						void reportFailure(error, 'startup.access');
+						return undefined;
+					}),
 					loadLanguagePreferences(
 						api,
 						navigator.languages || [navigator.language]
 					),
-					api.profiles.me().catch(() => undefined)
+					api.profiles.me().catch((error) => {
+						void reportFailure(error, 'startup.identity');
+						return undefined;
+					})
 				]);
 				if (dead) return;
 				onboarding = status;
@@ -376,6 +384,7 @@
 				error = 'CraftSky could not load your account. Please try again.';
 		}
 	}
+	const countFailures = [false, false];
 	async function counts() {
 		if (dead || document.hidden || !ready) return;
 		const activityRevision = activityBadge.capture();
@@ -384,6 +393,18 @@
 			api.chat.unread()
 		]);
 		if (dead) return;
+		for (const [index, result] of results.entries()) {
+			if (result.status === 'fulfilled') countFailures[index] = false;
+			else {
+				const unexpected = !expectedFailure(result.reason);
+				if (!unexpected || !countFailures[index])
+					void reportFailure(
+						result.reason,
+						index === 0 ? 'startup.count.activity' : 'startup.count.messages'
+					);
+				if (unexpected) countFailures[index] = true;
+			}
+		}
 		if (results[0].status === 'fulfilled')
 			activityBadge.accept(results[0].value.newCount, activityRevision);
 		if (results[1].status === 'fulfilled')
@@ -436,7 +457,8 @@
 					profile.did === currentDid
 				)
 					identity = profile;
-			} catch {
+			} catch (error) {
+				void reportFailure(error, 'startup.identity.refresh');
 				// The save already succeeded; retain the last known identity until its next refresh.
 			}
 		};
@@ -462,14 +484,13 @@
 		}
 		accountMenu = false;
 		try {
-			const result = await fetch('/api/auth/switch', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ accountId: id })
+			await new APITransport(fetch, '/api/auth').request('POST', '/switch', {
+				body: { accountId: id },
+				response: 'empty'
 			});
-			if (!result.ok) throw new Error();
 			location.assign('/feed');
-		} catch {
+		} catch (error) {
+			void reportFailure(error, 'account.switch');
 			notify('The account could not be switched. Try again.', true);
 		}
 	}
@@ -484,12 +505,10 @@
 			return;
 		try {
 			await disablePush(api, accountId).catch(() => {});
-			const response = await fetch('/api/auth/logout', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ accountId })
+			await new APITransport(fetch, '/api/auth').request('POST', '/logout', {
+				body: { accountId },
+				response: 'empty'
 			});
-			if (!response.ok) throw new Error();
 			await forgetPush(accountId).catch(() => {});
 			try {
 				const privatePrefix = `craftsky.chat.v1:${encodeURIComponent(accountId + ':' + session.did)}:`;
@@ -497,7 +516,8 @@
 					if (key.startsWith(privatePrefix)) localStorage.removeItem(key);
 			} catch {}
 			location.assign('/feed');
-		} catch {
+		} catch (error) {
+			void reportFailure(error, 'account.signOut');
 			notify('Could not sign out. Please try again.', true);
 		}
 	}

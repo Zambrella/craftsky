@@ -48,6 +48,16 @@ final class VideoPublicationException implements Exception {
 
   final VideoServiceOutcome? outcome;
   final VideoUploadIneligibilityReason? ineligibilityReason;
+
+  bool get expectedRejection =>
+      ineligibilityReason != null ||
+      const {
+        VideoServiceOutcome.emailUnverified,
+        VideoServiceOutcome.quotaExhausted,
+        VideoServiceOutcome.providerUnsupported,
+        VideoServiceOutcome.validationFailed,
+        VideoServiceOutcome.providerSizeLimit,
+      }.contains(outcome);
 }
 
 typedef VideoUploadOperation = Future<VideoServiceResult> Function({
@@ -327,15 +337,7 @@ final class VideoPublicationCoordinator {
     final expected =
         outcome == VideoOperationOutcome.canceled ||
         outcome == VideoOperationOutcome.rejected ||
-        (error is VideoPublicationException &&
-            (error.ineligibilityReason != null ||
-                const {
-                  VideoServiceOutcome.emailUnverified,
-                  VideoServiceOutcome.quotaExhausted,
-                  VideoServiceOutcome.providerUnsupported,
-                  VideoServiceOutcome.validationFailed,
-                  VideoServiceOutcome.providerSizeLimit,
-                }.contains(error.outcome)));
+        (error is VideoPublicationException && error.expectedRejection);
     final appError = error == null
         ? null
         : AppErrorMapper.map(

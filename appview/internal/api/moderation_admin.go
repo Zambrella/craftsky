@@ -15,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/moderation"
+	"social.craftsky/appview/internal/observability"
 )
 
 type ModerationCommander interface {
@@ -90,6 +91,7 @@ func ModerationAdminQueueHandler(store *moderation.Store) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "moderation.queue.read", "store")
 			adminError(w, r, 500, "internal_error", "moderation queue unavailable")
 			return
 		}
@@ -109,6 +111,7 @@ func ModerationAdminDetailHandler(store *moderation.Store) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "moderation.case.read", "store")
 			adminError(w, r, 500, "internal_error", "moderation case unavailable")
 			return
 		}
@@ -247,6 +250,7 @@ func writeModerationCommandError(w http.ResponseWriter, r *http.Request, err err
 	case errors.Is(err, moderation.ErrInvalidDecision), errors.Is(err, moderation.ErrInvalidCommand), errors.Is(err, moderation.ErrInvalidEffectChange), errors.Is(err, moderation.ErrInvalidAppealTransition), errors.Is(err, moderation.ErrCaseNotOpen):
 		adminError(w, r, 422, "validation_failed", "moderation command is invalid")
 	default:
+		observability.ReportRequestFailure(r.Context(), err, "moderation.command", "store")
 		adminError(w, r, 500, "internal_error", "moderation command failed")
 	}
 }

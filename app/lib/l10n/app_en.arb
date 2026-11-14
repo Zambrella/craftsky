@@ -439,6 +439,9 @@
   "errorServiceUnavailable": "CraftSky is having trouble right now. Please try again.",
   "@errorServiceUnavailable": { "description": "Safe generic error message shown when the CraftSky service is unavailable." },
 
+  "errorRateLimited": "Too many requests. Please wait a moment and try again.",
+  "@errorRateLimited": { "description": "Recovery guidance when an API request is rate limited." },
+
   "errorSessionExpired": "Please sign in again.",
   "@errorSessionExpired": { "description": "Safe generic error message shown when the user's session is no longer valid." },
 

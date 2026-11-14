@@ -8,6 +8,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/observability"
 )
 
 // deviceIDPattern enforces the wire-spec format for
@@ -93,9 +94,13 @@ func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) h
 				if did, ok := ctxkeys.GetDID(ctx); ok {
 					if sid, ok := ctxkeys.GetOAuthSessionID(ctx); ok && sid != "" {
 						if err := toucher.TouchDeviceID(ctx, did.String(), sid, id); err != nil {
-							logger.Warn("device-id: TouchDeviceID failed",
-								slog.String("error_category", "store"),
-								slog.String("run_id", GetRunID(ctx)))
+							// This is supporting instrumentation; the handler still owns
+							// any actionable failure of the requested operation.
+							logger.WarnContext(ctx, "device-id: TouchDeviceID failed",
+								slog.String("component", "middleware"), slog.String("operation", "auth.device_touch"),
+								slog.String("failure_stage", "store"), slog.String("result", "error"),
+								slog.Any("causes", observability.DescribeError(err, observability.EventContext{})),
+								observability.DiagnosticWorkflowAttr(ctx, observability.RequestFailureWorkflow(ctx, err)))
 						}
 					}
 				}

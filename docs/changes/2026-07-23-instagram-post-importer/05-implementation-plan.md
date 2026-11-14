@@ -1,5 +1,10 @@
 # TDD Implementation Record: Instagram Historical Post Importer
 
+> Historical record: the standalone website described here was removed on
+> 13 November 2026. Its implementation paths and commands below are retired;
+> use the [web client guide](../../../web-client/README.md) for current development.
+> The shared public-record decision remains in [ADR 008](../../adr/008-instagram-import-provenance.md).
+
 ## 1. Inputs And Scope
 
 - Requirements: `01-requirements.md`

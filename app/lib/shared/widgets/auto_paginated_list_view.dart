@@ -50,7 +50,9 @@ class AutoPaginatedListView extends StatelessWidget {
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        if (notification.metrics.extentAfter < autoLoadMoreExtent &&
+        if (notification.depth == 0 &&
+            notification.metrics.axis == Axis.vertical &&
+            notification.metrics.extentAfter < autoLoadMoreExtent &&
             !isLoadingMore &&
             !hasLoadMoreError) {
           onNearEnd();

@@ -127,6 +127,10 @@ func withIsolatedSchema(t *testing.T, includePublic bool) *pgxpool.Pool {
 		t.Fatalf("parse scoped database config: %v", err)
 	}
 	scopedConfig.ConnConfig.RuntimeParams["search_path"] = schema
+	// PostgreSQL lock/activity views are database-global. Give every connection
+	// in this fixture the same unique tag so concurrency probes can exclude
+	// waiters belonging to other schemas or simultaneous test processes.
+	scopedConfig.ConnConfig.RuntimeParams["application_name"] = schema
 	if includePublic {
 		scopedConfig.ConnConfig.RuntimeParams["search_path"] += ",public"
 	}

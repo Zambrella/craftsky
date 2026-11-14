@@ -123,6 +123,7 @@ func WithRequestObserver(ctx context.Context, observer *Observer) context.Contex
 		ctx = sentry.SetHubOnContext(ctx, hub.Clone())
 	}
 	ctx = context.WithValue(ctx, requestObserverKey{}, observer)
+	ctx = ctxkeys.WithDiagnosticOccurrenceFactory(ctx, WithDiagnosticOccurrence)
 	return ctxkeys.WithDiagnosticBoundary(ctx, func(ctx context.Context, err error, fields map[string]any) []slog.Attr {
 		observer.CaptureDiagnostic(ctx, DiagnosticInput{Error: err, Context: EventContext(fields)})
 		return []slog.Attr{slog.Any("causes", DescribeError(err, EventContext(fields)))}

@@ -9,6 +9,7 @@ export function apiErrorMessage(error: APIError): string {
 	if (error.status === 0)
 		return "You're offline. Check your connection and try again.";
 	if (error.status === 401) return 'Please sign in again.';
+	if (error.status === 403) return "You don't have permission to do that.";
 	if (error.code === 'not_found' || error.status === 404)
 		return 'That content is no longer available.';
 	if (error.status >= 500)

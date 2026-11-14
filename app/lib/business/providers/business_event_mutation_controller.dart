@@ -18,6 +18,9 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
+import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -90,6 +93,7 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
     if (!confirmed || state.status == EventMutationStatus.saving) return false;
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final lease = ownership?.session ?? _testLease(event.did);
     final endpoint = '/v1/events/${event.did}/${event.rkey}';
     final immutableBody = 'DELETE\nIf-Match:${event.cid}\n';
@@ -118,13 +122,22 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
           event.cid,
           operationKey: operationKey,
         );
-      } on PdsMutationAmbiguousException catch (error) {
+      } on PdsMutationAmbiguousException catch (error, stack) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return false;
         switch (decision) {
           case PdsMutationRetryDecision.obsolete:
             return false;
           case PdsMutationRetryDecision.exhausted:
+            reportConsumedFailure(
+              error,
+              stack,
+              reporter: reporter,
+              feature: 'BusinessEvents',
+              operation: 'events.delete',
+              accountDid: ownership?.session.account.did.value,
+              outcome: DiagnosticOutcome.terminal,
+            );
             state = const EventMutationState(
               status: EventMutationStatus.ambiguous,
             );
@@ -132,12 +145,16 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
           case PdsMutationRetryDecision.retry:
             continue;
         }
-      } on Object catch (error) {
+      } on Object catch (error, stack) {
         if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         _setFailure(
           error,
           event,
+          stack: stack,
+          reporter: reporter,
+          operation: 'events.delete',
+          accountDid: ownership?.session.account.did.value,
           retry: (current) => delete(current, confirmed: true),
         );
         return false;
@@ -227,6 +244,7 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
         : '/v1/events/${event.did}/${event.rkey}';
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
+    final reporter = ref.read(errorReporterProvider);
     final lease =
         ownership?.session ?? (event == null ? null : _testLease(event.did));
     final commandLease = lease ?? _testLease(Did.parse('did:plc:local-test'));
@@ -256,13 +274,22 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
           operationKey,
           repository,
         );
-      } on PdsMutationAmbiguousException catch (error) {
+      } on PdsMutationAmbiguousException catch (error, stack) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return false;
         switch (decision) {
           case PdsMutationRetryDecision.obsolete:
             return false;
           case PdsMutationRetryDecision.exhausted:
+            reportConsumedFailure(
+              error,
+              stack,
+              reporter: reporter,
+              feature: 'BusinessEvents',
+              operation: event == null ? 'events.create' : 'events.update',
+              accountDid: ownership?.session.account.did.value,
+              outcome: DiagnosticOutcome.terminal,
+            );
             state = const EventMutationState(
               status: EventMutationStatus.ambiguous,
             );
@@ -270,12 +297,16 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
           case PdsMutationRetryDecision.retry:
             continue;
         }
-      } on Object catch (error) {
+      } on Object catch (error, stack) {
         if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         _setFailure(
           error,
           event,
+          stack: stack,
+          reporter: reporter,
+          operation: event == null ? 'events.create' : 'events.update',
+          accountDid: ownership?.session.account.did.value,
           retry:
               retryOnConflict ??
               (event == null
@@ -396,8 +427,20 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
   void _setFailure(
     Object error,
     BusinessEvent? event, {
+    required StackTrace stack,
+    required ErrorReporter reporter,
+    required String operation,
+    String? accountDid,
     Future<bool> Function(BusinessEvent current)? retry,
   }) {
+    reportConsumedFailure(
+      error,
+      stack,
+      reporter: reporter,
+      feature: 'BusinessEvents',
+      operation: operation,
+      accountDid: accountDid,
+    );
     final conflict =
         error is ApiBadRequest &&
         (error.code == 'pds_record_conflict' ||

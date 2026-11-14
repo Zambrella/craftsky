@@ -4,6 +4,7 @@ import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum SubscriptionRestoreOutcome {
   completed,
@@ -37,11 +38,13 @@ final class SubscriptionRestoreController {
     required this.revenueCat,
     required this.wait,
     this.isCurrent = _alwaysCurrent,
+    this.diagnostics = const SubscriptionDiagnostics(),
     this.isForeground = _alwaysCurrent,
     this.onProviderConfirmed,
     this.maxReconciliationAttempts = 30,
   });
 
+  final SubscriptionDiagnostics diagnostics;
   final BillingOwnerGuard ownerGuard;
   final SubscriptionApi api;
   final RevenueCatService revenueCat;
@@ -80,11 +83,13 @@ final class SubscriptionRestoreController {
       if (!isCurrent() || !ownerGuard.isCurrent(owner)) {
         return _pendingRetry(beforeProvider);
       }
-    } on RevenueCatIdentityException {
+    } on RevenueCatIdentityException catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'restore.provider');
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
       );
-    } on RevenueCatUnavailableException {
+    } on RevenueCatUnavailableException catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'restore.provider');
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
       );
@@ -93,7 +98,8 @@ final class SubscriptionRestoreController {
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.cancelled,
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'restore.provider');
       return const SubscriptionRestoreResult(
         outcome: SubscriptionRestoreOutcome.providerError,
       );
@@ -120,11 +126,13 @@ final class SubscriptionRestoreController {
     } on BillingOwnerGuardException catch (error) {
       if (!error.ownerSessionChanged) rethrow;
       return _pendingRetry(beforeProvider);
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'restore.reconcile');
       return _pendingRetry(beforeProvider);
     }
     final result =
         await ReconciliationCoordinator(
+          diagnostics: diagnostics,
           requestReconciliation: () => ownerGuard.dispatch(
             owner,
             api.requestReconciliation,

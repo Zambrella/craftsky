@@ -139,6 +139,7 @@ ProviderContainer _container({
   Future<void> Function()? invalidateAccountState,
   Future<void> Function()? clearSessionPrivateState,
   Future<void> Function()? resetToHome,
+  void Function()? onAccountClientDispose,
 }) {
   final resolvedApi = api ?? _FakeAuthApi();
   launch ??= _LaunchRecorder();
@@ -149,7 +150,12 @@ ProviderContainer _container({
       sessionValidationLauncherProvider.overrideWithValue((_) async {}),
       authApiClientProvider.overrideWithValue(resolvedApi),
       accountAuthApiClientProvider.overrideWith(
-        (ref, account) async => resolvedApi,
+        (ref, account) async {
+          if (onAccountClientDispose != null) {
+            ref.onDispose(onAccountClientDispose);
+          }
+          return resolvedApi;
+        },
       ),
       authUrlLauncherProvider.overrideWithValue(launch.launch),
       if (handoff != null) handoffApiClientProvider.overrideWithValue(handoff),
@@ -1218,6 +1224,44 @@ void main() {
       );
     },
   );
+
+  test('signOut owns its account client across a pending logout', () async {
+    final initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final started = Completer<void>();
+    final finish = Completer<void>();
+    var disposed = false;
+    final container = _container(
+      registryStorage: _FakeRegistryStorage(initial),
+      api: _FakeAuthApi(
+        onLogout: () {
+          started.complete();
+          return finish.future;
+        },
+      ),
+      onAccountClientDispose: () => disposed = true,
+    );
+    await container.read(authSessionProvider.future);
+    final operation = container.read(authControllerProvider.notifier).signOut();
+    try {
+      await started.future;
+      await container.pump();
+      expect(
+        disposed,
+        isFalse,
+        reason: 'the pending logout still uses this client',
+      );
+    } finally {
+      finish.complete();
+      await operation;
+    }
+    await container.pump();
+    expect(disposed, isTrue, reason: 'operation ownership ends after logout');
+    expect(await container.read(authSessionProvider.future), isA<SignedOut>());
+  });
 
   test('confirmed signOut of the last account projects SignedOut', () async {
     final initial = SessionRegistry.empty().upsertAndActivate(

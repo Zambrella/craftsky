@@ -968,7 +968,7 @@ void main() {
         (server) => server.reply(404, {
           'error': 'post_not_found',
           'message': 'Post not found',
-          'requestId': 'request-pin-404',
+          'requestId': 'f0000000-0000-4000-8000-000000000005',
         }),
       );
 
@@ -983,7 +983,7 @@ void main() {
               .having(
                 (error) => error.details.requestId,
                 'requestId',
-                'request-pin-404',
+                'f0000000-0000-4000-8000-000000000005',
               ),
         ),
       );
@@ -1026,7 +1026,7 @@ void main() {
           (server) => server.reply(testCase.status, {
             'error': testCase.code,
             'message': testCase.serverMessage,
-            'requestId': 'request-${testCase.code}',
+            'requestId': 'f0000000-0000-4000-8000-000000000009',
           }),
         );
 
@@ -1043,7 +1043,7 @@ void main() {
         expect(error.details.statusCode, testCase.status);
         expect(error.details.appViewError, testCase.code);
 
-        expect(error.details.requestId, 'request-${testCase.code}');
+        expect(error.details.requestId, 'f0000000-0000-4000-8000-000000000009');
         expect(error.details.method, 'PUT');
       }
 
@@ -1053,7 +1053,7 @@ void main() {
         (server) => server.reply(400, {
           'error': 'invalid_cursor',
           'message': 'cursor could not be decoded',
-          'requestId': 'request-invalid-cursor',
+          'requestId': 'f0000000-0000-4000-8000-000000000007',
         }),
         queryParameters: {'cursor': 'stale'},
       );
@@ -1074,7 +1074,7 @@ void main() {
         (server) => server.reply(500, {
           'error': 'internal_error',
           'message': 'database failed for did:plc:alice',
-          'requestId': 'request-pin-500',
+          'requestId': 'f0000000-0000-4000-8000-000000000006',
         }),
       );
       final internalError = await _captureApiException(
@@ -1087,7 +1087,10 @@ void main() {
       expect(internalError.details.statusCode, 500);
       expect(internalError.details.appViewError, 'internal_error');
 
-      expect(internalError.details.requestId, 'request-pin-500');
+      expect(
+        internalError.details.requestId,
+        'f0000000-0000-4000-8000-000000000006',
+      );
 
       expect(internalError.toString(), isNot(contains('did:plc:alice')));
     });
@@ -1732,7 +1735,7 @@ void main() {
         (server) => server.reply(400, {
           'error': 'invalid_cursor',
           'message': 'Invalid interaction cursor.',
-          'requestId': 'request-invalid-cursor',
+          'requestId': 'f0000000-0000-4000-8000-000000000007',
         }),
         queryParameters: {'cursor': 'wrong-target'},
       );
@@ -1747,7 +1750,10 @@ void main() {
       expect(invalidCursor, isA<ApiBadRequest>());
       expect((invalidCursor as ApiBadRequest).code, 'invalid_cursor');
       expect(invalidCursor.details.statusCode, 400);
-      expect(invalidCursor.details.requestId, 'request-invalid-cursor');
+      expect(
+        invalidCursor.details.requestId,
+        'f0000000-0000-4000-8000-000000000007',
+      );
 
       final missingDio = buildDio();
       DioAdapter(dio: missingDio).onGet(
@@ -1755,7 +1761,7 @@ void main() {
         (server) => server.reply(404, {
           'error': 'post_not_found',
           'message': 'post not found',
-          'requestId': 'request-post-not-found',
+          'requestId': 'f0000000-0000-4000-8000-000000000008',
         }),
       );
       final missing = await _captureApiException(
@@ -1765,7 +1771,7 @@ void main() {
       expect(missing, isA<ApiBadRequest>());
       expect((missing as ApiBadRequest).code, 'post_not_found');
       expect(missing.details.statusCode, 404);
-      expect(missing.details.requestId, 'request-post-not-found');
+      expect(missing.details.requestId, 'f0000000-0000-4000-8000-000000000008');
     });
   });
 

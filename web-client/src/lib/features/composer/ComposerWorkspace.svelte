@@ -502,7 +502,10 @@
 					throw new InputError('Choose a post to reply to or quote.');
 				const [target, preferences] = await Promise.all([
 					ownedApi.posts.get(did, rkey),
-					ownedApi.languages.get().catch(() => undefined)
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					})
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
 				if (!('author' in target))
@@ -524,9 +527,15 @@
 				}
 			} else {
 				const [preferences, profile] = await Promise.all([
-					ownedApi.languages.get().catch(() => undefined),
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					}),
 					next.kind === 'project'
-						? ownedApi.profiles.me().catch(() => undefined)
+						? ownedApi.profiles.me().catch((error) => {
+								void reportFailure(error, 'composer.profile');
+								return undefined;
+							})
 						: Promise.resolve(undefined)
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
@@ -556,7 +565,7 @@
 						if (seq === generation && !destroyed)
 							scheduleFull = !next.scheduleId && capacity.items.length >= 3;
 					})
-					.catch(() => {});
+					.catch((error) => void reportFailure(error, 'composer.capacity'));
 			}
 			if (next.kind === 'project' && !next.project)
 				next.project = defaultProject();

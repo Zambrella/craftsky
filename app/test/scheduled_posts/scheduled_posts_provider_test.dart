@@ -14,6 +14,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('observed scheduled posts retain their pending repository', () async {
+    final account = AccountKey('did:plc:alice');
+    final response = Completer<List<ScheduledPostSummary>>();
+    final repository = _CompleterRepository(response);
+    var disposed = false;
+    final container = ProviderContainer.test(
+      overrides: [
+        accountScheduledPostRepositoryProvider(account)
+            .overrideWith((ref) async {
+              ref.onDispose(() => disposed = true);
+              return repository;
+            }),
+      ],
+    );
+    final provider = scheduledPostsProvider(account);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    final result = container.read(provider.future);
+    await repository.started.future;
+    await container.pump();
+    expect(disposed, isFalse);
+
+    response.complete([_summary('scheduled', 12)]);
+    expect((await result).items.single.id, 'scheduled');
+    subscription.close();
+    await container.pump();
+    expect(disposed, isTrue);
+  });
+
   test(
     'UT-017 sorts, replaces on refresh and isolates account families',
     () async {

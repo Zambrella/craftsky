@@ -145,7 +145,7 @@ test('a rejected like cancels feedback without changing the saved like state', a
 	await expect(card.locator('.like-reaction')).toBeVisible();
 	release();
 	await expect(page.locator('.snackbar')).toContainText(
-		"That didn't work. Please try again."
+		"You don't have permission to do that."
 	);
 	await expect(page.locator('body')).not.toContainText(
 		'This like was not saved.'

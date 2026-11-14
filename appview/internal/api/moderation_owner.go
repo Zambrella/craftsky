@@ -9,6 +9,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/moderation"
+	"social.craftsky/appview/internal/observability"
 )
 
 func ModerationStandingHandler(store *moderation.Store) http.Handler {
@@ -20,6 +21,7 @@ func ModerationStandingHandler(store *moderation.Store) http.Handler {
 		}
 		standing, err := store.Standing(r.Context(), did)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "moderation.standing.read", "store")
 			envelope.WriteError(w, 500, "internal_error", "moderation standing unavailable", ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
@@ -57,6 +59,7 @@ func ModerationHistoryHandler(store *moderation.Store) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "moderation.history.list", "store")
 			envelope.WriteError(w, 500, "internal_error", "moderation history unavailable", ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}
@@ -81,6 +84,7 @@ func ModerationHistoryEntryHandler(store *moderation.Store) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "moderation.history.read", "store")
 			envelope.WriteError(w, 500, "internal_error", "moderation history unavailable", ctxkeys.GetRunID(r.Context()), nil)
 			return
 		}

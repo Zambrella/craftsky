@@ -11,6 +11,7 @@ import 'package:material_ui/material_ui.dart';
 import '../fakes/recording_messenger.dart';
 
 class _FakeAuthController extends AuthController {
+  @visibleForTesting
   int signOutCalls = 0;
   @override
   FutureOr<void> build() => null;

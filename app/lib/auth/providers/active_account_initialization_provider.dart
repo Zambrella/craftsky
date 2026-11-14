@@ -64,15 +64,21 @@ FutureOr<ActiveAccountInitialization?> activeAccountInitialization(Ref ref) {
       .requireValue;
   if (lease == null) return null;
 
+  // Own the active lease's disposable preferences until the lease changes.
+  // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
   final preferences = ref
       .watch(
         accountLanguagePreferencesProvider(lease),
       )
       .requireValue
       .preferences;
+  // The active lease watch above releases the old session's dependency.
+  // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
   final onboarding = ref
       .watch(onboardingStatusProvider(lease.session))
       .requireValue;
+  // Retain eligibility only for the active lease watched above.
+  // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
   final eligibility = ref.watch(accountEligibilityProvider(lease)).requireValue;
   return ActiveAccountInitialization(
     lease: lease,

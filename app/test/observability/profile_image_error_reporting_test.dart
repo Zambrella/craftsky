@@ -5,8 +5,8 @@ import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/main.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
-import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter/services.dart';
@@ -29,11 +29,11 @@ void main() {
         code: 'codec_failed',
         message: 'PRIVATE_IMAGE',
       );
-      await reportProfileImageFailure(
+      await reportImagePickFailure(
         reporter: reporter,
         error: error,
         stackTrace: stack,
-        operation: ProfileImageOperation.onboarding,
+        operation: ImagePickOperation.onboarding,
         accountDid: 'did:plc:alice',
       );
       expect(reporter.errors, [same(error)]);
@@ -66,11 +66,11 @@ void main() {
       const ApiCanceled(),
       const ApiNetworkError('offline'),
     ]) {
-      await reportProfileImageFailure(
+      await reportImagePickFailure(
         reporter: reporter,
         error: error,
         stackTrace: stack,
-        operation: ProfileImageOperation.editor,
+        operation: ImagePickOperation.editor,
         accountDid: 'did:plc:alice',
       );
     }
@@ -80,11 +80,11 @@ void main() {
   test('an unclassified profile image error is reportable', () async {
     final reporter = _Reporter();
     const error = ProfileImagePickException();
-    await reportProfileImageFailure(
+    await reportImagePickFailure(
       reporter: reporter,
       error: error,
       stackTrace: stack,
-      operation: ProfileImageOperation.editor,
+      operation: ImagePickOperation.editor,
       accountDid: 'did:plc:alice',
     );
     expect(reporter.errors, [same(error)]);
@@ -93,11 +93,11 @@ void main() {
   test('unexpected PDS transfer rejections create issues', () async {
     final reporter = _Reporter();
     const error = ApiBadRequest('image_upload_failed');
-    await reportProfileImageFailure(
+    await reportImagePickFailure(
       reporter: reporter,
       error: error,
       stackTrace: stack,
-      operation: ProfileImageOperation.editor,
+      operation: ImagePickOperation.editor,
       accountDid: 'did:plc:alice',
     );
     expect(reporter.errors, [same(error)]);
@@ -106,65 +106,78 @@ void main() {
 
   test('reporter failure cannot change the photo-error flow', () async {
     final reporter = _Reporter()..fail = true;
-    await reportProfileImageFailure(
+    await reportImagePickFailure(
       reporter: reporter,
       error: StateError('PRIVATE_IMAGE'),
       stackTrace: stack,
-      operation: ProfileImageOperation.editor,
+      operation: ImagePickOperation.editor,
       accountDid: 'did:plc:alice',
     );
     expect(reporter.errors, hasLength(1));
   });
 
-  test('serialized local and Sentry sinks keep context '
-      'and exclude protected image values', () async {
-    final transport = SerializedTransport();
-    await Sentry.init((options) {
-      options
-        ..dsn = 'https://public@example.invalid/1'
-        ..transport = transport;
-      configureDiagnosticOptions(options, enableLogs: false);
+  for (final operation in [
+    ImagePickOperation.editor,
+    ImagePickOperation.businessProduct,
+    ImagePickOperation.businessEvent,
+  ]) {
+    test('serialized ${operation.name} local and Sentry sinks keep context '
+        'and exclude protected image values', () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options, enableLogs: false);
+      });
+      addTearDown(Sentry.close);
+      final local = <String>[];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      final sub = configureRootLogForwarding(platformSink: local.add);
+      addTearDown(sub.cancel);
+      addTearDown(() => Logger.root.level = previousLevel);
+      final error = PlatformException(
+        code: 'codec_failed',
+        message: 'PRIVATE_IMAGE_PROSE',
+        details: {
+          'filename': 'PRIVATE_IMAGE_FILENAME.heic',
+          'imageBytes': 'PRIVATE_IMAGE_BYTES',
+          'authorization': 'Bearer PRIVATE_IMAGE_TOKEN',
+          'uploadEndpoint':
+              'https://private.invalid/photo?token=PRIVATE_IMAGE_CAPABILITY',
+        },
+      );
+      await reportImagePickFailure(
+        reporter: const SentryErrorReporter(),
+        error: error,
+        stackTrace: stack,
+        operation: operation,
+        accountDid: 'did:plc:alice',
+      );
+      await Sentry.close();
+      final events = transport.payloads
+          .map(jsonDecode)
+          .where((e) => (e as Map).containsKey('exception'))
+          .toList();
+      expect(events, hasLength(1));
+      for (final output in [local.join(), jsonEncode(events)]) {
+        expect(
+          output,
+          contains(switch (operation) {
+            ImagePickOperation.businessProduct => 'business.product.image',
+            ImagePickOperation.businessEvent => 'business.event.image',
+            _ => 'profile.photo.pick_upload',
+          }),
+        );
+        expect(output, contains('did:plc:alice'));
+        expect(output, contains('PlatformException'));
+        expect(output, contains('pickPhoto'));
+        expect(output, isNot(contains('PRIVATE_IMAGE')));
+        expect(output, isNot(contains('private.invalid')));
+      }
     });
-    addTearDown(Sentry.close);
-    final local = <String>[];
-    final previousLevel = Logger.root.level;
-    Logger.root.level = Level.ALL;
-    final sub = configureRootLogForwarding(platformSink: local.add);
-    addTearDown(sub.cancel);
-    addTearDown(() => Logger.root.level = previousLevel);
-    final error = PlatformException(
-      code: 'codec_failed',
-      message: 'PRIVATE_IMAGE_PROSE',
-      details: {
-        'filename': 'PRIVATE_IMAGE_FILENAME.heic',
-        'imageBytes': 'PRIVATE_IMAGE_BYTES',
-        'authorization': 'Bearer PRIVATE_IMAGE_TOKEN',
-        'uploadEndpoint':
-            'https://private.invalid/photo?token=PRIVATE_IMAGE_CAPABILITY',
-      },
-    );
-    await reportProfileImageFailure(
-      reporter: const SentryErrorReporter(),
-      error: error,
-      stackTrace: stack,
-      operation: ProfileImageOperation.editor,
-      accountDid: 'did:plc:alice',
-    );
-    await Sentry.close();
-    final events = transport.payloads
-        .map(jsonDecode)
-        .where((e) => (e as Map).containsKey('exception'))
-        .toList();
-    expect(events, hasLength(1));
-    for (final output in [local.join(), jsonEncode(events)]) {
-      expect(output, contains('profile.photo.pick_upload'));
-      expect(output, contains('did:plc:alice'));
-      expect(output, contains('PlatformException'));
-      expect(output, contains('pickPhoto'));
-      expect(output, isNot(contains('PRIVATE_IMAGE')));
-      expect(output, isNot(contains('private.invalid')));
-    }
-  });
+  }
 }
 
 class _Reporter implements ErrorReporter {

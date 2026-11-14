@@ -69,11 +69,11 @@ class _ActiveAccountInitializationGateState
             (activeLease != null && initialized?.lease == activeLease);
         if (isCurrent) return widget.child;
       }
-      if (initialization case AsyncError()) {
-        return _fallback(_errorScreen(registry: value));
+      if (initialization case AsyncError(:final error)) {
+        return _fallback(_errorScreen(registry: value, error: error));
       }
-    } else if (registry case AsyncError()) {
-      return _fallback(_errorScreen(registry: null));
+    } else if (registry case AsyncError(:final error)) {
+      return _fallback(_errorScreen(registry: null, error: error));
     }
 
     return _fallback(const InitializationLoadingScreen());
@@ -96,6 +96,7 @@ class _ActiveAccountInitializationGateState
 
   Widget _errorScreen({
     required registry_model.SessionRegistry? registry,
+    required Object error,
   }) {
     final hasAlternative =
         registry != null && registry.orderedSessions.length > 1;
@@ -103,6 +104,7 @@ class _ActiveAccountInitializationGateState
     final busy = _recovering || ref.watch(authControllerProvider).isLoading;
     return Builder(
       builder: (recoveryContext) => ActiveAccountInitializationErrorScreen(
+        error: error,
         busy: busy,
         isSigningOut: _recovering,
         onRetry: _retry,

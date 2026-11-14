@@ -176,11 +176,15 @@ func (c *WSConsumer) Run(ctx context.Context) error {
 		}
 		c.recordError(err)
 		backoff := c.backoff()
-		c.logger.Warn("tap consumer disconnected",
-			slog.String("result", "error"),
+		c.logger.WarnContext(ctx, "tap consumer disconnected",
+			slog.String("component", "tap"),
+			slog.String("operation", "tap.connect"),
+			slog.String("failure_stage", "connection"),
+			slog.String("result", "retry"),
 			slog.String("error_category", "connection"),
 			slog.Duration("backoff", backoff),
 			slog.Int("attempt", c.State().ReconnectAttempt),
+			slog.Any("causes", observability.DescribeError(err, observability.EventContext{"component": "tap"})),
 		)
 		select {
 		case <-time.After(backoff):

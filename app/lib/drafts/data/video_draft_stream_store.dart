@@ -13,8 +13,14 @@ final class VideoDraftStreamResult {
   final String sha256;
 }
 
-final class VideoDraftStreamException implements Exception {
-  const new();
+final class VideoDraftStreamException
+    implements Exception, DiagnosticFailureCause {
+  const new({this.diagnosticCause, this.diagnosticStack});
+
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
 }
 
 Future<VideoDraftStreamResult> writeVideoDraftStream({
@@ -55,8 +61,14 @@ Future<VideoDraftStreamResult> writeVideoDraftStream({
     );
   } on VideoDraftStreamException {
     rethrow;
-  } on Object {
-    throw const VideoDraftStreamException();
+  } on Object catch (error, stackTrace) {
+    Error.throwWithStackTrace(
+      VideoDraftStreamException(
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+      ),
+      stackTrace,
+    );
   } finally {
     await output?.close();
     if (!digestClosed) digestInput.close();

@@ -6,8 +6,8 @@ import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/composer/composer_ownership.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 /// Shared draft revision, recovery snapshot and media persistence rules.
 /// Widgets supply account-scoped dependencies and retain presentation.
@@ -28,11 +28,11 @@ final class ComposerDraftSession {
     if (activeOwner == null ||
         activeOwner != expectedOwner ||
         activeOwner.session.account != original.owner) {
-      throw DiagnosticStateError('local-draft account changed');
+      throw ComposerOwnershipChanged();
     }
     final saved = await save(original.owner);
     if (saved == null) {
-      throw DiagnosticStateError('local-draft account changed');
+      throw ComposerOwnershipChanged();
     }
     _origin.acceptSnapshot(saved);
   }

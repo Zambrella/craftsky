@@ -33,7 +33,7 @@ final class NativeVideoPlayer extends StatefulWidget {
     this.loadCaption,
     this.reporter = const NoopErrorReporter(),
     this.createCaptionResource = createCaptionUriResource,
-    this.createAdapter = MediaKitNativeVideoAdapter.new,
+    this.createAdapter,
     this.playbackCoordinator,
   }) : localSelection = null,
        localSource = null;
@@ -43,7 +43,7 @@ final class NativeVideoPlayer extends StatefulWidget {
     required this.localSource,
     super.key,
     this.reporter = const NoopErrorReporter(),
-    this.createAdapter = MediaKitNativeVideoAdapter.new,
+    this.createAdapter,
     this.playbackCoordinator,
   }) : video = null,
        loadCaption = null,
@@ -55,7 +55,7 @@ final class NativeVideoPlayer extends StatefulWidget {
   final ErrorReporter reporter;
   final Future<String> Function(String route)? loadCaption;
   final Future<CaptionUriResource> Function(String data) createCaptionResource;
-  final NativeVideoViewAdapter Function() createAdapter;
+  final NativeVideoViewAdapter Function()? createAdapter;
   final NativeVideoPlaybackCoordinator? playbackCoordinator;
 
   @override
@@ -96,7 +96,9 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
   void _startPlayback() {
     final playlist = _playlist;
     if (playlist == null || _adapter != null || _failed) return;
-    final adapter = widget.createAdapter();
+    final adapter =
+        widget.createAdapter?.call() ??
+        MediaKitNativeVideoAdapter(reporter: widget.reporter);
     _adapter = adapter;
     _lifecycle = NativeVideoController(
       adapter,

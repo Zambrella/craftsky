@@ -1,6 +1,8 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
@@ -11,17 +13,24 @@ import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
     FutureProvider.autoDispose<SubscriptionPageModel>((ref) async {
       final registry = await ref.watch(sessionRegistryProvider.future);
+      if (!ref.mounted) throw AccountOperationCanceled();
       final activeLease = registry.activeLease?.session;
       if (activeLease == null) {
         throw DiagnosticStateError('Active account unavailable');
       }
       final access = await ref.watch(
         subscriptionAccessProvider(activeLease).future,
+      );
+      if (!ref.mounted) throw AccountOperationCanceled();
+      final diagnostics = SubscriptionDiagnostics(
+        reporter: ref.read(errorReporterProvider),
+        accountDid: activeLease.account.did.value,
       );
       final owner = registry.billingOwner;
       final ownerRetained =
@@ -68,9 +77,12 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
         );
       }
 
-      final ownerGuard = BillingOwnerGuard(
-        () => ref.read(sessionRegistryProvider).requireValue,
-      );
+      final ownerGuard = BillingOwnerGuard(() {
+        if (!ref.mounted) {
+          throw const BillingOwnerGuardException('owner_session_changed');
+        }
+        return ref.read(sessionRegistryProvider).requireValue;
+      });
       final ownerLease = ownerGuard.capture();
       final repository = await ref.watch(
         subscriptionRepositoryProvider(activeLease.account).future,
@@ -81,7 +93,10 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           ownerLease,
           repository.getBillingAccount,
         );
-      } on BillingOwnerGuardException catch (error) {
+      } on BillingOwnerGuardException catch (error, stack) {
+        if (!error.ownerSessionChanged) {
+          diagnostics.report(error, stack, operation: 'billing.load');
+        }
         if (error.ownerSessionChanged) rethrow;
         return SubscriptionPageModel(
           role: SubscriptionPageRole.owner,
@@ -100,7 +115,8 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           billingAvailability: availability,
           assignedAccountLabels: labels,
         );
-      } on ApiBadRequest catch (error) {
+      } on ApiBadRequest catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.load');
         return SubscriptionPageModel(
           role: SubscriptionPageRole.owner,
           access: access,
@@ -112,7 +128,8 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
               : SubscriptionOperationNotice.providerFailure,
           assignedAccountLabels: labels,
         );
-      } on Object {
+      } on Object catch (error, stack) {
+        diagnostics.report(error, stack, operation: 'billing.load');
         return SubscriptionPageModel(
           role: SubscriptionPageRole.owner,
           access: access,
@@ -122,9 +139,9 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           assignedAccountLabels: labels,
         );
       }
+      if (!ref.mounted) throw AccountOperationCanceled();
       final current = ref.read(sessionRegistryProvider).value;
-      if (!ref.mounted ||
-          current?.leaseFor(activeLease.account) != activeLease) {
+      if (current?.leaseFor(activeLease.account) != activeLease) {
         throw DiagnosticStateError('Account session unavailable');
       }
       if (availability == BillingAvailability.available) {
@@ -139,7 +156,8 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           }
         } on BillingOwnerGuardException {
           rethrow;
-        } on Object {
+        } on Object catch (error, stack) {
+          diagnostics.report(error, stack, operation: 'billing.identity');
           return SubscriptionPageModel(
             role: SubscriptionPageRole.owner,
             access: access,
@@ -170,7 +188,12 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
         }
       }
       final tierPrices = availability == BillingAvailability.available
-          ? await _loadTierPrices(revenueCat, ownerGuard, ownerLease)
+          ? await _loadTierPrices(
+              revenueCat,
+              ownerGuard,
+              ownerLease,
+              diagnostics,
+            )
           : const <SubscriptionTier, String>{};
       return SubscriptionPageModel(
         role: SubscriptionPageRole.owner,
@@ -187,6 +210,7 @@ Future<Map<SubscriptionTier, String>> _loadTierPrices(
   RevenueCatService revenueCat,
   BillingOwnerGuard ownerGuard,
   BillingOwnerLease ownerLease,
+  SubscriptionDiagnostics diagnostics,
 ) async {
   final prices = <SubscriptionTier, String>{};
   for (final tier in const [
@@ -205,7 +229,8 @@ Future<Map<SubscriptionTier, String>> _loadTierPrices(
       if (price != null && price.isNotEmpty) prices[tier] = price;
     } on BillingOwnerGuardException {
       rethrow;
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'billing.prices');
       continue;
     }
   }

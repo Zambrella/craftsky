@@ -295,7 +295,12 @@ test('extended network retains refreshed pages after muting from a card', async 
 		.click();
 	await page.getByRole('button', { name: 'Mute account', exact: true }).click();
 	await expect(page.getByText(/^fresh 0\./)).toBeVisible();
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(page.locator('.member-post')).toHaveCount(24);
 	await page
 		.getByRole('link', { name: 'Followed by Bob Maker' })
@@ -360,7 +365,12 @@ test('a relationship refresh supersedes an older in-flight network page', async 
 	});
 	await page.goto('/feed?source=extended-network');
 	await expect(page.locator('.member-post')).toHaveCount(12);
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await started;
 	await page
 		.locator('.member-post')
@@ -517,7 +527,12 @@ test('extended network deep links retain their own pages, connection attribution
 		'Followed by dana.test'
 	);
 	await page.screenshot({ path: testInfo.outputPath('extended-network.png') });
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(page.locator('.member-post')).toHaveCount(24);
 	await page.evaluate(() => scrollTo({ top: 1150, behavior: 'instant' }));
 	await page.evaluate(() => new Promise(requestAnimationFrame));
@@ -574,7 +589,12 @@ test('extended network retries initial and subsequent pages without losing loade
 	await page.goto('/feed?source=extended-network');
 	await page.getByRole('button', { name: 'Retry', exact: true }).click();
 	await expect(page.locator('.member-post')).toHaveCount(12);
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(
 		page.getByRole('button', { name: 'Retry', exact: true })
 	).toBeVisible();
@@ -642,7 +662,12 @@ test('feed tabs retain independent scroll positions and all loaded pages', async
 	});
 	await page.goto('/feed');
 	await expect(page.locator('.member-post')).toHaveCount(12);
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(page.locator('.member-post')).toHaveCount(24);
 	await page.evaluate(() => scrollTo({ top: 1250, behavior: 'instant' }));
 	await page.evaluate(() => new Promise(requestAnimationFrame));
@@ -842,7 +867,12 @@ test('search categories retain loaded results and independent positions without 
 	const input = await page
 		.getByRole('searchbox', { name: 'Search CraftSky', exact: true })
 		.elementHandle();
-	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await page.evaluate(() =>
+		scrollTo({
+			top: document.documentElement.scrollHeight,
+			behavior: 'instant'
+		})
+	);
 	await expect(page.locator('.member-post')).toHaveCount(24);
 	const tabs = page.getByRole('navigation', { name: 'Search categories' });
 	const positions = new Map<string, number>();

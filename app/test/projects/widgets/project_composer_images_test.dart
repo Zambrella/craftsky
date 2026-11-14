@@ -337,7 +337,9 @@ Future<ComposerImagesState> _waitForImageState(
 }
 
 class _FakeComposerImages extends ComposerImages {
+  @visibleForTesting
   int addImagesCalls = 0;
+  @visibleForTesting
   int takePhotoCalls = 0;
 
   @override
