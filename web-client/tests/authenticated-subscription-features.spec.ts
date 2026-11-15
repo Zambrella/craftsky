@@ -1,3 +1,4 @@
+import { mockRevenueCat } from './revenuecat-fixture';
 import { expect, test, type Page } from '@playwright/test';
 
 const account = {
@@ -10,6 +11,34 @@ const enabled = process.env.WEB_CLIENT_SUBSCRIPTIONS_ENABLED !== 'false';
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
+	await mockRevenueCat(page);
+	await page.route('**/api/appview/v1/billing/account', (route) =>
+		route.fulfill({
+			json: {
+				billingAccountId: 'fixture',
+				revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
+				requestedGeneration: 1,
+				reconciledGeneration: 1,
+				reconciledAt: new Date().toISOString(),
+				reconciliationStale: false,
+				webCheckoutAvailable: true,
+				webCheckoutPending: false,
+				subscriptions: [],
+				licenses: [],
+				promotionalGrants: []
+			}
+		})
+	);
+	await page.route('**/api/appview/v1/billing/web-paywall', (route) =>
+		route.fulfill({
+			json: {
+				apiKey: 'strp_sb_fixture',
+				appUserId: '20000000-0000-4000-8000-000000000001',
+				offering: route.request().postDataJSON().tier
+			}
+		})
+	);
+
 	await page.route('https://status.craftsky.social/app.json', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
@@ -91,44 +120,106 @@ test('free saved posts keeps the badged folder action and opens a cancellable up
 	await expect(create.locator('[data-plus-badge]')).toBeVisible();
 	await create.click();
 	const modal = page.getByRole('dialog', {
-		name: 'Folders requires Plus',
+		name: 'CraftSky Plus',
 		exact: true
 	});
-	await expect(modal).toContainText(
-		'Subscribe to Plus or Business to use Folders.'
-	);
+	await expect(
+		modal.getByRole('heading', { name: 'RevenueCat plus paywall' })
+	).toBeVisible();
 	await expect(page).toHaveURL(/\/saved$/);
 	await page.keyboard.press('Escape');
 	await expect(modal).not.toBeVisible();
 	await expect(create).toBeFocused();
-	await create.click();
-	await modal
-		.getByRole('button', { name: 'Learn about subscriptions' })
-		.click();
-	await expect(page).toHaveURL(/\/settings\/subscriptions$/);
+
 	expect(writes).toBe(0);
 });
 
-test('free settings feature opens the shared modal before navigating', async ({
+test('free settings feature opens the Plus paywall without navigating', async ({
 	page
 }) => {
 	test.skip(!enabled);
 	await access(page, 'free');
 	await page.goto('/settings');
+	for (const name of ['Customisation', 'Growth']) {
+		const feature = page.getByRole('link', { name, exact: true });
+		await expect(feature.locator('[data-plus-badge] svg')).toBeVisible();
+		await expect(feature.locator('[data-plus-badge]')).not.toHaveText('+');
+	}
 	await page.getByRole('link', { name: 'Customisation', exact: true }).click();
 	const modal = page.getByRole('dialog', {
-		name: 'Customisation requires Plus',
+		name: 'CraftSky Plus',
 		exact: true
 	});
 	await expect(modal).toBeVisible();
 	await expect(page).toHaveURL(/\/settings$/);
-	await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page.keyboard.press('Escape');
 	await expect(modal).not.toBeVisible();
 	await page.getByRole('link', { name: 'Growth', exact: true }).click();
 	await expect(
-		page.getByRole('dialog', { name: 'Growth requires Plus', exact: true })
+		page.getByRole('dialog', { name: 'CraftSky Plus', exact: true })
 	).toBeVisible();
 });
+
+for (const composer of ['post', 'project'] as const)
+	test(`free ${composer} scheduling keeps a small Plus overlay and opens Plus`, async ({
+		page
+	}) => {
+		test.skip(!enabled);
+		await access(page, 'free');
+		await page.goto(composer === 'post' ? '/compose' : '/compose/project');
+		const when = page.getByRole('button', { name: 'When', exact: true });
+		const mark = when.locator('[data-plus-badge]');
+		await expect(mark.locator('svg')).toBeVisible();
+		// Catch global pill-badge and composer SVG styles leaking into the overlay.
+		const geometry = await mark.evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			const svg = element.querySelector('svg')!.getBoundingClientRect();
+			const button = element.closest('button')!.getBoundingClientRect();
+			const clock = element
+				.parentElement!.querySelector('svg')!
+				.getBoundingClientRect();
+			const css = getComputedStyle(element);
+			return {
+				width: bounds.width,
+				height: bounds.height,
+				svgWidth: svg.width,
+				svgHeight: svg.height,
+				border: css.borderWidth,
+				padding: css.padding,
+				margin: css.margin,
+				background: css.backgroundColor,
+				inside:
+					bounds.left >= button.left &&
+					bounds.right <= button.right &&
+					bounds.top >= button.top &&
+					bounds.bottom <= button.bottom,
+				clockVisible:
+					bounds.left >= clock.left + clock.width / 2 &&
+					bounds.top >= clock.top + clock.height / 2
+			};
+		});
+		expect(geometry).toEqual({
+			width: 12,
+			height: 12,
+			svgWidth: 12,
+			svgHeight: 12,
+			border: '0px',
+			padding: '0px',
+			margin: '0px',
+			background: 'rgba(0, 0, 0, 0)',
+			inside: true,
+			clockVisible: true
+		});
+		await when.click();
+		const paywall = page.getByRole('dialog', {
+			name: 'CraftSky Plus',
+			exact: true
+		});
+		await expect(paywall).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(paywall).not.toBeVisible();
+		await expect(when).toBeFocused();
+	});
 
 for (const tier of ['plus', 'business'] as const)
 	test(`${tier} opens folder creation without a Plus badge or upgrade prompt`, async ({
@@ -148,7 +239,7 @@ for (const tier of ['plus', 'business'] as const)
 			page.getByRole('dialog', { name: 'Create folder', exact: true })
 		).toBeVisible();
 		await expect(
-			page.getByRole('dialog', { name: 'Folders requires Plus' })
+			page.getByRole('dialog', { name: 'CraftSky Plus' })
 		).toHaveCount(0);
 		const dialog = page.getByRole('dialog', {
 			name: 'Create folder',
@@ -211,18 +302,18 @@ test('free post actions prompt for Pin and New folder without losing the save di
 	await expect(pin.locator('[data-plus-badge]')).toBeVisible();
 	await pin.click();
 	const pinPrompt = page.getByRole('dialog', {
-		name: 'Pin requires Plus',
+		name: 'CraftSky Plus',
 		exact: true
 	});
 	await expect(pinPrompt).toBeVisible();
-	await pinPrompt.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page.keyboard.press('Escape');
 	await page.getByRole('button', { name: 'Save', exact: true }).first().click();
 	const save = page.getByRole('dialog', { name: 'Save post', exact: true });
 	await expect(save).toBeVisible();
 	const folder = save.getByRole('button', { name: 'New folder', exact: true });
 	await folder.click();
 	const prompt = page.getByRole('dialog', {
-		name: 'Folders requires Plus',
+		name: 'CraftSky Plus',
 		exact: true
 	});
 	await expect(prompt).toBeVisible();
@@ -262,6 +353,75 @@ test('free saved post offers a badged Move to folder action', async ({
 	await expect(move.locator('[data-plus-badge]')).toBeVisible();
 	await move.click();
 	await expect(
-		page.getByRole('dialog', { name: 'Folders requires Plus', exact: true })
+		page.getByRole('dialog', { name: 'CraftSky Plus', exact: true })
 	).toBeVisible();
+});
+
+test('a mismatched access response during feature preparation cannot open a paywall', async ({
+	page
+}) => {
+	test.skip(!enabled);
+	await access(page, 'free');
+	await page.goto('/saved');
+	const trigger = page.getByRole('button', {
+		name: 'Create folder',
+		exact: true
+	});
+	await expect(trigger).toBeVisible();
+	await page.route('**/api/appview/v1/subscriptions/access', (route) =>
+		route.fulfill({
+			json: { did: 'did:plc:other', effectiveTier: 'free', givesAccess: false }
+		})
+	);
+	let configurations = 0;
+	page.on('request', (request) => {
+		if (request.url().endsWith('/billing/web-paywall')) configurations++;
+	});
+	await trigger.click();
+	const dialog = page.getByRole('dialog', {
+		name: 'Subscription details',
+		exact: true
+	});
+	await expect(dialog.getByRole('alert')).toContainText(
+		'Subscription access is unavailable'
+	);
+	expect(configurations).toBe(0);
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(trigger).toBeFocused();
+});
+
+test('freshly recognized paid or promotional access bypasses the feature paywall', async ({
+	page
+}) => {
+	test.skip(!enabled);
+	await access(page, 'free');
+	await page.goto('/saved');
+	const trigger = page.getByRole('button', {
+		name: 'Create folder',
+		exact: true
+	});
+	await expect(trigger.locator('[data-plus-badge]')).toBeVisible();
+	await page.route('**/api/appview/v1/subscriptions/access', (route) =>
+		route.fulfill({
+			json: { did: account.did, effectiveTier: 'plus', givesAccess: true }
+		})
+	);
+	let configurations = 0;
+	page.on('request', (request) => {
+		if (request.url().endsWith('/billing/web-paywall')) configurations++;
+	});
+	await trigger.click();
+	await expect(trigger.locator('[data-plus-badge]')).toHaveCount(0);
+	expect(configurations).toBe(0);
+	await expect(
+		page.getByRole('dialog', { name: 'CraftSky Plus', exact: true })
+	).toHaveCount(0);
+	const folderDialog = page.getByRole('dialog', {
+		name: 'Create folder',
+		exact: true
+	});
+	// The initial page load can discover the updated access before the first click.
+	if (!(await folderDialog.isVisible())) await trigger.click();
+	await expect(folderDialog).toBeVisible();
 });

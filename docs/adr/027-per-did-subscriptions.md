@@ -84,7 +84,10 @@ The Svelte client uses `@revenuecat/purchases-js` and the same published `plus`
 and `business` offering paywalls as Flutter. Each offering's `$rc_monthly` package
 contains the matching native, Test Store and Stripe products. Runtime selection
 comes from the environment-specific Stripe app SDK key; never use the mobile
-Test Store key on web. The SDK renders the paywall in a bottom sheet and switches to a larger
+Test Store key on web. Paid feature entry opens the required offering in place, sharing billing-settings
+identity, pending-operation and reconciliation guards. Existing Plus locks open
+`plus`; owned features proceed and unknown access never advertises an upgrade.
+The SDK renders the paywall in a bottom sheet and switches to a larger
 modal for Stripe payment. Cancelling provider checkout restores the sheet. Provider authentication may still redirect out of the modal.
 
 `POST /v1/billing/web-paywall` accepts only `tier`, derives the private customer

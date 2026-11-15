@@ -2,6 +2,7 @@
 	import { fieldError } from '#lib/field-validation.ts';
 	import { onDestroy, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
+	import PlusActionIcon from '../shell/PlusActionIcon.svelte';
 	import { subscriptionsEnabled } from '../shell/release-config';
 	import { useSubscriptionFeature } from '../shell/subscription-feature';
 	import { scheduledLocalDate, scheduleWindow } from './model';
@@ -113,10 +114,10 @@
 	popovertarget={allowed && subscriptionsEnabled() ? uid + '-menu' : undefined}
 	onclick={positionMenu}
 	{disabled}
-	><Icon name="clock" />{#if !allowed}<span
-			class="plus-badge"
-			aria-label="CraftSky Plus">+</span
-		>{/if}{#if later && value}<span>{label}</span>{/if}</button
+	><PlusActionIcon
+		name="clock"
+		locked={subscriptionsEnabled() && !allowed}
+	/>{#if later && value}<span>{label}</span>{/if}</button
 >
 <div
 	bind:this={menu}
@@ -212,20 +213,6 @@
 	}
 	.schedule-control {
 		position: relative;
-	}
-	.plus-badge {
-		position: absolute;
-		right: 0;
-		top: 0;
-		color: var(--ink);
-		background: var(--butter);
-		border-radius: 50%;
-		min-width: 16px;
-		height: 16px;
-		display: grid;
-		place-items: center;
-		font-size: 12px;
-		font-weight: 700;
 	}
 	.schedule-menu {
 		position: fixed;

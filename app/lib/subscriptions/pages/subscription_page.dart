@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -40,7 +41,10 @@ import 'package:material_ui/material_ui.dart';
 export 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
 
 class SubscriptionPage extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.featureTier, super.key});
+
+  /// Feature entry reuses owner checks, purchase and reconciliation.
+  final SubscriptionTier? featureTier;
 
   @override
   ConsumerState<SubscriptionPage> createState() => _SubscriptionPageState();
@@ -49,6 +53,8 @@ class SubscriptionPage extends ConsumerStatefulWidget {
 class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     with WidgetsBindingObserver {
   bool _busy = false;
+  bool _featureStarted = false;
+  ActiveAccountLease? _featureOwner;
   bool _foreground = true;
   SubscriptionOperationNotice? _notice;
   Did? _visibleDid;
@@ -66,6 +72,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     _pendingOperations = _operationContainer.read(
       subscriptionPendingOperationProvider.notifier,
     );
+    _featureOwner = _operationContainer
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
     WidgetsBinding.instance.addObserver(this);
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _foreground =
@@ -100,9 +110,65 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       _pendingRetry = null;
       _conflictingAccountLabel = null;
     }
+    if (widget.featureTier != null &&
+        (_featureOwner == null ||
+            !ref
+                .read(sessionRegistryProvider)
+                .requireValue
+                .isCurrent(_featureOwner))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const SizedBox.shrink();
+    }
     final model = ref.watch(subscriptionPageModelProvider);
     final pendingOperation = ref.watch(subscriptionPendingOperationProvider);
     final operationBlocked = _busy || pendingOperation != null;
+    final featureTier = widget.featureTier;
+    if (featureTier != null &&
+        !_featureStarted &&
+        model is AsyncData<SubscriptionPageModel>) {
+      _featureStarted = true;
+      final value = model.value;
+      final alreadyAllowed = featureTier == SubscriptionTier.plus
+          ? value.access.allowsPlus
+          : value.access.allowsBusiness;
+      if (alreadyAllowed) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+            Navigator.of(context).pop();
+          }
+        });
+        return _featureLoading();
+      }
+      final state = value.billingState;
+      if (!operationBlocked &&
+          value.billingAvailability == BillingAvailability.available &&
+          state != null &&
+          purchaseEligibility(
+            state,
+            featureTier,
+            store: value.nativeStore,
+            allowTierChanges: value.allowNativeTierChanges,
+          ).eligible) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              ref
+                  .read(sessionRegistryProvider)
+                  .requireValue
+                  .isCurrent(_featureOwner)) {
+            _purchase(featureTier);
+          }
+        });
+        return _featureLoading();
+      }
+    }
+    if (featureTier != null &&
+        (_busy || model is AsyncLoading<SubscriptionPageModel>)) {
+      return _featureLoading();
+    }
     return switch (model) {
       AsyncData(:final value) => SubscriptionPageView(
         pendingOperation: pendingOperation?.ownerDid == value.access.did
@@ -162,6 +228,22 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     };
   }
 
+  Widget _featureLoading() => Center(
+    child: Material(
+      color: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Future<void> _run(
     Future<SubscriptionOperationNotice?> Function() action,
   ) async {
@@ -211,7 +293,19 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
               session) {
         _operationContainer.invalidate(subscriptionAccessProvider(session));
       }
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        if (widget.featureTier != null &&
+            _notice == null &&
+            ModalRoute.of(context)?.isCurrent == true &&
+            _operationContainer
+                    .read(sessionRegistryProvider)
+                    .value
+                    ?.isCurrent(_featureOwner) ==
+                true) {
+          Navigator.of(context).pop();
+        }
+      }
     }
   }
 

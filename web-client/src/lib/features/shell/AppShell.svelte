@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Startup from './Startup.svelte';
+	import FeaturePaywall from './FeaturePaywall.svelte';
 	import { routeTitle } from './page-context';
 	import RailNavigation from './RailNavigation.svelte';
 	import NavigationFooter from './NavigationFooter.svelte';
@@ -73,7 +74,8 @@
 			navigation.to &&
 			navigation.from &&
 			navigation.to.url.href !== navigation.from.url.href
-		)
+		) {
+			featurePaywall = null;
 			pageHistory.leave(
 				navigationDepth,
 				navigationDepth +
@@ -86,6 +88,7 @@
 						navigation.from.url.searchParams.get('q') ===
 							navigation.to.url.searchParams.get('q'))
 			);
+		}
 	});
 	let navigationDepth = 0;
 	let routeHistory: string[] = [];
@@ -367,6 +370,26 @@
 	let notice = $state('');
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
+	let featurePaywall = $state<{
+		tier: 'plus' | 'business';
+		trigger: HTMLElement | null;
+	} | null>(null);
+	setContext('craftsky-feature-paywall', (tier: 'plus' | 'business') => {
+		if (dead || featurePaywall || !billingIdentityAllowed) return;
+		featurePaywall = {
+			tier,
+			trigger:
+				document.activeElement instanceof HTMLElement
+					? document.activeElement
+					: null
+		};
+	});
+	async function closeFeaturePaywall() {
+		const trigger = featurePaywall?.trigger;
+		featurePaywall = null;
+		await tick();
+		if (!dead && trigger?.isConnected) trigger.focus({ preventScroll: true });
+	}
 	setContext('craftsky-access', () => subscriptionAccess.value);
 	const nav = [
 		['home', 'Home', '/feed'],
@@ -638,6 +661,18 @@
 		page.url.pathname.startsWith('/settings/blocked') ||
 		page.url.pathname.startsWith('/settings/about');
 </script>
+
+{#if featurePaywall && !gated}
+	<FeaturePaywall
+		{api}
+		{account}
+		did={session.did}
+		tier={featurePaywall.tier}
+		onClose={() => {
+			void closeFeaturePaywall();
+		}}
+	/>
+{/if}
 
 <svelte:head
 	><link rel="manifest" href="/manifest.webmanifest" /><link

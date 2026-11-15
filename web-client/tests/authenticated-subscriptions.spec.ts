@@ -1,3 +1,4 @@
+import { mockRevenueCat } from './revenuecat-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import type {
 	BillingPromotionalGrant,
@@ -20,36 +21,12 @@ const paywall = {
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	// Replace the dynamically loaded provider SDK, not the CraftSky UI/coordinator.
-	// Live sandbox renders are checked separately; no network purchase is made here.
-	await page.route('**/_app/immutable/chunks/*.js', async (route) => {
-		const response = await route.fetch();
-		const body = await response.text();
-		if (!body.includes(' as Purchases,'))
-			return route.fulfill({ response, body });
-		return route.fulfill({
-			contentType: 'text/javascript',
-			body: `
-   export const LogLevel={Silent:'silent'};
-   export class Purchases {
-    static setLogLevel(){} static configure(options){window.fixtureIdentity=options;return new Purchases();}
-    async getOfferings(){return {all:{plus:{identifier:'plus',availablePackages:[{identifier:'$rc_monthly'}]},business:{identifier:'business',availablePackages:[{identifier:'$rc_monthly'}]}}};}
-    close(){this.target?.replaceChildren();}
-    async purchase(params){return new Promise((resolve,reject)=>{
-     const title=document.createElement('h3');title.textContent='Stripe checkout';
-     const complete=document.createElement('button');complete.textContent='Complete fixture payment';complete.onclick=()=>{params.htmlTarget.replaceChildren();resolve({customerInfo:{}});};
-     const cancel=document.createElement('button');cancel.textContent='Back to plans';cancel.onclick=()=>{params.htmlTarget.replaceChildren();reject({errorCode:1});};
-     params.htmlTarget.replaceChildren(title,complete,cancel);
-    });}
-    presentPaywall(options){this.target=options.htmlTarget;return new Promise((resolve,reject)=>{
-     const h=document.createElement('h3');h.textContent='RevenueCat '+options.offering.identifier+' paywall';
-     const button=document.createElement('button');button.textContent='Continue to checkout';
-     button.onclick=async()=>{try{const r=await this.purchase({htmlTarget:options.purchaseHtmlTarget});resolve(r);}catch(error){options.listener?.onPurchaseError?.(error);}};
-     this.target.replaceChildren(h,button);
-    });}
-   }`
-		});
-	});
+	await mockRevenueCat(page);
+	await page.route(`**${appview}/billing/web-paywall`, (route) =>
+		route.fulfill({
+			json: { ...paywall, offering: route.request().postDataJSON().tier }
+		})
+	);
 	await page.route(`**${appview}/billing/web-checkout/cancel`, (route) =>
 		route.fulfill({ json: { status: 'canceled' } })
 	);
@@ -530,7 +507,7 @@ for (const [initial, updated] of [
 			).toBeVisible();
 		else
 			await expect(
-				page.getByRole('dialog', { name: 'Scheduled posts requires Plus' })
+				page.getByRole('dialog', { name: 'CraftSky Plus' })
 			).toBeVisible();
 		expect(await page.evaluate(() => performance.timeOrigin)).toBe(
 			documentStarted

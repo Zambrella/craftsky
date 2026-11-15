@@ -45,6 +45,11 @@ void main() {
         fireImmediately: true,
       );
       addTearDown(subscription.close);
+      final folders = container.listen(
+        savedPostFoldersProvider(account),
+        (_, _) {},
+      );
+      addTearDown(folders.close);
 
       expect(container.read(newSaveProvider).selectedFolderId, isNull);
       expect(
@@ -126,7 +131,7 @@ void main() {
       expect(repository.createdNames, ['Ideas', 'Retry me']);
     });
 
-    test('IT-008 clears only a confirmed deleted folder selection', () async {
+    test('IT-008 clears only the notified deleted folder selection', () async {
       final account = AccountKey('did:plc:alice');
       final uri = AtUri.parse(
         'at://did:plc:author/social.craftsky.feed.post/3lsaved',
@@ -158,6 +163,9 @@ void main() {
           .read(savedPostFoldersProvider(account).notifier)
           .delete('folder-current', deleteSaves: false);
 
+      container.read(provider.notifier).folderDeleted('folder-other');
+      expect(container.read(provider).selectedFolderId, 'folder-current');
+      container.read(provider.notifier).folderDeleted('folder-current');
       expect(container.read(provider).selectedFolderId, isNull);
       expect(repository.deletedFolderIds, ['folder-current']);
     });

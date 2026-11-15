@@ -6,7 +6,6 @@ import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
-import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -52,18 +51,16 @@ class SavePostDialogController extends _$SavePostDialogController {
   @override
   SavePostDialogState build(SavePostDialogKey key) {
     ref.watch(savedPostAccountBoundaryProvider);
-    if (subscriptionsEnabled) {
-      ref.listen(savedPostFoldersProvider(key.account), (_, next) {
-        final deletedFolderId = next.value?.deletedFolderId;
-        if (deletedFolderId != null &&
-            deletedFolderId == state.selectedFolderId &&
-            !state.isConfirming &&
-            !state.isCancelled) {
-          state = state.copyWith(selectedFolderId: null);
-        }
-      });
-    }
     return SavePostDialogState(selectedFolderId: key.initialFolderId);
+  }
+
+  void folderDeleted(String? folderId) {
+    if (folderId != null &&
+        folderId == state.selectedFolderId &&
+        !state.isConfirming &&
+        !state.isCancelled) {
+      state = state.copyWith(selectedFolderId: null);
+    }
   }
 
   void selectFolder(String? folderId) {

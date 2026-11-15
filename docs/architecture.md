@@ -121,6 +121,9 @@ switching and session restoration. AppView queues initial RevenueCat customer
 registration; native clients also synchronize SDK identity through store
 ownership checks. Provider failures do not block account readiness.
 Web and native clients share RevenueCat's published Plus and Business paywalls.
+Locked paid-feature actions open the required paywall over their current screen,
+using the same purchase guards as billing settings. Unknown access remains an
+unavailable/retry state; disabled subscription builds retain Coming soon.
 The web SDK renders the paywall as a modal bottom sheet, then presents Stripe
 checkout in a larger modal using the
 authenticated account's private RevenueCat UUID and an environment-matched public

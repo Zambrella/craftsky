@@ -219,15 +219,8 @@
 	position: absolute;
 	right: -6px;
 	bottom: -4px;
-	border-radius: 50%;
-	background: var(--primary);
-	color: var(--on-primary);
-	font-size: 11px;
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
-	text-align: center;
-	font-weight: 700;
+	display: flex;
+	color: var(--primary);
 }
 .settings-workspace .settings-group {
 	margin: 0 -16px;

@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/plus_tier_icon.dart';
@@ -16,7 +16,7 @@ class PlusFeatureLock extends StatelessWidget {
     required this.access,
     required this.onUnlocked,
     required this.child,
-    this.onLearnMore,
+    this.onPresentPaywall,
     this.onRetry,
     this.showPlusBadge = true,
     super.key,
@@ -26,7 +26,7 @@ class PlusFeatureLock extends StatelessWidget {
   final AsyncValue<SubscriptionAccess>? access;
   final VoidCallback onUnlocked;
   final Widget child;
-  final VoidCallback? onLearnMore;
+  final VoidCallback? onPresentPaywall;
   final VoidCallback? onRetry;
 
   /// Disable when the child already badges its own action icon.
@@ -63,7 +63,7 @@ class PlusFeatureLock extends StatelessWidget {
             context,
             feature,
             free: free,
-            onLearnMore: onLearnMore,
+            onPresentPaywall: onPresentPaywall,
             onRetry: onRetry,
           ),
         ),
@@ -93,7 +93,7 @@ Future<void> showPlusFeaturePrompt(
   BuildContext context,
   String feature, {
   bool free = true,
-  VoidCallback? onLearnMore,
+  VoidCallback? onPresentPaywall,
   VoidCallback? onRetry,
 }) async {
   final l10n = AppLocalizations.of(context);
@@ -113,17 +113,23 @@ Future<void> showPlusFeaturePrompt(
     );
     return;
   }
+  if (free) {
+    if (onPresentPaywall case final present?) {
+      present();
+    } else {
+      await showCraftskyModal<void>(
+        context,
+        builder: (_) =>
+            const SubscriptionPage(featureTier: SubscriptionTier.plus),
+      );
+    }
+    return;
+  }
   await showCraftskyModal<void>(
     context,
     builder: (dialogContext) => CraftskyDialog(
-      title: free
-          ? l10n.plusFeatureRequired(feature)
-          : l10n.subscriptionsTierUnavailable,
-      body: Text(
-        free
-            ? l10n.plusFeatureExplanation(feature)
-            : l10n.plusFeatureAccessUnavailable(feature),
-      ),
+      title: l10n.subscriptionsTierUnavailable,
+      body: Text(l10n.plusFeatureAccessUnavailable(feature)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
@@ -132,19 +138,9 @@ Future<void> showPlusFeaturePrompt(
         TextButton(
           onPressed: () {
             Navigator.of(dialogContext).pop();
-            if (free) {
-              if (onLearnMore case final callback?) {
-                callback();
-              } else {
-                const SubscriptionsRoute().go(context);
-              }
-            } else {
-              onRetry?.call();
-            }
+            onRetry?.call();
           },
-          child: Text(
-            free ? l10n.plusFeatureLearnMore : l10n.dialogOkDefault,
-          ),
+          child: Text(l10n.dialogOkDefault),
         ),
       ],
     ),

@@ -7,6 +7,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
@@ -23,6 +24,88 @@ import 'package:material_ui/material_ui.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  for (final result in [
+    DirectPaywallResult.cancelled,
+    DirectPaywallResult.purchased,
+  ]) {
+    testWidgets(
+      'paid feature directly opens Plus and returns to origin on ${result.name}',
+      (tester) async {
+        final harness = _Harness();
+        addTearDown(harness.dispose);
+        final presented = Completer<DirectPaywallResult>();
+        harness.service.paywall = () => presented.future;
+        await harness.pump(tester, featureEntry: true);
+        await tester.tap(find.text('Paid feature'));
+        for (
+          var frame = 0;
+          frame < 30 && harness.service.effectCalls == 0;
+          frame++
+        ) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(harness.service.effectCalls, 1);
+        expect(find.text('Learn about subscriptions'), findsNothing);
+        expect(find.byType(SubscriptionPageView), findsNothing);
+        if (result == DirectPaywallResult.purchased)
+          harness.api.tier = SubscriptionTier.plus;
+        presented.complete(result);
+        await tester.pumpAndSettle();
+        expect(find.byType(SubscriptionPage), findsNothing);
+        expect(find.text('Paid feature'), findsOneWidget);
+        expect(harness.pending, isNull);
+        expect(
+          harness.access.effectiveTier,
+          result == DirectPaywallResult.purchased
+              ? SubscriptionTier.plus
+              : SubscriptionTier.free,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets(
+    'cancelling feature entry while its offering loads prevents checkout',
+    (tester) async {
+      final harness = _Harness();
+      addTearDown(harness.dispose);
+      final offering = Completer<RevenueCatOffering?>();
+      var reads = 0;
+      harness.service.offering = (identifier) async {
+        reads++;
+        return reads <= 2 ? _Offering(identifier) : await offering.future;
+      };
+      await harness.pump(tester, featureEntry: true);
+      await tester.tap(find.text('Paid feature'));
+      for (var frame = 0; frame < 30 && reads < 3; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(reads, 3);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      offering.complete(const _Offering('plus'));
+      await tester.pumpAndSettle();
+      expect(harness.service.effectCalls, 0);
+      expect(harness.pending, isNull);
+      expect(find.text('Paid feature'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'feature entry rechecks promotional access before presenting a paywall',
+    (tester) async {
+      final harness = _Harness();
+      harness.api.promotionalTier = SubscriptionTier.plus;
+      addTearDown(harness.dispose);
+      await harness.pump(tester, featureEntry: true);
+      await tester.tap(find.text('Paid feature'));
+      await tester.pumpAndSettle();
+      expect(harness.service.effectCalls, 0);
+      expect(find.byType(SubscriptionPage), findsNothing);
+      expect(harness.access.allowsPlus, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('consumed paywall failure reports its original cause once', (
     tester,
   ) async {
@@ -314,7 +397,7 @@ final class _Harness {
   PendingSubscriptionOperation? get pending =>
       container.read(subscriptionPendingOperationProvider);
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {bool featureEntry = false}) async {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -324,8 +407,19 @@ final class _Harness {
           supportedLocales: AppLocalizations.supportedLocales,
           home: ValueListenableBuilder<bool>(
             valueListenable: showPage,
-            builder: (_, visible, _) =>
-                visible ? const SubscriptionPage() : const SizedBox(),
+            builder: (_, visible, _) => !visible
+                ? const SizedBox()
+                : featureEntry
+                ? Builder(
+                    builder: (context) => Scaffold(
+                      body: TextButton(
+                        onPressed: () =>
+                            showPlusFeaturePrompt(context, 'Folders'),
+                        child: const Text('Paid feature'),
+                      ),
+                    ),
+                  )
+                : const SubscriptionPage(),
           ),
         ),
       ),

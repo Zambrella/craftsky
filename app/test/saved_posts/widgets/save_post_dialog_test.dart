@@ -1,15 +1,22 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -17,6 +24,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -49,6 +57,74 @@ void main() {
   );
 
   group('folder-enabled save dialog', () {
+    testWidgets('free saves skip folder loading and New folder opens Plus', (
+      tester,
+    ) async {
+      final repository = _DialogSavedPostRepository(
+        folderError: Exception('folders require Plus'),
+      );
+      await _pumpDialog(
+        tester,
+        AccountKey('did:plc:alice'),
+        repository,
+        tier: SubscriptionTier.free,
+      );
+      await tester.pumpAndSettle();
+      expect(repository.folderCursors, isEmpty);
+      expect(find.text("Folders couldn't load."), findsNothing);
+      expect(find.byType(PlusTierIcon), findsOneWidget);
+      await tester.tap(find.byType(PlusFeatureLock));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SubscriptionPage), findsOneWidget);
+      expect(
+        tester
+            .widget<SubscriptionPage>(find.byType(SubscriptionPage))
+            .featureTier,
+        SubscriptionTier.plus,
+      );
+      expect(repository.createNames, isEmpty);
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
+      await tester.pumpAndSettle();
+      expect(repository.saveCalls, 1);
+      expect(repository.lastSavedFolderId, isNull);
+      expect(repository.folderCursors, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'deleted folders clear the dialog selection for Plus accounts',
+      (tester) async {
+        final account = AccountKey('did:plc:alice');
+        final repository = _DialogSavedPostRepository(
+          folderPages: {
+            null: SavedPostFolderPage(items: [_folder('folder-1', 'Ideas')]),
+          },
+        );
+        await _pumpDialog(tester, account, repository);
+        await tester.pumpAndSettle();
+        final selector = find.byType(CraftskySingleSelectInput<String?>);
+        tester.widget<CraftskySingleSelectInput<String?>>(selector).onChanged!(
+          'folder-1',
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(SavePostDialog)),
+        );
+        await container
+            .read(savedPostFoldersProvider(account).notifier)
+            .delete('folder-1', deleteSaves: false);
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<CraftskySingleSelectInput<String?>>(selector).value,
+          isNull,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('AT-002 pages distinct folders and confirms once', (
       tester,
     ) async {
@@ -401,12 +477,39 @@ void main() {
 Future<void> _pumpDialog(
   WidgetTester tester,
   AccountKey account,
-  SavedPostRepository repository,
-) => tester
+  SavedPostRepository repository, {
+  SubscriptionTier tier = SubscriptionTier.plus,
+}) => tester
     .pumpWidget(
       NativeReferenceFrame(
         child: ProviderScope(
           overrides: [
+            // This override belongs to the test harness root ProviderScope.
+            // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(
+                SessionRegistry.empty().upsertAndActivate(
+                  token: 'test-token',
+                  did: account.did.value,
+                  handle: 'test.craftsky.social',
+                ),
+              ),
+            ),
+            // These overrides belong to the test harness root ProviderScope.
+            // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+            subscriptionAccessProvider.overrideWith(
+              (ref, lease) async => SubscriptionAccess(
+                did: lease.account.did,
+                effectiveTier: tier,
+                givesAccess: tier != SubscriptionTier.free,
+                assignedTier: tier == SubscriptionTier.free ? null : tier,
+              ),
+            ),
+            // This override belongs to the test harness root ProviderScope.
+            // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+            subscriptionPageModelProvider.overrideWith(
+              (ref) => Completer<SubscriptionPageModel>().future,
+            ),
             // This override belongs to the test harness's root ProviderScope.
             // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
             accountSavedPostRepositoryProvider(
@@ -533,7 +636,7 @@ final class _DialogSavedPostRepository implements SavedPostRepository {
   Future<void> deleteFolder(
     String folderId, {
     required bool deleteSaves,
-  }) => throw UnimplementedError();
+  }) async {}
 }
 
 final class _RestartRetryRepository implements SavedPostRepository {
@@ -579,4 +682,15 @@ final class _RestartRetryRepository implements SavedPostRepository {
     String folderId, {
     required bool deleteSaves,
   }) => throw UnimplementedError();
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  new(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry value) async {
+    registry = value;
+  }
 }

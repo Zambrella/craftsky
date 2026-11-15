@@ -26,6 +26,10 @@
     "app_user_id",
     "Test Store local development",
     "web feature upgrade prompts",
+    "direct feature paywalls",
+    "Plus action icons",
+    "composer schedule icon CSS isolation",
+    "free save folder loading",
     "web catalog prices",
     "embedded Checkout modal",
     "RevenueCat web paywalls",
@@ -48,6 +52,8 @@
     "web-client/src/lib/features/shell/subscription-feature.ts",
     "appview/internal/subscriptions/web_prices.go",
     "web-client/src/lib/features/settings/RevenueCatPaywall.svelte",
+    "web-client/src/lib/features/shell/FeaturePaywall.svelte",
+    "app/lib/subscriptions/widgets/plus_feature_lock.dart",
     "appview/internal/subscriptions/web_paywall.go",
     "appview/internal/subscriptions/web_checkout_cancel.go"
   ],
@@ -62,7 +68,8 @@
     "docs/changes/2026-11-13-per-did-subscriptions/web-feature-prompts.md",
     "docs/changes/2026-11-13-per-did-subscriptions/subscription-page-parity.md",
     "docs/changes/2026-11-13-per-did-subscriptions/embedded-checkout.md",
-    "docs/changes/2026-11-13-per-did-subscriptions/revenuecat-web-paywalls.md"
+    "docs/changes/2026-11-13-per-did-subscriptions/revenuecat-web-paywalls.md",
+    "docs/changes/2026-11-13-per-did-subscriptions/feature-paywall-entry.md"
   ],
   "supersededBy": [],
   "followUps": [
@@ -79,6 +86,7 @@ model: each account owns its private RevenueCat UUID and subscription. Optional
 identity synchronization runs on account activation without blocking sign-in;
 native operations retain store-ownership, session and final-dispatch guards.
 
+Locked paid features open their required paywall in place on Flutter and web.
 Web paywalls open as bottom sheets, expanding to the larger Stripe checkout
 modal on purchase selection and returning to the sheet on provider cancellation.
 The web sheet dismisses on outside clicks and uses only provider chrome; the larger checkout retains its own

@@ -1,5 +1,8 @@
 # Web subscription feature prompts
 
+The explanation/Learn more flow below was superseded on 15 November 2026 by
+[direct paywall entry on both clients](feature-paywall-entry.md).
+
 The web client uses one subscription-feature prompt for scheduling, Customisation,
 Growth, Pin and saved-post folders. The copy matches Flutter: explain the required
 tier, offer Cancel and Learn about subscriptions, and open the web subscription

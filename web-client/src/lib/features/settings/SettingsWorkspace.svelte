@@ -20,6 +20,7 @@
 	import type { Session } from './model.ts';
 	import { visibleSettingsGroups } from './presentation.ts';
 	import SettingsIcon from './SettingsIcon.svelte';
+	import PlusTierIcon from '../shell/PlusTierIcon.svelte';
 	import Preferences from './Preferences.svelte';
 	import Connections from './Connections.svelte';
 	import Account from './Account.svelte';
@@ -221,7 +222,8 @@
 											name={slug}
 										/>{#if subscriptionsEnabled() && !paid && ['growth', 'customisation'].includes(slug)}<span
 												class="plus-mark"
-												aria-hidden="true">+</span
+												aria-hidden="true"
+												data-plus-badge><PlusTierIcon size={12} /></span
 											>{/if}</span
 									><span class="tile-copy"
 										><span>{label}</span>{#if slug === 'appearance'}<small

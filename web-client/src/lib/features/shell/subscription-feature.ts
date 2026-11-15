@@ -1,14 +1,16 @@
 import { getContext } from 'svelte';
-import { goto } from '$app/navigation';
 import type { SubscriptionAccess } from '#lib/api/types.ts';
 import { usePrompt } from '../social/prompt';
 import { comingSoon, subscriptionsEnabled } from './release-config';
 
-/** Discoverable paid actions use the same guarded, focus-restoring prompt. */
+/** Discoverable paid actions share guarded, focus-restoring paywall entry. */
 export function useSubscriptionFeature() {
 	const access =
 		getContext<() => SubscriptionAccess | undefined>('craftsky-access');
 	const ask = usePrompt();
+	const present = getContext<(tier: 'plus' | 'business') => void>(
+		'craftsky-feature-paywall'
+	);
 	function allowed(tier: 'plus' | 'business' = 'plus') {
 		const current = access?.();
 		return (
@@ -35,15 +37,7 @@ export function useSubscriptionFeature() {
 				});
 				return false;
 			}
-			const accepted = await ask({
-				title: `${feature} requires ${tier === 'business' ? 'Business' : 'Plus'}`,
-				detail:
-					tier === 'business'
-						? `Subscribe to Business to use ${feature}.`
-						: `Subscribe to Plus or Business to use ${feature}.`,
-				confirmLabel: 'Learn about subscriptions'
-			});
-			if (accepted) await goto('/settings/subscriptions');
+			present(tier);
 			return false;
 		}
 	};

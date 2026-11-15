@@ -6,8 +6,8 @@
 
 <span class="plus-action-icon" aria-hidden="true">
 	<Icon {name} />
-	{#if locked}<span class="badge" data-plus-badge
-			><PlusTierIcon size={14} /></span
+	{#if locked}<span class="plus-action-mark" data-plus-badge
+			><PlusTierIcon size={12} /></span
 		>{/if}
 </span>
 
@@ -21,14 +21,18 @@
 		height: 28px;
 		flex-shrink: 0;
 	}
-	.badge {
+	.plus-action-mark {
 		position: absolute;
 		inset-inline-end: -4px;
-		top: -4px;
+		bottom: -4px;
 		display: flex;
 		color: var(--primary);
-		background: var(--surface);
-		border-radius: 50%;
-		padding: 1px;
+		width: 12px;
+		height: 12px;
+	}
+	/* Composer icons have a shared size; the tier mark stays a small overlay. */
+	.plus-action-mark :global(svg) {
+		width: 100%;
+		height: 100%;
 	}
 </style>

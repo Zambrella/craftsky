@@ -118,7 +118,7 @@ void main() {
   });
 
   testWidgets(
-    'AT-007 keyboard can activate the labelled upgrade CTA',
+    'AT-007 keyboard activates the direct feature paywall',
     (
       tester,
     ) async {
@@ -141,17 +141,13 @@ void main() {
                   ),
                 ),
                 onUnlocked: () => fail('Free action executed'),
-                onLearnMore: () => learned++,
+                onPresentPaywall: () => learned++,
                 child: const Text('Folders'),
               ),
             ),
           ),
         ),
       );
-      await tester.tap(find.byType(PlusFeatureLock));
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -242,7 +238,7 @@ void main() {
     skip: !subscriptionsEnabled,
   );
   testWidgets(
-    'AT-007 locked Plus affordance names feature and opens subscriptions',
+    'AT-007 locked Plus affordance directly presents the paywall',
     (tester) async {
       var actions = 0;
       var learned = 0;
@@ -264,7 +260,7 @@ void main() {
                   ),
                 ),
                 onUnlocked: () => actions++,
-                onLearnMore: () => learned++,
+                onPresentPaywall: () => learned++,
                 child: const Text('Schedule'),
               ),
             ),
@@ -278,10 +274,8 @@ void main() {
       );
       await tester.tap(find.byType(InkWell).first);
       await tester.pumpAndSettle();
-      expect(find.text('Scheduled posts requires Plus'), findsOneWidget);
+      expect(find.byType(CraftskyDialog), findsNothing);
       expect(actions, 0);
-      await tester.tap(find.text('Learn about subscriptions'));
-      await tester.pumpAndSettle();
       expect(learned, 1);
       semantics.dispose();
     },
