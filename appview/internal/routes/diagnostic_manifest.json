@@ -385,6 +385,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/billing/web-prices",
+    "category": "appview.billing.web_prices",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/blobs/videos/limits",
     "category": "appview.blobs.videos.limits",
     "public": false
@@ -1072,6 +1078,18 @@
     "path": "/v1/billing/web-checkout",
     "category": "appview.billing.web_checkout",
     "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/billing/web-checkout/cancel",
+    "category": "appview.billing.web_checkout.cancel",
+    "public": false
+  },
+  {
+    "method":"POST",
+    "path":"/v1/billing/web-paywall",
+    "category":"appview.billing.web_paywall",
+    "public":false
   },
   {
     "method": "POST",

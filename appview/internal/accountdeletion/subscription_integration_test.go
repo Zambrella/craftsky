@@ -441,5 +441,6 @@ func stripeCheckoutDeletionDDL(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data = append(data, []byte(`ALTER TABLE billing_web_checkouts ADD COLUMN embedded BOOLEAN NOT NULL DEFAULT false;`)...)
 	return string(data)
 }

@@ -148,10 +148,28 @@ abstract class AppLocalizations {
   /// **'This plan change is not available yet. Your existing subscription stays active.'**
   String get subscriptionsPlanChangeUnavailable;
 
+  /// No description provided for @subscriptionsCheckoutPendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase pending'**
+  String get subscriptionsCheckoutPendingTitle;
+
+  /// No description provided for @subscriptionsCheckoutPendingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A purchase is still pending for this account. Finish or cancel it before choosing a plan. Canceling an unpaid checkout does not cancel an active subscription.'**
+  String get subscriptionsCheckoutPendingBody;
+
+  /// No description provided for @subscriptionsCancelCheckout.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel pending purchase'**
+  String get subscriptionsCancelCheckout;
+
   /// No description provided for @subscriptionsAccountPlan.
   ///
   /// In en, this message translates to:
-  /// **'Your subscription belongs to this CraftSky account. Plus and Business are alternative plans.'**
+  /// **'Your subscription belongs to this CraftSky account. Business includes everything in Plus.'**
   String get subscriptionsAccountPlan;
 
   /// No description provided for @subscriptionsStoreAccountConflictKnown.

@@ -140,7 +140,7 @@ func (s *Store) ownerStateUsing(ctx context.Context, db billingStateBeginner, ow
 		RequestedGeneration: account.RequestedGeneration, ReconciledGeneration: account.ReconciledGeneration,
 		ReconciliationRequested: account.ReconciliationRequested, ReconciledAt: account.ReconciledAt,
 		ReconciliationStale:  account.RequestedGeneration > account.ReconciledGeneration,
-		WebCheckoutAvailable: s.checkoutProvider != nil,
+		WebCheckoutAvailable: s.checkoutProvider != nil && ValidWebPaywallKey(s.checkoutConfig.RevenueCatWebKey, s.accessEnvironment),
 		WebCheckoutPending:   checkoutPending,
 		Subscriptions:        []BillingSubscription{}, Licenses: []BillingLicense{}, PromotionalGrants: []PromotionalGrant{},
 	}

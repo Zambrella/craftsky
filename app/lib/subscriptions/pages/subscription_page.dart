@@ -124,6 +124,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
                   : value.operationNotice),
           tierPrices: value.tierPrices,
           onPurchase: operationBlocked ? null : _purchase,
+          onCancelCheckout: operationBlocked ? null : _cancelPendingCheckout,
           onRestore: operationBlocked ? null : _restore,
           onManage: operationBlocked ? null : _manage,
           onRefresh:
@@ -212,6 +213,24 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       }
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _cancelPendingCheckout() {
+    unawaited(
+      _run(() async {
+        final dependencies = await _ownerDependencies();
+        final api = dependencies.api;
+        if (api is! PendingCheckoutCancellationApi) {
+          return SubscriptionOperationNotice.actionFailed;
+        }
+        final owner = dependencies.guard.capture();
+        await dependencies.guard.dispatch(
+          owner,
+          (api as PendingCheckoutCancellationApi).cancelPendingCheckout,
+        );
+        return null;
+      }),
+    );
   }
 
   void _refresh() {
@@ -658,6 +677,14 @@ class SubscriptionPageView extends StatelessWidget {
     return [
       Text(l10n.subscriptionsAccountPlan),
       const SizedBox(height: 16),
+      if (state.webCheckoutPending) ...[
+        _MessageCard(
+          body: l10n.subscriptionsCheckoutPendingBody,
+          action: l10n.subscriptionsCancelCheckout,
+          onAction: model.onCancelCheckout,
+        ),
+        const SizedBox(height: 16),
+      ],
       if (state.promotionalAccessEndsByTier.isNotEmpty) ...[
         _ComplimentaryAccessCard(
           state: state,
@@ -856,10 +883,15 @@ class _TierCard extends StatelessWidget {
       subscription,
       accessEnd,
     );
-    final action = _primaryAction(l10n, presentation);
+    final action = _primaryAction(context, l10n, presentation);
     final purchaseIsLoading =
         pendingOperation?.kind == PendingSubscriptionOperationKind.purchase &&
         pendingOperation?.tier == tier;
+    final actionIsLoading =
+        purchaseIsLoading ||
+        pendingOperation?.kind ==
+            PendingSubscriptionOperationKind.customerCenter;
+    final onActivate = actionIsLoading ? null : action?.$2;
     final tierLabel = _tierLabel(l10n, tier);
     final theme = Theme.of(context);
     final accent = tier == SubscriptionTier.plus
@@ -876,6 +908,9 @@ class _TierCard extends StatelessWidget {
         presentation == SubscriptionTierPresentation.canceledAccessible;
     return Semantics(
       container: true,
+      button: action != null,
+      enabled: onActivate != null,
+      onTap: onActivate,
       label: l10n.subscriptionsActionSemantic(
         tierLabel,
         status,
@@ -883,99 +918,107 @@ class _TierCard extends StatelessWidget {
       ),
       child: CraftskyCard(
         padding: EdgeInsets.zero,
-        child: DecoratedBox(
+        child: Ink(
           decoration: BoxDecoration(
             color: Color.alphaBlend(
               accent.withValues(alpha: 0.08),
               theme.colorScheme.surface,
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.16),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: accent, width: 1.5),
+          child: InkWell(
+            key: ValueKey('subscription-tier-${tier.name}'),
+            onTap: onActivate,
+            excludeFromSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: accent, width: 1.5),
+                        ),
+                        child: tierIcon,
                       ),
-                      child: tierIcon,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tierLabel, style: theme.textTheme.titleLarge),
-                          const SizedBox(height: 2),
-                          if (isActive) ...[
-                            if (summary != null)
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tierLabel, style: theme.textTheme.titleLarge),
+                            const SizedBox(height: 2),
+                            if (isActive) ...[
+                              if (summary != null)
+                                Text(
+                                  summary,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ] else
                               Text(
-                                summary,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                                price == null
+                                    ? l10n.subscriptionsPriceUnavailable
+                                    : l10n.subscriptionsTierPrice(price),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                          ] else
-                            Text(
-                              price == null
-                                  ? l10n.subscriptionsPriceUnavailable
-                                  : l10n.subscriptionsTierPrice(price),
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (subscription?.pendingTier case final pendingTier?
+                      when subscription?.autoRenewalStatus ==
+                          'will_change_product') ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.subscriptionsScheduledPlan(
+                        _tierLabel(l10n, pendingTier),
                       ),
                     ),
                   ],
-                ),
-                if (subscription?.pendingTier case final pendingTier?
-                    when subscription?.autoRenewalStatus ==
-                        'will_change_product') ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.subscriptionsScheduledPlan(
-                      _tierLabel(l10n, pendingTier),
+                  if (!isActive) ...[
+                    const SizedBox(height: 10),
+                    if (summary != null) Text(summary),
+                    if (summary != null) const SizedBox(height: 8),
+                    Text(
+                      tier == SubscriptionTier.plus
+                          ? l10n.subscriptionsPlusBenefits
+                          : l10n.subscriptionsBusinessBenefits,
+                      style: theme.textTheme.bodyMedium,
                     ),
-                  ),
-                ],
-                if (!isActive) ...[
-                  const SizedBox(height: 10),
-                  if (summary != null) Text(summary),
-                  if (summary != null) const SizedBox(height: 8),
-                  Text(
-                    tier == SubscriptionTier.plus
-                        ? l10n.subscriptionsPlusBenefits
-                        : l10n.subscriptionsBusinessBenefits,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-                if (action != null) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      key: ValueKey('subscription-view-details-${tier.name}'),
-                      label: action.$1,
-                      flat: action.$1 == l10n.subscriptionsViewDetails,
-                      onPressed: action.$2,
-                      isLoading:
-                          purchaseIsLoading ||
-                          pendingOperation?.kind ==
-                              PendingSubscriptionOperationKind.customerCenter,
+                  ],
+                  if (action != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: ExcludeSemantics(
+                        child: ExcludeFocus(
+                          child: _ActionButton(
+                            key: ValueKey(
+                              'subscription-view-details-${tier.name}',
+                            ),
+                            label: action.$1,
+                            flat: action.$1 == l10n.subscriptionsViewDetails,
+                            onPressed: onActivate,
+                            isLoading: actionIsLoading,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -984,9 +1027,37 @@ class _TierCard extends StatelessWidget {
   }
 
   (String, VoidCallback?)? _primaryAction(
+    BuildContext context,
     AppLocalizations l10n,
     SubscriptionTierPresentation presentation,
   ) {
+    if (state.webCheckoutPending) {
+      return (
+        l10n.subscriptionsViewDetails,
+        () => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.subscriptionsCheckoutPendingTitle),
+            content: Text(l10n.subscriptionsCheckoutPendingBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(l10n.actionCancel),
+              ),
+              TextButton(
+                onPressed: model.onCancelCheckout == null
+                    ? null
+                    : () {
+                        Navigator.of(dialogContext).pop();
+                        model.onCancelCheckout!();
+                      },
+                child: Text(l10n.subscriptionsCancelCheckout),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (model.operationNotice == SubscriptionOperationNotice.pending) {
       return null;
     }

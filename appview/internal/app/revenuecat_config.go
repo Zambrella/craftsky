@@ -104,7 +104,7 @@ func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
 	config := RevenueCatConfig{
 		enabled:                     true,
 		stripeSecretKey:             Secret(strings.TrimSpace(os.Getenv("STRIPE_SECRET_KEY"))),
-		stripeCheckout:              subscriptions.WebCheckoutConfig{AccountID: strings.TrimSpace(os.Getenv("STRIPE_ACCOUNT_ID")), PlusPriceID: strings.TrimSpace(os.Getenv("STRIPE_PLUS_PRICE_ID")), BusinessPriceID: strings.TrimSpace(os.Getenv("STRIPE_BUSINESS_PRICE_ID")), SuccessURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_SUCCESS_URL")), CancelURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_CANCEL_URL")), BillingReturnURL: strings.TrimSpace(os.Getenv("STRIPE_BILLING_RETURN_URL"))},
+		stripeCheckout:              subscriptions.WebCheckoutConfig{AccountID: strings.TrimSpace(os.Getenv("STRIPE_ACCOUNT_ID")), PlusPriceID: strings.TrimSpace(os.Getenv("STRIPE_PLUS_PRICE_ID")), BusinessPriceID: strings.TrimSpace(os.Getenv("STRIPE_BUSINESS_PRICE_ID")), SuccessURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_SUCCESS_URL")), CancelURL: strings.TrimSpace(os.Getenv("STRIPE_CHECKOUT_CANCEL_URL")), BillingReturnURL: strings.TrimSpace(os.Getenv("STRIPE_BILLING_RETURN_URL")), PublishableKey: strings.TrimSpace(os.Getenv("STRIPE_PUBLISHABLE_KEY")), RevenueCatWebKey: strings.TrimSpace(os.Getenv("REVENUECAT_WEB_PUBLIC_API_KEY"))},
 		stripePortalConfigurationID: strings.TrimSpace(os.Getenv("STRIPE_PORTAL_CONFIGURATION_ID")),
 		apiBaseURL:                  strings.TrimSpace(getEnvWithDefault("REVENUECAT_API_BASE_URL", defaultRevenueCatAPIBaseURL)),
 		apiKey:                      Secret(strings.TrimSpace(os.Getenv("REVENUECAT_API_KEY"))),
@@ -115,7 +115,11 @@ func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
 		webhookRequireSignature:     webhookRequireSignature,
 		appIDs:                      splitCommaEnv("REVENUECAT_APP_IDS"),
 	}
-	stripeValues := []string{config.stripeSecretKey.Reveal(), config.stripeCheckout.AccountID, config.stripeCheckout.PlusPriceID, config.stripeCheckout.BusinessPriceID, config.stripeCheckout.SuccessURL, config.stripeCheckout.CancelURL, config.stripeCheckout.BillingReturnURL, config.stripePortalConfigurationID}
+	if key := config.stripeCheckout.RevenueCatWebKey; key != "" && !subscriptions.ValidWebPaywallKey(key, config.environment) {
+		return RevenueCatConfig{}, errors.New("REVENUECAT_WEB_PUBLIC_API_KEY must be a Stripe SDK key matching REVENUECAT_ENVIRONMENT")
+	}
+
+	stripeValues := []string{config.stripeSecretKey.Reveal(), config.stripeCheckout.AccountID, config.stripeCheckout.PlusPriceID, config.stripeCheckout.BusinessPriceID, config.stripeCheckout.SuccessURL, config.stripeCheckout.CancelURL, config.stripeCheckout.BillingReturnURL, config.stripePortalConfigurationID, config.stripeCheckout.PublishableKey}
 	stripeConfigured := false
 	for _, value := range stripeValues {
 		if value != "" {
@@ -126,7 +130,7 @@ func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
 		if config.stripeSecretKey.Reveal() == "" {
 			return RevenueCatConfig{}, errors.New("STRIPE_SECRET_KEY is required for Stripe checkout")
 		}
-		if err := subscriptions.ValidateWebCheckoutConfig(config.stripeCheckout); err != nil {
+		if err := subscriptions.ValidateWebCheckoutConfig(config.stripeCheckout, config.environment); err != nil {
 			return RevenueCatConfig{}, err
 		}
 		prefix := "sk_live_"
@@ -135,6 +139,9 @@ func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
 		}
 		if !strings.HasPrefix(config.stripeSecretKey.Reveal(), prefix) {
 			return RevenueCatConfig{}, errors.New("STRIPE_SECRET_KEY must match REVENUECAT_ENVIRONMENT")
+		}
+		if key := config.stripeCheckout.PublishableKey; key != "" && !strings.HasPrefix(key, strings.Replace(prefix, "sk_", "pk_", 1)) {
+			return RevenueCatConfig{}, errors.New("STRIPE_PUBLISHABLE_KEY must match REVENUECAT_ENVIRONMENT")
 		}
 		if config.stripePortalConfigurationID != "" && !strings.HasPrefix(config.stripePortalConfigurationID, "bpc_") {
 			return RevenueCatConfig{}, errors.New("invalid STRIPE_PORTAL_CONFIGURATION_ID")

@@ -708,6 +708,10 @@ export class CraftskyAPI {
 			)
 	};
 	readonly billing = {
+		prices: () =>
+			this.transport.get<{ items: T.WebSubscriptionPrice[] }>(
+				'/v1/billing/web-prices'
+			),
 		access: () =>
 			this.transport.get<T.SubscriptionAccess>('/v1/subscriptions/access'),
 		get: () => this.transport.get<T.BillingState>('/v1/billing/account'),
@@ -719,10 +723,21 @@ export class CraftskyAPI {
 				'/v1/billing/reconciliation'
 			),
 		checkout: (tier: 'plus' | 'business') =>
-			this.transport.request<{ url: string }>(
+			this.transport.request<{ clientSecret: string; publishableKey: string }>(
 				'POST',
 				'/v1/billing/web-checkout',
-				{ body: { tier } }
+				{ body: { tier, presentation: 'embedded' } }
+			),
+		paywall: (tier: 'plus' | 'business') =>
+			this.transport.request<{
+				apiKey: string;
+				appUserId: string;
+				offering: 'plus' | 'business';
+			}>('POST', '/v1/billing/web-paywall', { body: { tier } }),
+		cancelCheckout: () =>
+			this.transport.request<{ status: string }>(
+				'POST',
+				'/v1/billing/web-checkout/cancel'
 			),
 		manage: () =>
 			this.transport.request<{ url: string }>(

@@ -113,3 +113,24 @@ func TestWebManagementUsesAuthenticatedCustomerAndRejectsBody(t *testing.T) {
 		})
 	}
 }
+
+type embeddedCheckoutStore struct{ webCheckoutStore }
+
+func (s *embeddedCheckoutStore) EmbeddedWebCheckout(_ context.Context, owner syntax.DID, _ subscriptions.Tier, _ time.Time) (subscriptions.EmbeddedCheckout, error) {
+	s.owner = owner
+	s.calls++
+	return subscriptions.EmbeddedCheckout{ClientSecret: "cs_test_fixture_secret_canary", PublishableKey: "pk_test_fixture"}, nil
+}
+func TestEmbeddedCheckoutResponseIsScopedPrivateAndNotCacheable(t *testing.T) {
+	store := &embeddedCheckoutStore{}
+	request := httptest.NewRequest(http.MethodPost, "/v1/billing/web-checkout", strings.NewReader(`{"tier":"plus","presentation":"embedded"}`))
+	request = request.WithContext(middleware.WithDID(request.Context(), syntax.DID("did:plc:authenticated")))
+	response := httptest.NewRecorder()
+	api.CreateWebSubscriptionCheckoutHandler(store, time.Now).ServeHTTP(response, request)
+	if response.Code != 200 || response.Header().Get("Cache-Control") != "no-store" || store.owner != "did:plc:authenticated" || store.calls != 1 {
+		t.Fatalf("embedded handler status=%d calls=%d", response.Code, store.calls)
+	}
+	if !strings.Contains(response.Body.String(), `"clientSecret":"cs_test_fixture_secret_canary"`) || strings.Contains(response.Body.String(), `"url"`) {
+		t.Fatal("incorrect embedded response shape")
+	}
+}

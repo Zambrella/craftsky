@@ -120,13 +120,17 @@ that have completed onboarding start optional customer setup on sign-in,
 switching and session restoration. AppView queues initial RevenueCat customer
 registration; native clients also synchronize SDK identity through store
 ownership checks. Provider failures do not block account readiness.
-AppView creates hosted Stripe Checkout sessions with
-Managed Payments required and verified on the returned session; Stripe is
-merchant of record. A durable per-account pending operation and provider
-idempotency fence concurrent checkout attempts and uncertain retries. RevenueCat
-tracks paid Stripe invoices using the account's private UUID in session and
-subscription metadata. AppView authorizes paid access from reconciled provider
-state, never a checkout redirect. Promotional grants are stored separately from
+Web and native clients share RevenueCat's published Plus and Business paywalls.
+The web SDK renders the paywall as a modal bottom sheet, then presents Stripe
+checkout in a larger modal using the
+authenticated account's private RevenueCat UUID and an environment-matched public
+Stripe app SDK key. Managed Payments is preferred when available; the maintainer
+accepts ordinary Stripe Billing fallback, where CraftSky retains merchant/tax
+responsibility. Server preflight and browser lifecycle guards run before SDK
+purchases. RevenueCat owns new Checkout creation; the old AppView durable
+session fence applies only to retained direct Stripe operations. AppView
+authorizes paid access from reconciled provider state, never an SDK success or
+checkout redirect. Promotional grants are stored separately from
 paid subscriptions and licences. Verified `plus` and `business` grants contribute
 to effective access until expiry or revocation, without blocking an early paid
 subscription. Clients show complimentary expiry and explain that subscribing
@@ -134,8 +138,9 @@ starts paid billing immediately. Paid and promotional overlap grants the highest
 valid tier; only paid duplicates trigger the billing anomaly protections.
 Web tier changes remain deferred, and native
 apps contain no web purchase promotion. Subscription management creates a
-customer-specific Stripe portal session through authenticated AppView; shared
-payer email is not an account selector. Billing state exposes retained checkout
+customer-specific Stripe portal session through authenticated AppView for
+retained direct checkouts; SDK purchases without that mapping use the receipt
+management fallback. Shared payer email is not an account selector. Billing state exposes retained checkout
 work through `webCheckoutPending` across environments, preventing native
 repurchase before RevenueCat indexing. Unresolved checkout operations also block
 account deletion until provider terminal state is established. See

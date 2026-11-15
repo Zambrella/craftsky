@@ -13,7 +13,7 @@ export function apiErrorMessage(error: APIError): string {
 	if (error.code === 'subscription_already_exists')
 		return 'This account already has a subscription or a payment awaiting resolution. Refresh your subscription status.';
 	if (error.code === 'web_checkout_pending')
-		return 'This account already has a checkout in progress. Continue with that plan or wait for the checkout to expire before choosing another.';
+		return 'This account already has a checkout in progress. Continue with that plan or cancel the pending purchase before choosing another.';
 	if (error.code === 'web_management_unavailable')
 		return 'Subscription management is not available here yet. Use the management link in your Stripe receipt.';
 	if (error.status === 0)

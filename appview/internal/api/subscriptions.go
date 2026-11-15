@@ -27,6 +27,28 @@ type SubscriptionAccessStore interface {
 	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
 }
 
+type WebPriceStore interface {
+	WebPrices(context.Context) ([]subscriptions.WebPrice, error)
+}
+
+func GetWebSubscriptionPricesHandler(store WebPriceStore) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := subscriptionOwnerScope(w, r); !ok {
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		prices, err := store.WebPrices(ctx)
+		if err != nil {
+			// Catalog availability is independent of access and billing status.
+			envelope.WriteError(w, http.StatusServiceUnavailable, "web_prices_unavailable", "subscription prices are unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, http.StatusOK, map[string]any{"items": prices})
+	})
+}
+
 func EnsureBillingAccountHandler(store BillingAccountStore, now func() time.Time) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner, ok := subscriptionOwnerScope(w, r)
@@ -138,13 +160,29 @@ func CreateWebSubscriptionCheckoutHandler(store WebSubscriptionCheckoutStore, no
 			return
 		}
 		var body struct {
-			Tier subscriptions.Tier `json:"tier"`
+			Tier         subscriptions.Tier `json:"tier"`
+			Presentation string             `json:"presentation"`
 		}
-		if err := decodeStrictJSONObject(r, &body); err != nil || !body.Tier.Paid() {
+		if err := decodeStrictJSONObject(r, &body); err != nil || !body.Tier.Paid() || (body.Presentation != "" && body.Presentation != "embedded") {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "choose a valid subscription tier", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		destination, err := store.WebCheckoutURL(r.Context(), owner, body.Tier, now())
+		var result any
+		var err error
+		if body.Presentation == "embedded" {
+			embedded, ok := store.(interface {
+				EmbeddedWebCheckout(context.Context, syntax.DID, subscriptions.Tier, time.Time) (subscriptions.EmbeddedCheckout, error)
+			})
+			if !ok {
+				err = subscriptions.ErrWebCheckoutUnavailable
+			} else {
+				result, err = embedded.EmbeddedWebCheckout(r.Context(), owner, body.Tier, now())
+			}
+		} else {
+			var destination string
+			destination, err = store.WebCheckoutURL(r.Context(), owner, body.Tier, now())
+			result = map[string]string{"url": destination}
+		}
 		if err != nil {
 			switch {
 			case errors.Is(err, subscriptions.ErrWebCheckoutUnavailable):
@@ -161,7 +199,7 @@ func CreateWebSubscriptionCheckoutHandler(store WebSubscriptionCheckoutStore, no
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
-		envelope.WriteJSON(w, http.StatusOK, map[string]string{"url": destination})
+		envelope.WriteJSON(w, http.StatusOK, result)
 	})
 }
 
@@ -195,5 +233,77 @@ func CreateWebSubscriptionManagementHandler(store WebSubscriptionManagementStore
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		envelope.WriteJSON(w, http.StatusOK, map[string]string{"url": destination})
+	})
+}
+
+type WebCheckoutCancellationStore interface {
+	CancelPendingWebCheckout(context.Context, syntax.DID, time.Time) error
+}
+
+func CancelPendingWebCheckoutHandler(store WebCheckoutCancellationStore, now func() time.Time) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := subscriptionOwnerScope(w, r)
+		if !ok {
+			return
+		}
+		var probe [1]byte
+		if r.Body != nil {
+			n, err := r.Body.Read(probe[:])
+			if n != 0 || (err != nil && err != io.EOF) {
+				envelope.WriteError(w, 400, "invalid_request", "checkout cancellation accepts no request body", middleware.GetRunID(r.Context()), nil)
+				return
+			}
+		}
+
+		if err := store.CancelPendingWebCheckout(r.Context(), owner, now()); err != nil {
+			if errors.Is(err, subscriptions.ErrSubscriptionAlreadyExists) {
+				envelope.WriteError(w, 409, "subscription_already_exists", "payment already completed; refresh subscription status", middleware.GetRunID(r.Context()), nil)
+			} else {
+				writeBillingAccountError(w, r, err)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, 200, map[string]string{"status": "canceled"})
+	})
+}
+
+type WebPaywallStore interface {
+	PrepareWebPaywall(context.Context, syntax.DID, subscriptions.Tier, time.Time) (subscriptions.WebPaywall, error)
+}
+
+func PrepareWebPaywallHandler(store WebPaywallStore, now func() time.Time) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := subscriptionOwnerScope(w, r)
+		if !ok {
+			return
+		}
+		var body struct {
+			Tier subscriptions.Tier `json:"tier"`
+		}
+		if err := decodeStrictJSONObject(r, &body); err != nil || !body.Tier.Paid() {
+			envelope.WriteError(w, 400, "invalid_request", "choose a valid subscription tier", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		result, err := store.PrepareWebPaywall(r.Context(), owner, body.Tier, now())
+		if err != nil {
+			code := "web_checkout_unavailable"
+			status := 503
+			switch {
+			case errors.Is(err, subscriptions.ErrWebCheckoutPending):
+				code = "web_checkout_pending"
+				status = 409
+			case errors.Is(err, subscriptions.ErrSubscriptionAlreadyExists):
+				code = "subscription_already_exists"
+				status = 409
+			case errors.Is(err, subscriptions.ErrSubscriptionReconciliationRequired):
+				code = "subscription_reconciliation_required"
+				status = 409
+			}
+			envelope.WriteError(w, status, code, "subscription checkout cannot open yet", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, 200, result)
 	})
 }

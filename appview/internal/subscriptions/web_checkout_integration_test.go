@@ -30,6 +30,10 @@ func (f *checkoutFake) CreateCheckout(_ context.Context, r CheckoutRequest) (Che
 	if f.session.ID == "" {
 		f.session = CheckoutSession{ID: "cs_live_checkout", URL: "https://checkout.stripe.com/c/pay/cs_live_checkout#opaque", Status: "open", LiveMode: true, EnvironmentKnown: true, Managed: true, StripeTaxLiability: true, AppUserID: r.CustomerID.String(), ExpiresAt: time.Now().Add(time.Hour)}
 	}
+	if r.Embedded {
+		f.session.UIMode = "embedded"
+		f.session.ClientSecret = f.session.ID + "_secret_test"
+	}
 	if f.failNext {
 		f.failNext = false
 		return CheckoutSession{}, errors.New("synthetic uncertain transport")
@@ -55,7 +59,7 @@ func checkoutFixture(t *testing.T) (*Store, *pgxpool.Pool, *checkoutFake, syntax
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSubscriptionAccessSchema(t, string(old)+`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`+string(migration)+`CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_suspended BOOLEAN NOT NULL DEFAULT false);`)
+	pool := testdb.WithSubscriptionAccessSchema(t, string(old)+`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`+string(migration)+`ALTER TABLE billing_web_checkouts ADD COLUMN embedded BOOLEAN NOT NULL DEFAULT false;`+`CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_suspended BOOLEAN NOT NULL DEFAULT false);`)
 	store := NewStore(pool)
 	fake := &checkoutFake{}
 	did := syntax.DID("did:plc:checkout")
@@ -506,5 +510,70 @@ func TestStripeCanceledCheckoutRequiresSnapshotGenerationAfterCancellation(t *te
 	state, err = store.OwnerState(t.Context(), did, now)
 	if err != nil || state.WebCheckoutPending {
 		t.Fatalf("reconciled terminal checkout retained pending=%t err=%v", state.WebCheckoutPending, err)
+	}
+}
+
+func (f *checkoutFake) ExpireCheckout(_ context.Context, id string) (CheckoutSession, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.session.ID != id || f.session.Status != "open" {
+		return CheckoutSession{}, errors.New("session cannot expire")
+	}
+	f.session.Status = "expired"
+	return f.session, nil
+}
+func TestCancelPendingCheckoutExpiresOnlyUnpaidOriginalSession(t *testing.T) {
+	store, pool, provider, owner, account, now := checkoutFixture(t)
+	if _, err := store.WebCheckoutURL(t.Context(), owner, TierPlus, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CancelPendingWebCheckout(t.Context(), owner, now); err != nil {
+		t.Fatal(err)
+	}
+	var pending bool
+	if err := pool.QueryRow(t.Context(), `SELECT web_checkout_pending FROM billing_accounts WHERE id=$1`, account.ID).Scan(&pending); err != nil || pending {
+		t.Fatalf("pending=%t err=%v", pending, err)
+	}
+	if provider.session.Status != "expired" {
+		t.Fatal("provider session remained payable")
+	}
+	if err := store.CancelPendingWebCheckout(t.Context(), owner, now); err != nil {
+		t.Fatal("repeat cancellation", err)
+	}
+}
+func TestCancelPendingCheckoutRetainsCompletedPayment(t *testing.T) {
+	store, pool, provider, owner, account, now := checkoutFixture(t)
+	if _, err := store.WebCheckoutURL(t.Context(), owner, TierPlus, now); err != nil {
+		t.Fatal(err)
+	}
+	provider.session.Status = "complete"
+	provider.session.SubscriptionAppUserID = account.RevenueCatAppUserID.String()
+	if err := store.CancelPendingWebCheckout(t.Context(), owner, now); !errors.Is(err, ErrSubscriptionAlreadyExists) {
+		t.Fatalf("completed cancellation=%v", err)
+	}
+	var pending bool
+	if err := pool.QueryRow(t.Context(), `SELECT web_checkout_pending FROM billing_accounts WHERE id=$1`, account.ID).Scan(&pending); err != nil || !pending {
+		t.Fatalf("lost paid fence pending=%t err=%v", pending, err)
+	}
+	if provider.session.Status != "complete" {
+		t.Fatal("paid session changed")
+	}
+}
+func TestEmbeddedCheckoutRetainsPresentationAndResumesSameOperation(t *testing.T) {
+	store, _, provider, owner, _, now := checkoutFixture(t)
+	store.checkoutConfig.PublishableKey = "pk_live_test"
+	first, err := store.EmbeddedWebCheckout(t.Context(), owner, TierPlus, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.EmbeddedWebCheckout(t.Context(), owner, TierPlus, now)
+	if err != nil || first != second {
+		t.Fatalf("resume=%v err=%v", second, err)
+	}
+	if len(provider.requests) != 1 || !provider.requests[0].Embedded {
+		t.Fatal("presentation was not frozen")
+	}
+	if _, err := store.WebCheckoutURL(t.Context(), owner, TierPlus, now); !errors.Is(err, ErrWebCheckoutPending) {
+		t.Fatalf("changed pending mode: %v", err)
 	}
 }

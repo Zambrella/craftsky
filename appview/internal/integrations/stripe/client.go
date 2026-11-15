@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"social.craftsky/appview/internal/subscriptions"
@@ -20,9 +21,11 @@ const APIVersion = "2025-03-31.basil"
 
 type Config struct{ SecretKey, AccountID, Environment, PortalConfigurationID string }
 type Client struct {
-	config Config
-	http   *http.Client
-	base   string
+	config   Config
+	http     *http.Client
+	base     string
+	pricesMu sync.Mutex
+	prices   map[string]cachedPrice
 }
 
 func (c *Client) String() string             { return "StripeClient{configuration:[REDACTED]}" }
@@ -48,6 +51,8 @@ func NewClient(config Config, transport *http.Client) (*Client, error) {
 }
 
 type Session struct {
+	ClientSecret    string            `json:"client_secret"`
+	UIMode          string            `json:"ui_mode"`
 	ID              string            `json:"id"`
 	URL             string            `json:"url"`
 	Status          string            `json:"status"`
@@ -70,7 +75,7 @@ func (s Session) String() string             { return "StripeCheckoutSession{pri
 func (s Session) GoString() string           { return s.String() }
 func (s Session) Format(f fmt.State, _ rune) { _, _ = io.WriteString(f, s.String()) }
 func (s Session) checkout() subscriptions.CheckoutSession {
-	out := subscriptions.CheckoutSession{ID: s.ID, URL: s.URL, Status: s.Status, LiveMode: s.LiveMode != nil && *s.LiveMode, EnvironmentKnown: s.LiveMode != nil, ExpiresAt: time.Unix(s.ExpiresAt, 0).UTC(), CustomerID: s.Customer, AppUserID: s.Metadata["app_user_id"], Managed: s.ManagedPayments.Enabled, StripeTaxLiability: s.AutomaticTax.Liability.Type == "stripe"}
+	out := subscriptions.CheckoutSession{ID: s.ID, URL: s.URL, ClientSecret: s.ClientSecret, UIMode: s.UIMode, Status: s.Status, LiveMode: s.LiveMode != nil && *s.LiveMode, EnvironmentKnown: s.LiveMode != nil, ExpiresAt: time.Unix(s.ExpiresAt, 0).UTC(), CustomerID: s.Customer, AppUserID: s.Metadata["app_user_id"], Managed: s.ManagedPayments.Enabled, StripeTaxLiability: s.AutomaticTax.Liability.Type == "stripe"}
 	var sub struct {
 		Status   string            `json:"status"`
 		Metadata map[string]string `json:"metadata"`
@@ -95,6 +100,13 @@ func (c *Client) CreateCheckout(ctx context.Context, request subscriptions.Check
 		return subscriptions.CheckoutSession{}, errors.New("Stripe account mismatch")
 	}
 	values := url.Values{"mode": {"subscription"}, "line_items[0][price]": {request.PriceID}, "line_items[0][quantity]": {"1"}, "managed_payments[enabled]": {"true"}, "metadata[app_user_id]": {request.CustomerID.String()}, "subscription_data[metadata][app_user_id]": {request.CustomerID.String()}, "success_url": {request.SuccessURL}, "cancel_url": {request.CancelURL}}
+	if request.Embedded {
+		values.Del("success_url")
+		values.Del("cancel_url")
+		values.Set("ui_mode", "embedded")
+		values.Set("return_url", request.SuccessURL)
+		values.Set("redirect_on_completion", "if_required")
+	}
 	var session Session
 	if err := c.request(ctx, http.MethodPost, "/checkout/sessions", values, "craftsky-checkout-"+request.OperationID.String(), &session); err != nil {
 		return subscriptions.CheckoutSession{}, err
@@ -208,3 +220,18 @@ func (c *Client) request(ctx context.Context, method, path string, values url.Va
 }
 
 var _ subscriptions.CheckoutProvider = (*Client)(nil)
+
+// ExpireCheckout releases only an unpaid session, never a paid subscription.
+func (c *Client) ExpireCheckout(ctx context.Context, id string) (subscriptions.CheckoutSession, error) {
+	if err := c.verifyAccount(ctx); err != nil {
+		return subscriptions.CheckoutSession{}, err
+	}
+	if !sessionID.MatchString(id) {
+		return subscriptions.CheckoutSession{}, errors.New("invalid stored Stripe session")
+	}
+	var session Session
+	if err := c.request(ctx, http.MethodPost, "/checkout/sessions/"+id+"/expire", nil, "", &session); err != nil {
+		return subscriptions.CheckoutSession{}, err
+	}
+	return session.checkout(), nil
+}

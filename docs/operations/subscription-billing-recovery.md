@@ -62,7 +62,9 @@ customer IDs in support messages.
 
 ## Web checkout
 
-Use Stripe Managed Payments with RevenueCat's **Stripe Billing** integration.
+Use RevenueCat's **Stripe Billing** integration and shared published paywalls.
+Enable **Use Managed Payments when available**; ordinary Stripe Billing fallback
+is accepted. CraftSky retains merchant/tax responsibility on fallback purchases.
 Paddle rejected CraftSky and is not an available provider. Keep Stripe server
 credentials out of both client build configurations.
 
@@ -71,8 +73,10 @@ checkout:
 
 | Setting | Purpose |
 | --- | --- |
+| `REVENUECAT_WEB_PUBLIC_API_KEY` | Public Stripe app SDK key: `strp_sb_` for sandbox, `strp_` for production |
 | `STRIPE_SECRET_KEY` | Server-only Stripe key for the environment selected by `REVENUECAT_ENVIRONMENT` |
 | `STRIPE_ACCOUNT_ID` | Expected direct Stripe merchant account, verified before session creation |
+| `STRIPE_PUBLISHABLE_KEY` | Same-account, matching-mode publishable key for Embedded Checkout |
 | `STRIPE_PLUS_PRICE_ID` | Approved recurring Plus price |
 | `STRIPE_BUSINESS_PRICE_ID` | Approved recurring Business price |
 | `STRIPE_CHECKOUT_SUCCESS_URL` | Fixed web destination after checkout completion |
@@ -82,6 +86,11 @@ checkout:
 `STRIPE_PORTAL_CONFIGURATION_ID` optionally selects an approved Customer Portal
 configuration. Keep upgrades, downgrades and quantity changes disabled while web
 tier changes remain deferred.
+
+Local sandbox checkout may return to fixed `http://localhost`, `127.0.0.1` or
+`[::1]` URLs with a chosen local port. Remote HTTP URLs remain invalid, and
+production always requires HTTPS. The local web app still uses Stripe's actual
+sandbox Checkout; it does not simulate a successful payment in the client.
 
 Add the RevenueCat Stripe app to `REVENUECAT_APP_IDS` and map its **internal
 RevenueCat product IDs** (`prod...`) to that app and tier in
@@ -100,13 +109,57 @@ authorization and signing configuration; inspect its environment filters and
 restrict development receivers before accepting live events. See
 [provider setup](../changes/2026-11-13-per-did-subscriptions/provider-setup.md).
 
-AppView creates sessions with Managed Payments explicitly enabled, quantity one
-and server-selected prices/return URLs. It returns a checkout URL only when the
-session reports Managed Payments enabled and Stripe as tax-liability owner.
-Never retry as ordinary Stripe Billing. RevenueCat's **Managed Payments when
-available** toggle permits fallback and cannot enforce this requirement by
-itself. The returned Stripe URL can contain a private fragment; preserve it for
-navigation and exclude the entire URL from diagnostics and support messages.
+New purchases use RevenueCat's Web SDK. Attach the Stripe app's Plus/Business
+products to the respective existing offering's `$rc_monthly` package, alongside
+the native products. The same published paywalls render on mobile and web.
+`POST /v1/billing/web-paywall` accepts only a paid tier, performs authenticated
+owner preflight and returns the private UUID, public SDK key and offering with
+`Cache-Control: no-store`. The SDK is configured only with that identified UUID.
+A production key is rejected against sandbox access and vice versa.
+
+The web subscription page reads `GET /v1/billing/web-prices` independently of
+account access and reconciliation. This authenticated, read-only endpoint returns
+only each tier's amount in currency minor units, currency and tax behavior from
+the exact configured Stripe Checkout prices. AppView validates the merchant,
+live/test mode and active fixed monthly licensed price, and caches valid catalog
+reads for five minutes. No customer ID or provider price ID is returned. If the
+catalog is unavailable, the client shows **Price unavailable** and retries when the page is reopened or
+restored; existing access and checkout guards remain independent. The web page
+omits the manual refresh control and last-checked timestamp.
+Native prices continue to come from the current RevenueCat store offerings.
+
+The web SDK loads when opening a modal paywall bottom sheet, with a maximum
+width of 720px and rounded top corners. Purchase selection switches to the
+larger Stripe checkout modal (up to 1200px wide); cancelling within provider checkout restores the
+sheet. The paywall and checkout have separate SDK render targets, preserving
+paywall state. Escape dismisses the complete flow; the larger checkout also has a sticky
+**Close checkout** control. The bottom sheet also dismisses on a backdrop click,
+but content clicks and drags from inside the sheet do not dismiss it. Server state is rechecked before
+every SDK purchase. Closing or switching accounts tears down the identified UI;
+late results cannot update a different account. The browser account lock prevents
+cooperating tabs from opening another paywall. CSP permits Stripe payment frames
+and the shared paywall fonts at `fonts.pawwalls.com`.
+
+RevenueCat owns new SDK sessions and retry behavior. AppView's durable operation
+table does not track them; its pending flag/cancel endpoint cannot recover an
+SDK-created unpaid session. Do not claim a browser lock serializes cross-device
+purchases. Sandbox acceptance must cover uncertain payments and cross-device
+races before production activation. A successful SDK purchase requests server
+reconciliation and never directly unlocks a feature.
+
+### Retained direct Stripe checkouts
+
+The following operation-recovery rules apply to sessions created by the older
+direct AppView checkout endpoints. Those endpoints retain their original strict
+Managed Payments validation. Migration `000127` preserves embedded versus hosted
+arguments so uncertain retries cannot change Stripe idempotency parameters.
+
+`POST /v1/billing/web-checkout/cancel` accepts no customer/session identifier or
+request body. It resolves the authenticated account's original operation and
+expires only a verified open session. The pending flag clears only after a
+provider-confirmed expiration. A completed or ambiguous payment stays protected.
+Use **Cancel pending purchase** on either subscription page to recover an
+abandoned unpaid checkout; this action does not cancel active subscriptions.
 
 Migration `000125` adds durable pending web-checkout operations. Work is fenced
 per billing account and environment. Retries recover the existing session or
@@ -130,9 +183,8 @@ a browser cancel redirect is sufficient.
 `BillingState.webCheckoutPending` reflects any retained checkout operation for
 the billing account, across sandbox and production. It remains true when Stripe
 configuration is disabled. Native purchase controls use it to block a new store
-purchase before RevenueCat has indexed the web payment. Web controls may resume
-the existing same-tier checkout through AppView; do not clear the operation to
-make the flag disappear.
+purchase before RevenueCat has indexed the web payment. New RevenueCat paywalls stay blocked until the operation is resolved; do not
+clear the operation to make the flag disappear.
 
 Web plan changes are deferred. An account with an active, cancelled-but-current,
 pending, ambiguous or stale subscription cannot start another checkout. Cancel
@@ -176,6 +228,13 @@ authoritative. Keep pending state if Stripe or RevenueCat cannot establish a
 terminal result.
 
 ### Customer-specific subscription management
+
+SDK-created subscriptions have no direct-checkout mapping. Their current safe
+fallback is the management link in the Stripe receipt. The existing authenticated
+portal endpoint below remains available for retained direct-checkout mappings;
+a configured RevenueCat management URL is not proof of a customer-specific
+portal session.
+
 
 `POST /v1/billing/web-management` returns `{url}` for a short-lived Stripe
 Customer Portal session. AppView derives the Stripe customer from the

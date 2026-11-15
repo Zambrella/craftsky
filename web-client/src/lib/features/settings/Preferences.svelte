@@ -1,5 +1,7 @@
 <script lang="ts">
 	import ProfileShaderBackground from '../social/ProfileShaderBackground.svelte';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	import { profileShaderStyle } from '../social/profile-background-shader.ts';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
@@ -460,10 +462,10 @@
 			<h2>Make your profile your own</h2>
 			<p>
 				Profile colours and backgrounds are included with CraftSky Plus and
-				Business. Manage purchases in the mobile app.
+				Business.
 			</p>
-			<a class="action" href="/settings/subscriptions"
-				>View subscription access</a
+			<button class="action" onclick={() => premium.require('Customisation')}
+				>Learn about subscriptions</button
 			>
 		</section>
 	{:else}<form class="stack customisation-form" onsubmit={saveCustomisation}>

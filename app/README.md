@@ -57,6 +57,14 @@ Initialize local app config once:
 just app-env-init
 ```
 
+Development profiles enable subscriptions and RevenueCat's synthetic Test Store
+by default, with the public Test Store SDK key. No Apple/Google tester account
+is needed for this mode. Sign in to CraftSky, open subscriptions and choose a
+test purchase outcome. AppView must have its development RevenueCat API key and
+webhook credentials configured; it remains the access authority. Production
+profiles keep subscriptions disabled and never select the synthetic Test Store.
+Fully stop and relaunch the app after changing these build settings.
+
 Then run from the repo root:
 
 ```bash

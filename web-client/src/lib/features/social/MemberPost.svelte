@@ -14,7 +14,10 @@
 	import { notify } from './toasts.svelte';
 	import { Publications, publicationsContext } from './publications.svelte';
 	import { contextMenu } from './context-menu';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	import PlusActionIcon from '../shell/PlusActionIcon.svelte';
+	const premium = useSubscriptionFeature();
 	import { goto } from '$app/navigation';
 	import { onDestroy, untrack, getContext } from 'svelte';
 	import { profilePins } from './pins.svelte';
@@ -25,8 +28,7 @@
 		newOperationKey,
 		type PostPresentation,
 		type Post,
-		type SavedFolder,
-		type SubscriptionAccess
+		type SavedFolder
 	} from '#lib/api/client.ts';
 	import PostCard from '#lib/PostCard.svelte';
 	import { allFolders } from './saved-model';
@@ -82,13 +84,7 @@
 		publicationsContext
 	);
 	const dialogId = $props.id();
-	const access =
-		getContext<() => SubscriptionAccess | undefined>('craftsky-access');
-	const plus = $derived(
-		subscriptionsEnabled() &&
-			access?.()?.effectiveTier !== 'free' &&
-			!!access?.()?.givesAccess
-	);
+	const plus = $derived(premium.allowed());
 	const pins = profilePins(untrack(() => api));
 	let post = $state<Post | undefined>(
 		untrack(() => (visible(value) ? value : undefined))
@@ -400,8 +396,8 @@
 			}
 		);
 	}
-	function togglePin() {
-		if (!post) return;
+	async function togglePin() {
+		if (!post || !(await premium.require('Pin'))) return;
 		const p = post,
 			was = pins.isPinned(p);
 		void action(
@@ -575,11 +571,13 @@
 								><Icon name="send" />Send via chat</a
 							>
 							<div class="menu-divider"></div>
-							{#if plus}<button
-									disabled={busy || !!retry}
-									onclick={chooseFolder}
-									><Icon name="folder" />Move to folder</button
-								>{/if}<button
+							<button
+								disabled={busy || !!retry}
+								onclick={async () => {
+									if (await premium.require('Folders')) await chooseFolder();
+								}}
+								><PlusActionIcon name="folder" locked={!plus} />Move to folder</button
+							><button
 								disabled={busy || !!retry}
 								onclick={() => {
 									const current = post!;
@@ -727,10 +725,12 @@
 									href={`/compose/edit?did=${encodeURIComponent(post.author.did)}&rkey=${encodeURIComponent(post.rkey)}`}
 									><Icon name="edit" />Edit</a
 								>
-								{#if plus && pinSlot(post) && pins.value}<button
+								{#if pinSlot(post) && (!plus || pins.value)}<button
 										disabled={busy || !!retry || pins.busy}
 										onclick={togglePin}
-										><Icon name="pin" />{pins.isPinned(post)
+										><PlusActionIcon name="pin" locked={!plus} />{pins.isPinned(
+											post
+										)
 											? 'Unpin'
 											: 'Pin'}</button
 									>{/if}
@@ -839,11 +839,14 @@
 						disabled={busy}
 						class="new-folder"
 						onclick={() => (creatingFolder = true)}>New folder</button
-					>{/if}{:else if !subscriptionsEnabled()}<button
+					>{/if}{:else}<button
 					type="button"
 					class="new-folder"
-					aria-label="New folder is coming soon"
-					onclick={() => comingSoon('New folder')}>New folder</button
+					aria-label={subscriptionsEnabled()
+						? 'New folder'
+						: 'New folder is coming soon'}
+					onclick={() => premium.require('Folders')}
+					><PlusActionIcon name="folder" locked />New folder</button
 				>{/if}
 			{#if message}<p role="status">
 					{message}{#if retry}<button

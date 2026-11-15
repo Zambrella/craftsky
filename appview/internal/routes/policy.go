@@ -226,6 +226,8 @@ var retainedSuspendedMutations = map[string]bool{
 // Denied mutations are explicit so a new authenticated mutation cannot silently
 // inherit policy; an absent classification prevents catalogue construction.
 var deniedSuspendedMutations = map[string]bool{
+	"POST /v1/billing/web-paywall":                                         true,
+	"POST /v1/billing/web-checkout/cancel":                                 true,
 	"POST /v1/billing/web-checkout":                                        true,
 	"POST /v1/billing/web-management":                                      true,
 	"PUT /v1/preferences/logged-out-visibility":                            true,
@@ -375,7 +377,10 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/subscriptions/access", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "PUT", PathPattern: "/v1/billing/account", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/billing/account", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/billing/web-prices", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/web-checkout", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-checkout/cancel", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-paywall", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/web-management", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/reconciliation", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/authorization", RateClass: RateClassUpload, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

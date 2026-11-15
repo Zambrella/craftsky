@@ -5,7 +5,9 @@
 	import { reloadPages } from '#lib/pagination.ts';
 	import { goto } from '$app/navigation';
 	import { contextMenu } from './context-menu';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	import PlusActionIcon from '../shell/PlusActionIcon.svelte';
 	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import {
@@ -23,6 +25,8 @@
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
+	const premium = useSubscriptionFeature();
+	const hasPlus = $derived(premium.allowed());
 	const work = new Work('social.Saved.action');
 	let loadingMore = $state(false);
 	let items = $state<SavedItem[]>([]),
@@ -38,11 +42,8 @@
 	const currentFolder = $derived(
 		folders.find((folder) => folder.id === folderId)
 	);
-	function editFolder(mode: 'create' | 'rename') {
-		if (mode === 'create' && !subscriptionsEnabled()) {
-			comingSoon('Folders');
-			return;
-		}
+	async function editFolder(mode: 'create' | 'rename') {
+		if (!(await premium.require('Folders'))) return;
 		folderMode = mode;
 		folderName = mode === 'rename' ? currentFolder?.name || '' : '';
 		folderDialog.showModal();
@@ -91,7 +92,8 @@
 			'social.Saved.load'
 		);
 	}
-	function create() {
+	async function create() {
+		if (!(await premium.require('Folders'))) return;
 		const value = folderName.trim();
 		if (value)
 			void work.run(
@@ -105,7 +107,8 @@
 				'social.Saved.create'
 			);
 	}
-	function rename() {
+	async function rename() {
+		if (!(await premium.require('Folders'))) return;
 		const value = folderName.trim();
 		if (value)
 			void work.run(
@@ -148,37 +151,33 @@
 			{currentFolder?.name || (unfiled ? 'Unfiled posts' : 'Saved posts')}
 		</h1>
 	</div>
-	{#if folderSupport || !subscriptionsEnabled()}{#if folderId}<details
-				class="folder-actions"
-				use:contextMenu
+	{#if folderId && hasPlus}<details class="folder-actions" use:contextMenu>
+			<summary class="icon-button" aria-label="Folder actions"
+				><Icon name="more" /></summary
 			>
-				<summary class="icon-button" aria-label="Folder actions"
-					><Icon name="more" /></summary
+			<div class="menu-items">
+				<button onclick={() => editFolder('rename')}
+					><Icon name="edit" />Rename folder</button
+				><button
+					onclick={() => {
+						deleteSaves = false;
+						deleteDialog.showModal();
+					}}><Icon name="trash" />Delete folder</button
 				>
-				<div class="menu-items">
-					<button onclick={() => editFolder('rename')}
-						><Icon name="edit" />Rename folder</button
-					><button
-						onclick={() => {
-							deleteSaves = false;
-							deleteDialog.showModal();
-						}}><Icon name="trash" />Delete folder</button
-					>
-				</div>
-			</details>{:else}<button
-				class="icon-button"
-				aria-label={subscriptionsEnabled()
-					? 'Create folder'
-					: 'Folders is coming soon'}
-				title={subscriptionsEnabled()
-					? 'Create folder'
-					: 'Folders is coming soon'}
-				disabled={work.busy}
-				onclick={() => editFolder('create')}><Icon name="folder" /></button
-			>{/if}{/if}
+			</div>
+		</details>{:else}<button
+			class="icon-button"
+			aria-label={subscriptionsEnabled()
+				? 'Create folder'
+				: 'Folders is coming soon'}
+			title="Create folder"
+			disabled={work.busy}
+			onclick={() => editFolder('create')}
+			><PlusActionIcon name="folder" locked={!hasPlus} /></button
+		>{/if}
 </div>
 <Status {work} skeleton="management" reload={() => load()} />
-{#if folderSupport && !folderId && !unfiled && folders.length}<section
+{#if hasPlus && folderSupport && !folderId && !unfiled && folders.length}<section
 		class="folders-overview"
 	>
 		<h2>Folders</h2>
@@ -209,7 +208,7 @@
 		/>
 	</div>
 {/if}
-{#if folderSupport && !folderId}<nav
+{#if hasPlus && folderSupport && !folderId}<nav
 		class="saved-scope"
 		aria-label="Saved posts"
 	>

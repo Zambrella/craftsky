@@ -15,6 +15,18 @@ Configuration has one owner per setting:
 
 ## Local setup and worktrees
 
+Local development enables subscriptions by default. Flutter's development
+examples select the RevenueCat Test Store and include its public SDK key;
+AppView's `dev.env` selects sandbox access, the Test Store/Stripe sandbox catalog
+and one-minute reconciliation. The web development server enables billing unless
+explicitly overridden. Production mobile profiles and Worker defaults stay
+disabled; the Go loader's production default is unchanged.
+
+Provider secrets remain required in ignored AppView inputs. Current checkout
+configuration can be validated with `just config-check`. Existing local files
+remain explicit overrides; updating an example does not overwrite them during
+`config-init`. See [the local subscription setup](../changes/2026-11-13-per-did-subscriptions/local-development.md).
+
 For per-DID subscriptions and Stripe Managed Payments checkout, see the
 [billing configuration and recovery runbook](../operations/subscription-billing-recovery.md).
 Stripe credentials, configured price IDs and return URLs belong in AppView
@@ -22,7 +34,13 @@ configuration, never Flutter or web build inputs. Configure `STRIPE_SECRET_KEY`,
 `STRIPE_ACCOUNT_ID`, `STRIPE_PLUS_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`,
 `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL` and
 `STRIPE_BILLING_RETURN_URL` together, or leave them all absent to keep
-web checkout disabled. Stripe checkout also requires the existing RevenueCat
+web checkout disabled. RevenueCat web paywalls additionally require
+`REVENUECAT_WEB_PUBLIC_API_KEY`, the Stripe app public SDK key (`strp_sb_` for
+sandbox, `strp_` for production). Development defaults select the sandbox app.
+The authenticated paywall preflight returns this public key and the account's
+private App User ID; neither is stored by the web app. `STRIPE_PUBLISHABLE_KEY`
+is used only by the retained direct embedded-checkout endpoint. Stripe billing
+also requires the existing RevenueCat
 integration and catalog configuration. Keep the RevenueCat server key's
 customer-creation and subscription-read permissions. The
 `REVENUECAT_ENVIRONMENT` selects sandbox or production; Stripe key and session
@@ -39,7 +57,9 @@ mapped to the intended tier and shared `paid` entitlement. For external purchase
 tracking, use `app_user_id` metadata detection, paid-invoice recognition and the
 documented Stripe webhook events/signing secret. RevenueCat Billing and its
 Stripe processing connection are a different product and do not provide
-Managed Payments. Provider sandbox success does not enable application checkout
+Managed Payments. RevenueCat web paywalls prefer Managed Payments when available
+and may fall back to ordinary Stripe Billing, as approved on 15 November 2026.
+Provider sandbox success does not enable application checkout
 or establish live business eligibility.
 
 Each component owns its environment files in `config/`: `appview/config/`, `app/config/`, and `web-client/config/`. Root `config/.env.local` holds optional shared Compose project, publish-host, port and memory overrides; copy `config/.env.local.example` when needed. Production backend settings remain in Render.

@@ -193,7 +193,7 @@ class ConfigTests(unittest.TestCase):
         self.assertFalse((self.target / 'appview/config/.env.local').exists())
         self.assertFalse((self.target / 'appview/config/.env.secrets.local').exists())
 
-    def test_fresh_backend_examples_initialize_and_validate(self):
+    def test_fresh_backend_examples_require_development_revenuecat_credentials(self):
         for name in config.LOCAL_FILES:
             shutil.copyfile(ROOT / (name + '.example'), self.target / name)
         profile = self.target / 'appview/config'
@@ -209,7 +209,16 @@ class ConfigTests(unittest.TestCase):
                     'INSTAGRAM_META_ACCESS_TOKEN', 'REVENUECAT_API_KEY'):
             self.assertEqual(secret[key], '')
             self.assertNotIn(key, local)
+        self.assertEqual(local['REVENUECAT_ENABLED'], 'true')
+        self.assertEqual(local['REVENUECAT_ENVIRONMENT'], 'sandbox')
         with patch.dict(os.environ, {}, clear=True):
+            # Enabled local billing must fail clearly without provider credentials,
+            # rather than silently presenting a disabled or nonworking integration.
+            with self.assertRaises(ValueError):
+                self.helper('validate', self.target)
+            secret.update(REVENUECAT_API_KEY='development-api-canary',
+                          REVENUECAT_WEBHOOK_AUTHORIZATION='development-webhook-canary')
+            (profile / '.env.secrets.local').write_text(self.helper('marshal', '-', secret))
             self.assertTrue(self.helper('validate', self.target)['valid'])
 
     def test_migration_splits_shared_controls_preserves_values_and_web_bytes(self):

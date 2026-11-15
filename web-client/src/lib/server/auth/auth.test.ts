@@ -578,7 +578,11 @@ describe('account-specific proxy and session actions', () => {
 		expect(allowedRoute('POST', '/v1/feed/extended-network')).toBe(false);
 	});
 	it('allows only account-owned checkout and removes cross-account assignment routes', () => {
+		expect(allowedRoute('GET', '/v1/billing/web-prices')).toBe(true);
+		expect(allowedRoute('POST', '/v1/billing/web-prices')).toBe(false);
 		expect(allowedRoute('POST', '/v1/billing/web-checkout')).toBe(true);
+		expect(allowedRoute('POST', '/v1/billing/web-checkout/cancel')).toBe(true);
+		expect(allowedRoute('GET', '/v1/billing/web-checkout/cancel')).toBe(false);
 		expect(allowedRoute('GET', '/v1/billing/web-checkout')).toBe(false);
 		expect(allowedRoute('POST', '/v1/billing/web-management')).toBe(true);
 		expect(allowedRoute('GET', '/v1/billing/web-management')).toBe(false);

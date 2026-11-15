@@ -373,6 +373,8 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 	}
 	wantDenied := []string{
 		"POST /v1/billing/web-checkout",
+		"POST /v1/billing/web-paywall",
+		"POST /v1/billing/web-checkout/cancel",
 		"POST /v1/billing/web-management",
 		"POST /v1/chat/sync",
 		"PUT /v1/chat/push-preferences",

@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
@@ -9,6 +11,75 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  testWidgets(
+    'pending checkout cards explain the block and offer safe cancellation',
+    (tester) async {
+      var canceled = 0;
+      await _pump(
+        tester,
+        _model(pendingCheckout: true, onCancelCheckout: () => canceled++),
+      );
+      expect(
+        find.textContaining('A purchase is still pending'),
+        findsOneWidget,
+      );
+      final card = find.byKey(const ValueKey('subscription-tier-plus'));
+      await tester.ensureVisible(card);
+      await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(AlertDialog);
+      expect(dialog, findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: dialog,
+          matching: find.text('Cancel pending purchase'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(canceled, 1);
+    },
+  );
+
+  testWidgets(
+    'entire tier cards activate once and expose one accessible action',
+    (tester) async {
+      final selected = <SubscriptionTier>[];
+      await _pump(tester, _model(onPurchase: selected.add));
+      final semantics = tester.ensureSemantics();
+
+      for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+        final card = find.byKey(ValueKey('subscription-tier-${tier.name}'));
+        await tester.ensureVisible(card);
+        await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
+        expect(selected.last, tier);
+        final label = tier == SubscriptionTier.plus ? 'Plus' : 'Business';
+        final node = tester.getSemantics(
+          find.bySemanticsLabel(RegExp('^$label:')),
+        );
+        expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      }
+      expect(selected, [SubscriptionTier.plus, SubscriptionTier.business]);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('disabled tier cards do not dispatch from their body', (
+    tester,
+  ) async {
+    final selected = <SubscriptionTier>[];
+    await _pump(
+      tester,
+      _model(onPurchase: selected.add, actionsEnabled: false),
+    );
+    for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+      final card = find.byKey(ValueKey('subscription-tier-${tier.name}'));
+      await tester.ensureVisible(card);
+      expect(tester.widget<InkWell>(card).onTap, isNull);
+      await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
+    }
+    expect(selected, isEmpty);
+  });
+
   testWidgets(
     'complimentary Plus shows its expiry and both paid subscribe choices',
     (tester) async {
@@ -55,7 +126,10 @@ void main() {
     (tester) async {
       var selected = SubscriptionTier.free;
       await _pump(tester, _model(onPurchase: (tier) => selected = tier));
-      expect(find.textContaining('alternative plans'), findsOneWidget);
+      expect(
+        find.textContaining('Business includes everything in Plus'),
+        findsOneWidget,
+      );
       expect(find.textContaining('billing owner'), findsNothing);
       expect(find.textContaining('Assign'), findsNothing);
       expect(find.textContaining('web'), findsNothing);
@@ -114,6 +188,9 @@ SubscriptionPageModel _model({
   String? store,
   bool promo = false,
   bool lifetimePromo = false,
+  bool actionsEnabled = true,
+  bool pendingCheckout = false,
+  VoidCallback? onCancelCheckout,
   ValueChanged<SubscriptionTier>? onPurchase,
   SubscriptionOperationNotice? notice,
 }) => SubscriptionPageModel(
@@ -132,6 +209,7 @@ SubscriptionPageModel _model({
     requestedGeneration: 1,
     reconciledGeneration: 1,
     reconciliationStale: false,
+    webCheckoutPending: pendingCheckout,
     subscriptions: store == null
         ? []
         : [
@@ -170,10 +248,11 @@ SubscriptionPageModel _model({
         : const [],
   ),
   operationNotice: notice,
-  onPurchase: onPurchase ?? (_) {},
+  onPurchase: actionsEnabled ? onPurchase ?? (_) {} : null,
   onRestore: () {},
   onManage: () {},
   onRefresh: () {},
+  onCancelCheckout: onCancelCheckout,
 );
 
 Future<void> _pump(WidgetTester tester, SubscriptionPageModel model) async {

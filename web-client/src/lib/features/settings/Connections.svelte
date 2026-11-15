@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { appendPage } from '#lib/pagination.ts';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
@@ -277,8 +279,8 @@
 		{:else if !work.loading && loaded}<p>
 				Follower growth is included with CraftSky Plus and Business.
 			</p>
-			<a class="action" href="/settings/subscriptions"
-				>View subscription access</a
+			<button class="action" onclick={() => premium.require('Growth')}
+				>Learn about subscriptions</button
 			>{/if}
 	</section>
 {:else if !work.loading && loaded}

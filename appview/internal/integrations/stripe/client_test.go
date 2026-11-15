@@ -139,3 +139,29 @@ func TestStripeErrorsPreserveCauseWithoutSerializedCapabilities(t *testing.T) {
 		t.Fatal("safe diagnostic context missing")
 	}
 }
+
+func TestEmbeddedManagedCheckoutUsesReturnURLAndClientSecret(t *testing.T) {
+	var create url.Values
+	customer := uuid.New()
+	client := stripeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/account" {
+			_, _ = w.Write([]byte(`{"id":"acct_test"}`))
+			return
+		}
+		_ = r.ParseForm()
+		create = r.Form
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "cs_test_embedded", "ui_mode": "embedded", "client_secret": "cs_test_embedded_secret_canary", "status": "open", "livemode": false, "metadata": map[string]string{"app_user_id": customer.String()}, "managed_payments": map[string]bool{"enabled": true}, "automatic_tax": map[string]any{"liability": map[string]string{"type": "stripe"}}})
+	})
+	session, err := client.CreateCheckout(t.Context(), subscriptions.CheckoutRequest{Embedded: true, OperationID: uuid.New(), CustomerID: customer, AccountID: "acct_test", PriceID: "price_plus", SuccessURL: "https://app.example/return"})
+	if err != nil || session.ClientSecret != "cs_test_embedded_secret_canary" || !session.Managed || !session.StripeTaxLiability {
+		t.Fatalf("embedded response err=%v", err)
+	}
+	for key, want := range map[string]string{"ui_mode": "embedded", "return_url": "https://app.example/return", "redirect_on_completion": "if_required", "managed_payments[enabled]": "true"} {
+		if create.Get(key) != want {
+			t.Errorf("%s mismatch", key)
+		}
+	}
+	if create.Has("success_url") || create.Has("cancel_url") {
+		t.Fatal("hosted return fields sent to embedded Checkout")
+	}
+}

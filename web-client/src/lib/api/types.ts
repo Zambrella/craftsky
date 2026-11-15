@@ -604,6 +604,12 @@ export interface BillingPromotionalGrant {
 	givesAccess: boolean;
 	expiresAt?: string | null;
 }
+export interface WebSubscriptionPrice {
+	tier: 'plus' | 'business';
+	amount: number;
+	currency: string;
+	taxBehavior: string;
+}
 export interface BillingState {
 	billingAccountId: string;
 	revenueCatAppUserId: string;

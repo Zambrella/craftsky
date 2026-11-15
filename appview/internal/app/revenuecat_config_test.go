@@ -2,10 +2,32 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCheckedInDevelopmentEnablesSandboxSubscriptions(t *testing.T) {
+	contents, err := os.ReadFile("../../config/dev.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := testConfigFile(t, string(contents))
+	t.Setenv("REVENUECAT_API_KEY", revenueCatTestAPIKey)
+	t.Setenv("REVENUECAT_WEBHOOK_AUTHORIZATION", revenueCatTestAuthorization)
+	t.Setenv("REVENUECAT_WEBHOOK_SIGNING_SECRET", revenueCatTestSigningSecret)
+	config, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !config.RevenueCat.Enabled() || config.RevenueCat.environment != "sandbox" || config.RevenueCat.reconciliationSchedule != time.Minute {
+		t.Fatalf("unexpected development billing state: enabled=%t environment=%s schedule=%v", config.RevenueCat.Enabled(), config.RevenueCat.environment, config.RevenueCat.reconciliationSchedule)
+	}
+	if len(config.RevenueCat.appIDs) != 2 || len(config.RevenueCat.products) != 4 {
+		t.Fatal("development must include Test Store and Stripe sandbox catalogs")
+	}
+}
 
 const (
 	revenueCatTestAPIKey        = "rc-api-key-private-canary"
@@ -14,7 +36,7 @@ const (
 )
 
 func TestRevenueCatConfigIsDisabledByDefaultAndRequiresCompleteConfiguration(t *testing.T) {
-	for _, key := range []string{"REVENUECAT_ENABLED", "REVENUECAT_API_BASE_URL", "REVENUECAT_API_KEY", "REVENUECAT_PROJECT_ID", "REVENUECAT_ENVIRONMENT", "REVENUECAT_WEBHOOK_AUTHORIZATION", "REVENUECAT_WEBHOOK_SIGNING_SECRET", "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE", "REVENUECAT_APP_IDS", "REVENUECAT_PRODUCT_MAPPINGS"} {
+	for _, key := range []string{"REVENUECAT_ENABLED", "REVENUECAT_API_BASE_URL", "REVENUECAT_API_KEY", "REVENUECAT_PROJECT_ID", "REVENUECAT_ENVIRONMENT", "REVENUECAT_WEBHOOK_AUTHORIZATION", "REVENUECAT_WEBHOOK_SIGNING_SECRET", "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE", "REVENUECAT_APP_IDS", "REVENUECAT_PRODUCT_MAPPINGS", "REVENUECAT_WEB_PUBLIC_API_KEY"} {
 		t.Setenv(key, "")
 	}
 	disabled, err := loadRevenueCatConfig(EnvDev)

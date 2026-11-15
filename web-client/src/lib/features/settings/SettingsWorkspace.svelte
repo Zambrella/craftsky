@@ -27,7 +27,9 @@
 	import Instagram from './Instagram.svelte';
 	import Business from './Business.svelte';
 	import SettingsPageLayout from './SettingsPageLayout.svelte';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	let {
 		api,
 		path,
@@ -198,11 +200,11 @@
 										: undefined}
 									onclick={(event) => {
 										if (
-											!subscriptionsEnabled() &&
+											!premium.allowed() &&
 											['growth', 'customisation'].includes(slug)
 										) {
 											event.preventDefault();
-											comingSoon(label);
+											void premium.require(label);
 										}
 									}}
 									href={external
@@ -218,7 +220,8 @@
 										><SettingsIcon
 											name={slug}
 										/>{#if subscriptionsEnabled() && !paid && ['growth', 'customisation'].includes(slug)}<span
-												class="plus-mark">+</span
+												class="plus-mark"
+												aria-hidden="true">+</span
 											>{/if}</span
 									><span class="tile-copy"
 										><span>{label}</span>{#if slug === 'appearance'}<small

@@ -106,6 +106,7 @@ func TestBillingLifecycleIsIsolatedFromSocialAndRetainedPrivateState(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	checkoutMigration = append(checkoutMigration, []byte(`ALTER TABLE billing_web_checkouts ADD COLUMN embedded BOOLEAN NOT NULL DEFAULT false;`)...)
 	pool := testdb.WithSubscriptionAccessSchema(t, isolationSocialDDL+string(migration)+string(checkoutMigration))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)

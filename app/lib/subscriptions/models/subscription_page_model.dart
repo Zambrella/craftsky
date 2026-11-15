@@ -30,6 +30,7 @@ final class SubscriptionPageModel {
     this.onRestore,
     this.onManage,
     this.onRefresh,
+    this.onCancelCheckout,
   });
 
   final SubscriptionAccess access;
@@ -44,4 +45,5 @@ final class SubscriptionPageModel {
   final VoidCallback? onRestore;
   final VoidCallback? onManage;
   final VoidCallback? onRefresh;
+  final VoidCallback? onCancelCheckout;
 }

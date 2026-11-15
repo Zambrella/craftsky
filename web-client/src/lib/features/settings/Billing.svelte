@@ -1,12 +1,17 @@
 <script lang="ts">
-	import { getContext, onMount, onDestroy, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack, tick } from 'svelte';
 	import {
 		APIError,
 		type CraftskyAPI,
 		type SubscriptionAccess,
+		type WebSubscriptionPrice,
 		type BillingState
 	} from '#lib/api/client.ts';
 	import SettingsIcon from './SettingsIcon.svelte';
+	import PlusTierIcon from '../shell/PlusTierIcon.svelte';
+	import RevenueCatPaywall from './RevenueCatPaywall.svelte';
+	import type { WebPaywallDetails } from './revenuecat-paywall';
+	import { monthlyPrice } from './subscription-prices';
 	import { UserFacingError } from '#lib/user-facing-error.ts';
 	import { dateTime, title, type Session } from './model.ts';
 	import { Work } from './work.svelte.ts';
@@ -22,7 +27,6 @@
 		canStartWebCheckout,
 		hasCurrentSubscription,
 		isCurrentSubscription,
-		SubscriptionCheckout,
 		SubscriptionManagement,
 		subscriptionNeedsRefresh,
 		subscriptionProvider,
@@ -37,16 +41,64 @@
 		subscriptionAccessContext
 	);
 	let active = true;
+	let prices = $state<WebSubscriptionPrice[]>([]);
+	let pricesLoading = $state(true);
+	let priceRead = 0;
+	async function loadPrices() {
+		const read = ++priceRead;
+		pricesLoading = true;
+		try {
+			const result = await api.billing.prices();
+			if (active && read === priceRead) prices = result.items;
+		} catch {
+			if (active && read === priceRead) prices = [];
+		} finally {
+			if (active && read === priceRead) pricesLoading = false;
+		}
+	}
 	let access = $state<SubscriptionAccess | null>(null),
 		billing = $state<BillingState | null>(null),
 		purchasingTier = $state<SubscriptionTier | null>(null),
 		managingSubscription = $state(false);
-	const checkout = new SubscriptionCheckout(
-		account,
-		() => `${session.id}:${session.did}`,
-		(tier) => api.billing.checkout(tier),
-		(url) => location.assign(url)
-	);
+	let paywallDetails = $state<WebPaywallDetails | null>(null);
+	let checkoutTier = $state<SubscriptionTier>('plus');
+	let cancelingCheckout = $state(false);
+	async function restoreCheckoutFocus() {
+		await tick();
+		if (active && `${session.id}:${session.did}` === account)
+			document
+				.getElementById(`subscription-${checkoutTier}-details`)
+				?.focus({ preventScroll: true });
+	}
+	async function cancelCheckout() {
+		if (!active || `${session.id}:${session.did}` !== account) return false;
+		cancelingCheckout = true;
+		try {
+			await api.billing.cancelCheckout();
+			requireCurrent();
+			paywallDetails = null;
+			await load();
+			await restoreCheckoutFocus();
+			return true;
+		} catch {
+			if (active) {
+				try {
+					const value = await read();
+					apply(value);
+					if (hasCurrentSubscription(value.billing)) {
+						paywallDetails = null;
+						await restoreCheckoutFocus();
+						return true;
+					}
+				} catch {
+					/* Keep the unresolved checkout available for a safe retry. */
+				}
+			}
+			return false;
+		} finally {
+			if (active) cancelingCheckout = false;
+		}
+	}
 	const management = new SubscriptionManagement(
 		account,
 		() => `${session.id}:${session.did}`,
@@ -116,12 +168,18 @@
 		);
 	}
 	function refresh() {
-		void work.run(
+		void loadPrices();
+		return work.run(
 			reconciled,
 			apply,
 			'Subscription status refreshed. Payment updates can take a little time.',
 			'settings.Billing.refresh'
 		);
+	}
+	async function closePaywall() {
+		paywallDetails = null;
+		await refresh();
+		await restoreCheckoutFocus();
 	}
 	function purchase(tier: SubscriptionTier) {
 		if (
@@ -142,7 +200,10 @@
 						throw new UserFacingError(
 							'Checkout cannot open yet. Review your subscription status and try again.'
 						);
-					await checkout.start(tier);
+					const details = await api.billing.paywall(tier);
+					requireCurrent();
+					checkoutTier = tier;
+					paywallDetails = details;
 				},
 				() => {},
 				'',
@@ -168,6 +229,7 @@
 	}
 	onMount(() => {
 		void load();
+		void loadPrices();
 		const restored = (event: PageTransitionEvent) => {
 			if (event.persisted) refresh();
 		};
@@ -176,55 +238,87 @@
 	});
 	onDestroy(() => {
 		active = false;
-		checkout.dispose();
+		paywallDetails = null;
 		management.dispose();
 		work.dispose();
 	});
 </script>
 
+{#if paywallDetails}<RevenueCatPaywall
+		details={paywallDetails}
+		beforePurchase={async () => {
+			requireCurrent();
+			const fresh = await reconciled();
+			apply(fresh);
+			if (
+				!canStartWebCheckout(fresh.billing) ||
+				fresh.billing.webCheckoutPending
+			)
+				throw new UserFacingError(
+					'Refresh subscription status before purchasing.'
+				);
+			const identity = await api.billing.paywall(checkoutTier);
+			requireCurrent();
+			if (
+				identity.appUserId !== paywallDetails?.appUserId ||
+				identity.apiKey !== paywallDetails.apiKey ||
+				identity.offering !== paywallDetails.offering
+			)
+				throw new DOMException('Account changed', 'AbortError');
+		}}
+		onComplete={() => {
+			void closePaywall();
+		}}
+		onClose={() => {
+			void closePaywall();
+		}}
+	/>{/if}
+
 <h1 class="workspace-heading">Subscriptions</h1>
 <Feedback {work} reload={load} />
 {#if !work.loading && access && billing}
 	<section class="panel">
-		<h2 class="section-heading access-title">
-			<SettingsIcon name="plus" />Current access: {title(access.effectiveTier)}
+		<h2 class="access-title">
+			Current access: {title(access.effectiveTier)}
 		</h2>
-		<p>
-			Your subscription belongs to <strong
-				>@{session.handle || session.did}</strong
-			> and follows this account across devices.
-		</p>
 		{#if access.accessEndsAt}<p class="muted">
 				Access until {dateTime(access.accessEndsAt)}
 			</p>{/if}
 	</section>
+	<p class="account-plan">
+		Your subscription belongs to this CraftSky account. Business includes
+		everything in Plus.
+	</p>
 	{#each promotionalGrants as grant (grant.id)}
 		<section
 			class="panel"
 			aria-label={`Complimentary CraftSky ${title(grant.tier)}`}
 		>
-			<h2>Complimentary CraftSky {title(grant.tier)}</h2>
+			<h2>Complimentary access</h2>
 			<p>This complimentary access has no recurring charge.</p>
 			{#if grant.expiresAt !== undefined && grant.expiresAt !== null}<p
 					class="muted"
 				>
-					Complimentary access ends {dateTime(grant.expiresAt)}.
+					{title(grant.tier)} until {dateTime(grant.expiresAt)}
 				</p>{:else}<p class="muted">
-					Complimentary access has no expiry date.
+					{title(grant.tier)} with no expiry date
 				</p>{/if}
 		</section>
 	{/each}
-	<div class="billing-refresh">
-		<button disabled={work.busy} onclick={refresh}>
-			{work.busy && !purchasingTier && !managingSubscription
-				? 'Refreshing…'
-				: 'Refresh status'}
-		</button>
-	</div>
+	{#if billing.webCheckoutPending && !paywallDetails}
+		<div class="notice">
+			<p>
+				A purchase is still pending for this account. Finish or cancel it before
+				choosing a plan.
+			</p>
+			<button disabled={work.busy || cancelingCheckout} onclick={cancelCheckout}
+				>{cancelingCheckout ? 'Canceling…' : 'Cancel pending purchase'}</button
+			>
+		</div>
+	{/if}
 	{#if subscriptionNeedsRefresh(billing)}
 		<p class="notice">
-			Your subscription status is still being checked. Refresh status before
-			making a purchase.
+			Your subscription status is still being checked. Please wait a moment.
 		</p>
 	{/if}
 	{#each currentSubscriptions as subscription}
@@ -278,19 +372,15 @@
 	{:else}
 		{#if promotionalGrants.length}
 			<p class="notice">
-				You can subscribe while your complimentary access is active. Paid
-				billing starts immediately. Unused complimentary time is not added to
-				your paid subscription.
+				Subscribing starts paid billing immediately. Remaining complimentary
+				time is not added to your paid subscription.
 			</p>
 		{/if}
-		<p class="muted">
-			Choose Plus or Business for this account. You can review the price and
-			billing details before paying securely with Stripe.
-		</p>
 	{/if}
 	{#each ['plus', 'business'] as tierValue}
 		{@const tier = tierValue as SubscriptionTier}
 		{@const status = tierState(billing, tier)}
+		{@const price = prices.find((price) => price.tier === tier)}
 		<section
 			class="panel tier-card"
 			class:business-tier={tier === 'business'}
@@ -298,52 +388,60 @@
 		>
 			<div class="tier-heading">
 				<span class="tier-icon"
-					><SettingsIcon
-						name={tier === 'business' ? 'business' : 'subscription'}
-					/></span
+					>{#if tier === 'plus'}<PlusTierIcon />{:else}<SettingsIcon
+							name="business"
+						/>{/if}</span
 				>
 				<div>
 					<h2>{title(tier)}</h2>
+					<p class="tier-price">
+						{pricesLoading
+							? 'Loading price…'
+							: monthlyPrice(price) || 'Price unavailable'}
+					</p>
 					{#if status !== 'empty'}<p class="tier-status">
 							{tierStateLabel[status]}
 						</p>{/if}
 				</div>
 			</div>
-			<p class="muted">
+			<p class="tier-benefits">
 				{tier === 'business'
 					? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
 					: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
 			</p>
 			{#if canStartWebCheckout(billing)}
 				<button
-					class="primary"
+					class="tier-action"
+					id={`subscription-${tier}-details`}
+					aria-label={promotionalGrants.length
+						? `Subscribe to ${title(tier)}`
+						: `View ${title(tier)} details`}
 					disabled={work.busy}
 					onclick={() => purchase(tier)}
 					>{purchasingTier === tier
 						? 'Opening checkout…'
 						: promotionalGrants.length
 							? `Subscribe to ${title(tier)}`
-							: `Choose ${title(tier)}`}</button
+							: 'View details'}</button
 				>
 			{/if}
 		</section>
 	{/each}
-	{#if billing.reconciledAt}<p class="muted">
-			Last checked {dateTime(billing.reconciledAt)}
-		</p>{/if}
+	<p class="muted checkout-note">
+		You can review billing details before paying securely with Stripe.
+		{#if prices.length && prices.every((price) => price.taxBehavior === 'inclusive')}Tax
+			included.{:else}Final price and tax are shown before you pay.{/if}
+	</p>
 {/if}
 
 <style>
-	.billing-refresh {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: 16px;
-	}
 	.tier-card.panel {
-		background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+		position: relative;
+		--tier-accent: var(--primary);
+		background: color-mix(in srgb, var(--tier-accent) 8%, var(--surface));
 	}
 	.business-tier.panel {
-		background: color-mix(in srgb, var(--moss) 8%, var(--surface));
+		--tier-accent: light-dark(#765a00, #f7d46a);
 	}
 	.tier-heading {
 		display: flex;
@@ -357,25 +455,64 @@
 	.tier-icon {
 		width: 44px;
 		height: 44px;
-		border: 1.5px solid var(--primary);
+		border: 1.5px solid var(--tier-accent);
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: color-mix(in srgb, var(--primary) 16%, var(--surface));
-		color: var(--primary);
+		background: color-mix(in srgb, var(--tier-accent) 16%, var(--surface));
+		color: var(--tier-accent);
 		flex-shrink: 0;
 	}
-	.business-tier .tier-icon {
-		border-color: var(--moss);
-		background: color-mix(in srgb, var(--moss) 16%, var(--surface));
-		color: var(--ink);
-	}
 	.tier-status {
-		color: var(--primary);
+		color: var(--tier-accent);
 		font-size: 14px;
 	}
 	.access-title {
 		font-size: 16px;
+		margin: 0;
+	}
+	.account-plan {
+		margin: 0 0 16px;
+	}
+	.tier-heading h2 {
+		font-size: 20px;
+		line-height: 1.3;
+	}
+	.tier-price {
+		margin: 2px 0 0;
+		color: var(--tier-accent);
+		font-weight: 700;
+	}
+	.tier-benefits {
+		margin: 0 0 10px;
+	}
+	.tier-card .tier-action {
+		color: var(--primary);
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		font-weight: 700;
+		padding: 10px 12px;
+	}
+	.tier-action::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 14px;
+	}
+	.tier-action:focus-visible {
+		outline: none;
+	}
+	.tier-card:has(.tier-action:focus-visible) {
+		outline: 3px solid var(--primary);
+		outline-offset: 3px;
+	}
+	.tier-card:has(.tier-action:not(:disabled)):hover {
+		box-shadow: 4px 4px 0 var(--shadow);
+	}
+
+	.checkout-note {
+		font-size: 14px;
 	}
 </style>

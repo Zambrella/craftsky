@@ -10,7 +10,12 @@ abstract interface class SubscriptionApi {
   Future<void> requestReconciliation();
 }
 
-final class SubscriptionApiClient implements SubscriptionApi {
+abstract interface class PendingCheckoutCancellationApi {
+  Future<void> cancelPendingCheckout();
+}
+
+final class SubscriptionApiClient
+    implements SubscriptionApi, PendingCheckoutCancellationApi {
   const new(this._dio);
 
   final Dio _dio;
@@ -37,6 +42,11 @@ final class SubscriptionApiClient implements SubscriptionApi {
       '/v1/billing/account',
     );
     return BillingState.fromMap(response.data!);
+  });
+
+  @override
+  Future<void> cancelPendingCheckout() => unwrapApi(() async {
+    await _dio.post<Map<String, dynamic>>('/v1/billing/web-checkout/cancel');
   });
 
   @override

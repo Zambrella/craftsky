@@ -50,8 +50,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'This plan change is not available yet. Your existing subscription stays active.';
 
   @override
+  String get subscriptionsCheckoutPendingTitle => 'Purchase pending';
+
+  @override
+  String get subscriptionsCheckoutPendingBody =>
+      'A purchase is still pending for this account. Finish or cancel it before choosing a plan. Canceling an unpaid checkout does not cancel an active subscription.';
+
+  @override
+  String get subscriptionsCancelCheckout => 'Cancel pending purchase';
+
+  @override
   String get subscriptionsAccountPlan =>
-      'Your subscription belongs to this CraftSky account. Plus and Business are alternative plans.';
+      'Your subscription belongs to this CraftSky account. Business includes everything in Plus.';
 
   @override
   String subscriptionsStoreAccountConflictKnown(String account) {

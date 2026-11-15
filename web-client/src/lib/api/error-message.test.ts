@@ -49,7 +49,7 @@ describe('error parity and diagnostic evidence', () => {
 		[
 			409,
 			'web_checkout_pending',
-			'This account already has a checkout in progress. Continue with that plan or wait for the checkout to expire before choosing another.'
+			'This account already has a checkout in progress. Continue with that plan or cancel the pending purchase before choosing another.'
 		],
 		[
 			503,

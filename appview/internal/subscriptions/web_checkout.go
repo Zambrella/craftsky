@@ -29,6 +29,7 @@ var ErrWebManagementUnavailable = errors.New("web subscription management unavai
 var errCheckoutStandingDenied = fmt.Errorf("checkout standing denied: %w", ErrWebCheckoutUnavailable)
 
 type CheckoutRequest struct {
+	Embedded    bool
 	OperationID uuid.UUID
 	CustomerID  uuid.UUID
 	AccountID   string
@@ -37,9 +38,9 @@ type CheckoutRequest struct {
 	CancelURL   string
 }
 type CheckoutSession struct {
-	ID, URL, Status, CustomerID, AppUserID, SubscriptionAppUserID                 string
-	LiveMode, EnvironmentKnown, Managed, StripeTaxLiability, SubscriptionCanceled bool
-	ExpiresAt                                                                     time.Time
+	ID, URL, Status, CustomerID, AppUserID, SubscriptionAppUserID, ClientSecret, UIMode string
+	LiveMode, EnvironmentKnown, Managed, StripeTaxLiability, SubscriptionCanceled       bool
+	ExpiresAt                                                                           time.Time
 }
 
 func (s CheckoutSession) String() string             { return "CheckoutSession{private:[REDACTED]}" }
@@ -51,7 +52,7 @@ type CheckoutProvider interface {
 	GetCheckout(context.Context, string) (CheckoutSession, error)
 	CreateManagement(context.Context, string, string) (string, error)
 }
-type WebCheckoutConfig struct{ AccountID, PlusPriceID, BusinessPriceID, SuccessURL, CancelURL, BillingReturnURL string }
+type WebCheckoutConfig struct{ AccountID, PlusPriceID, BusinessPriceID, SuccessURL, CancelURL, BillingReturnURL, PublishableKey, RevenueCatWebKey string }
 
 func (c WebCheckoutConfig) String() string             { return "WebCheckoutConfig{private:[REDACTED]}" }
 func (c WebCheckoutConfig) GoString() string           { return c.String() }
@@ -63,14 +64,19 @@ var stripeCheckoutPath = regexp.MustCompile(`^/c/pay/(cs_(?:test_|live_)[A-Za-z0
 var stripeManagementPath = regexp.MustCompile(`^/p/session/[A-Za-z0-9_-]+$`)
 
 // ValidateWebCheckoutConfig permits only complete configurations. Empty means disabled.
-func ValidateWebCheckoutConfig(c WebCheckoutConfig) error {
+func ValidateWebCheckoutConfig(c WebCheckoutConfig, environment string) error {
 	if !stripeAccountID.MatchString(c.AccountID) || !stripePriceID.MatchString(c.PlusPriceID) || !stripePriceID.MatchString(c.BusinessPriceID) || c.PlusPriceID == c.BusinessPriceID {
 		return errors.New("Stripe checkout requires an account and two distinct price identifiers")
 	}
 	for _, raw := range []string{c.SuccessURL, c.CancelURL, c.BillingReturnURL} {
 		u, err := url.Parse(raw)
-		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || u.Opaque != "" || u.RawPath != "" {
-			return errors.New("Stripe return URLs must be fixed HTTPS URLs without credentials, query or fragment")
+		if err != nil {
+			return errors.New("invalid Stripe return URL")
+		}
+		localSandbox := environment == "sandbox" && u.Scheme == "http" &&
+			(u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
+		if (u.Scheme != "https" && !localSandbox) || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || u.Opaque != "" || u.RawPath != "" {
+			return errors.New("Stripe return URLs require fixed HTTPS or sandbox loopback URLs without credentials, query or fragment")
 		}
 	}
 	return nil
@@ -79,7 +85,7 @@ func (s *Store) SetWebCheckoutProvider(provider CheckoutProvider, config WebChec
 	if provider == nil {
 		return errors.New("Stripe checkout provider is required")
 	}
-	if err := ValidateWebCheckoutConfig(config); err != nil {
+	if err := ValidateWebCheckoutConfig(config, s.accessEnvironment); err != nil {
 		return err
 	}
 	s.checkoutProvider = provider
@@ -124,7 +130,7 @@ type checkoutOperation struct {
 
 func (s *Store) readCheckoutOperation(ctx context.Context, conn *pgxpool.Conn, accountID uuid.UUID) (checkoutOperation, error) {
 	var op checkoutOperation
-	err := conn.QueryRow(ctx, `SELECT operation_id,tier,stripe_account_id,price_id,success_url,cancel_url,session_id,created_at,terminal_reconciliation_generation FROM billing_web_checkouts WHERE billing_account_id=$1 AND environment=$2`, accountID, s.accessEnvironment).Scan(&op.OperationID, &op.Tier, &op.AccountID, &op.PriceID, &op.SuccessURL, &op.CancelURL, &op.SessionID, &op.CreatedAt, &op.TerminalReconciliationGeneration)
+	err := conn.QueryRow(ctx, `SELECT operation_id,tier,stripe_account_id,price_id,success_url,cancel_url,session_id,created_at,terminal_reconciliation_generation,embedded FROM billing_web_checkouts WHERE billing_account_id=$1 AND environment=$2`, accountID, s.accessEnvironment).Scan(&op.OperationID, &op.Tier, &op.AccountID, &op.PriceID, &op.SuccessURL, &op.CancelURL, &op.SessionID, &op.CreatedAt, &op.TerminalReconciliationGeneration, &op.Embedded)
 	return op, err
 }
 func (s *Store) deleteCheckoutOperation(ctx context.Context, conn *pgxpool.Conn, accountID uuid.UUID) error {
@@ -329,9 +335,43 @@ func (s *Store) recoverCheckoutEffect(ctx context.Context, conn *pgxpool.Conn, s
 	}
 	return session, false, nil
 }
-func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, now time.Time) (destination string, err error) {
+func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, now time.Time) (string, error) {
+	session, err := s.startWebCheckout(ctx, did, tier, now, false)
+	if err != nil {
+		return "", err
+	}
+	return checkoutURL(session)
+}
+
+type EmbeddedCheckout struct {
+	ClientSecret   string `json:"clientSecret"`
+	PublishableKey string `json:"publishableKey"`
+}
+
+func (e EmbeddedCheckout) String() string             { return "EmbeddedCheckout{private:[REDACTED]}" }
+func (e EmbeddedCheckout) GoString() string           { return e.String() }
+func (e EmbeddedCheckout) Format(f fmt.State, _ rune) { _, _ = io.WriteString(f, e.String()) }
+func (s *Store) EmbeddedWebCheckout(ctx context.Context, did syntax.DID, tier Tier, now time.Time) (EmbeddedCheckout, error) {
+	prefix := "pk_test_"
+	if s.accessEnvironment == "production" {
+		prefix = "pk_live_"
+	}
+	if !strings.HasPrefix(s.checkoutConfig.PublishableKey, prefix) {
+		return EmbeddedCheckout{}, ErrWebCheckoutUnavailable
+	}
+	session, err := s.startWebCheckout(ctx, did, tier, now, true)
+	if err != nil {
+		return EmbeddedCheckout{}, err
+	}
+	if session.UIMode != "embedded" || !strings.HasPrefix(session.ClientSecret, session.ID+"_secret_") || strings.ContainsAny(session.ClientSecret, " \t\r\n") {
+		return EmbeddedCheckout{}, ErrWebCheckoutUnavailable
+	}
+	return EmbeddedCheckout{session.ClientSecret, s.checkoutConfig.PublishableKey}, nil
+}
+
+func (s *Store) startWebCheckout(ctx context.Context, did syntax.DID, tier Tier, now time.Time, embedded bool) (result CheckoutSession, err error) {
 	if s.checkoutProvider == nil || !tier.Paid() {
-		return "", ErrWebCheckoutUnavailable
+		return result, ErrWebCheckoutUnavailable
 	}
 	err = s.withCheckoutFence(ctx, did, false, func(conn *pgxpool.Conn) error {
 		state, err := s.ownerStateUsing(ctx, conn, did, now)
@@ -348,6 +388,9 @@ func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, n
 				return err
 			}
 			if !resolved {
+				if op.Embedded != embedded {
+					return ErrWebCheckoutPending
+				}
 				if session.Status == "complete" {
 					return ErrSubscriptionAlreadyExists
 				}
@@ -360,8 +403,8 @@ func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, n
 				if !session.ExpiresAt.After(now) {
 					return ErrWebCheckoutUnavailable
 				}
-				destination, err = checkoutURL(session)
-				return err
+				result = session
+				return nil
 			}
 		}
 		if err := checkoutPreflight(state, now); err != nil {
@@ -371,8 +414,8 @@ func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, n
 		if tier == TierBusiness {
 			price = s.checkoutConfig.BusinessPriceID
 		}
-		op = checkoutOperation{CheckoutRequest: CheckoutRequest{OperationID: uuid.New(), CustomerID: state.RevenueCatAppUserID, AccountID: s.checkoutConfig.AccountID, PriceID: price, SuccessURL: s.checkoutConfig.SuccessURL, CancelURL: s.checkoutConfig.CancelURL}, Tier: tier, CreatedAt: now}
-		if _, err := conn.Exec(ctx, `INSERT INTO billing_web_checkouts(billing_account_id,environment,operation_id,tier,stripe_account_id,price_id,success_url,cancel_url,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, state.BillingAccountID, s.accessEnvironment, op.OperationID, tier, op.AccountID, price, op.SuccessURL, op.CancelURL, now); err != nil {
+		op = checkoutOperation{CheckoutRequest: CheckoutRequest{OperationID: uuid.New(), CustomerID: state.RevenueCatAppUserID, AccountID: s.checkoutConfig.AccountID, PriceID: price, SuccessURL: s.checkoutConfig.SuccessURL, CancelURL: s.checkoutConfig.CancelURL, Embedded: embedded}, Tier: tier, CreatedAt: now}
+		if _, err := conn.Exec(ctx, `INSERT INTO billing_web_checkouts(billing_account_id,environment,operation_id,tier,stripe_account_id,price_id,success_url,cancel_url,created_at,embedded) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, state.BillingAccountID, s.accessEnvironment, op.OperationID, tier, op.AccountID, price, op.SuccessURL, op.CancelURL, now, embedded); err != nil {
 			return err
 		}
 		session, _, err := s.recoverCheckout(ctx, conn, did, state, op, now)
@@ -393,10 +436,10 @@ func (s *Store) WebCheckoutURL(ctx context.Context, did syntax.DID, tier Tier, n
 		if session.Status != "open" || !session.ExpiresAt.After(now) {
 			return ErrWebCheckoutUnavailable
 		}
-		destination, err = checkoutURL(session)
-		return err
+		result = session
+		return nil
 	})
-	return destination, err
+	return result, err
 }
 
 // ResolveWebCheckoutForDeletion never creates an operation. An unknown remote

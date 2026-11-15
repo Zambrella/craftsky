@@ -187,24 +187,25 @@ Go loaders own defaults, types, validation and conditional requirements. Follow 
 | `REQUIRED_POLICY_VERSION` | Server configuration | [config.go:390](../../appview/internal/app/config.go#L390) |
 | `REVENUECAT_API_BASE_URL` | Server configuration | [revenuecat_config.go:109](../../appview/internal/app/revenuecat_config.go#L109) |
 | `REVENUECAT_API_KEY` | Protected server value | [revenuecat_config.go:110](../../appview/internal/app/revenuecat_config.go#L110) |
-| `REVENUECAT_API_MAX_PAGES` | Server configuration | [revenuecat_config.go:201](../../appview/internal/app/revenuecat_config.go#L201) |
-| `REVENUECAT_API_MAX_RESPONSE_BYTES` | Server configuration | [revenuecat_config.go:204](../../appview/internal/app/revenuecat_config.go#L204) |
-| `REVENUECAT_API_PAGE_LIMIT` | Server configuration | [revenuecat_config.go:198](../../appview/internal/app/revenuecat_config.go#L198) |
-| `REVENUECAT_API_TIMEOUT` | Server configuration | [revenuecat_config.go:195](../../appview/internal/app/revenuecat_config.go#L195) |
+| `REVENUECAT_API_MAX_PAGES` | Server configuration | [revenuecat_config.go:208](../../appview/internal/app/revenuecat_config.go#L208) |
+| `REVENUECAT_API_MAX_RESPONSE_BYTES` | Server configuration | [revenuecat_config.go:211](../../appview/internal/app/revenuecat_config.go#L211) |
+| `REVENUECAT_API_PAGE_LIMIT` | Server configuration | [revenuecat_config.go:205](../../appview/internal/app/revenuecat_config.go#L205) |
+| `REVENUECAT_API_TIMEOUT` | Server configuration | [revenuecat_config.go:202](../../appview/internal/app/revenuecat_config.go#L202) |
 | `REVENUECAT_APP_IDS` | Server configuration | [revenuecat_config.go:116](../../appview/internal/app/revenuecat_config.go#L116) |
 | `REVENUECAT_ENABLED` | Server configuration | [revenuecat_config.go:96](../../appview/internal/app/revenuecat_config.go#L96) |
 | `REVENUECAT_ENVIRONMENT` | Server configuration | [revenuecat_config.go:112](../../appview/internal/app/revenuecat_config.go#L112) |
-| `REVENUECAT_PRODUCT_MAPPINGS` | Server configuration | [revenuecat_config.go:151](../../appview/internal/app/revenuecat_config.go#L151) |
+| `REVENUECAT_PRODUCT_MAPPINGS` | Server configuration | [revenuecat_config.go:158](../../appview/internal/app/revenuecat_config.go#L158) |
 | `REVENUECAT_PROJECT_ID` | Server configuration | [revenuecat_config.go:111](../../appview/internal/app/revenuecat_config.go#L111) |
-| `REVENUECAT_RECONCILIATION_LEASE_DURATION` | Server configuration | [revenuecat_config.go:213](../../appview/internal/app/revenuecat_config.go#L213) |
-| `REVENUECAT_RECONCILIATION_POLL_INTERVAL` | Server configuration | [revenuecat_config.go:207](../../appview/internal/app/revenuecat_config.go#L207) |
-| `REVENUECAT_RECONCILIATION_SCHEDULE_INTERVAL` | Server configuration | [revenuecat_config.go:210](../../appview/internal/app/revenuecat_config.go#L210) |
+| `REVENUECAT_RECONCILIATION_LEASE_DURATION` | Server configuration | [revenuecat_config.go:220](../../appview/internal/app/revenuecat_config.go#L220) |
+| `REVENUECAT_RECONCILIATION_POLL_INTERVAL` | Server configuration | [revenuecat_config.go:214](../../appview/internal/app/revenuecat_config.go#L214) |
+| `REVENUECAT_RECONCILIATION_SCHEDULE_INTERVAL` | Server configuration | [revenuecat_config.go:217](../../appview/internal/app/revenuecat_config.go#L217) |
 | `REVENUECAT_WEBHOOK_AUTHORIZATION` | Server configuration | [revenuecat_config.go:113](../../appview/internal/app/revenuecat_config.go#L113) |
-| `REVENUECAT_WEBHOOK_BODY_LIMIT_BYTES` | Server configuration | [revenuecat_config.go:186](../../appview/internal/app/revenuecat_config.go#L186) |
-| `REVENUECAT_WEBHOOK_INGRESS_DEADLINE` | Server configuration | [revenuecat_config.go:189](../../appview/internal/app/revenuecat_config.go#L189) |
+| `REVENUECAT_WEBHOOK_BODY_LIMIT_BYTES` | Server configuration | [revenuecat_config.go:193](../../appview/internal/app/revenuecat_config.go#L193) |
+| `REVENUECAT_WEBHOOK_INGRESS_DEADLINE` | Server configuration | [revenuecat_config.go:196](../../appview/internal/app/revenuecat_config.go#L196) |
 | `REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE` | Server configuration | [revenuecat_config.go:89](../../appview/internal/app/revenuecat_config.go#L89) |
-| `REVENUECAT_WEBHOOK_SIGNATURE_TOLERANCE` | Server configuration | [revenuecat_config.go:192](../../appview/internal/app/revenuecat_config.go#L192) |
+| `REVENUECAT_WEBHOOK_SIGNATURE_TOLERANCE` | Server configuration | [revenuecat_config.go:199](../../appview/internal/app/revenuecat_config.go#L199) |
 | `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Protected server value | [revenuecat_config.go:114](../../appview/internal/app/revenuecat_config.go#L114) |
+| `REVENUECAT_WEB_PUBLIC_API_KEY` | Protected server value | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
 | `SAFETY_EMAIL_CONSOLE_ORIGIN` | Server configuration | [config.go:1091](../../appview/internal/app/config.go#L1091) |
 | `SAFETY_EMAIL_ENABLED` | Server configuration | [config.go:1083](../../appview/internal/app/config.go#L1083) |
 | `SAFETY_EVIDENCE_S3_ACCESS_KEY_ID` | Protected server value | [config.go:1001](../../appview/internal/app/config.go#L1001) |
@@ -240,6 +241,7 @@ Go loaders own defaults, types, validation and conditional requirements. Follow 
 | `STRIPE_CHECKOUT_SUCCESS_URL` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
 | `STRIPE_PLUS_PRICE_ID` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | Server configuration | [revenuecat_config.go:108](../../appview/internal/app/revenuecat_config.go#L108) |
+| `STRIPE_PUBLISHABLE_KEY` | Server configuration | [revenuecat_config.go:107](../../appview/internal/app/revenuecat_config.go#L107) |
 | `STRIPE_SECRET_KEY` | Protected server value | [revenuecat_config.go:106](../../appview/internal/app/revenuecat_config.go#L106) |
 | `TAP_ACK_SAFETY_MARGIN` | Server configuration | [config.go:426](../../appview/internal/app/config.go#L426) |
 | `TAP_ACK_TIMEOUT` | Server configuration | [config.go:423](../../appview/internal/app/config.go#L423) |

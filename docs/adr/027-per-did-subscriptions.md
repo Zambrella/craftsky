@@ -39,7 +39,8 @@ after sign-in, account switching and session restoration on launch. This is
 optional background work outside account-critical initialization. AppView
 creates or recovers the DID's UUID and durably queues initial RevenueCat
 customer registration through reconciliation. The browser uses this server
-registration path without a RevenueCat SDK. Native clients also attempt SDK
+registration path outside checkout. Opening a web paywall configures the Web SDK
+with that same identified UUID. Native clients also attempt SDK
 configuration/login through the serialized ownership guard. Store conflicts or
 provider failures must not prevent sign-in or account switching; native billing
 continues to require the exact current identity before any operation. Guests
@@ -70,64 +71,56 @@ treated as multiple independent customers merely by switching DIDs. Restores
 must retain the original identified customer; anonymous purchase/redemption and
 automatic purchase transfers are not supported product flows.
 
-Web checkout uses Stripe Managed Payments, with Stripe as merchant of record
-and RevenueCat tracking the resulting Stripe Billing purchases.
-The initial web release offers new Plus or Business subscriptions, cancellation
-and existing-access display. Web tier changes are deferred. An existing current
-or pending subscription blocks another web purchase, including a cancelled
-subscription retaining access until its period ends. A subscriber can choose a
-different web tier after expiry. Cross-provider replacement is not automatic.
+### Shared RevenueCat paywalls (15 November 2026)
 
-The web client requests a Checkout session from AppView. AppView requires fresh
-reconciled subscription state, selects a configured tier price, fixes quantity
-at one and uses configured return destinations. The authenticated DID's private
-RevenueCat UUID is placed in both session and subscription `app_user_id`
-metadata. RevenueCat's automatic external purchase tracking reads that field
-and recognizes paid invoices. Each tier retains its own entitlement plus the
-shared `paid` entitlement. Checkout return/navigation is not evidence of access.
+The maintainer accepts RevenueCat's Stripe Billing fallback when Managed Payments
+is unavailable. This supersedes the earlier requirement to reject all non-MoR
+transactions. Enable **Use Managed Payments when available** in the RevenueCat
+Stripe configuration: eligible purchases use Stripe as merchant of record;
+ordinary Stripe Billing may proceed otherwise, with CraftSky retaining merchant
+and tax responsibility for those transactions.
 
-AppView creates every Stripe session with `managed_payments[enabled]=true` and
-checks the returned session reports Managed Payments enabled and Stripe as tax
-liability owner before returning the hosted checkout URL. Failure or missing
-evidence leaves checkout unavailable; no retry may fall back to ordinary Stripe
-Billing. RevenueCat-hosted purchase links are unsuitable for this requirement:
-their "Managed Payments when available" setting explicitly permits fallback.
+The Svelte client uses `@revenuecat/purchases-js` and the same published `plus`
+and `business` offering paywalls as Flutter. Each offering's `$rc_monthly` package
+contains the matching native, Test Store and Stripe products. Runtime selection
+comes from the environment-specific Stripe app SDK key; never use the mobile
+Test Store key on web. The SDK renders the paywall in a bottom sheet and switches to a larger
+modal for Stripe payment. Cancelling provider checkout restores the sheet. Provider authentication may still redirect out of the modal.
 
-Persist a pending checkout operation before contacting Stripe, serialize work
-per account and reuse its provider idempotency key for retries. A response lost
-after Stripe accepted a request must not authorize a new independently payable
-session. A completed payment remains blocked from another checkout while
-RevenueCat catches up, and its Stripe subscription must be canceled before a
-new non-blocking RevenueCat reconciliation requested after that cancellation
-is observed can permit replacement. A recent empty snapshot from before the
-payment or cancellation is insufficient. Only
-provider-observed expiration may release an unused
-session; a browser cancel redirect or local clock alone does not prove it is
-unpayable. Retained URLs and concurrent tier requests must obey the same fence.
-Attempts are also pinned to the verified Stripe merchant account so rotating
-credentials or configuration cannot create a second payable checkout elsewhere.
+`POST /v1/billing/web-paywall` accepts only `tier`, derives the private customer
+UUID from the authenticated DID and checks fresh reconciled billing state under
+the owner lifecycle fence. It returns the environment-matched public SDK key,
+private App User ID and offering with `Cache-Control: no-store`. The client
+repeats preflight before every SDK purchase, including retries, and discards
+operations after switching accounts or disposing the view. A browser account
+lock prevents concurrent paywalls in cooperating tabs. No anonymous customer,
+redemption or identity transfer is used. SDK purchase results trigger AppView
+reconciliation; they never grant feature access directly.
 
-Checkout and portal effects retain the owner lifecycle fence and take a shared
-moderation-standing lock in a separate transaction bounded to 30 seconds. This
-serializes dispatch with suspension changes. The pending operation commits
-before that transaction, so cancellation or a failed commit cannot lose the
-original provider idempotency key. Read-only reconciliation may inspect a known
-session while the owner is suspended or awaiting deletion; it never creates an
-unknown session in that recovery path.
+Existing current, pending or anomalous paid subscriptions block a new purchase;
+complimentary grants do not. Web tier changes remain deferred until expiry.
+RevenueCat owns new SDK Checkout creation and its retries. AppView does not
+persist the SDK's Checkout Session in `billing_web_checkouts`, so the older
+server-created session idempotency, cancellation and pending-operation fences
+do not describe this SDK flow. A tab lock is not a cross-device payment lock.
+RevenueCat duplicate-purchase protection and server reconciliation remain
+necessary; validate uncertain payments and cross-device races in sandbox before
+production activation.
 
-Billing state includes `webCheckoutPending`, derived from retained checkout
-operations across environments even when web checkout configuration is disabled.
-Native purchases must respect this flag before RevenueCat has indexed a web
-purchase. A web retry may still resume the same tier's existing session rather
-than treat this flag as a reason to abandon its recovery operation.
+The direct Stripe checkout endpoints remain for recovery of already-created
+operations. Those operations retain their original Managed Payments validation,
+merchant binding, durable idempotency and provider-confirmed expiration rules.
+`webCheckoutPending` continues to block native purchases and new web paywalls
+while such an operation exists, across environments. **Cancel pending purchase**
+expires only the authenticated owner's verified open session; closing a
+RevenueCat modal disposes its UI without calling that recovery endpoint.
 
-Subscription management also uses an authenticated AppView operation. The server
-resolves the purchasing DID's Stripe customer from its persisted checkout
-mapping, verifies the completed session and creates a short-lived Customer
-Portal session. Clients never choose a Stripe customer ID. A missing mapping
-leaves management unavailable rather than guessing. A static email-login portal
-is unsuitable: Stripe can choose the most recently active customer when several
-customers share the payer email, which is a supported CraftSky use case.
+Management still uses authenticated AppView resolution of a retained direct
+checkout's Stripe customer. SDK-created purchases without that mapping use the
+existing receipt-management fallback. Do not substitute a static email-login
+portal: multiple CraftSky customers may share a payer email. New customer-specific
+portal support needs verified provider ownership evidence, not a caller-selected
+Stripe customer or an unverified configured management URL.
 
 Mobile apps contain no web purchase promotion, instructions or checkout links.
 A native conflict explains that the store subscription belongs to another
