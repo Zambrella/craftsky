@@ -190,13 +190,11 @@ for (const width of [390, 1767])
 			canvas.height = 30;
 			return canvas.toDataURL('image/png').split(',')[1];
 		});
-		await page
-			.getByLabel('Add images', { exact: true })
-			.setInputFiles({
-				name: 'project.png',
-				mimeType: 'image/png',
-				buffer: Buffer.from(png, 'base64')
-			});
+		await page.getByLabel('Add images', { exact: true }).setInputFiles({
+			name: 'project.png',
+			mimeType: 'image/png',
+			buffer: Buffer.from(png, 'base64')
+		});
 		const photoBar = page.locator('.photo-page-header');
 		await expect(photoBar).toBeVisible();
 		expect(typography(await appBar(photoBar))).toEqual(typography(standard));
