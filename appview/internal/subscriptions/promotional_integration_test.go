@@ -73,7 +73,8 @@ func (f *promotionalFixture) assertAccess(t *testing.T, at time.Time, want Tier)
 
 func TestPromotionalGrantsAuthorizeEntitlementsExpireAndRevokeWithoutPaidRows(t *testing.T) {
 	f := newPromotionalFixture(t)
-	now := time.Now().UTC()
+	// PostgreSQL timestamps preserve microseconds, not Linux clock nanoseconds.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	ends := now.Add(6 * time.Hour)
 	periodEnd := now.Add(3 * time.Hour)
 	grant := promotionalSnapshot(TierPlus, &ends)

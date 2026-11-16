@@ -159,11 +159,8 @@ void main() {
       ['Fibre Fair'],
     );
     expect(find.text('Sep 5, 2026'), findsOneWidget);
-    final cardContext = tester.element(find.byType(EventCard));
-    final expectedStart = MaterialLocalizations.of(cardContext).formatTimeOfDay(
-      TimeOfDay.fromDateTime(first.startsAt.toLocal()),
-    );
-    expect(find.textContaining(expectedStart), findsOneWidget);
+    // September is BST in the event's London timezone, regardless of device TZ.
+    expect(find.text('10:00 AM–6:00 PM'), findsOneWidget);
     expect(find.text('Vendor'), findsOneWidget);
     expect(find.text('In person'), findsOneWidget);
     expect(find.text('Town Hall'), findsOneWidget);
