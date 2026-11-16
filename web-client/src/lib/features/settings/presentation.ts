@@ -25,6 +25,7 @@ export const settingsGroups = [
 	{
 		title: 'Business',
 		items: [
+			['business', 'Business details'],
 			['events', 'Events'],
 			['products', 'Products']
 		]

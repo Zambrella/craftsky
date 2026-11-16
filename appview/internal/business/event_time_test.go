@@ -24,14 +24,15 @@ func TestEventInstantValidation(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*EventWrite){
-		"offset start":      func(event *EventWrite) { event.StartsAt = "2026-09-01T06:00:00-04:00" },
-		"fractional start":  func(event *EventWrite) { event.StartsAt = "2026-09-01T10:00:00.1Z" },
-		"lowercase z":       func(event *EventWrite) { event.StartsAt = "2026-09-01T10:00:00z" },
-		"equal end":         func(event *EventWrite) { event.EndsAt = event.StartsAt },
-		"end before start":  func(event *EventWrite) { event.EndsAt = "2026-09-01T09:59:59Z" },
-		"missing timezone":  func(event *EventWrite) { event.TimeZone = "" },
-		"invalid timezone":  func(event *EventWrite) { event.TimeZone = "Mars/Olympus" },
-		"local pseudo zone": func(event *EventWrite) { event.TimeZone = "Local" },
+		"offset start":          func(event *EventWrite) { event.StartsAt = "2026-09-01T06:00:00-04:00" },
+		"zero fractional start": func(event *EventWrite) { event.StartsAt = "2026-09-01T10:00:00.000Z" },
+		"fractional start":      func(event *EventWrite) { event.StartsAt = "2026-09-01T10:00:00.1Z" },
+		"lowercase z":           func(event *EventWrite) { event.StartsAt = "2026-09-01T10:00:00z" },
+		"equal end":             func(event *EventWrite) { event.EndsAt = event.StartsAt },
+		"end before start":      func(event *EventWrite) { event.EndsAt = "2026-09-01T09:59:59Z" },
+		"missing timezone":      func(event *EventWrite) { event.TimeZone = "" },
+		"invalid timezone":      func(event *EventWrite) { event.TimeZone = "Mars/Olympus" },
+		"local pseudo zone":     func(event *EventWrite) { event.TimeZone = "Local" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			event := valid

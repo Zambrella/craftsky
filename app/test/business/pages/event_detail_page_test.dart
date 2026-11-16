@@ -12,16 +12,21 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
+import 'package:craftsky_app/business/pages/event_editor_dialog.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/data/profile_repository.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -29,6 +34,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../test_support/member_browsing_context.dart';
@@ -328,7 +334,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Copy link'), findsOneWidget);
     expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Send via chat'), findsOneWidget);
     expect(find.text('Report event'), findsNothing);
+    expect(find.text('Delete event'), findsOneWidget);
+    await tester.tap(find.text('Edit event'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditorDialog), findsOneWidget);
+    expect(find.text('Summer fibre fair'), findsWidgets);
+  });
+
+  testWidgets('owner delete requires confirmation and removes the detail', (
+    tester,
+  ) async {
+    final repository = _Repository(_event());
+    await _pump(
+      tester,
+      repository: repository,
+      page: EventDetailPage(
+        account: AccountKey('did:plc:business'),
+        owner: Did.parse('did:plc:business'),
+        rkey: RecordKey.parse('3m4event'),
+      ),
+      ownerTier: StateProvider<SubscriptionTier>(
+        (ref) => SubscriptionTier.business,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete event'));
+    await tester.pumpAndSettle();
+    expect(repository.deletes, isEmpty);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.deletes, isEmpty);
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete event'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(repository.deletes.single, (
+      owner: Did.parse('did:plc:business'),
+      rkey: RecordKey.parse('3m4event'),
+      cid: _event().cid,
+    ));
+    expect(find.text('Event unavailable'), findsOneWidget);
+    expect(find.text('Summer fibre fair'), findsNothing);
   });
 
   testWidgets('IT-009 event report keeps established pending and failure UX', (
@@ -446,7 +498,14 @@ void main() {
     expect(find.text('Summer fibre fair'), findsOneWidget);
     expect(find.text('A celebration of local fibre and yarn.'), findsOneWidget);
     expect(find.text('Town Hall'), findsOneWidget);
-    expect(find.text('Vendor'), findsNothing);
+    expect(find.text('Vendor'), findsOneWidget);
+    expect(find.text("Creator's roles"), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('Event Maker'), findsOneWidget);
+    expect(
+      find.byKey(const Key('event-creator-profile')),
+      findsOneWidget,
+    );
     expect(find.textContaining('Published'), findsNothing);
     expect(find.text('In person'), findsOneWidget);
     expect(find.text('Scheduled'), findsOneWidget);
@@ -489,11 +548,70 @@ void main() {
     await tester.pump();
     await tester.tap(eventAction);
     await tester.pump();
-    final registrationAction = find.widgetWithText(OutlinedButton, 'Register');
+    final registrationAction = find.widgetWithText(ChunkyButton, 'Register');
     await tester.tap(registrationAction);
     await tester.pump();
     expect(launched, [Uri.parse(eventUri), Uri.parse(registrationUri)]);
     expect(repository.requests, ['did:plc:business/3m4event']);
+  });
+
+  testWidgets('visitor creator profile link opens the event account', (
+    tester,
+  ) async {
+    final page = EventDetailPage(
+      account: AccountKey('did:plc:viewer'),
+      owner: Did.parse('did:plc:business'),
+      rkey: RecordKey.parse('3m4event'),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => page),
+        GoRoute(
+          path: '/profiles/:did',
+          builder: (_, state) => Scaffold(
+            body: Text('Creator account: ${state.pathParameters['did']}'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await _pump(
+      tester,
+      repository: _Repository(_event()),
+      page: page,
+      router: router,
+    );
+    await tester.pumpAndSettle();
+    final profile = find.byKey(const Key('event-creator-profile'));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -800));
+    await tester.pumpAndSettle();
+    await tester.tap(profile);
+    await tester.pumpAndSettle();
+    expect(find.text('Creator account: did:plc:business'), findsOneWidget);
+  });
+
+  testWidgets('creator attribution falls back to the handle for a blank name', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      repository: _Repository(_event()),
+      creatorProfile: Profile(
+        did: 'did:plc:business',
+        handle: 'maker.test',
+        displayName: '   ',
+        crafts: const [],
+      ),
+      page: EventDetailPage(
+        account: AccountKey('did:plc:viewer'),
+        owner: Did.parse('did:plc:business'),
+        rkey: RecordKey.parse('3m4event'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('@maker.test'), findsOneWidget);
+    expect(find.text("Creator's roles"), findsNothing);
+    expect(find.byKey(const Key('event-creator-profile')), findsOneWidget);
   });
 
   testWidgets('AT-009 omits absent optional actions without empty controls', (
@@ -546,6 +664,8 @@ Future<void> _openReportMenu(WidgetTester tester) async {
   expect(find.byType(CraftskyContextMenuButton), findsOneWidget);
   await tester.tap(menuButton);
   await tester.pumpAndSettle();
+  expect(find.text('Edit event'), findsNothing);
+  expect(find.text('Delete event'), findsNothing);
   await tester.tap(find.text('Report event'));
   await tester.pumpAndSettle();
 }
@@ -603,6 +723,8 @@ Future<void> _pump(
   WidgetTester tester, {
   required BusinessRepository repository,
   required Widget page,
+  GoRouter? router,
+  Profile? creatorProfile,
   StateProvider<SubscriptionTier>? ownerTier,
   StateProvider<bool>? refreshAccess,
   Completer<SubscriptionAccess>? pendingAccess,
@@ -611,6 +733,17 @@ Future<void> _pump(
     overrides: [
       if (ownerTier == null) memberBrowsingOverrideFor('did:plc:viewer'),
       businessRepositoryProvider.overrideWithValue(repository),
+      profileRepositoryProvider.overrideWithValue(
+        _CreatorRepository(
+          creatorProfile ??
+              Profile(
+                did: 'did:plc:business',
+                handle: 'maker.test',
+                displayName: 'Event Maker',
+                crafts: const [],
+              ),
+        ),
+      ),
       if (ownerTier != null) ...[
         secureSessionRegistryStorageProvider.overrideWithValue(
           _EventRegistryStorage(
@@ -639,12 +772,19 @@ Future<void> _pump(
         ),
       ],
     ],
-    child: MaterialApp(
-      theme: AppTheme.lightThemeData,
-      localizationsDelegates: appLocalizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: page,
-    ),
+    child: router != null
+        ? MaterialApp.router(
+            routerConfig: router,
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          )
+        : MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: page,
+          ),
   ),
 );
 
@@ -666,18 +806,30 @@ final class _Repository extends Fake implements BusinessRepository {
   final Object result;
   final Object? reportResult;
   final List<String> requests = [];
+  final List<({Did owner, RecordKey rkey, Cid cid})> deletes = [];
   final List<({Did owner, RecordKey rkey, ReportSubmission submission})>
   reportRequests = [];
 
   @override
   Future<BusinessEvent> getEvent(Did owner, RecordKey rkey) async {
     requests.add('$owner/$rkey');
+    if (deletes.isNotEmpty) throw const ApiBadRequest('event_not_found');
     if (result is BusinessEvent) return result as BusinessEvent;
     return switch (result) {
       final Exception error => throw error,
       final Error error => throw error,
       _ => throw StateError('Unexpected fake result'),
     };
+  }
+
+  @override
+  Future<void> deleteEvent(
+    Did owner,
+    RecordKey rkey,
+    Cid expectedCid, {
+    required String operationKey,
+  }) async {
+    deletes.add((owner: owner, rkey: rkey, cid: expectedCid));
   }
 
   @override
@@ -710,4 +862,13 @@ final class _SequenceRepository extends Fake implements BusinessRepository {
     if (result case final Error error) throw error;
     throw StateError('Unexpected fake result');
   }
+}
+
+final class _CreatorRepository extends Fake implements ProfileRepository {
+  new(this.profile);
+  final Profile profile;
+  @override
+  Future<Profile> fetch(String handleOrDid) async => profile;
+  @override
+  Future<Profile> fetchMe() async => profile;
 }

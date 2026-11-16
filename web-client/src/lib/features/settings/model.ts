@@ -1,7 +1,7 @@
 import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
 import { FieldValidationError } from '#lib/field-validation.ts';
 import { MutationOutcomeUnknownError } from '#lib/api/client.ts';
-import type { JsonObject } from '#lib/api/types.ts';
+import type { BusinessEvent, JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
 import { requireRecordText } from './text-limits.ts';
@@ -318,12 +318,12 @@ export function productBody(products: Product[]): JsonObject[] {
 			);
 		if (!https(p.uri))
 			throw new FieldValidationError(
-				'Destination link',
+				'Destination',
 				'Each product needs a secure HTTPS destination.'
 			);
 		if (destinations.has(p.uri))
 			throw new FieldValidationError(
-				'Destination link',
+				'Destination',
 				'Each product needs a different destination.'
 			);
 		destinations.add(p.uri);
@@ -337,7 +337,7 @@ export function productBody(products: Product[]): JsonObject[] {
 			.replace(/(\.\d*?)0+$/, '$1')
 			.replace(/\.$/, '');
 		const currency = p.currency.trim().toUpperCase();
-		if (!!amount !== !!currency)
+		if (amount && !currency)
 			throw new FieldValidationError(
 				'Price',
 				'Enter both the price and currency, or leave both blank.'
@@ -410,7 +410,8 @@ export function zonedTimestamp(value: string, zone: string): string {
 		throw new InputError(
 			'This time does not exist in the selected time zone. Choose another time.'
 		);
-	return new Date(candidate).toISOString();
+	// Event instants use canonical UTC seconds, matching AppView validation.
+	return new Date(candidate).toISOString().replace(/\.000Z$/, 'Z');
 }
 export function wallTime(value: unknown, zone: string): string {
 	if (typeof value !== 'string' || !Number.isFinite(Date.parse(value)))
@@ -429,4 +430,35 @@ export function wallTime(value: unknown, zone: string): string {
 			.map((p) => [p.type, p.value])
 	);
 	return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/** Status changes replace the record, retaining its public fields and photo. */
+export function eventStatusBody(
+	event: BusinessEvent,
+	status: 'cancelled' | 'postponed'
+): JsonObject {
+	let photo: JsonObject | undefined;
+	if (event.image) {
+		const { cid, mime, size, alt, aspectRatio } = event.image;
+		if (!cid || !mime || size === undefined)
+			throw new InputError('Reload this event before changing its status.');
+		photo = imageBody({ cid, mime, size, alt, aspectRatio });
+	}
+	return {
+		name: event.name,
+		startsAt: event.startsAt.replace(/\.000Z$/, 'Z'),
+		endsAt: event.endsAt.replace(/\.000Z$/, 'Z'),
+		roles: event.roles.map((role) => role.value),
+		mode: event.mode?.value || 'in-person',
+		status,
+		timeZone: event.timeZone || 'UTC',
+		isAllDay: event.isAllDay,
+		...(event.summary !== undefined ? { summary: event.summary } : {}),
+		...(event.venueName !== undefined ? { venueName: event.venueName } : {}),
+		...(event.eventUri !== undefined ? { eventUri: event.eventUri } : {}),
+		...(event.registrationUri !== undefined
+			? { registrationUri: event.registrationUri }
+			: {}),
+		...(photo ? { image: photo } : {})
+	};
 }

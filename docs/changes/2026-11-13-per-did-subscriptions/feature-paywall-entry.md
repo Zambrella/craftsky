@@ -74,3 +74,31 @@ button for both post and project composers, alongside paywall opening/dismissal.
 All 11 enabled paid-feature browser cases passed (one disabled-flag case skipped),
 web build/type checks passed, and the user's open post composer was visually
 verified after hot update.
+
+## Active plan label
+
+Active paid plans now show a filled primary-colour “Active” pill at the top-right
+of the subscription card header on both clients. Native headers wrap when large
+text cannot fit the plan name and label on one line. Renewal/access-end details
+remain below the plan name; the fallback Active summary is not duplicated.
+Other subscription states and promotional access keep their existing wording.
+
+Validation: four web browser cases verified Plus/Business label placement at
+360px and 1280px. Eleven Flutter subscription-card/accessibility tests passed,
+including 320px at 2x text. Web build/type/lint checks passed, targeted Dart
+analysis passed and the running Flutter app hot-reloaded successfully.
+
+## Mobile subscription pull-to-refresh
+
+The mobile subscription page uses YarnRefreshScrollView, matching the app's
+existing pull gesture and yarn indicator. Pulling awaits the existing billing
+refresh/reconciliation flow, including shared entitlement and offering reloads.
+Purchase and unresolved-operation guards disable refresh when it is unavailable.
+The indicator omits a success check because provider-owned error UI remains the
+refresh outcome authority. The scroll surface works with short content too.
+
+Validation: 31 subscription page/accessibility/lifecycle tests passed, including
+refresh completion, repeat pulls, disabled refresh, large text and existing
+purchase/restore/manage paths. Existing scroll-to-control helpers now settle
+sliver layout before tapping. Targeted analysis and hot reload were run. This
+change is mobile-only; web behavior is unchanged.

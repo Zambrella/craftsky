@@ -61,6 +61,7 @@ func newSubscriptionDependencies(pool *pgxpool.Pool, config RevenueCatConfig, ht
 	if err != nil {
 		return nil, fmt.Errorf("RevenueCat client: %w", err)
 	}
+	dependencies.store.SetManagementProvider(client)
 	dependencies.reconciler = subscriptions.NewReconciler(dependencies.store, client, catalog, config.leaseDuration, time.Now, observer)
 	dependencies.webhook, err = revenuecat.NewWebhookHandler(revenuecat.WebhookConfig{
 		Authorization: config.webhookAuthorization.Reveal(), SigningSecret: config.webhookSigningSecret.Reveal(),

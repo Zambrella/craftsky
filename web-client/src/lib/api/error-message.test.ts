@@ -54,7 +54,7 @@ describe('error parity and diagnostic evidence', () => {
 		[
 			503,
 			'web_management_unavailable',
-			'Subscription management is not available here yet. Use the management link in your Stripe receipt.'
+			'Subscription management is temporarily unavailable. Please try again.'
 		]
 	] as const)(
 		'maps %s/%s to client-owned Flutter copy',

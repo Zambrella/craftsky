@@ -163,7 +163,7 @@ func (c *Client) CreateManagement(ctx context.Context, customer, returnURL strin
 		return "", err
 	}
 	// Portal session objects do not expose livemode; ownership comes from the
-	// verified completed Checkout session and authenticated merchant credential.
+	// verified Stripe subscription or completed Checkout session and merchant credential.
 	if !subscriptions.ValidStripeManagementURL(result.URL) {
 		return "", errors.New("invalid Stripe management destination")
 	}
@@ -234,4 +234,41 @@ func (c *Client) ExpireCheckout(ctx context.Context, id string) (subscriptions.C
 		return subscriptions.CheckoutSession{}, err
 	}
 	return session.checkout(), nil
+}
+
+// SubscriptionCustomer resolves only a server-verified subscription in this account/environment.
+func (c *Client) SubscriptionCustomer(ctx context.Context, id string) (string, error) {
+	if !regexp.MustCompile(`^(?:sub|si)_[A-Za-z0-9]+$`).MatchString(id) {
+		return "", errors.New("invalid Stripe subscription")
+	}
+	if err := c.verifyAccount(ctx); err != nil {
+		return "", err
+	}
+	// RevenueCat can identify the Stripe subscription item rather than its
+	// parent subscription. Resolve the relationship inside the verified merchant.
+	if strings.HasPrefix(id, "si_") {
+		var item struct {
+			ID           string `json:"id"`
+			Subscription string `json:"subscription"`
+		}
+		if err := c.request(ctx, http.MethodGet, "/subscription_items/"+id, nil, "", &item); err != nil {
+			return "", err
+		}
+		if item.ID != id || !regexp.MustCompile(`^sub_[A-Za-z0-9]+$`).MatchString(item.Subscription) {
+			return "", errors.New("Stripe management item mismatch")
+		}
+		id = item.Subscription
+	}
+	var sub struct {
+		ID       string `json:"id"`
+		Customer string `json:"customer"`
+		LiveMode *bool  `json:"livemode"`
+	}
+	if err := c.request(ctx, http.MethodGet, "/subscriptions/"+id, nil, "", &sub); err != nil {
+		return "", err
+	}
+	if sub.ID != id || sub.LiveMode == nil || *sub.LiveMode != (c.config.Environment == "production") || !regexp.MustCompile(`^cus_[A-Za-z0-9]+$`).MatchString(sub.Customer) {
+		return "", errors.New("Stripe management subscription mismatch")
+	}
+	return sub.Customer, nil
 }

@@ -124,8 +124,10 @@ test('event native required fields all show inline errors before any write', asy
 	});
 	await page.goto('/settings/events');
 	await page.getByRole('button', { name: 'Create event', exact: true }).click();
-	const dialog = page.locator('.event-dialog');
-	await dialog.getByRole('button', { name: 'Save event', exact: true }).click();
+	const dialog = page.locator('.event-composer-form');
+	await dialog
+		.getByRole('button', { name: 'Create event', exact: true })
+		.click();
 	await expect(
 		dialog.getByLabel('Event name', { exact: true })
 	).toHaveAttribute('aria-invalid', 'true');
@@ -190,4 +192,41 @@ test('empty sign-in marks the handle without starting authentication', async ({
 	await expect(input).toHaveAttribute('aria-invalid', 'true');
 	await expect(input).toBeFocused();
 	expect(requests).toBe(0);
+});
+
+test('event server time validation is shown at Start instead of a generic failure', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/events', (route) =>
+		route.fulfill({
+			status: 422,
+			json: {
+				error: 'validation_failed',
+				message: 'invalid business event',
+				fields: {
+					startsAt: 'startsAt and endsAt must form a valid event time range'
+				}
+			}
+		})
+	);
+	await page.goto('/compose/event');
+	await page.getByLabel('Event name', { exact: true }).fill('Maker fair');
+	await page.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+	await page.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+	await page.getByLabel('Your role', { exact: true }).click();
+	await page.getByRole('checkbox', { name: 'Organizer', exact: true }).click();
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page.getByLabel('Start', { exact: true })).toHaveAttribute(
+		'aria-invalid',
+		'true'
+	);
+	await expect(page.getByLabel('Start', { exact: true })).toBeFocused();
+	await expect(
+		page.getByText('startsAt and endsAt must form a valid event time range', {
+			exact: true
+		})
+	).toBeVisible();
+	await expect(
+		page.getByText("That didn't work. Please try again.", { exact: true })
+	).toHaveCount(0);
 });

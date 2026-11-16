@@ -7,7 +7,6 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
-import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
@@ -16,6 +15,7 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/providers/subscription_pending_operation_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,12 +24,46 @@ import 'package:material_ui/material_ui.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  testWidgets('Stripe Manage opens the owner portal without native billing', (
+    tester,
+  ) async {
+    final harness = _Harness(initialTier: SubscriptionTier.plus);
+    harness.api.store = 'stripe';
+    addTearDown(harness.dispose);
+    await harness.pump(tester);
+    await _tap(tester, 'manage');
+    await tester.pumpAndSettle();
+    expect(harness.managementURLs.single.host, 'billing.stripe.com');
+    expect(harness.service.effectCalls, 0);
+    expect(harness.pending, isNull);
+  });
+  testWidgets('leaving before a Stripe portal response prevents navigation', (
+    tester,
+  ) async {
+    final harness = _Harness(initialTier: SubscriptionTier.plus);
+    harness.api.store = 'stripe';
+    harness.api.managementPending = Completer<Uri>();
+    addTearDown(harness.dispose);
+    await harness.pump(tester);
+    await _tap(tester, 'manage');
+    await tester.pump();
+    harness.showPage.value = false;
+    await tester.pump();
+    harness.api.managementPending!.complete(
+      Uri.parse('https://billing.stripe.com/p/session/test_owner'),
+    );
+    await tester.pumpAndSettle();
+    expect(harness.managementURLs, isEmpty);
+    expect(harness.pending, isNull);
+  });
+
   for (final result in [
     DirectPaywallResult.cancelled,
     DirectPaywallResult.purchased,
   ]) {
     testWidgets(
-      'paid feature directly opens Plus and returns to origin on ${result.name}',
+      'paid feature directly opens Plus and returns to origin '
+      'on ${result.name}',
       (tester) async {
         final harness = _Harness();
         addTearDown(harness.dispose);
@@ -47,8 +81,9 @@ void main() {
         expect(harness.service.effectCalls, 1);
         expect(find.text('Learn about subscriptions'), findsNothing);
         expect(find.byType(SubscriptionPageView), findsNothing);
-        if (result == DirectPaywallResult.purchased)
+        if (result == DirectPaywallResult.purchased) {
           harness.api.tier = SubscriptionTier.plus;
+        }
         presented.complete(result);
         await tester.pumpAndSettle();
         expect(find.byType(SubscriptionPage), findsNothing);
@@ -142,8 +177,9 @@ void main() {
       expect(harness.access.effectiveTier, SubscriptionTier.business);
       expect(find.text('Subscribe to Plus'), findsOneWidget);
       expect(find.text('Subscribe to Business'), findsOneWidget);
-      expect(find.text('Manage subscription'), findsNothing);
+      expect(find.text('Manage'), findsNothing);
       await tester.ensureVisible(find.text('Subscribe to Plus'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Subscribe to Plus'));
       await tester.pumpAndSettle();
       expect(harness.service.effectCalls, 1);
@@ -151,7 +187,7 @@ void main() {
       expect(harness.api.tier, SubscriptionTier.plus);
       expect(harness.access.effectiveTier, SubscriptionTier.business);
       expect(find.text('Subscribe to Plus'), findsNothing);
-      expect(find.text('Manage subscription'), findsOneWidget);
+      expect(find.text('Manage'), findsOneWidget);
       expect(find.textContaining('paid billing immediately'), findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -167,6 +203,10 @@ void main() {
       await harness.pump(tester);
       expect(harness.pending, isNull);
       expect(harness.access.effectiveTier, SubscriptionTier.free);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('subscription-view-details-business')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const ValueKey('subscription-view-details-business')),
       );
@@ -216,7 +256,7 @@ void main() {
       expect(
         find.text(
           operation == 'manage'
-              ? 'Current access: Free'
+              ? 'Current access: Standard'
               : 'Current access: Plus',
         ),
         findsOneWidget,
@@ -345,9 +385,10 @@ Future<void> _tap(WidgetTester tester, String operation) async {
       const ValueKey('subscription-view-details-plus'),
     ),
     'restore' => find.text('Restore purchases'),
-    _ => find.text('Manage subscription'),
+    _ => find.text('Manage'),
   };
   await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
   await tester.tap(finder);
 }
 
@@ -372,6 +413,10 @@ final class _Harness {
           (ref, account) async => api,
         ),
         revenueCatServiceProvider.overrideWithValue(service),
+        subscriptionManagementLauncherProvider.overrideWithValue((uri) async {
+          managementURLs.add(uri);
+          return true;
+        }),
         errorReporterProvider.overrideWithValue(reporter),
       ],
     );
@@ -384,6 +429,7 @@ final class _Harness {
 
   final api = _Api();
   final reporter = RecordingErrorReporter();
+  final managementURLs = <Uri>[];
   final ValueNotifier<bool> showPage = ValueNotifier(true);
   late final _Service service;
   late final SessionRegistry registry;
@@ -437,7 +483,13 @@ final class _Harness {
 const _customer = '20000000-0000-4000-8000-000000000001';
 const _subscription = '30000000-0000-4000-8000-000000000001';
 
-final class _Api implements SubscriptionApi {
+final class _Api implements SubscriptionApi, SubscriptionManagementApi {
+  String store = 'app_store';
+  Completer<Uri>? managementPending;
+  @override
+  Future<Uri> managementURL() async => managementPending == null
+      ? Uri.parse('https://billing.stripe.com/p/session/test_owner#capability')
+      : await managementPending!.future;
   SubscriptionTier tier = SubscriptionTier.free;
   SubscriptionTier? promotionalTier;
   int generation = 1;
@@ -452,10 +504,10 @@ final class _Api implements SubscriptionApi {
     subscriptions: tier == SubscriptionTier.free
         ? []
         : [
-            const BillingSubscription(
+            BillingSubscription(
               id: _subscription,
               productId: 'plus',
-              store: 'app_store',
+              store: store,
               status: 'active',
               givesAccess: true,
               pendingPayment: false,

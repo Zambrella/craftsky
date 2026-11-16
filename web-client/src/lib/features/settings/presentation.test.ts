@@ -21,7 +21,7 @@ describe('native settings navigation policy', () => {
 			groups
 				.find((group) => group.title === 'Business')
 				?.items.map(([slug]) => slug)
-		).toEqual(['events', 'products']);
+		).toEqual(['business', 'events', 'products']);
 		expect(
 			groups
 				.find((group) => group.title === 'General')

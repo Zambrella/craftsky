@@ -97,6 +97,10 @@ void main() {
       expect(access, isA<AsyncData<SubscriptionAccess>>());
       expect(access.value?.allowsBusiness, isTrue);
       await tester.pump();
+      expect(
+        find.widgetWithText(SettingsRowTile, 'Business details'),
+        findsNothing,
+      );
       expect(find.widgetWithText(SettingsRowTile, 'Events'), findsNothing);
       expect(find.widgetWithText(SettingsRowTile, 'Products'), findsNothing);
       expect(find.text('Explore subscriptions'), findsNothing);

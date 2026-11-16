@@ -106,7 +106,7 @@ export function stripePortalURL(value: string): string {
 	if (
 		typeof value !== 'string' ||
 		/[\s\p{Cc}]/u.test(value) ||
-		!/^https:\/\/billing\.stripe\.com\/p\/session\/[A-Za-z0-9_-]+(?:#\S+)?$/.test(
+		!/^https:\/\/billing\.stripe\.com\/p\/session(?:\/[A-Za-z0-9_-]+(?:#\S+)?|\?secret=[A-Za-z0-9._~-]+)$/.test(
 			value
 		)
 	)

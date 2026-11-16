@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import bzipFixture from '../src/lib/features/settings/bzip-fixture.json' with { type: 'json' };
@@ -304,7 +305,7 @@ test('business profile saves preserve products and unknown catalog values with a
 	await page
 		.getByLabel('Tagline', { exact: true })
 		.fill('Small batch colour for your next project');
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save' }).click();
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Business profile saved.' })
 	).toBeVisible();
@@ -464,6 +465,295 @@ test('Instagram verification, reviewed manual import and following a match compl
 		requests.find((row) => row.path.endsWith('/suggestion-1/accept'))?.key
 	).toMatch(/^[0-9a-f-]{36}$/);
 });
+for (const width of [402, 1280]) {
+	test(`event shared photo picker limits to one, keeps edits local and uploads once across retry (${width})`, async ({
+		page
+	}, testInfo) => {
+		await page.setViewportSize({ width, height: 900 });
+		let attempts = 0;
+		await page.route('**/api/appview/v1/events', async (route) => {
+			if (route.request().method() !== 'POST') return route.continue();
+			if (++attempts === 1)
+				return route.fulfill({
+					status: 202,
+					headers: { 'Retry-After': '1' },
+					json: { status: 'ambiguous' }
+				});
+			return route.continue();
+		});
+		await page.goto('/compose/event');
+		const input = page.getByLabel('Add images', { exact: true });
+		await expect(input).not.toHaveAttribute('multiple');
+		const png = await page.evaluate(() => {
+			const canvas = document.createElement('canvas');
+			canvas.width = 32;
+			canvas.height = 48;
+			canvas.getContext('2d')!.fillRect(0, 0, 32, 48);
+			return canvas.toDataURL('image/png').split(',')[1];
+		});
+		const buffer = Buffer.from(png, 'base64');
+		await page.locator('.photo-picker').evaluate((node, encoded) => {
+			const data = new DataTransfer();
+			const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+			data.items.add(new File([bytes], 'first.png', { type: 'image/png' }));
+			data.items.add(new File([bytes], 'second.png', { type: 'image/png' }));
+			node.dispatchEvent(
+				new DragEvent('drop', {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer: data
+				})
+			);
+		}, png);
+		await expect(
+			page.getByText('Choose one photo for an event.', { exact: true })
+		).toBeVisible();
+		await input.setInputFiles({
+			name: 'event.png',
+			mimeType: 'image/png',
+			buffer
+		});
+		const details = page.getByRole('region', {
+			name: 'Photo details',
+			exact: true
+		});
+		await expect(details).toBeVisible();
+		await expect(details).toContainText('1/1');
+		await expect(details.getByLabel('Add images', { exact: true })).toHaveCount(
+			0
+		);
+		await expect(
+			details.getByRole('button', { name: /Move image|Drag to reorder/ })
+		).toHaveCount(0);
+		await details
+			.getByRole('textbox', { name: 'Image description', exact: true })
+			.fill('A portrait event poster');
+		await details
+			.getByRole('button', { name: 'Edit photo', exact: true })
+			.click();
+		const crop = page.getByRole('dialog', { name: 'Edit photo', exact: true });
+		await crop
+			.getByRole('button', { name: 'Rotate photo', exact: true })
+			.click();
+		await crop.getByRole('button', { name: 'Apply edit', exact: true }).click();
+		await expect(crop).not.toBeVisible();
+		await details.screenshot({
+			path: testInfo.outputPath(`event-photo-details-${width}.png`)
+		});
+		const audit = await new AxeBuilder({ page })
+			.include('.photo-details-page')
+			.withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+			.analyze();
+		expect(audit.violations).toEqual([]);
+		await page.goBack();
+		await expect(details).toBeHidden();
+		await expect(page).toHaveURL(/\/compose\/event$/);
+		await expect(
+			page.getByRole('dialog', { name: 'Discard changes?', exact: true })
+		).toBeHidden();
+		await page
+			.getByRole('button', { name: /Photo.*Edit photo, remove it/ })
+			.click();
+		await expect(
+			details.getByRole('textbox', { name: 'Image description', exact: true })
+		).toHaveValue('A portrait event poster');
+		await details
+			.getByRole('button', { name: 'Back to event', exact: true })
+			.click();
+		expect(
+			(await calls()).filter((row) => row.path === '/v1/blobs/images')
+		).toHaveLength(0);
+		await page
+			.getByLabel('Event name', { exact: true })
+			.fill('Yarn fair with photo');
+		await page.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+		await page.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+		await page.getByLabel('Your role', { exact: true }).click();
+		await page
+			.getByRole('checkbox', { name: 'Organizer', exact: true })
+			.click();
+		await page
+			.getByRole('button', { name: 'Create event', exact: true })
+			.click();
+		await expect(
+			page.getByRole('button', { name: 'Check and retry action', exact: true })
+		).toBeVisible();
+		await page
+			.getByRole('button', { name: 'Check and retry action', exact: true })
+			.click();
+		await expect(page).toHaveURL(/\/settings\/events$/);
+		const requests = await calls();
+		expect(
+			requests.filter((row) => row.path === '/v1/blobs/images')
+		).toHaveLength(1);
+		const saved = requests.find(
+			(row) => row.method === 'POST' && row.path === '/v1/events'
+		);
+		expect(saved?.body.image).toMatchObject({
+			alt: 'A portrait event poster',
+			aspectRatio: { width: 48, height: 32 }
+		});
+	});
+}
+
+for (const remove of [false, true]) {
+	test(`event shared photo details ${remove ? 'removes' : 'describes'} an existing image without uploading`, async ({
+		page
+	}) => {
+		const event = {
+			did: alice.did,
+			rkey: 'existing-photo',
+			cid: 'event-photo-cid',
+			uri: `at://${alice.did}/social.craftsky.business.event/existing-photo`,
+			name: 'Maker fair',
+			startsAt: '2026-12-01T10:00:00Z',
+			endsAt: '2026-12-01T12:00:00Z',
+			timeZone: 'UTC',
+			roles: [{ value: 'organizer', known: true }],
+			mode: { value: 'in-person', known: true },
+			status: { value: 'scheduled', known: true },
+			image: {
+				cid: 'existing-image-cid',
+				mime: 'image/jpeg',
+				size: 100,
+				alt: 'Original poster',
+				thumb: 'https://fixture.craftsky.test/event.png'
+			}
+		};
+		let body: Record<string, unknown> | undefined;
+		await page.route('https://fixture.craftsky.test/event.png', (route) =>
+			route.fulfill({ path: 'static/app-icon.png', contentType: 'image/png' })
+		);
+		await page.route(
+			`**/api/appview/v1/events/${encodeURIComponent(alice.did)}/existing-photo`,
+			async (route) => {
+				if (route.request().method() === 'GET')
+					return route.fulfill({ json: event });
+				body = route.request().postDataJSON();
+				return route.fulfill({
+					json: {
+						cid: 'next-event-cid',
+						uri: event.uri,
+						rkey: event.rkey,
+						indexing: 'pending'
+					}
+				});
+			}
+		);
+		await page.goto('/compose/event/edit?event=existing-photo');
+		await page
+			.getByRole('button', { name: /Photo.*Edit photo, remove it/ })
+			.click();
+		const details = page.getByRole('region', {
+			name: 'Photo details',
+			exact: true
+		});
+		if (remove) {
+			await details
+				.getByRole('button', { name: 'Remove image 1', exact: true })
+				.click();
+			await expect(
+				details.getByLabel('Add images', { exact: true })
+			).toBeAttached();
+		} else
+			await details
+				.getByRole('textbox', { name: 'Image description', exact: true })
+				.fill('Updated poster description');
+		await details
+			.getByRole('button', { name: 'Back to event', exact: true })
+			.click();
+		await page.getByRole('button', { name: 'Save event', exact: true }).click();
+		await expect(page).toHaveURL(/\/settings\/events$/);
+		expect(
+			(await calls()).filter((row) => row.path === '/v1/blobs/images')
+		).toHaveLength(0);
+		if (remove) expect(body).not.toHaveProperty('image');
+		else
+			expect(body?.image).toMatchObject({
+				alt: 'Updated poster description',
+				image: { ref: { $link: 'existing-image-cid' } }
+			});
+	});
+}
+
+test('event composer hints and roles validate only after submission', async ({
+	page
+}, testInfo) => {
+	await page.goto('/settings/events');
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	const dialog = page.locator('.event-composer-form');
+	for (const [label, hint] of [
+		['Event name', 'Autumn yarn fair'],
+		[
+			'Summary',
+			'Meet local makers, browse handmade goods and join a workshop.'
+		],
+		['Venue', 'Bristol Craft Hall'],
+		['Event link', 'https://your-business.com/events/autumn-fair'],
+		['Registration link', 'https://your-business.com/events/autumn-fair/book'],
+		['Start', 'Select date and time'],
+		['End', 'Select date and time']
+	])
+		await expect(dialog.getByLabel(label, { exact: true })).toHaveAttribute(
+			'placeholder',
+			hint
+		);
+	await expect(dialog.locator('[aria-invalid="true"]')).toHaveCount(0);
+	const audit = await new AxeBuilder({ page })
+		.include('.event-composer-form')
+		.analyze();
+	expect(audit.violations).toEqual([]);
+	await dialog.screenshot({
+		path: testInfo.outputPath('event-composer-desktop.png')
+	});
+	await dialog
+		.getByLabel('Event name', { exact: true })
+		.fill('Autumn yarn fair');
+	await dialog.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+	await dialog.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+	await dialog
+		.getByRole('button', { name: 'Create event', exact: true })
+		.click();
+	await expect(dialog.getByLabel('Your role', { exact: true })).toHaveAttribute(
+		'aria-invalid',
+		'true'
+	);
+	await expect(dialog.locator('.field-error')).toContainText(
+		'This field is required.'
+	);
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'POST' && row.path === '/v1/events'
+		)
+	).toHaveLength(0);
+	await dialog.getByLabel('Your role', { exact: true }).click();
+	await dialog
+		.getByRole('checkbox', { name: 'Organizer', exact: true })
+		.click();
+	await expect(
+		dialog.getByLabel('Your role', { exact: true })
+	).not.toHaveAttribute('aria-invalid', 'true');
+	await expect(dialog.locator('.field-error')).toHaveCount(0);
+	await dialog
+		.getByRole('switch', { name: 'All-day event', exact: true })
+		.check();
+	await expect(dialog.getByLabel('Start', { exact: true })).toHaveAttribute(
+		'type',
+		'date'
+	);
+	await expect(dialog.getByLabel('Start', { exact: true })).toHaveValue(
+		'2026-12-01'
+	);
+	await expect(dialog.getByLabel('End', { exact: true })).toHaveValue(
+		'2026-12-02'
+	);
+	await expect(
+		dialog.getByText(
+			'End is the first date after the event, in the selected timezone.'
+		)
+	).toBeVisible();
+});
+
 test('business events create, edit using the accepted CID, and delete', async ({
 	page
 }) => {
@@ -480,21 +770,31 @@ test('business events create, edit using the accepted CID, and delete', async ({
 		page.getByRole('button', { name: 'Upcoming', exact: true })
 	).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'Create event', exact: true }).click();
-	await expect(page.locator('.event-dialog')).toBeVisible();
+	await expect(page.locator('.event-composer-form')).toBeVisible();
 	await page
 		.getByLabel('Event name', { exact: true })
 		.fill('Indigo dye workshop');
 	await page
-		.getByRole('combobox', { name: 'Time zone', exact: true })
+		.getByRole('combobox', { name: 'Timezone', exact: true })
 		.fill('UTC');
 	await page.getByRole('option', { name: 'UTC', exact: true }).click();
-	await page.getByLabel('Starts', { exact: true }).fill('2026-12-01T10:00');
-	await page.getByLabel('Ends', { exact: true }).fill('2026-12-01T12:00');
-	await page.getByRole('button', { name: 'Save event' }).click();
+	await page.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+	await page.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+	await page.getByLabel('Your role', { exact: true }).click();
+	await page.getByRole('checkbox', { name: 'Organizer', exact: true }).click();
+	await page
+		.locator('.event-composer-form')
+		.getByRole('button', { name: 'Create event', exact: true })
+		.click();
 	await expect(
 		page.getByRole('heading', { name: 'Indigo dye workshop', exact: true })
 	).toBeVisible();
+	await page
+		.getByLabel('Actions for Indigo dye workshop', { exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/event\/edit\?event=event-1$/);
+	await page.reload();
 	await page
 		.getByLabel('Event name', { exact: true })
 		.fill('Natural indigo workshop');
@@ -502,6 +802,9 @@ test('business events create, edit using the accepted CID, and delete', async ({
 	await expect(
 		page.getByRole('heading', { name: 'Natural indigo workshop', exact: true })
 	).toBeVisible();
+	await page
+		.getByLabel('Actions for Natural indigo workshop', { exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await page
 		.getByRole('dialog', { name: 'Delete event?' })
@@ -518,8 +821,8 @@ test('business events create, edit using the accepted CID, and delete', async ({
 	expect(create?.key).toMatch(/^[0-9a-f-]{36}$/);
 	expect(create?.body).toMatchObject({
 		name: 'Indigo dye workshop',
-		startsAt: '2026-12-01T10:00:00.000Z',
-		endsAt: '2026-12-01T12:00:00.000Z',
+		startsAt: '2026-12-01T10:00:00Z',
+		endsAt: '2026-12-01T12:00:00Z',
 		timeZone: 'UTC',
 		roles: ['organizer']
 	});
@@ -533,6 +836,88 @@ test('business events create, edit using the accepted CID, and delete', async ({
 			(row) => row.method === 'DELETE' && row.path.endsWith('/event-1')
 		)?.ifMatch
 	).toBe('event-cid-1-next');
+});
+
+test('compact event editor has reachable save and protects an unfinished draft', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/settings/events');
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/event$/);
+	const dialog = page.getByRole('form', {
+		name: 'Create event',
+		exact: true
+	});
+	await expect(
+		dialog.getByRole('searchbox', { name: 'Your role', exact: true })
+	).toHaveValue('');
+	await expect(
+		dialog.getByRole('combobox', { name: 'Timezone', exact: true })
+	).toHaveValue('UTC');
+	await dialog
+		.getByLabel('Event name', { exact: true })
+		.fill('Unfinished workshop');
+	const bounds = await dialog
+		.getByRole('button', { name: 'Create event', exact: true })
+		.evaluate((node) => ({
+			top: node.getBoundingClientRect().top,
+			bottom: node.getBoundingClientRect().bottom,
+			height: innerHeight
+		}));
+	expect(bounds.top).toBeGreaterThanOrEqual(0);
+	expect(bounds.bottom).toBeLessThanOrEqual(bounds.height);
+	await page
+		.getByRole('button', { name: 'Close event editor', exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+	await expect(dialog.getByLabel('Event name', { exact: true })).toHaveValue(
+		'Unfinished workshop'
+	);
+	await page
+		.getByRole('button', { name: 'Close event editor', exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Discard', exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/events$/);
+	expect(
+		(await calls()).filter(
+			(row) => row.path === '/v1/events' && row.method === 'POST'
+		)
+	).toHaveLength(0);
+});
+
+test('event composer routes load directly, survive refresh and protect browser back', async ({
+	page
+}) => {
+	await page.goto('/settings/events');
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/event$/);
+	await page.reload();
+	await expect(
+		page.getByRole('heading', { name: 'Create event', exact: true })
+	).toBeVisible();
+	await expect(page.locator('dialog[open]')).toHaveCount(0);
+	await page
+		.getByLabel('Event name', { exact: true })
+		.fill('Unfinished routed event');
+	await page.goBack();
+	await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/event$/);
+	await expect(page.getByLabel('Event name', { exact: true })).toHaveValue(
+		'Unfinished routed event'
+	);
+	await page.goBack();
+	await page.getByRole('button', { name: 'Discard', exact: true }).click();
+	await expect(page).toHaveURL(/\/settings\/events$/);
+	await page.goto('/compose/event/edit?event=missing-event');
+	await expect(
+		page.getByRole('heading', { name: 'Edit event', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Try again', exact: true })
+	).toBeVisible();
+	await expect(page.locator('.event-composer-form')).toHaveCount(0);
 });
 
 test('customisation changes preview choices and saves the exact native colour and background values', async ({
@@ -592,8 +977,9 @@ test('product modal cancellation restores existing details and removes an unsave
 	let dialog = page.locator('.product-dialog');
 	await expect(dialog).toBeVisible();
 	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved wool');
-	await dialog.getByLabel('Price · optional', { exact: true }).fill('99');
+	await dialog.getByLabel('Amount', { exact: true }).fill('99');
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
@@ -602,14 +988,15 @@ test('product modal cancellation restores existing details and removes an unsave
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue(
 		'Blue wool'
 	);
-	await expect(
-		dialog.getByLabel('Price · optional', { exact: true })
-	).toHaveValue('12.5');
+	await expect(dialog.getByLabel('Amount', { exact: true })).toHaveValue(
+		'12.5'
+	);
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await page.getByRole('button', { name: 'Add product', exact: true }).click();
 	await expect(dialog).toBeVisible();
 	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved new product');
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(
 		page.getByText('1 of 4 products', { exact: true })
 	).toBeVisible();
@@ -621,6 +1008,294 @@ test('product modal cancellation restores existing details and removes an unsave
 			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
 		)
 	).toHaveLength(0);
+});
+
+test('Business details is a dedicated settings page and personal profile editing excludes it', async ({
+	page
+}) => {
+	await page.goto('/settings');
+	await page
+		.getByRole('link', { name: 'Business details', exact: true })
+		.click();
+	await expect(
+		page.getByRole('heading', { name: 'Business details', exact: true })
+	).toBeVisible();
+	await expect(page.getByLabel('Tagline', { exact: true })).toHaveValue(
+		'Original tagline'
+	);
+	await expect(
+		page.getByRole('searchbox', { name: 'Business types', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Save', exact: true })
+	).toBeDisabled();
+	await page.goto('/profile/edit');
+	await expect(page.getByLabel('Tagline', { exact: true })).toHaveCount(0);
+	await expect(
+		page.getByRole('searchbox', { name: 'Business types', exact: true })
+	).toHaveCount(0);
+});
+
+for (const width of [1280, 390])
+	test(`Business details matches native form layout and text limits at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 844 });
+		await page.goto('/settings/business');
+		const form = page.locator('.business-details-form');
+		await expect(form).not.toHaveClass(/panel/);
+		await expect(form).toHaveCSS('border-top-style', 'none');
+		await expect(
+			page.getByText('Choose up to 5.', { exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByText('Choose up to 10.', { exact: true })
+		).toBeVisible();
+		const save = page.getByRole('button', { name: 'Save', exact: true });
+		await expect(save).toBeDisabled();
+		await expect(
+			page.getByRole('button', { name: 'Save business details', exact: true })
+		).toHaveCount(0);
+		for (const [label, maximum] of [
+			['Tagline', 100],
+			['Hours', 300],
+			['Service area', 200],
+			['Town or locality', 100]
+		] as const) {
+			const field = page.getByLabel(label, { exact: true });
+			await field.fill('x'.repeat(maximum + 1));
+			await expect(field).toHaveValue('x'.repeat(maximum));
+			await expect(field.locator('..').locator('.field-count')).toHaveText(
+				`${maximum}/${maximum}`
+			);
+		}
+		const tagline = page.getByLabel('Tagline', { exact: true });
+		await tagline.fill('🧶'.repeat(101));
+		await expect(tagline).toHaveValue('🧶'.repeat(100));
+		await tagline.fill('e\u0301'.repeat(101));
+		await expect(tagline).toHaveValue('e\u0301'.repeat(100));
+		await expect(save).toBeEnabled();
+		const position = await save.evaluate((node) => {
+			const button = node.getBoundingClientRect();
+			const header = node.closest('header')!.getBoundingClientRect();
+			return {
+				top: button.top,
+				bottom: button.bottom,
+				right: button.right,
+				headerBottom: header.bottom,
+				headerRight: header.right
+			};
+		});
+		expect(position.top).toBeGreaterThanOrEqual(0);
+		expect(position.bottom).toBeLessThanOrEqual(position.headerBottom);
+		expect(position.headerRight - position.right).toBeLessThan(30);
+		expect(
+			(await calls()).filter(
+				(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+			)
+		).toHaveLength(0);
+	});
+
+async function choosePrimaryAction(page: Page, name: string) {
+	await page
+		.getByRole('combobox', { name: 'Primary action', exact: true })
+		.fill(name);
+	await page.getByRole('option', { name, exact: true }).click();
+}
+
+for (const width of [1280, 390])
+	test(`primary action destination is conditional and cleared at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/settings/business');
+		const destination = page.locator('input[name="destination"]');
+		const save = page.getByRole('button', { name: 'Save', exact: true });
+		await expect(destination).toHaveCount(0);
+		await choosePrimaryAction(page, 'Shop');
+		await expect(page.getByLabel('Shop URL', { exact: true })).toHaveAttribute(
+			'placeholder',
+			'https://example.com/shop'
+		);
+		await destination.fill('invalid URL');
+		await choosePrimaryAction(page, 'No primary action');
+		await expect(destination).toHaveCount(0);
+		await expect(save).toBeDisabled();
+		await choosePrimaryAction(page, 'Book class');
+		await expect(page.getByLabel('Booking URL', { exact: true })).toHaveValue(
+			''
+		);
+		await destination.fill('https://example.com/book');
+		await save.click();
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Business profile saved.' })
+		).toBeVisible();
+		await page.reload();
+		await expect(page.getByLabel('Booking URL', { exact: true })).toHaveValue(
+			'https://example.com/book'
+		);
+		await choosePrimaryAction(page, 'No primary action');
+		await save.click();
+		await expect(save).toBeDisabled();
+		const writes = (await calls()).filter(
+			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+		);
+		expect(writes[0].body.primaryAction).toEqual({
+			type: 'book-class',
+			destination: 'https://example.com/book'
+		});
+		expect(writes[1].body).not.toHaveProperty('primaryAction');
+		expect(writes[1].body.preserveProducts).toBe(true);
+		await page.reload();
+		await expect(destination).toHaveCount(0);
+	});
+
+test('email action saves and reopens a plain email address', async ({
+	page
+}) => {
+	await page.goto('/settings/business');
+	await choosePrimaryAction(page, 'Email');
+	await page
+		.getByLabel('Email address', { exact: true })
+		.fill('hello@example.com');
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Business profile saved.' })
+	).toBeVisible();
+	const write = (await calls()).find(
+		(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+	);
+	expect(write?.body.primaryAction).toEqual({
+		type: 'email',
+		destination: 'mailto:hello@example.com'
+	});
+	await page.reload();
+	await expect(page.getByLabel('Email address', { exact: true })).toHaveValue(
+		'hello@example.com'
+	);
+});
+
+async function addProductPhoto(page: Page) {
+	const png = await page.evaluate(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = 32;
+		canvas.height = 32;
+		canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
+		return canvas.toDataURL('image/png').split(',')[1];
+	});
+	await page.getByLabel('Product image', { exact: true }).setInputFiles({
+		name: 'product.png',
+		mimeType: 'image/png',
+		buffer: Buffer.from(png, 'base64')
+	});
+	await page
+		.locator('.business-image-dialog')
+		.getByRole('button', { name: 'Use image', exact: true })
+		.click();
+}
+
+for (const width of [1280, 390])
+	test(`Business product can be created without a declaration at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await fetch('http://127.0.0.1:19847/__test/control', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ owners: { alice: { business: null } } })
+		});
+		await page.goto('/settings/products');
+		await page
+			.getByRole('button', { name: 'Add product', exact: true })
+			.click();
+		const dialog = page.getByRole('dialog', {
+			name: 'Add product',
+			exact: true
+		});
+		await dialog.getByLabel('Title', { exact: true }).fill('New indigo wool');
+		await dialog
+			.getByLabel('Destination', { exact: true })
+			.fill('https://shop.example/new-wool');
+		await addProductPhoto(page);
+		await dialog
+			.getByRole('button', { name: 'Save product', exact: true })
+			.click();
+		await expect(dialog).not.toBeVisible();
+		await page
+			.getByRole('button', { name: 'Edit New indigo wool', exact: true })
+			.click();
+		await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+			'New indigo wool'
+		);
+		const write = (await calls()).find(
+			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+		);
+		expect(write?.ifMatch).toBe('*');
+		expect(write?.body.products).toEqual([
+			expect.objectContaining({
+				title: 'New indigo wool',
+				uri: 'https://shop.example/new-wool'
+			})
+		]);
+		expect(
+			(write?.body.products as Record<string, unknown>[])[0]
+		).not.toHaveProperty('price');
+		const bounds = await page.locator('.product-dialog').evaluate((node) => ({
+			left: node.getBoundingClientRect().left,
+			right: node.getBoundingClientRect().right,
+			viewport: innerWidth
+		}));
+		expect(bounds.left).toBeGreaterThanOrEqual(0);
+		expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+	});
+
+test('product manager reorders and confirms removal outside the editor', async ({
+	page
+}) => {
+	await page.goto('/settings/products');
+	await page.getByRole('button', { name: 'Add product', exact: true }).click();
+	await page.getByLabel('Title', { exact: true }).fill('Second product');
+	await page
+		.getByLabel('Destination', { exact: true })
+		.fill('https://shop.example/second');
+	await addProductPhoto(page);
+	await page.getByRole('button', { name: 'Save product', exact: true }).click();
+	await page
+		.getByLabel('Product actions for Second product', { exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Move up', exact: true }).click();
+	await expect(page.locator('.product-summary').first()).toHaveAttribute(
+		'aria-label',
+		'Edit Second product'
+	);
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Products saved.' })
+	).toBeVisible();
+	await page
+		.getByLabel('Product actions for Second product', { exact: true })
+		.click();
+	await page
+		.getByRole('button', { name: 'Remove product', exact: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'Remove product?', exact: true })
+		.getByRole('button', { name: 'Remove', exact: true })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'Edit Second product', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Edit Blue wool', exact: true })
+	).toBeVisible();
+	const writes = (await calls()).filter(
+		(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+	);
+	expect(
+		(writes[1].body.products as Record<string, unknown>[]).map((p) => p.title)
+	).toEqual(['Second product', 'Blue wool']);
+	expect(
+		(writes[2].body.products as Record<string, unknown>[]).map((p) => p.title)
+	).toEqual(['Blue wool']);
 });
 
 test('About displays the embedded build version alongside native legal rows', async ({
@@ -643,4 +1318,217 @@ test('About displays the embedded build version alongside native legal rows', as
 	).toHaveAttribute('href', 'https://craftsky.social/privacy');
 	await expect(about.getByText('Version', { exact: true })).toBeVisible();
 	await expect(about.getByText(version, { exact: true })).toBeVisible();
+});
+
+test('event detail owner actions edit and confirm deletion using the current CID', async ({
+	page
+}) => {
+	const created = await fetch('http://127.0.0.1:19847/v1/events', {
+		method: 'POST',
+		headers: {
+			authorization: 'Bearer ' + alice.token,
+			'content-type': 'application/json',
+			'idempotency-key': '00000000-0000-4000-8000-000000000099'
+		},
+		body: JSON.stringify({
+			name: 'Creator event',
+			startsAt: '2026-12-01T10:00:00Z',
+			endsAt: '2026-12-01T12:00:00Z',
+			timeZone: 'UTC',
+			roles: ['organizer', 'instructor'],
+			status: 'scheduled',
+			mode: 'in-person',
+			isAllDay: false,
+			createdAt: '2026-11-15T10:00:00Z',
+			past: false,
+			publicSuppressionReasons: [],
+			upcomingExclusionReasons: []
+		})
+	});
+	expect(created.status).toBe(201);
+	const detail = '/events/did%3Aplc%3Aalice/event-1';
+	await page.goto(detail);
+	await expect(
+		page.getByRole('link', { name: 'View creator profile', exact: true })
+	).toHaveAttribute('href', '/profiles/did%3Aplc%3Aalice');
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Report event', exact: true })
+	).toHaveCount(0);
+	await page.getByRole('link', { name: 'Edit event', exact: true }).click();
+	await expect(page).toHaveURL(/compose\/event\/edit\?event=event-1$/);
+	await page
+		.getByLabel('Event name', { exact: true })
+		.fill('Updated creator event');
+	await page.getByRole('button', { name: 'Save event', exact: true }).click();
+	await expect(page).toHaveURL(/settings\/events$/);
+	await page.goto(detail);
+	await expect(
+		page.getByRole('heading', { name: 'Updated creator event', exact: true })
+	).toBeVisible();
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await page.getByRole('button', { name: 'Delete event', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Delete this event?', exact: true })
+		.getByRole('button', { name: 'Cancel', exact: true })
+		.click();
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'DELETE' && row.path.endsWith('/event-1')
+		)
+	).toHaveLength(0);
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await page.getByRole('button', { name: 'Delete event', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Delete this event?', exact: true })
+		.getByRole('button', { name: 'Delete', exact: true })
+		.click();
+	await expect(page).toHaveURL(/profiles\/did%3Aplc%3Aalice\?tab=events$/);
+	expect(
+		(await calls()).find(
+			(row) => row.method === 'DELETE' && row.path.endsWith('/event-1')
+		)
+	).toMatchObject({
+		ifMatch: 'event-cid-1-next',
+		key: expect.stringMatching(/^[0-9a-f-]{36}$/)
+	});
+});
+
+test('event owner can postpone from management and cancel from detail without losing record fields', async ({
+	page
+}) => {
+	const image = {
+		image: {
+			$type: 'blob',
+			ref: { $link: 'existing-photo-cid' },
+			mimeType: 'image/jpeg',
+			size: 100
+		},
+		alt: 'Event poster',
+		aspectRatio: { width: 400, height: 300 }
+	};
+	const body = {
+		name: 'Lifecycle workshop',
+		startsAt: '2027-12-01T10:00:00Z',
+		endsAt: '2027-12-01T12:00:00Z',
+		timeZone: 'Europe/London',
+		roles: ['organizer', 'instructor'],
+		status: 'scheduled',
+		mode: 'hybrid',
+		isAllDay: false,
+		summary: 'Keep this summary',
+		venueName: 'Craft Hall',
+		eventUri: 'https://example.com/event',
+		registrationUri: 'https://example.com/book'
+	};
+	const created = await fetch('http://127.0.0.1:19847/v1/events', {
+		method: 'POST',
+		headers: {
+			authorization: 'Bearer ' + alice.token,
+			'content-type': 'application/json',
+			'idempotency-key': '00000000-0000-4000-8000-000000000099'
+		},
+		body: JSON.stringify(body)
+	});
+	expect(created.status).toBe(201);
+	// Hydrated reads use a different image shape from replacement writes.
+	await page.route('**/api/appview/v1/events/**/event-1', async (route) => {
+		if (route.request().method() !== 'GET') return route.continue();
+		const response = await route.fetch();
+		const event = await response.json();
+		await route.fulfill({
+			response,
+			json: {
+				...event,
+				image: {
+					cid: 'existing-photo-cid',
+					mime: 'image/jpeg',
+					size: 100,
+					alt: 'Event poster',
+					aspectRatio: { width: 400, height: 300 }
+				}
+			}
+		});
+	});
+	await page.goto('/settings/events');
+	let copied = '';
+	await page.exposeFunction('captureCopiedEventLink', (value: string) => {
+		copied = value;
+	});
+	await page.evaluate(() => {
+		navigator.clipboard.writeText = (value: string) =>
+			(
+				window as unknown as {
+					captureCopiedEventLink: (value: string) => Promise<void>;
+				}
+			).captureCopiedEventLink(value);
+	});
+	await page
+		.getByLabel('Actions for Lifecycle workshop', { exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Copy link', exact: true }).click();
+	await expect
+		.poll(() => copied)
+		.toBe('https://app.craftsky.social/events/did%3Aplc%3Aalice/event-1');
+	await page
+		.getByLabel('Actions for Lifecycle workshop', { exact: true })
+		.click();
+	await fetch('http://127.0.0.1:19847/__test/control', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ visual: true })
+	});
+	await page.getByRole('link', { name: 'Send via chat', exact: true }).click();
+	await expect(page).toHaveURL(
+		'/messages/new?link=' + encodeURIComponent(copied)
+	);
+	await expect(
+		page.getByText(
+			'Choose someone to send this link to. It will be added to your draft for review.'
+		)
+	).toBeVisible();
+	await fetch('http://127.0.0.1:19847/__test/control', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ visual: false })
+	});
+	await page.goto('/settings/events');
+	await page
+		.getByLabel('Actions for Lifecycle workshop', { exact: true })
+		.click();
+	await page
+		.getByRole('button', { name: 'Postpone event', exact: true })
+		.click();
+	await expect(
+		page.getByRole('heading', { name: 'Lifecycle workshop', exact: true })
+	).toHaveCount(0);
+	await page.goto('/events/did%3Aplc%3Aalice/event-1');
+	await expect(page.getByText('Postponed', { exact: true })).toBeVisible();
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Postpone event', exact: true })
+	).toHaveCount(0);
+	await page.getByRole('button', { name: 'Cancel event', exact: true }).click();
+	await expect(page.getByText('Cancelled', { exact: true })).toBeVisible();
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Cancel event', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Postpone event', exact: true })
+	).toBeVisible();
+	const writes = (await calls()).filter(
+		(row) => row.method === 'PUT' && row.path.endsWith('/event-1')
+	);
+	expect(writes).toHaveLength(2);
+	expect(writes[0]).toMatchObject({
+		ifMatch: 'event-cid-1',
+		body: { ...body, status: 'postponed' }
+	});
+	expect(writes[1]).toMatchObject({
+		ifMatch: 'event-cid-1-next',
+		body: { ...body, status: 'cancelled', image }
+	});
+	expect(writes[1].body).not.toHaveProperty('createdAt');
+	expect(writes[0].key).not.toBe(writes[1].key);
 });

@@ -261,6 +261,16 @@ describe('Stripe checkout isolation', () => {
 describe('account-owned Stripe subscription management', () => {
 	it('opens only a customer-specific portal session and preserves its fragment', () => {
 		expect(stripePortalURL(portalURL)).toBe(portalURL);
+		const secretURL =
+			'https://billing.stripe.com/p/session?secret=test_opaque.token';
+		expect(stripePortalURL(secretURL)).toBe(secretURL);
+		for (const url of [
+			secretURL + '&redirect=https://evil.example',
+			secretURL + '&secret=other',
+			'https://billing.stripe.com/p/session?secret='
+		]) {
+			expect(() => stripePortalURL(url)).toThrow();
+		}
 		expect(subscriptionProvider('stripe')).toBe('Stripe');
 		for (const url of [
 			'https://billing.stripe.com/p/login/test_sharedEmail',

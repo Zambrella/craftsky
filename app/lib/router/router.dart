@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/business/pages/business_details_settings_page.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
@@ -411,6 +412,10 @@ class AccountEligibilityRoute extends GoRouteData
                   path: RouteLocations.aboutChild,
                   name: 'settings-about',
                 ),
+                TypedGoRoute<BusinessDetailsRoute>(
+                  path: RouteLocations.businessChild,
+                  name: 'settings-business-details',
+                ),
                 TypedGoRoute<BusinessProductsRoute>(
                   path: RouteLocations.productsChild,
                   name: 'settings-business-products',
@@ -792,6 +797,18 @@ class AboutRoute extends GoRouteData with $AboutRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) => const AboutPage();
+}
+
+class BusinessDetailsRoute extends GoRouteData with $BusinessDetailsRoute {
+  const new();
+
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+      _businessOwnerRouteRedirect(context);
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const BusinessDetailsSettingsPage();
 }
 
 class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {

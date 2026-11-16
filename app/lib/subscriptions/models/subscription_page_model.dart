@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
@@ -44,6 +46,6 @@ final class SubscriptionPageModel {
   final ValueChanged<SubscriptionTier>? onPurchase;
   final VoidCallback? onRestore;
   final VoidCallback? onManage;
-  final VoidCallback? onRefresh;
+  final FutureOr<void> Function()? onRefresh;
   final VoidCallback? onCancelCheckout;
 }

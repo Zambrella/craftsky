@@ -118,14 +118,23 @@ while such an operation exists, across environments. **Cancel pending purchase**
 expires only the authenticated owner's verified open session; closing a
 RevenueCat modal disposes its UI without calling that recovery endpoint.
 
-Management still uses authenticated AppView resolution of a retained direct
-checkout's Stripe customer. SDK-created purchases without that mapping use the
-existing receipt-management fallback. Do not substitute a static email-login
-portal: multiple CraftSky customers may share a payer email. New customer-specific
-portal support needs verified provider ownership evidence, not a caller-selected
-Stripe customer or an unverified configured management URL.
+Management uses authenticated AppView resolution of the owner's private
+RevenueCat customer. A complete owner subscription snapshot supplies the sole
+current Stripe `store_subscription_identifier` for the configured environment;
+the Stripe client verifies its merchant, subscription ID, mode and customer
+before creating a customer-specific portal. The client supplies no identifiers.
+Retained direct-checkout resolution remains a fallback only when no RevenueCat
+management provider is configured. Static email-login portals and configured,
+unverified management URLs do not establish ownership.
 
-Mobile apps contain no web purchase promotion, instructions or checkout links.
+Both clients retain prices and benefits on subscribed plan cards. Their top
+summary shows Standard/Plus/Business and access expiry. The paid card has an
+Active badge and Manage action; the alternative card has Upgrade/Downgrade.
+Existing paid-plan actions use the billing provider's management flow. Mobile
+uses RevenueCat Customer Center for store purchases and the authenticated portal
+for Stripe purchases; web uses store management links or the Stripe portal.
+This does not add a second purchase or change billing before provider confirmation.
+Mobile apps contain no new web subscription checkout links.
 A native conflict explains that the store subscription belongs to another
 CraftSky account. A DID/handle is shown only with verified ownership evidence;
 the app must not guess from local accounts or disclose arbitrary customers.

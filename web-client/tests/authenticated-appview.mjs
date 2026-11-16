@@ -471,6 +471,8 @@ createServer(async (req, res) => {
 		for (const [name, flags] of Object.entries(value.owners || {})) {
 			if (Object.hasOwn(flags, 'languages'))
 				settings.get(owners[name]).languages = flags.languages;
+			if (Object.hasOwn(flags, 'business'))
+				settings.get(owners[name]).business = flags.business;
 		}
 		control = {
 			...control,
@@ -1136,7 +1138,7 @@ createServer(async (req, res) => {
 	if (pathname === '/v1/profiles/me/business') {
 		if (
 			!req.headers['idempotency-key'] ||
-			req.headers['if-match'] !== state.business?.cid
+			req.headers['if-match'] !== (state.business?.cid || '*')
 		)
 			return send(409, {
 				error: 'business_conflict',
@@ -1146,7 +1148,11 @@ createServer(async (req, res) => {
 			state.business = null;
 			return send(204);
 		}
-		const previous = state.business;
+		const previous = state.business || {
+			cid: 'business-cid-new',
+			businessTypes: [],
+			products: []
+		};
 		state.business = {
 			...body,
 			cid: `${previous.cid}-next`,
@@ -1158,6 +1164,25 @@ createServer(async (req, res) => {
 			products: body.preserveProducts ? previous.products : body.products
 		};
 		return send(200, { cid: state.business.cid });
+	}
+	if (
+		(pathname === '/v1/events' && method === 'POST') ||
+		(pathname.startsWith('/v1/events/') && method === 'PUT')
+	) {
+		if (
+			![body.startsAt, body.endsAt].every(
+				(value) =>
+					typeof value === 'string' &&
+					/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)
+			)
+		)
+			return send(422, {
+				error: 'validation_failed',
+				message: 'invalid business event',
+				fields: {
+					startsAt: 'startsAt and endsAt must form a valid event time range'
+				}
+			});
 	}
 	if (pathname === '/v1/events') {
 		if (method === 'POST') {
@@ -1189,6 +1214,7 @@ createServer(async (req, res) => {
 		);
 		if (!item)
 			return send(404, { error: 'event_missing', message: 'Not found' });
+		if (method === 'GET') return send(200, item);
 		if (req.headers['if-match'] !== item.cid)
 			return send(409, { error: 'event_conflict', message: 'Event changed' });
 		if (method === 'DELETE') {

@@ -86,6 +86,29 @@ class BusinessProfileSummary extends StatelessWidget {
           if (action != null && destination != null) ...[
             if (hasDetails) SizedBox(height: spacing.sp2),
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurface,
+                backgroundColor: theme.extension<BrandSwatchTheme>()!.paper3,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                side: BorderSide(
+                  color: theme.colorScheme.onSurface,
+                  width: 1.5,
+                ),
+                shape: const StadiumBorder(),
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                textStyle: theme.textTheme.labelLarge?.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.5,
+                ),
+                iconSize: 18,
+                iconColor: theme.colorScheme.onSurface,
+              ),
               onPressed: () => unawaited(
                 confirmAndLaunchExternalAction(
                   context,

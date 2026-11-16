@@ -28,6 +28,14 @@
     "web feature upgrade prompts",
     "direct feature paywalls",
     "Plus action icons",
+    "active subscription label",
+    "subscribed state parity",
+    "renewal summary wording",
+    "SDK Stripe management portal",
+    "sandbox and live portal plan switching",
+    "Stripe subscription item management",
+    "Stripe secret query portal URL",
+    "mobile subscription pull to refresh",
     "composer schedule icon CSS isolation",
     "free save folder loading",
     "web catalog prices",
@@ -69,7 +77,8 @@
     "docs/changes/2026-11-13-per-did-subscriptions/subscription-page-parity.md",
     "docs/changes/2026-11-13-per-did-subscriptions/embedded-checkout.md",
     "docs/changes/2026-11-13-per-did-subscriptions/revenuecat-web-paywalls.md",
-    "docs/changes/2026-11-13-per-did-subscriptions/feature-paywall-entry.md"
+    "docs/changes/2026-11-13-per-did-subscriptions/feature-paywall-entry.md",
+    "docs/changes/2026-11-13-per-did-subscriptions/subscribed-state-parity.md"
   ],
   "supersededBy": [],
   "followUps": [

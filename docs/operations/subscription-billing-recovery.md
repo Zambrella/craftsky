@@ -229,19 +229,25 @@ terminal result.
 
 ### Customer-specific subscription management
 
-SDK-created subscriptions have no direct-checkout mapping. Their current safe
-fallback is the management link in the Stripe receipt. The existing authenticated
-portal endpoint below remains available for retained direct-checkout mappings;
-a configured RevenueCat management URL is not proof of a customer-specific
-portal session.
-
-
 `POST /v1/billing/web-management` returns `{url}` for a short-lived Stripe
-Customer Portal session. AppView derives the Stripe customer from the
-authenticated DID's persisted checkout mapping and verifies its completed
-session. The browser cannot supply a customer ID. Without a verified mapping,
-the operation returns `web_management_unavailable`; do not guess from an email
-address or a different local account.
+Customer Portal session. For SDK-created purchases, AppView lists subscriptions
+for the authenticated DID's private RevenueCat UUID and requires a complete,
+unambiguous Stripe subscription in the configured environment. Its
+`store_subscription_identifier` resolves a Stripe subscription or subscription
+item through the configured merchant credentials. An `si_` item is resolved to
+its verified `sub_` parent; Stripe's subscription ID, environment and customer
+are verified before creating the portal. Server and clients accept only Stripe's
+customer-specific `/p/session/{token}` and `/p/session?secret={token}` formats.
+The latter allows exactly one nonempty URL-safe secret, with no extra query
+parameters or fragment; both remain private, short-lived capabilities. No persisted checkout mapping
+is needed. The retained direct-checkout resolver remains available when no
+RevenueCat management provider is configured.
+
+The clients cannot supply a customer or subscription ID. Missing, ambiguous or
+mismatched provider evidence fails closed with `web_management_unavailable`.
+Native store purchases use RevenueCat Customer Center on mobile and the store's
+management page on web. Manage and Upgrade/Downgrade on an existing paid plan
+open its provider management flow, rather than creating a second checkout.
 
 Do not use Stripe's static email-login portal as the per-DID management flow.
 When multiple Stripe customers share an email, Stripe's no-code login selects
@@ -251,6 +257,14 @@ historical setup artifact, not a live management destination. Remove it from
 RevenueCat's management configuration before live activation unless replaced
 with an authenticated account-specific flow. See [Stripe's portal login
 behavior](https://docs.stripe.com/customer-management/activate-no-code-customer-portal).
+
+Both CraftSky sandbox and live portal configurations enable price switching
+between the approved Plus and Business monthly prices (£2.49 and £8.99 GBP).
+Quantity changes and promotion-code updates remain disabled. Existing billing
+behaviour is preserved: no proration charges/credits, unchanged billing cycle,
+and the new recurring price applies at the next billing period. Changing this
+policy is a separate deliberate billing-configuration change. Enabling these
+controls does not itself update any customer's subscription.
 
 The server fixes the portal return URL and optional portal configuration. Portal
 URLs are capabilities: do not cache, persist or log them. Account switching must

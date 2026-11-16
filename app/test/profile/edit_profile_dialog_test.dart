@@ -9,6 +9,7 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
+import 'package:craftsky_app/business/widgets/business_profile_fields.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -35,6 +36,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,6 +69,7 @@ Future<void> _pumpEditDialog(
   required FakeProfileRepository repo,
   BusinessRepository? businessRepository,
   bool businessAccess = false,
+  bool businessDetails = false,
   ProfileImageFailure? imageFailure,
   Object? imageException,
   ErrorReporter? reporter,
@@ -133,6 +136,7 @@ Future<void> _pumpEditDialog(
                   child: ElevatedButton(
                     onPressed: () => showEditProfileDialog(
                       context,
+                      businessDetails: businessDetails,
                       linkLauncher: linkLauncher,
                       confirmOpenLink: confirmOpenLink,
                     ),
@@ -419,6 +423,8 @@ void main() {
           );
           await _pumpEditDialog(
             tester,
+            businessDetails: true,
+            businessAccess: true,
             repo: FakeProfileRepository(onFetch: (_) async => profile),
             businessRepository: _RecordingBusinessRepository(),
           );
@@ -483,6 +489,7 @@ void main() {
         final businessRepository = _RecordingBusinessRepository();
         await _pumpEditDialog(
           tester,
+          businessDetails: true,
           repo: FakeProfileRepository(onFetch: (_) async => profile),
           businessRepository: businessRepository,
         );
@@ -540,6 +547,134 @@ void main() {
       expect(find.text('Primary action'), findsNothing);
     });
 
+    testWidgets('empty primary action is explicitly No primary action', (
+      tester,
+    ) async {
+      final profile = _seedProfile.copyWith(accountType: AccountType.business);
+      await _pumpEditDialog(
+        tester,
+        repo: FakeProfileRepository(onFetch: (_) async => profile),
+        businessAccess: true,
+        businessDetails: true,
+      );
+      final field = find.byWidgetPredicate(
+        (widget) =>
+            widget is CraftskySingleSelectInput<String> &&
+            widget.label == 'Primary action',
+      );
+      CraftskySingleSelectInput<String> selector() =>
+          tester.widget<CraftskySingleSelectInput<String>>(field);
+      expect(find.text('Action URL'), findsNothing);
+      expect(selector().value, '');
+      expect(selector().clearable, isFalse);
+      expect(
+        selector().options.where((option) => option.value == '').single.label,
+        'No primary action',
+      );
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .onPressed,
+        isNull,
+      );
+      selector().onChanged!('shop');
+      await tester.pump();
+      expect(selector().value, 'shop');
+      expect(find.text('Shop URL'), findsOneWidget);
+      final destination = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.hintText == 'https://example.com/shop',
+      );
+      await tester.enterText(destination, 'not a valid URL');
+      await tester.pump();
+      selector().onChanged!('');
+      await tester.pump();
+      expect(selector().value, '');
+      expect(find.text('Shop URL'), findsNothing);
+      selector().onChanged!('shop');
+      await tester.pump();
+      expect(tester.widget<TextField>(destination).controller?.text, isEmpty);
+      selector().onChanged!('');
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets(
+      'email action edits a plain address and saves its canonical destination',
+      (tester) async {
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration.copyWith(
+            primaryAction: const BusinessAction(
+              type: 'email',
+              destination: 'mailto:old@example.com',
+            ),
+          ),
+        );
+        final repository = _RecordingBusinessRepository();
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetch: (_) async => profile),
+          businessRepository: repository,
+          businessDetails: true,
+        );
+        expect(find.text('Email address'), findsOneWidget);
+        final email = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.controller?.text == 'old@example.com',
+        );
+        expect(email, findsOneWidget);
+        await tester.enterText(email, 'hello@example.com');
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(repository.bodies.single['primaryAction'], {
+          'type': 'email',
+          'destination': 'mailto:hello@example.com',
+        });
+      },
+    );
+
+    testWidgets(
+      'clearing an existing action removes it without hidden validation',
+      (tester) async {
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration,
+        );
+        final repository = _RecordingBusinessRepository();
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetch: (_) async => profile),
+          businessRepository: repository,
+          businessDetails: true,
+        );
+        final selector = find.byWidgetPredicate(
+          (widget) =>
+              widget is CraftskySingleSelectInput<String> &&
+              widget.label == 'Primary action',
+        );
+        expect(find.text('Booking URL'), findsOneWidget);
+        tester.widget<CraftskySingleSelectInput<String>>(selector).onChanged!(
+          '',
+        );
+        await tester.pump();
+        expect(find.text('Booking URL'), findsNothing);
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(repository.putCalls, 1);
+        expect(repository.bodies.single, isNot(contains('primaryAction')));
+        expect(repository.bodies.single['preserveProducts'], isTrue);
+      },
+    );
+
     testWidgets('business profile shows every prefilled detail field', (
       tester,
     ) async {
@@ -548,7 +683,12 @@ void main() {
         business: _businessDeclaration,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => businessProfile);
-      await _pumpEditDialog(tester, repo: repo, businessAccess: true);
+      await _pumpEditDialog(
+        tester,
+        repo: repo,
+        businessAccess: true,
+        businessDetails: true,
+      );
 
       expect(find.text('Business details'), findsOneWidget);
       expect(find.text('Teacher'), findsWidgets);
@@ -560,7 +700,13 @@ void main() {
       expect(find.widgetWithText(TextField, 'Weekdays'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'South West'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'GB'), findsOneWidget);
-      expect(find.widgetWithText(TextField, 'Bristol'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField && widget.controller?.text == 'Bristol',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Book class'), findsOneWidget);
       expect(
         find.widgetWithText(TextField, 'https://example.com/classes'),
@@ -1004,66 +1150,47 @@ void main() {
       expect(find.text('Open'), findsNothing);
     });
 
-    testWidgets('partial save retries only the failed ordinary record', (
-      tester,
-    ) async {
-      var ordinaryCalls = 0;
-      final profile = _seedProfile.copyWith(
-        accountType: AccountType.business,
-        business: _businessDeclaration,
-      );
-      final repo = FakeProfileRepository(
-        onFetch: (_) async => profile,
-        onUpdateMe:
-            ({
-              displayName,
-              pronouns,
-              description,
-              crafts,
-              avatar,
-              clearAvatar = false,
-              banner,
-              clearBanner = false,
-            }) async {
-              ordinaryCalls++;
-              if (ordinaryCalls == 1) throw StateError('ordinary failed');
-              return profile.copyWith(
-                displayName: displayName,
-                pronouns: pronouns,
-              );
-            },
-      );
-      final businessRepository = _RecordingBusinessRepository();
-      await _pumpEditDialog(
-        tester,
-        repo: repo,
-        businessRepository: businessRepository,
-      );
-
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Test User'),
-        'Renamed',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Thoughtful classes'),
-        'Updated classes',
-      );
-      await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
-      await tester.pumpAndSettle();
-
-      expect(find.text("Couldn't save your profile."), findsOneWidget);
-      expect(find.text('Open'), findsNothing);
-      expect(ordinaryCalls, 1);
-      expect(businessRepository.putCalls, 1);
-
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Open'), findsOneWidget);
-      expect(ordinaryCalls, 2);
-      expect(businessRepository.putCalls, 1);
-    });
+    testWidgets(
+      'personal profile editor excludes business details '
+      'and writes only personal fields',
+      (tester) async {
+        var ordinaryCalls = 0;
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration,
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onUpdateMe:
+              ({
+                displayName,
+                pronouns,
+                description,
+                crafts,
+                avatar,
+                clearAvatar = false,
+                banner,
+                clearBanner = false,
+              }) async {
+                ordinaryCalls++;
+                return profile.copyWith(displayName: displayName);
+              },
+        );
+        final business = _RecordingBusinessRepository();
+        await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+        expect(find.byType(BusinessProfileFields), findsNothing);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Test User'),
+          'Renamed',
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(ordinaryCalls, 1);
+        expect(business.putCalls, 0);
+        expect(find.text('Open'), findsOneWidget);
+      },
+    );
 
     testWidgets(
       'business conflict refresh keeps edits and adopts untouched newer fields',
@@ -1079,7 +1206,12 @@ void main() {
         final business = _RecordingBusinessRepository(
           firstError: const ApiBadRequest('pds_record_conflict'),
         );
-        await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+        await _pumpEditDialog(
+          tester,
+          repo: repo,
+          businessRepository: business,
+          businessDetails: true,
+        );
         await tester.enterText(
           find.widgetWithText(TextField, 'Thoughtful classes'),
           'My edited tagline',
@@ -1139,7 +1271,12 @@ void main() {
           details: ApiFailureDetails(fields: {'tagline': 'is invalid'}),
         ),
       );
-      await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+      await _pumpEditDialog(
+        tester,
+        repo: repo,
+        businessRepository: business,
+        businessDetails: true,
+      );
       await tester.enterText(
         find.widgetWithText(TextField, 'Thoughtful classes'),
         'Edited tagline',
@@ -1152,68 +1289,62 @@ void main() {
       expect(find.text('Open'), findsNothing);
     });
 
-    testWidgets('inverse partial save retries only the business record', (
-      tester,
-    ) async {
-      var ordinaryCalls = 0;
-      final profile = _seedProfile.copyWith(
-        accountType: AccountType.business,
-        business: _businessDeclaration,
-      );
-      final repo = FakeProfileRepository(
-        onFetch: (_) async => profile,
-        onUpdateMe:
-            ({
-              displayName,
-              pronouns,
-              description,
-              crafts,
-              avatar,
-              clearAvatar = false,
-              banner,
-              clearBanner = false,
-            }) async {
-              ordinaryCalls++;
-              return profile.copyWith(
-                displayName: displayName,
-                pronouns: pronouns,
-              );
-            },
-      );
-      final businessRepository = _RecordingBusinessRepository(failFirst: true);
-      await _pumpEditDialog(
-        tester,
-        repo: repo,
-        businessRepository: businessRepository,
-      );
-
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Test User'),
-        'Renamed',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Thoughtful classes'),
-        'Updated classes',
-      );
-      await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text("Couldn't save your business details."),
-        findsOneWidget,
-      );
-      expect(find.text('Open'), findsNothing);
-      expect(ordinaryCalls, 1);
-      expect(businessRepository.putCalls, 1);
-
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Open'), findsOneWidget);
-      expect(ordinaryCalls, 1);
-      expect(businessRepository.putCalls, 2);
-    });
+    testWidgets(
+      'business details retries only its own record and preserves products',
+      (tester) async {
+        var ordinaryCalls = 0;
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration,
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onUpdateMe:
+              ({
+                displayName,
+                pronouns,
+                description,
+                crafts,
+                avatar,
+                clearAvatar = false,
+                banner,
+                clearBanner = false,
+              }) async {
+                ordinaryCalls++;
+                return profile;
+              },
+        );
+        final business = _RecordingBusinessRepository(failFirst: true);
+        await _pumpEditDialog(
+          tester,
+          repo: repo,
+          businessRepository: business,
+          businessDetails: true,
+        );
+        expect(find.text('Business details'), findsOneWidget);
+        expect(find.widgetWithText(TextField, 'Test User'), findsNothing);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Thoughtful classes'),
+          'Updated classes',
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text("Couldn't save your business details."),
+          findsOneWidget,
+        );
+        expect(ordinaryCalls, 0);
+        expect(business.putCalls, 1);
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(ordinaryCalls, 0);
+        expect(business.putCalls, 2);
+        expect(business.bodies.last['preserveProducts'], isTrue);
+        expect(business.bodies.last['preserveUnknownCatalogValues'], isTrue);
+        expect(find.text('Open'), findsOneWidget);
+      },
+    );
 
     testWidgets(
       'clearing the display name is valid (empty is a permitted value)',
@@ -1323,6 +1454,7 @@ void main() {
           tester,
           repo: FakeProfileRepository(onFetch: (_) async => profile),
           businessAccess: true,
+          businessDetails: true,
         );
 
         final tagline = find.widgetWithText(TextField, 'Thoughtful classes');

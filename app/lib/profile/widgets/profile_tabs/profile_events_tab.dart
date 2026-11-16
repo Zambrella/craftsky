@@ -90,87 +90,71 @@ class ProfileEventsTab extends ConsumerWidget {
             },
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp3,
-              0,
-              spacing.sp3,
-              spacing.sp4,
-            ),
-            child: Column(
-              children: [
-                if (state.refreshError != null)
-                  _RetryRow(
-                    message: l10n.businessEventsRefreshError,
-                    onRetry: () => unawaited(
-                      ref
-                          .read(
-                            profileBusinessEventsProvider(
-                              target,
-                              audience: ref.read(browsingContextProvider),
-                            ).notifier,
-                          )
-                          .refresh(),
+        if (state.refreshError != null ||
+            state.incrementalError != null ||
+            state.isLoadingMore ||
+            state.hasMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                spacing.sp3,
+                0,
+                spacing.sp3,
+                spacing.sp4,
+              ),
+              child: Column(
+                children: [
+                  if (state.refreshError != null)
+                    _RetryRow(
+                      message: l10n.businessEventsRefreshError,
+                      onRetry: () => unawaited(
+                        ref
+                            .read(
+                              profileBusinessEventsProvider(
+                                target,
+                                audience: ref.read(browsingContextProvider),
+                              ).notifier,
+                            )
+                            .refresh(),
+                      ),
                     ),
-                  ),
-                if (state.incrementalError != null)
-                  _RetryRow(
-                    message: l10n.businessEventsLoadMoreError,
-                    onRetry: () => unawaited(
-                      ref
-                          .read(
-                            profileBusinessEventsProvider(
-                              target,
-                              audience: ref.read(browsingContextProvider),
-                            ).notifier,
-                          )
-                          .loadMore(),
+                  if (state.incrementalError != null)
+                    _RetryRow(
+                      message: l10n.businessEventsLoadMoreError,
+                      onRetry: () => unawaited(
+                        ref
+                            .read(
+                              profileBusinessEventsProvider(
+                                target,
+                                audience: ref.read(browsingContextProvider),
+                              ).notifier,
+                            )
+                            .loadMore(),
+                      ),
+                    )
+                  else if (state.isLoadingMore)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: StitchProgressIndicator(size: 24),
+                    )
+                  else if (state.hasMore)
+                    TextButton(
+                      onPressed: () => unawaited(
+                        ref
+                            .read(
+                              profileBusinessEventsProvider(
+                                target,
+                                audience: ref.read(browsingContextProvider),
+                              ).notifier,
+                            )
+                            .loadMore(),
+                      ),
+                      child: Text(l10n.businessEventsLoadMoreAction),
                     ),
-                  )
-                else if (state.isLoadingMore)
-                  const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: StitchProgressIndicator(size: 24),
-                  )
-                else if (state.hasMore)
-                  TextButton(
-                    onPressed: () => unawaited(
-                      ref
-                          .read(
-                            profileBusinessEventsProvider(
-                              target,
-                              audience: ref.read(browsingContextProvider),
-                            ).notifier,
-                          )
-                          .loadMore(),
-                    ),
-                    child: Text(l10n.businessEventsLoadMoreAction),
-                  )
-                else
-                  Text(l10n.businessEventsEnd),
-                TextButton.icon(
-                  onPressed: state.isRefreshing
-                      ? null
-                      : () => unawaited(
-                          ref
-                              .read(
-                                profileBusinessEventsProvider(
-                                  target,
-                                  audience: ref.read(browsingContextProvider),
-                                ).notifier,
-                              )
-                              .refresh(),
-                        ),
-                  icon: state.isRefreshing
-                      ? const StitchProgressIndicator(size: 18)
-                      : const Icon(CraftskyIconsBold.refresh),
-                  label: Text(l10n.businessEventsRefreshAction),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }

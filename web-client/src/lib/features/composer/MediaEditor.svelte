@@ -187,38 +187,38 @@
 <article class="media-card" class:native-photo={nativePhoto}>
 	{#if nativePhoto}<div class="photo-controls">
 			<span class="photo-number" class:first={index === 0}>{index + 1}</span
-			><span class="control-spacer"></span><button
-				type="button"
-				disabled={disabled || busy || index === 0}
-				onclick={() => onmove(-1)}
-				aria-label={`Move image ${index + 1} earlier`}
-				><Icon name="moveUp" bold /></button
-			><button
-				type="button"
-				disabled={disabled || busy || index === count - 1}
-				onclick={() => onmove(1)}
-				aria-label={`Move image ${index + 1} later`}
-				><span class="down-arrow"><Icon name="moveUp" bold /></span></button
-			><button
+			><span class="control-spacer"></span>{#if allowReorder}<button
+					type="button"
+					disabled={disabled || busy || index === 0}
+					onclick={() => onmove(-1)}
+					aria-label={`Move image ${index + 1} earlier`}
+					><Icon name="moveUp" bold /></button
+				><button
+					type="button"
+					disabled={disabled || busy || index === count - 1}
+					onclick={() => onmove(1)}
+					aria-label={`Move image ${index + 1} later`}
+					><span class="down-arrow"><Icon name="moveUp" bold /></span></button
+				>{/if}<button
 				type="button"
 				class="remove-photo"
 				disabled={disabled || busy}
 				onclick={onremove}
 				aria-label={`Remove image ${index + 1}`}
 				><Icon name="trash" bold /></button
-			><button
-				type="button"
-				class="photo-drag drag-handle"
-				aria-label={`Drag to reorder image ${index + 1}`}
-				disabled={disabled || busy || count < 2}
-				title="Drag to reorder, or use Alt and the up or down arrow keys."
-				onkeydown={(event) => {
-					if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
-						event.preventDefault();
-						onmove(event.key === 'ArrowUp' ? -1 : 1);
-					}
-				}}><span aria-hidden="true">⠿</span></button
-			>
+			>{#if allowReorder}<button
+					type="button"
+					class="photo-drag drag-handle"
+					aria-label={`Drag to reorder image ${index + 1}`}
+					disabled={disabled || busy || count < 2}
+					title="Drag to reorder, or use Alt and the up or down arrow keys."
+					onkeydown={(event) => {
+						if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+							event.preventDefault();
+							onmove(event.key === 'ArrowUp' ? -1 : 1);
+						}
+					}}><span aria-hidden="true">⠿</span></button
+				>{/if}
 		</div>{/if}
 	<div class="photo-preview">
 		<img

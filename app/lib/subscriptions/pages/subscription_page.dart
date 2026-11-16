@@ -9,6 +9,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
@@ -34,11 +35,16 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/plus_tier_icon.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
+
+final subscriptionManagementLauncherProvider =
+    Provider<Future<bool> Function(Uri)>((ref) => launchExternalLink);
 
 class SubscriptionPage extends ConsumerStatefulWidget {
   const new({this.featureTier, super.key});
@@ -91,7 +97,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    if (_foreground && mounted) _refresh();
+    if (_foreground && mounted) unawaited(_refresh());
   }
 
   bool get _operationIsCurrent => mounted;
@@ -327,7 +333,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     );
   }
 
-  void _refresh() {
+  Future<void> _refresh() async {
     if (_busy) return;
     final pendingOperation = ref.read(subscriptionPendingOperationProvider);
     final registry = ref.read(sessionRegistryProvider).value;
@@ -335,13 +341,13 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         pendingOperation.canReconcile &&
         registry?.activeLease?.session.account.did ==
             pendingOperation.ownerDid) {
-      unawaited(_run(() => _reconcilePending(pendingOperation)));
+      await _run(() => _reconcilePending(pendingOperation));
       return;
     }
     if (pendingOperation != null) return;
     final retry = _pendingRetry;
     if (retry != null && !_busy) {
-      unawaited(_run(retry));
+      await _run(retry);
       return;
     }
     _pendingRetry = null;
@@ -349,6 +355,11 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     ref.invalidate(subscriptionPageModelProvider);
     final lease = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     if (lease != null) ref.invalidate(subscriptionAccessProvider(lease));
+    try {
+      await ref.read(subscriptionPageModelProvider.future);
+    } on Object {
+      // The observed provider owns the refresh failure and its recovery UI.
+    }
   }
 
   void _recordStoreConflict(StoreAccountConflictException conflict) {
@@ -608,6 +619,39 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
       _run(() async {
         try {
           final dependencies = await _ownerDependencies();
+          final owner = dependencies.guard.capture();
+          final state = await dependencies.guard.dispatchBillingState(
+            owner,
+            dependencies.api.getBillingAccount,
+          );
+          final current = state.subscriptions
+              .where((sub) => sub.givesAccess)
+              .toList();
+          if (current.length == 1 && current.single.store == 'stripe') {
+            final api = dependencies.api;
+            if (api is! SubscriptionManagementApi) {
+              throw DiagnosticStateError('Subscription management unavailable');
+            }
+            final uri = await dependencies.guard.dispatch(
+              owner,
+              (api as SubscriptionManagementApi).managementURL,
+            );
+            if (!mounted || !dependencies.guard.isCurrent(owner)) {
+              _pendingOperations.clearUnconfirmed(operationId);
+              return null;
+            }
+            final opened = await dependencies.guard.dispatch(
+              owner,
+              () => _operationContainer.read(
+                subscriptionManagementLauncherProvider,
+              )(uri),
+            );
+            _pendingOperations.clearUnconfirmed(operationId);
+            if (!opened) {
+              throw DiagnosticStateError('Subscription management unavailable');
+            }
+            return null;
+          }
           final coordinator = CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
             diagnostics: dependencies.diagnostics,
@@ -735,21 +779,28 @@ class SubscriptionPageView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.subscriptionsTitle)),
-      body: SingleChildScrollView(
+      body: YarnRefreshScrollView.list(
+        onRefresh: () async => await model.onRefresh?.call(),
+        notificationPredicate: (notification) =>
+            model.onRefresh != null &&
+            defaultScrollNotificationPredicate(notification),
+        showSuccess: false,
         padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AccessCard(access: model.access),
-                const SizedBox(height: 16),
-                ..._roleContent(context),
-              ],
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AccessCard(access: model.access, state: model.billingState),
+                  const SizedBox(height: 16),
+                  ..._roleContent(context),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -769,8 +820,6 @@ class SubscriptionPageView extends StatelessWidget {
       ];
     }
     return [
-      Text(l10n.subscriptionsAccountPlan),
-      const SizedBox(height: 16),
       if (state.webCheckoutPending) ...[
         _MessageCard(
           body: l10n.subscriptionsCheckoutPendingBody,
@@ -830,16 +879,6 @@ class SubscriptionPageView extends StatelessWidget {
                   _activeOperation?.kind ==
                   PendingSubscriptionOperationKind.restore,
             ),
-            if (state.subscriptions.any(
-              (subscription) => subscription.store == model.nativeStore,
-            ))
-              _PrimaryActionButton(
-                label: l10n.subscriptionsManage,
-                onPressed: model.onManage,
-                isLoading:
-                    _activeOperation?.kind ==
-                    PendingSubscriptionOperationKind.customerCenter,
-              ),
           ],
         ),
     ];
@@ -847,14 +886,51 @@ class SubscriptionPageView extends StatelessWidget {
 }
 
 class _AccessCard extends StatelessWidget {
-  const new({required this.access});
+  const new({required this.access, required this.state});
 
   final SubscriptionAccess access;
+  final BillingState? state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    String expiry(DateTime value) {
+      final local = value.toLocal();
+      return '${DateFormat.yMMMd(locale).format(local)}, '
+          '${DateFormat.jm(locale).format(local)}';
+    }
+
+    final billing = state;
+    final candidates = billing?.subscriptions
+        .where(
+          (subscription) =>
+              subscription.givesAccess &&
+              !subscription.pendingPayment &&
+              !isBillingAnomaly(subscription.anomaly) &&
+              billing.licenses.any(
+                (license) =>
+                    license.subscriptionId == subscription.id &&
+                    license.tier == access.effectiveTier &&
+                    !isBillingAnomaly(license.anomaly),
+              ),
+        )
+        .toList();
+    final renewing =
+        billing != null &&
+        !billing.reconciliationStale &&
+        billing.requestedGeneration <= billing.reconciledGeneration &&
+        candidates?.length == 1 &&
+        const [
+          'will_renew',
+          'will_change_product',
+        ].contains(candidates!.single.autoRenewalStatus);
+    final date = renewing
+        ? candidates.single.currentPeriodEndsAt ?? access.accessEndsAt
+        : access.accessEndsAt;
     return CraftskyCard(
+      key: const ValueKey('subscription-access-card'),
+      clipBehavior: Clip.none,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -865,10 +941,16 @@ class _AccessCard extends StatelessWidget {
             ),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          if (access.assignedTier case final tier?
-              when !access.givesAccess) ...[
+          if (date case final endsAt?) ...[
             const SizedBox(height: 6),
-            Text(l10n.subscriptionsDormantAssignment(_tierLabel(l10n, tier))),
+            Text(
+              renewing
+                  ? l10n.subscriptionsRenewsOn(expiry(endsAt))
+                  : l10n.subscriptionsAccessUntil(expiry(endsAt)),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ],
       ),
@@ -1046,26 +1128,56 @@ class _TierCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(tierLabel, style: theme.textTheme.titleLarge),
-                            const SizedBox(height: 2),
-                            if (isActive) ...[
-                              if (summary != null)
-                                Text(
-                                  summary,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
+                            SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Text(
+                                    tierLabel,
+                                    style: theme.textTheme.titleLarge,
                                   ),
-                                ),
-                            ] else
-                              Text(
-                                price == null
-                                    ? l10n.subscriptionsPriceUnavailable
-                                    : l10n.subscriptionsTierPrice(price),
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                                  if (isActive)
+                                    Container(
+                                      key: ValueKey(
+                                        'subscription-status-${tier.name}',
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        l10n.subscriptionsStatusActive,
+                                        style: theme.textTheme.labelLarge
+                                            ?.copyWith(
+                                              color:
+                                                  theme.colorScheme.onPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                ],
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              price == null
+                                  ? l10n.subscriptionsPriceUnavailable
+                                  : l10n.subscriptionsTierPrice(price),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1081,10 +1193,10 @@ class _TierCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (!isActive) ...[
+                  ...[
                     const SizedBox(height: 10),
-                    if (summary != null) Text(summary),
-                    if (summary != null) const SizedBox(height: 8),
+                    if (!isActive && summary != null) Text(summary),
+                    if (!isActive && summary != null) const SizedBox(height: 8),
                     Text(
                       tier == SubscriptionTier.plus
                           ? l10n.subscriptionsPlusBenefits
@@ -1103,7 +1215,7 @@ class _TierCard extends StatelessWidget {
                               'subscription-view-details-${tier.name}',
                             ),
                             label: action.$1,
-                            flat: action.$1 == l10n.subscriptionsViewDetails,
+                            flat: true,
                             onPressed: onActivate,
                             isLoading: actionIsLoading,
                           ),
@@ -1154,6 +1266,24 @@ class _TierCard extends StatelessWidget {
     }
     if (model.operationNotice == SubscriptionOperationNotice.pending) {
       return null;
+    }
+    final current = state.subscriptions
+        .where((subscription) => subscription.givesAccess)
+        .toList();
+    if (current.length == 1) {
+      final currentLicense = state.licenses
+          .where((license) => license.subscriptionId == current.single.id)
+          .firstOrNull;
+      if (currentLicense != null) {
+        return (
+          currentLicense.tier == tier
+              ? l10n.subscriptionsManage
+              : tier == SubscriptionTier.business
+              ? l10n.subscriptionsUpgrade
+              : l10n.subscriptionsDowngrade,
+          model.onManage,
+        );
+      }
     }
     if (model.billingAvailability == BillingAvailability.unavailable) {
       return null;
@@ -1241,7 +1371,7 @@ class _OperationNotice extends StatelessWidget {
 
   final SubscriptionOperationNotice notice;
   final String? accountLabel;
-  final VoidCallback? onRefresh;
+  final FutureOr<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1308,24 +1438,6 @@ class _ActionButton extends StatelessWidget {
             child: _ActionButtonChild(label: label, isLoading: isLoading),
           ),
         );
-}
-
-class _PrimaryActionButton extends StatelessWidget {
-  const new({
-    required this.label,
-    required this.onPressed,
-    this.isLoading = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) => FilledButton(
-    onPressed: isLoading ? null : onPressed,
-    child: _ActionButtonChild(label: label, isLoading: isLoading),
-  );
 }
 
 class _TextActionButton extends StatelessWidget {

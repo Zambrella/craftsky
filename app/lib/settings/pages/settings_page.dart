@@ -266,6 +266,15 @@ class SettingsPage extends ConsumerWidget {
               _SectionLabel(l10n.settingsSectionBusiness),
               SettingsRowTile(
                 descriptor: const SettingsRowDescriptor(
+                  id: SettingsRowId.businessDetails,
+                  kind: SettingsRowKind.disclosure,
+                ),
+                label: l10n.editProfileBusinessHeading,
+                leading: CraftskyIcons.businessIdentity,
+                onTap: () => const BusinessDetailsRoute().go(context),
+              ),
+              SettingsRowTile(
+                descriptor: const SettingsRowDescriptor(
                   id: SettingsRowId.businessEvents,
                   kind: SettingsRowKind.disclosure,
                 ),

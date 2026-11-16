@@ -9,6 +9,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
+  test(
+    'management accepts only a customer-specific Stripe portal capability',
+    () async {
+      for (final url in [
+        'https://billing.stripe.com/p/session/test_owner#capability',
+        'https://billing.stripe.com/p/session?secret=fixture_token',
+        'https://billing.stripe.com/p/session?secret=',
+        'https://billing.stripe.com/p/session?secret=one&secret=two',
+        'https://billing.stripe.com/p/session?secret=one&redirect=https://evil.example',
+        'https://billing.stripe.com/p/login/shared',
+        'https://billing.stripe.com.evil.example/p/session/test_owner',
+        'https://billing.stripe.com/p/session/test_owner?customer=other',
+        'javascript:alert(1)',
+        'https://billing.stripe.com/p/session/test_owner#capability\n',
+      ]) {
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+        DioAdapter(dio: dio).onPost(
+          '/v1/billing/web-management',
+          (server) => server.reply(200, {'url': url}),
+        );
+        final result = SubscriptionApiClient(dio).managementURL();
+        if (url.endsWith('#capability') ||
+            url ==
+                'https://billing.stripe.com/p/session?secret=fixture_token') {
+          expect((await result).host, 'billing.stripe.com');
+        } else {
+          await expectLater(result, throwsFormatException);
+        }
+      }
+    },
+  );
+
   setUpAll(initializeMappers);
   test('malformed pending checkout state fails closed', () {
     for (final value in [null, 'true', 1]) {

@@ -94,7 +94,11 @@ func (s *Store) SetWebCheckoutProvider(provider CheckoutProvider, config WebChec
 }
 func ValidStripeManagementURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && u.Scheme == "https" && u.Host == "billing.stripe.com" && u.User == nil && u.RawQuery == "" && u.RawPath == "" && u.Opaque == "" && stripeManagementPath.MatchString(u.Path)
+	if err != nil || u.Scheme != "https" || u.Host != "billing.stripe.com" || u.User != nil || u.RawPath != "" || u.Opaque != "" {
+		return false
+	}
+	return (u.RawQuery == "" && stripeManagementPath.MatchString(u.Path)) ||
+		regexp.MustCompile(`^https://billing\.stripe\.com/p/session\?secret=[A-Za-z0-9._~-]+$`).MatchString(raw)
 }
 func validCheckoutSession(session CheckoutSession, customer uuid.UUID, environment string) bool {
 	if session.AppUserID != customer.String() || !session.EnvironmentKnown || session.LiveMode != (environment == "production") || !session.Managed || !session.StripeTaxLiability {
@@ -467,6 +471,34 @@ func (s *Store) ResolveWebCheckoutForDeletion(ctx context.Context, did syntax.DI
 		return err
 	})
 }
+
+// SetManagementProvider resolves SDK-created subscriptions from the identified customer.
+func (s *Store) SetManagementProvider(provider ProviderClient) { s.managementProvider = provider }
+
+type StripeSubscriptionCustomerProvider interface {
+	SubscriptionCustomer(context.Context, string) (string, error)
+}
+
+func stripeManagementSubscription(snapshot CompleteSnapshot, environment string) (string, error) {
+	if !snapshot.Complete {
+		return "", ErrWebManagementUnavailable
+	}
+	id := ""
+	for _, sub := range snapshot.Subscriptions {
+		if sub.Store != "stripe" || sub.Environment != environment || (!sub.GivesAccess && !sub.PendingPayment) {
+			continue
+		}
+		if !regexp.MustCompile(`^(?:sub|si)_[A-Za-z0-9]+$`).MatchString(sub.StoreSubscriptionIdentifier) || id != "" {
+			return "", ErrWebManagementUnavailable
+		}
+		id = sub.StoreSubscriptionIdentifier
+	}
+	if id == "" {
+		return "", ErrWebManagementUnavailable
+	}
+	return id, nil
+}
+
 func (s *Store) WebManagementURL(ctx context.Context, did syntax.DID, now time.Time) (destination string, err error) {
 	if s.checkoutProvider == nil {
 		return "", ErrWebManagementUnavailable
@@ -475,6 +507,31 @@ func (s *Store) WebManagementURL(ctx context.Context, did syntax.DID, now time.T
 		state, err := s.ownerStateUsing(ctx, conn, did, now)
 		if err != nil {
 			return err
+		}
+		if s.managementProvider != nil {
+			provider, ok := s.checkoutProvider.(StripeSubscriptionCustomerProvider)
+			if !ok {
+				return ErrWebManagementUnavailable
+			}
+			return s.withCheckoutStanding(ctx, conn, did, func(effectCtx context.Context) error {
+				snapshot, err := s.managementProvider.ListCustomerSubscriptions(effectCtx, state.RevenueCatAppUserID)
+				if err != nil {
+					return fmt.Errorf("resolve management subscription: %w", err)
+				}
+				id, err := stripeManagementSubscription(snapshot, s.accessEnvironment)
+				if err != nil {
+					return err
+				}
+				customer, err := provider.SubscriptionCustomer(effectCtx, id)
+				if err != nil {
+					return fmt.Errorf("resolve management customer: %w", err)
+				}
+				destination, err = s.checkoutProvider.CreateManagement(effectCtx, customer, s.checkoutConfig.BillingReturnURL)
+				if err == nil && !ValidStripeManagementURL(destination) {
+					return ErrWebManagementUnavailable
+				}
+				return err
+			})
 		}
 		op, err := s.readCheckoutOperation(ctx, conn, state.BillingAccountID)
 		if errors.Is(err, pgx.ErrNoRows) {

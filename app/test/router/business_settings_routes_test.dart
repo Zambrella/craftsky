@@ -11,6 +11,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/pages/business_details_settings_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
@@ -119,7 +120,30 @@ void main() {
       expect(find.byType(ProductsSettingsPage), findsNothing);
     },
   );
+  for (final tier in [SubscriptionTier.business, SubscriptionTier.free]) {
+    testWidgets('Business details settings require confirmed $tier access', (
+      tester,
+    ) async {
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        accessTier: tier,
+        initialLocation: const BusinessDetailsRoute().location,
+        size: const Size(500, 800),
+      );
+      expect(
+        harness.router.state.matchedLocation,
+        tier == SubscriptionTier.business ? '/settings/business' : '/settings',
+      );
+      expect(
+        find.byType(BusinessDetailsSettingsPage),
+        tier == SubscriptionTier.business ? findsOneWidget : findsNothing,
+      );
+    });
+  }
+
   test('UT-018 owner routes use canonical settings locations', () {
+    expect(const BusinessDetailsRoute().location, '/settings/business');
     expect(
       const BusinessProductsRoute().location,
       '/settings/products',

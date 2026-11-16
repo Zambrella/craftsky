@@ -341,3 +341,12 @@ func TestFirstWebCustomerIsCreatedBeforeEmptySnapshotIsAccepted(t *testing.T) {
 		})
 	}
 }
+
+func TestSubscriptionSnapshotRetainsStoreIdentifierForManagement(t *testing.T) {
+	yes, no := true, false
+	resource := subscriptionResource{ID: "rc_subscription", StoreSubscriptionIdentifier: "sub_owner", ProductID: []byte(`"plus"`), Store: "stripe", Environment: "sandbox", Status: "active", GivesAccess: &yes, PendingPayment: &no}
+	snapshot, err := resource.snapshot()
+	if err != nil || snapshot.StoreSubscriptionIdentifier != "sub_owner" {
+		t.Fatalf("store identity lost: %v", err)
+	}
+}

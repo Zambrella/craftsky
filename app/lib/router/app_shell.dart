@@ -677,6 +677,8 @@ class _AppShellState extends ConsumerState<AppShell> {
               context,
             ).routeInformationProvider.value.uri.path;
             if (path ==
+                    '${RouteLocations.settings}/${RouteLocations.businessChild}' ||
+                path ==
                     '${RouteLocations.settings}/${RouteLocations.productsChild}' ||
                 path ==
                     '${RouteLocations.settings}/${RouteLocations.eventsChild}') {

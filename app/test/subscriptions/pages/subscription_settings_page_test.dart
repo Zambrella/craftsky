@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:ui' show SemanticsAction;
 
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
@@ -7,10 +9,129 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/session_registry_storage.dart';
+
 void main() {
+  for (final status in [
+    'will_renew',
+    'will_change_product',
+    'will_not_renew',
+    null,
+  ]) {
+    testWidgets('summary labels confirmed renewal correctly for $status', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _model(
+          store: 'app_store',
+          renewalStatus: status,
+          currentPeriodEndsAt: DateTime(2026, 12, 15, 15, 14),
+          accessEndsAt: DateTime(2027, 1, 15, 15, 14),
+        ),
+      );
+      final renewing =
+          status == 'will_renew' || status == 'will_change_product';
+      expect(
+        find.textContaining(
+          renewing ? 'Renews on Dec 15, 2026' : 'Access until Jan 15, 2027',
+        ),
+        findsOneWidget,
+      );
+      final card = tester.widget<CraftskyCard>(
+        find.byKey(const ValueKey('subscription-access-card')),
+      );
+      expect(card.clipBehavior, Clip.none);
+    });
+  }
+
+  for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+    testWidgets(
+      'subscribed ${tier.name} retains full cards and provider actions',
+      (tester) async {
+        var managed = 0;
+        final purchases = <SubscriptionTier>[];
+        await _pump(
+          tester,
+          _model(
+            store: 'app_store',
+            paidTier: tier,
+            accessEndsAt: DateTime(2026, 12, 15, 15, 14),
+            onManage: () => managed++,
+            onPurchase: purchases.add,
+          ),
+        );
+        expect(
+          find.textContaining('Renews on Dec 15, 2026'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Schedule posts,'), findsOneWidget);
+        expect(find.textContaining('Everything in Plus,'), findsOneWidget);
+        expect(find.text('£2.49 / month'), findsOneWidget);
+        expect(find.text('£8.99 / month'), findsOneWidget);
+        for (final label in [
+          'Manage',
+          if (tier == SubscriptionTier.plus) 'Upgrade' else 'Downgrade',
+        ]) {
+          await tester.ensureVisible(find.text(label));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(label));
+        }
+        expect(managed, 2);
+        expect(purchases, isEmpty);
+      },
+    );
+  }
+
+  testWidgets(
+    'pull refresh is unavailable while billing actions block refresh',
+    (tester) async {
+      var calls = 0;
+      await _pump(
+        tester,
+        _model(refreshEnabled: false, onRefresh: () => calls++),
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'pull refresh waits for subscription refresh and allows another pull',
+    (tester) async {
+      var calls = 0;
+      final completed = Completer<void>();
+      await _pump(
+        tester,
+        _model(
+          onRefresh: () {
+            calls++;
+            return completed.future;
+          },
+        ),
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(calls, 1);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(calls, 1);
+      completed.complete();
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'pending checkout cards explain the block and offer safe cancellation',
     (tester) async {
@@ -92,12 +213,14 @@ void main() {
       expect(find.text('Complimentary access'), findsOneWidget);
       expect(find.textContaining('Plus until'), findsOneWidget);
       expect(find.textContaining('paid billing immediately'), findsOneWidget);
-      expect(find.text('Manage subscription'), findsNothing);
+      expect(find.text('Manage'), findsNothing);
       expect(find.text('Subscribe to Plus'), findsOneWidget);
       await tester.ensureVisible(find.text('Subscribe to Business'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Subscribe to Business'));
       expect(selected, SubscriptionTier.business);
       await tester.ensureVisible(find.text('Subscribe to Plus'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Subscribe to Plus'));
       expect(selected, SubscriptionTier.plus);
     },
@@ -108,7 +231,7 @@ void main() {
     (tester) async {
       await _pump(tester, _model(store: 'app_store', promo: true));
       expect(find.text('Complimentary access'), findsOneWidget);
-      expect(find.text('Manage subscription'), findsOneWidget);
+      expect(find.text('Manage'), findsOneWidget);
       expect(find.textContaining('paid billing immediately'), findsNothing);
       expect(find.text('Subscribe to Plus'), findsNothing);
     },
@@ -128,7 +251,7 @@ void main() {
       await _pump(tester, _model(onPurchase: (tier) => selected = tier));
       expect(
         find.textContaining('Business includes everything in Plus'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.textContaining('billing owner'), findsNothing);
       expect(find.textContaining('Assign'), findsNothing);
@@ -147,7 +270,7 @@ void main() {
         tester,
         _model(store: 'app_store', onPurchase: (tier) => selected = tier),
       );
-      expect(find.text('Manage subscription'), findsOneWidget);
+      expect(find.text('Manage'), findsOneWidget);
       expect(find.text('Restore purchases'), findsOneWidget);
       expect(find.textContaining('Assigned to'), findsNothing);
       await tester.tap(
@@ -157,12 +280,13 @@ void main() {
     },
   );
   testWidgets(
-    'Stripe access hides native checkout and external purchase promotion',
+    'Stripe access offers management and upgrade without native checkout',
     (tester) async {
       await _pump(tester, _model(store: 'stripe'));
       expect(find.text('Current access: Plus'), findsOneWidget);
       expect(find.text('View details'), findsNothing);
-      expect(find.text('Manage subscription'), findsNothing);
+      expect(find.text('Manage'), findsOneWidget);
+      expect(find.text('Upgrade'), findsOneWidget);
       expect(find.textContaining('web'), findsNothing);
       expect(find.textContaining('Stripe'), findsNothing);
     },
@@ -186,22 +310,32 @@ void main() {
 
 SubscriptionPageModel _model({
   String? store,
+  SubscriptionTier paidTier = SubscriptionTier.plus,
+  DateTime? accessEndsAt,
+  DateTime? currentPeriodEndsAt,
+  String? renewalStatus = 'will_renew',
+  VoidCallback? onManage,
   bool promo = false,
   bool lifetimePromo = false,
   bool actionsEnabled = true,
+  bool refreshEnabled = true,
   bool pendingCheckout = false,
   VoidCallback? onCancelCheckout,
+  FutureOr<void> Function()? onRefresh,
   ValueChanged<SubscriptionTier>? onPurchase,
   SubscriptionOperationNotice? notice,
 }) => SubscriptionPageModel(
   access: SubscriptionAccess(
     did: Did.parse('did:plc:alice'),
-    effectiveTier: store == null && !promo
-        ? SubscriptionTier.free
-        : SubscriptionTier.plus,
+    effectiveTier: store == null && !promo ? SubscriptionTier.free : paidTier,
+    accessEndsAt: accessEndsAt,
     givesAccess: store != null || promo,
   ),
   billingAvailability: BillingAvailability.available,
+  tierPrices: const {
+    SubscriptionTier.plus: '£2.49',
+    SubscriptionTier.business: '£8.99',
+  },
   nativeStore: 'app_store',
   billingState: BillingState(
     billingAccountId: '10000000-0000-4000-8000-000000000001',
@@ -221,7 +355,8 @@ SubscriptionPageModel _model({
               givesAccess: true,
               pendingPayment: false,
               anomaly: 'none',
-              autoRenewalStatus: 'will_renew',
+              autoRenewalStatus: renewalStatus,
+              currentPeriodEndsAt: currentPeriodEndsAt,
             ),
           ],
     licenses: store == null
@@ -230,7 +365,7 @@ SubscriptionPageModel _model({
             BillingLicense(
               id: '40000000-0000-4000-8000-000000000001',
               subscriptionId: '30000000-0000-4000-8000-000000000001',
-              tier: SubscriptionTier.plus,
+              tier: paidTier,
               assignedDid: Did.parse('did:plc:alice'),
               assignable: false,
               anomaly: 'none',
@@ -250,18 +385,27 @@ SubscriptionPageModel _model({
   operationNotice: notice,
   onPurchase: actionsEnabled ? onPurchase ?? (_) {} : null,
   onRestore: () {},
-  onManage: () {},
-  onRefresh: () {},
+  onManage: onManage ?? () {},
+  onRefresh: refreshEnabled ? onRefresh ?? () {} : null,
   onCancelCheckout: onCancelCheckout,
 );
 
 Future<void> _pump(WidgetTester tester, SubscriptionPageModel model) async {
   await tester.pumpWidget(
-    MaterialApp(
-      theme: AppTheme.lightThemeData,
-      localizationsDelegates: appLocalizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: SubscriptionPageView(model: model),
+    ProviderScope(
+      overrides: [
+        // This override belongs to the test harness root scope.
+        // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          InMemorySessionRegistryStorage(),
+        ),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SubscriptionPageView(model: model),
+      ),
     ),
   );
   await tester.pumpAndSettle();

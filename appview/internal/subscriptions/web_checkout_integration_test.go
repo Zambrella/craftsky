@@ -577,3 +577,43 @@ func TestEmbeddedCheckoutRetainsPresentationAndResumesSameOperation(t *testing.T
 		t.Fatalf("changed pending mode: %v", err)
 	}
 }
+
+type sdkManagementCheckout struct{ *checkoutFake }
+
+func (f *sdkManagementCheckout) SubscriptionCustomer(_ context.Context, id string) (string, error) {
+	if id != "si_sdkOwned" {
+		return "", ErrWebManagementUnavailable
+	}
+	return "cus_sdkOwned", nil
+}
+
+type managementSnapshot struct {
+	customer uuid.UUID
+	snapshot CompleteSnapshot
+}
+
+func (f *managementSnapshot) ListCustomerSubscriptions(_ context.Context, id uuid.UUID) (CompleteSnapshot, error) {
+	if id != f.customer {
+		return CompleteSnapshot{}, ErrWebManagementUnavailable
+	}
+	return f.snapshot, nil
+}
+func TestStripeSDKManagementDoesNotRequireLegacyCheckout(t *testing.T) {
+	store, _, fake, did, account, now := checkoutFixture(t)
+	sdk := &sdkManagementCheckout{fake}
+	if err := store.SetWebCheckoutProvider(sdk, store.checkoutConfig); err != nil {
+		t.Fatal(err)
+	}
+	source := &managementSnapshot{customer: account.RevenueCatAppUserID, snapshot: CompleteSnapshot{Complete: true, Subscriptions: []ProviderSubscriptionSnapshot{{Store: "stripe", Environment: "production", GivesAccess: true, StoreSubscriptionIdentifier: "si_sdkOwned"}}}}
+	store.SetManagementProvider(source)
+	if _, err := store.WebManagementURL(t.Context(), did, now); err != nil {
+		t.Fatal(err)
+	}
+	if fake.portalCustomer != "cus_sdkOwned" || len(fake.requests) != 0 {
+		t.Fatal("portal did not use SDK owner")
+	}
+	source.customer = uuid.New()
+	if _, err := store.WebManagementURL(t.Context(), did, now); err == nil {
+		t.Fatal("another customer accepted")
+	}
+}

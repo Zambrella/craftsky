@@ -122,20 +122,21 @@ type BillingLicense struct {
 
 // ProviderSubscriptionSnapshot carries one authoritative subscription returned by the billing provider.
 type ProviderSubscriptionSnapshot struct {
-	ID                    string
-	ProductID             string
-	PendingProductID      string
-	Store                 string
-	Environment           string
-	Status                string
-	GivesAccess           bool
-	PendingPayment        bool
-	AutoRenewalStatus     string
-	StartsAt              *time.Time
-	CurrentPeriodStartsAt *time.Time
-	CurrentPeriodEndsAt   *time.Time
-	EndsAt                *time.Time
-	Entitlements          []ProviderEntitlementSnapshot
+	StoreSubscriptionIdentifier string
+	ID                          string
+	ProductID                   string
+	PendingProductID            string
+	Store                       string
+	Environment                 string
+	Status                      string
+	GivesAccess                 bool
+	PendingPayment              bool
+	AutoRenewalStatus           string
+	StartsAt                    *time.Time
+	CurrentPeriodStartsAt       *time.Time
+	CurrentPeriodEndsAt         *time.Time
+	EndsAt                      *time.Time
+	Entitlements                []ProviderEntitlementSnapshot
 }
 
 // ProviderEntitlementSnapshot carries provider-verified entitlement identity.

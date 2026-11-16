@@ -143,20 +143,21 @@ type subscriptionPage struct {
 }
 
 type subscriptionResource struct {
-	ID                    string           `json:"id"`
-	ProductID             json.RawMessage  `json:"product_id"`
-	Store                 string           `json:"store"`
-	Environment           string           `json:"environment"`
-	Status                string           `json:"status"`
-	GivesAccess           *bool            `json:"gives_access"`
-	PendingPayment        *bool            `json:"pending_payment"`
-	AutoRenewalStatus     string           `json:"auto_renewal_status"`
-	StartsAt              *int64           `json:"starts_at"`
-	CurrentPeriodStartsAt *int64           `json:"current_period_starts_at"`
-	CurrentPeriodEndsAt   json.RawMessage  `json:"current_period_ends_at"`
-	EndsAt                json.RawMessage  `json:"ends_at"`
-	Entitlements          *entitlementPage `json:"entitlements"`
-	PendingChanges        *struct {
+	StoreSubscriptionIdentifier string           `json:"store_subscription_identifier"`
+	ID                          string           `json:"id"`
+	ProductID                   json.RawMessage  `json:"product_id"`
+	Store                       string           `json:"store"`
+	Environment                 string           `json:"environment"`
+	Status                      string           `json:"status"`
+	GivesAccess                 *bool            `json:"gives_access"`
+	PendingPayment              *bool            `json:"pending_payment"`
+	AutoRenewalStatus           string           `json:"auto_renewal_status"`
+	StartsAt                    *int64           `json:"starts_at"`
+	CurrentPeriodStartsAt       *int64           `json:"current_period_starts_at"`
+	CurrentPeriodEndsAt         json.RawMessage  `json:"current_period_ends_at"`
+	EndsAt                      json.RawMessage  `json:"ends_at"`
+	Entitlements                *entitlementPage `json:"entitlements"`
+	PendingChanges              *struct {
 		Product *struct {
 			ID string `json:"id"`
 		} `json:"product"`
@@ -241,7 +242,7 @@ func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscript
 		pendingProductID = resource.PendingChanges.Product.ID
 	}
 	return subscriptions.ProviderSubscriptionSnapshot{
-		ID: resource.ID, ProductID: product, PendingProductID: pendingProductID, Store: resource.Store,
+		StoreSubscriptionIdentifier: resource.StoreSubscriptionIdentifier, ID: resource.ID, ProductID: product, PendingProductID: pendingProductID, Store: resource.Store,
 		Environment: resource.Environment, Status: resource.Status,
 		GivesAccess: *resource.GivesAccess, PendingPayment: *resource.PendingPayment,
 		AutoRenewalStatus: resource.AutoRenewalStatus,

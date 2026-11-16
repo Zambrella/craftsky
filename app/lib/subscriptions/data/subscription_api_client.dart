@@ -10,12 +10,19 @@ abstract interface class SubscriptionApi {
   Future<void> requestReconciliation();
 }
 
+abstract interface class SubscriptionManagementApi {
+  Future<Uri> managementURL();
+}
+
 abstract interface class PendingCheckoutCancellationApi {
   Future<void> cancelPendingCheckout();
 }
 
 final class SubscriptionApiClient
-    implements SubscriptionApi, PendingCheckoutCancellationApi {
+    implements
+        SubscriptionApi,
+        PendingCheckoutCancellationApi,
+        SubscriptionManagementApi {
   const new(this._dio);
 
   final Dio _dio;
@@ -47,6 +54,23 @@ final class SubscriptionApiClient
   @override
   Future<void> cancelPendingCheckout() => unwrapApi(() async {
     await _dio.post<Map<String, dynamic>>('/v1/billing/web-checkout/cancel');
+  });
+
+  @override
+  Future<Uri> managementURL() => unwrapApi(() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/billing/web-management',
+    );
+    final raw = response.data?['url'];
+    if (raw is! String ||
+        raw.contains(RegExp(r'[\x00-\x20\x7f]')) ||
+        RegExp(
+              r'^https://billing\.stripe\.com/p/session(?:/[A-Za-z0-9_-]+(?:#[^\s]+)?|\?secret=[A-Za-z0-9._~-]+)$',
+            ).stringMatch(raw) !=
+            raw) {
+      throw const FormatException('Subscription management unavailable');
+    }
+    return Uri.parse(raw);
   });
 
   @override

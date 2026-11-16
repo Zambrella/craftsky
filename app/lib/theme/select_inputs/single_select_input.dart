@@ -440,7 +440,9 @@ class _CraftskySingleSelectInputState<T>
                               focusNode: _searchFocusNode,
                               enabled: widget.enabled,
                               decoration: InputDecoration.collapsed(
-                                hintText: selectedLabel ?? emptySelectionText,
+                                hintText: _open
+                                    ? widget.searchHintText
+                                    : selectedLabel ?? emptySelectionText,
                                 hintStyle: selectedLabel == null
                                     ? Theme.of(
                                         context,

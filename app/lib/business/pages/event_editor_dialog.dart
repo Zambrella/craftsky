@@ -13,6 +13,7 @@ import 'package:craftsky_app/business/widgets/event_form.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -46,6 +47,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
     this.initialDraft,
     this.onSubmit,
     this.pickImage,
+    this.editImage,
     this.uploadImage,
     this.confirmDiscard,
     super.key,
@@ -58,6 +60,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
   final BusinessEventDraft? initialDraft;
   final EventDraftSubmit? onSubmit;
   final EventImagePicker? pickImage;
+  final BasicImageEditor? editImage;
   final EventImageUpload? uploadImage;
   final Future<bool> Function()? confirmDiscard;
 
@@ -164,6 +167,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                     key: _formKey,
                     initial: _initial,
                     pickImage: widget.pickImage,
+                    editImage: widget.editImage,
                     enabled: !_saving && !_reloading && !conflict,
                     onChanged: () {
                       if (!_dirty) setState(() => _dirty = true);

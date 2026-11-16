@@ -14,6 +14,8 @@
 		required = false,
 		disabled = false,
 		canAddVideo = false,
+		maxImages = 8,
+		backLabel = 'Back to post',
 		onadd,
 		onchange,
 		onBusyChange,
@@ -24,6 +26,8 @@
 		required?: boolean;
 		disabled?: boolean;
 		canAddVideo?: boolean;
+		maxImages?: number;
+		backLabel?: string;
 		onadd: (files: FileList | null) => Promise<void>;
 		onchange: (images: DraftMedia[]) => void;
 		onBusyChange: (id: string, busy: boolean) => void;
@@ -137,13 +141,14 @@
 				<span aria-hidden="true">T</span>{described} / {images.length} described
 			</p>
 			<p>
-				{images.length}/8 · drag to reorder · first is the cover
+				{images.length}/{maxImages}{#if maxImages > 1}
+					· drag to reorder · first is the cover{/if}
 			</p>
 		{/if}
 	</div>
 {/snippet}
 {#snippet picker(video: boolean)}
-	{#if images.length < 8}
+	{#if images.length < maxImages}
 		{#if video}
 			<details class="media-picker" use:contextMenu>
 				<summary
@@ -158,7 +163,7 @@
 					}}
 					><span class="add-icon"><Icon name="plus" size={34} /></span><span
 						><strong>Add photos or a video</strong><small
-							>Choose up to 8 photos or a video, or drag and drop.</small
+							>Choose up to {maxImages} photos or a video, or drag and drop.</small
 						></span
 					></summary
 				>
@@ -166,7 +171,7 @@
 					<button type="button" {disabled} onclick={() => photoInput?.click()}
 						><Icon name="image" /><span
 							>Choose photos<small
-								>Up to {8 - images.length} photos · 40 MB each</small
+								>Up to {maxImages - images.length} photos · 40 MB each</small
 							></span
 						></button
 					>
@@ -185,7 +190,7 @@
 				type="file"
 				aria-label="Add images"
 				accept="image/jpeg,image/png,image/webp"
-				multiple
+				multiple={maxImages > 1}
 				{disabled}
 				onchange={(event) => {
 					void add(event.currentTarget.files);
@@ -208,15 +213,19 @@
 				<span class="add-icon"><Icon name="plus" size={34} /></span>
 				<span
 					><strong>{images.length ? 'Add another photo' : 'Add a photo'}</strong
-					>{#if images.length}<small>Up to {8 - images.length} more</small
-						>{/if}<span class="drop-hint">Or drag and drop photos here</span
+					>{#if images.length}<small
+							>Up to {maxImages - images.length} more</small
+						>{/if}<span class="drop-hint"
+						>{maxImages === 1
+							? 'Or drag and drop a photo here'
+							: 'Or drag and drop photos here'}</span
 					></span
 				>
 				<input
 					type="file"
 					aria-label="Add images"
 					accept="image/jpeg,image/png,image/webp"
-					multiple
+					multiple={maxImages > 1}
 					{disabled}
 					onchange={(event) => {
 						void add(event.currentTarget.files);
@@ -227,17 +236,23 @@
 {/snippet}
 {#if images.length}
 	<button type="button" class="photo-summary" {disabled} onclick={show}>
-		<span class="summary-title">Photos<Icon name="edit" /></span>
+		<span class="summary-title"
+			>{maxImages === 1 ? 'Photo' : 'Photos'}<Icon name="edit" /></span
+		>
 		<span class="thumbnails"
 			>{#each images as media (media.id)}<PhotoThumbnail {media} />{/each}</span
 		>
-		<span>Reorder photos, remove them or add alt text</span><small
-			>{described} / {images.length} described</small
-		>
+		<span
+			>{maxImages === 1
+				? 'Edit photo, remove it or add alt text'
+				: 'Reorder photos, remove them or add alt text'}</span
+		><small>{described} / {images.length} described</small>
 	</button>
 	<div class="clear-photos">
 		<button type="button" {disabled} onclick={() => onchange([])}
-			><Icon name="trash" />Clear photos</button
+			><Icon name="trash" />{maxImages === 1
+				? 'Clear photo'
+				: 'Clear photos'}</button
 		>
 	</div>
 {:else}
@@ -264,7 +279,7 @@
 		<header class="photo-page-header">
 			<button
 				type="button"
-				aria-label="Back to post"
+				aria-label={backLabel}
 				disabled={disabled || editing.length > 0}
 				onclick={close}><Icon name="back" /></button
 			>
@@ -287,6 +302,7 @@
 						{media}
 						{index}
 						count={images.length}
+						allowReorder={maxImages > 1}
 						{disabled}
 						nativePhoto
 						onBusyChange={(value) => onBusyChange(media.id, value)}

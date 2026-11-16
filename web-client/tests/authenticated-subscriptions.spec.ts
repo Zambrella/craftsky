@@ -101,7 +101,13 @@ async function billingFixture(
 				webCheckoutAvailable: available,
 				promotionalGrants: promotion.grants,
 				subscriptions,
-				licenses: []
+				licenses: subscriptions.map((sub) => ({
+					id: `license-${sub.id}`,
+					subscriptionId: sub.id,
+					tier: sub.tier || 'plus',
+					assignable: false,
+					anomaly: 'none'
+				}))
 			}
 		})
 	);
@@ -159,7 +165,7 @@ for (const tier of ['plus', 'business'] as const)
 			page.getByRole('region', { name: 'Current subscription' })
 		).toHaveCount(0);
 		await expect(
-			page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+			page.getByRole('button', { name: 'Manage', exact: true })
 		).toHaveCount(0);
 		await expect(
 			page.getByRole('button', { name: 'Subscribe to Plus', exact: true })
@@ -213,10 +219,10 @@ test('paid billing stays authoritative when complimentary access overlaps', asyn
 		page.getByRole('region', { name: 'Complimentary CraftSky Plus' })
 	).toBeVisible();
 	await expect(
-		page.getByRole('region', { name: 'Current subscription' })
-	).toContainText('CraftSky Business');
+		page.getByRole('region', { name: 'CraftSky Business', exact: true })
+	).toContainText('Active');
 	await expect(
-		page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+		page.getByRole('button', { name: 'Manage', exact: true })
 	).toBeVisible();
 	await expect(
 		page.getByRole('button', {
@@ -236,7 +242,7 @@ test('ended complimentary access returns to Free without a billing obligation', 
 	});
 	await page.goto('/settings/subscriptions');
 	await expect(
-		page.getByRole('heading', { name: 'Current access: Free' })
+		page.getByRole('heading', { name: 'Current access: Standard' })
 	).toBeVisible();
 	await expect(
 		page.getByRole('region', { name: 'Complimentary CraftSky Plus' })
@@ -245,7 +251,7 @@ test('ended complimentary access returns to Free without a billing obligation', 
 		page.getByRole('button', { name: 'View Plus details', exact: true })
 	).toBeEnabled();
 	await expect(
-		page.getByRole('button', { name: 'Manage in Stripe', exact: true })
+		page.getByRole('button', { name: 'Manage', exact: true })
 	).toHaveCount(0);
 });
 
@@ -297,7 +303,7 @@ for (const tier of ['plus', 'business'])
 		);
 		await page.goto('/settings/subscriptions?checkout=success');
 		await expect(
-			page.getByRole('heading', { name: 'Current access: Free' })
+			page.getByRole('heading', { name: 'Current access: Standard' })
 		).toBeVisible();
 		await page
 			.getByRole('button', {
@@ -344,7 +350,7 @@ test('hides purchases while Stripe payment or a canceled native subscription is 
 		]);
 		await page.goto('/settings/subscriptions');
 		await expect(
-			page.getByRole('region', { name: 'Current subscription' })
+			page.getByRole('region', { name: 'CraftSky Plus', exact: true })
 		).toBeVisible();
 		await expect(
 			page.getByRole('button', { name: /^View (Plus|Business) details$/ })
@@ -399,7 +405,7 @@ test('opens an account-specific Stripe portal without accepting a customer ident
 		}
 	]);
 	const portal =
-		'https://billing.stripe.com/p/session/test_fixture#portal%2Fcapability';
+		'https://billing.stripe.com/p/session?secret=test_fixture_portal';
 	const requests: { body: string | null; account: string | undefined }[] = [];
 	await page.route(`**${appview}/billing/web-management`, async (route) => {
 		requests.push({
@@ -415,15 +421,17 @@ test('opens an account-specific Stripe portal without accepting a customer ident
 		})
 	);
 	await page.goto('/settings/subscriptions');
-	await expect(page.getByText('Billed through Stripe.')).toBeVisible();
-	await page
-		.getByRole('button', { name: 'Manage in Stripe', exact: true })
-		.click();
+	await expect(
+		page
+			.getByRole('region', { name: 'CraftSky Plus', exact: true })
+			.getByText('Active', { exact: true })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Manage', exact: true }).click();
 	await expect(page).toHaveURL(portal);
 	expect(requests).toEqual([{ body: null, account: alice.id }]);
 });
 
-test('shows a safe receipt fallback when account-specific Stripe management is unavailable', async ({
+test('shows a safe retry message when account-specific Stripe management is unavailable', async ({
 	page
 }) => {
 	await billingFixture(page, [
@@ -444,11 +452,9 @@ test('shows a safe receipt fallback when account-specific Stripe management is u
 		})
 	);
 	await page.goto('/settings/subscriptions');
-	await page
-		.getByRole('button', { name: 'Manage in Stripe', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'Manage', exact: true }).click();
 	await expect(page.getByRole('alert')).toContainText(
-		'Use the management link in your Stripe receipt.'
+		'Subscription management is temporarily unavailable. Please try again.'
 	);
 	await expect(page).toHaveURL(/\/settings\/subscriptions$/);
 	await expect(page.locator('body')).not.toContainText(privateId);
@@ -475,7 +481,7 @@ for (const [initial, updated] of [
 		await page.goto('/settings/subscriptions');
 		await expect(
 			page.getByRole('heading', {
-				name: `Current access: ${initial === 'plus' ? 'Plus' : 'Free'}`
+				name: `Current access: ${initial === 'plus' ? 'Plus' : 'Standard'}`
 			})
 		).toBeVisible();
 		const documentStarted = await page.evaluate(() => performance.timeOrigin);
@@ -487,7 +493,7 @@ for (const [initial, updated] of [
 		);
 		await expect(
 			page.getByRole('heading', {
-				name: `Current access: ${updated === 'plus' ? 'Plus' : 'Free'}`
+				name: `Current access: ${updated === 'plus' ? 'Plus' : 'Standard'}`
 			})
 		).toBeVisible();
 		await page
@@ -528,7 +534,7 @@ test('monthly plan cards match native copy and show actual web catalog prices', 
 			'Your subscription belongs to this CraftSky account. Business includes everything in Plus.',
 			{ exact: true }
 		)
-	).toBeVisible();
+	).toHaveCount(0);
 	for (const [tier, price] of [
 		['Plus', '£2.49 / month'],
 		['Business', '£8.99 / month']
@@ -578,7 +584,7 @@ test('catalog failures do not hide access or invent a price and retry on page re
 	);
 	await page.goto('/settings/subscriptions');
 	await expect(
-		page.getByRole('heading', { name: 'Current access: Free' })
+		page.getByRole('heading', { name: 'Current access: Standard' })
 	).toBeVisible();
 	await expect(
 		page.getByText('Price unavailable', { exact: true })
@@ -705,7 +711,7 @@ test('paywall closes on Escape without direct-checkout cancellation and SDK succ
 		.click();
 	await expect(dialog).toHaveCount(0);
 	await expect(
-		page.getByRole('heading', { name: 'Current access: Free' })
+		page.getByRole('heading', { name: 'Current access: Standard' })
 	).toBeVisible();
 	expect(requests).toEqual([
 		{ tier: 'plus' },
@@ -813,6 +819,161 @@ for (const viewport of [
 			page.getByRole('button', { name: 'View Plus details', exact: true })
 		).toBeFocused();
 		await expect(
-			page.getByRole('heading', { name: 'Current access: Free' })
+			page.getByRole('heading', { name: 'Current access: Standard' })
 		).toBeVisible();
+	});
+
+for (const tier of ['plus', 'business'] as const)
+	for (const width of [360, 1280])
+		test(`active ${tier} has a top-right label at ${width}px`, async ({
+			page
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			const subscription = {
+				id: 'current',
+				productId: tier,
+				tier,
+				store: 'stripe',
+				status: 'active',
+				givesAccess: true,
+				pendingPayment: false,
+				anomaly: 'none'
+			};
+			await billingFixture(page, [subscription]);
+			await page.route(`**${appview}/billing/account`, (route) =>
+				route.fulfill({
+					json: {
+						billingAccountId: 'account',
+						revenueCatAppUserId: privateId,
+						requestedGeneration: 1,
+						reconciledGeneration: 1,
+						reconciliationStale: false,
+						reconciledAt: new Date().toISOString(),
+						webCheckoutAvailable: true,
+						subscriptions: [subscription],
+						promotionalGrants: [],
+						licenses: [
+							{
+								id: 'license',
+								subscriptionId: 'current',
+								tier,
+								assignable: true,
+								anomaly: 'none'
+							}
+						]
+					}
+				})
+			);
+			await page.route(`**${appview}/subscriptions/access`, (route) =>
+				route.fulfill({
+					json: {
+						did: alice.did,
+						effectiveTier: tier,
+						givesAccess: true,
+						accessEndsAt: '2026-12-15T15:14:00Z'
+					}
+				})
+			);
+			await page.goto('/settings/subscriptions');
+			await expect(
+				page.getByText('Access until Dec 15, 2026, 3:14 PM', { exact: true })
+			).toBeVisible();
+			const card = page.getByRole('region', {
+				name: `CraftSky ${tier === 'plus' ? 'Plus' : 'Business'}`,
+				exact: true
+			});
+			const badge = card.locator('[data-subscription-status]');
+			await expect(badge).toHaveText('Active');
+			const position = await badge.evaluate((el) => {
+				const badge = el.getBoundingClientRect();
+				const card = el.closest('section')!.getBoundingClientRect();
+				return {
+					right: card.right - badge.right,
+					top: badge.top - card.top,
+					background: getComputedStyle(el).backgroundColor,
+					color: getComputedStyle(el).color
+				};
+			});
+			expect(position.right).toBeLessThan(25);
+			expect(position.top).toBeLessThan(25);
+			expect(position.background).not.toBe('rgba(0, 0, 0, 0)');
+			expect(position.color).not.toBe(position.background);
+			await expect(card.locator('.tier-status')).toHaveCount(0);
+			await expect(page.locator('[data-subscription-status]')).toHaveCount(1);
+			for (const [name, price] of [
+				['Plus', '£2.49 / month'],
+				['Business', '£8.99 / month']
+			]) {
+				const plan = page.getByRole('region', {
+					name: `CraftSky ${name}`,
+					exact: true
+				});
+				await expect(plan.getByText(price, { exact: true })).toBeVisible();
+				await expect(plan.locator('.tier-benefits')).not.toBeEmpty();
+			}
+			await expect(
+				page.getByRole('region', { name: 'Current subscription', exact: true })
+			).toHaveCount(0);
+			let managed = 0;
+			await page.route(`**${appview}/billing/web-management`, (route) => {
+				expect(route.request().postData()).toBeNull();
+				managed++;
+				return route.fulfill({
+					json: { url: 'https://billing.stripe.com/p/session/test_fixture' }
+				});
+			});
+			await page.route('https://billing.stripe.com/**', (route) =>
+				route.fulfill({
+					contentType: 'text/html',
+					body: '<h1>Subscription portal</h1>'
+				})
+			);
+			for (const action of [
+				'Manage',
+				tier === 'plus' ? 'Upgrade' : 'Downgrade'
+			]) {
+				await page.getByRole('button', { name: action, exact: true }).click();
+				await expect(
+					page.getByRole('heading', { name: 'Subscription portal' })
+				).toBeVisible();
+				await page.goto('/settings/subscriptions');
+			}
+			expect(managed).toBe(2);
+		});
+
+for (const [autoRenewalStatus, expected] of [
+	['will_renew', 'Renews on Dec 15, 2026, 3:14 PM'],
+	['will_change_product', 'Renews on Dec 15, 2026, 3:14 PM'],
+	['will_not_renew', 'Access until Jan 15, 2027, 3:14 PM'],
+	[undefined, 'Access until Jan 15, 2027, 3:14 PM']
+] as const)
+	test(`summary respects renewal state ${autoRenewalStatus}`, async ({
+		page
+	}) => {
+		await billingFixture(page, [
+			{
+				id: 'current',
+				productId: 'plus',
+				tier: 'plus',
+				store: 'stripe',
+				status: 'active',
+				givesAccess: true,
+				pendingPayment: false,
+				anomaly: 'none',
+				autoRenewalStatus,
+				currentPeriodEndsAt: '2026-12-15T15:14:00Z'
+			}
+		]);
+		await page.route(`**${appview}/subscriptions/access`, (route) =>
+			route.fulfill({
+				json: {
+					did: alice.did,
+					effectiveTier: 'plus',
+					givesAccess: true,
+					accessEndsAt: '2027-01-15T15:14:00Z'
+				}
+			})
+		);
+		await page.goto('/settings/subscriptions');
+		await expect(page.getByText(expected, { exact: true })).toBeVisible();
 	});

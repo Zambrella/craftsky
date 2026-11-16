@@ -2,6 +2,15 @@ import type { JsonObject } from '#lib/api/types.ts';
 import { safeLink } from './model';
 import type { BusinessEvent } from '#lib/api/types.ts';
 
+export function businessEventLink(did: string, rkey: string): string {
+	return (
+		'https://app.craftsky.social/events/' +
+		encodeURIComponent(did) +
+		'/' +
+		encodeURIComponent(rkey)
+	);
+}
+
 export function eventDisplay(
 	event: Pick<BusinessEvent, 'startsAt' | 'endsAt' | 'isAllDay'>,
 	locale?: string

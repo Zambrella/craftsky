@@ -139,11 +139,15 @@ to effective access until expiry or revocation, without blocking an early paid
 subscription. Clients show complimentary expiry and explain that subscribing
 starts paid billing immediately. Paid and promotional overlap grants the highest
 valid tier; only paid duplicates trigger the billing anomaly protections.
-Web tier changes remain deferred, and native
-apps contain no web purchase promotion. Subscription management creates a
-customer-specific Stripe portal session through authenticated AppView for
-retained direct checkouts; SDK purchases without that mapping use the receipt
-management fallback. Shared payer email is not an account selector. Billing state exposes retained checkout
+Paid subscribers retain both full plan cards on mobile and web. The summary
+shows Standard/Plus/Business and the access expiry, while the paid plan shows
+Active/Manage and the other plan shows Upgrade or Downgrade. These actions open
+the existing provider's management flow. Native store purchases use RevenueCat
+Customer Center on mobile and store management on web. Stripe management uses
+a customer-specific AppView portal, resolving SDK purchases through a complete
+RevenueCat owner snapshot and a merchant/environment-verified Stripe subscription.
+No new web purchase is offered inside mobile to replace an existing plan.
+Shared payer email is not an account selector. Billing state exposes retained checkout
 work through `webCheckoutPending` across environments, preventing native
 repurchase before RevenueCat indexing. Unresolved checkout operations also block
 account deletion until provider terminal state is established. See

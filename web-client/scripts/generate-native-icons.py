@@ -28,6 +28,8 @@ aliases = {
     "more": "dotsThree", "refresh": "arrowsClockwise", "filter": "funnelSimple",
     "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "check": "check", "edit": "pencilSimple",
     "external": "arrowSquareOut", "link": "link", "pin": "pushPin", "shield": "shieldCheck",
+    "eventAvailable": "calendarCheck", "upcoming": "calendar", "history": "clockCounterClockwise",
+    "people": "users", "businessIdentity": "identificationBadge", "publish": "uploadSimple",
     "calendar": "calendarBlank", "image": "imageSquare", "mail": "envelope",
     "location": "mapPin", "logout": "signOut", "moon": "moon", "globe": "globe",
     "info": "info", "lock": "lockKey", "business": "storefront", "star": "sparkle",

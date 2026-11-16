@@ -657,8 +657,8 @@
 						/>{:else}<EmptyState
 							title="Products"
 							detail={profile.did === session?.did
-								? 'Add products to show what your business offers.'
-								: 'No products shared yet.'}
+								? 'Add featured products to help visitors find your work.'
+								: 'No featured products yet.'}
 							icon="business"
 							>{#snippet actions()}{#if profile?.did === session?.did}<a
 										href="/settings/products">Manage products</a
@@ -671,8 +671,8 @@
 						/>{:else}{#if !contentWork.busy && !contentWork.error}<EmptyState
 								title="Upcoming events"
 								detail={profile.did === session?.did
-									? 'Share your next workshop, market or event.'
-									: 'No upcoming events.'}
+									? 'Add an event appearance to share what’s coming up.'
+									: 'No upcoming events yet.'}
 								icon="calendar"
 								>{#snippet actions()}{#if profile?.did === session?.did}<a
 											href="/settings/events">Manage events</a
@@ -955,13 +955,16 @@
 	}
 	.profile-about h3 {
 		font-size: 12px;
+		line-height: 1.2;
+		letter-spacing: 1.68px;
 		color: var(--ink-2);
-		font-weight: 500;
+		font-weight: 600;
 		margin: 0 0 4px;
 	}
 	.profile-about p {
 		margin: 0;
-		font-size: 15px;
+		font-size: 14px;
+		line-height: 1.5;
 	}
 
 	.profile-actions > .button,
@@ -1012,6 +1015,6 @@
 		height: 40px;
 	}
 	.profile-identity .business-label {
-		color: var(--ink);
+		color: var(--primary);
 	}
 </style>

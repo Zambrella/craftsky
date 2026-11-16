@@ -65,8 +65,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
   final Future<void> Function(String imageId)? onEditImage;
   final String keyPrefix;
 
-  /// Project/post composers use a thumbnail summary with a separate editor.
-  /// Single-image business forms retain their inline attachment controls.
+  /// Use a thumbnail summary with a separate photo-details page.
   final bool useDetailsRoute;
 
   /// Watched directly by the visible details route.
@@ -143,6 +142,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                         ? onEditImage
                         : null,
                     keyPrefix: keyPrefix,
+                    allowReorder: maxImages > 1,
                     image: image,
                     altTextController: altTextControllerFor(image),
                     index: index,
@@ -181,6 +181,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                   sizeFraction: 0.85,
                   child: _DraftImageTile(
                     image: image,
+                    allowReorder: maxImages > 1,
                     altTextController: altTextControllerFor(image),
                     index: 0,
                     enabled: false,
@@ -505,7 +506,11 @@ class _ComposerImageAttachmentSectionState
                     ],
                   ),
                   SizedBox(height: spacing.sp2),
-                  Text(l10n.postComposeEditPhotosHelper),
+                  Text(
+                    section.maxImages == 1
+                        ? l10n.postComposeEditSinglePhotoHelper
+                        : l10n.postComposeEditPhotosHelper,
+                  ),
                   Text(
                     l10n.postComposeImagesDescribed(
                       section.imagesState.images
@@ -616,7 +621,7 @@ class _PhotosHeader extends StatelessWidget {
           ),
           SizedBox(height: spacing.sp1),
           Text(
-            imageCount == 0
+            imageCount == 0 || maxImages == 1
                 ? l10n.postComposePhotosLimitHelper(maxImages)
                 : l10n.postComposePhotosReorderHelper(imageCount, maxImages),
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -651,10 +656,12 @@ class _DraftImageTile extends StatelessWidget {
     required this.previewKey,
     required this.previewUrl,
     this.onEdit,
+    this.allowReorder = true,
     this.keyPrefix = 'composer',
   });
 
   final Future<void> Function(String)? onEdit;
+  final bool allowReorder;
   final String keyPrefix;
   final ComposerImageDraft image;
   final TextEditingController altTextController;
@@ -709,20 +716,22 @@ class _DraftImageTile extends StatelessWidget {
                 children: [
                   _ImageNumberBadge(index: index),
                   const Spacer(),
-                  _CircleIconButton(
-                    key: moveUpKey,
-                    icon: CraftskyIconsBold.moveUp,
-                    tooltip: l10n.postComposeMoveImageUp,
-                    onPressed: enabled && canMoveUp ? onMoveUp : null,
-                  ),
-                  SizedBox(width: spacing.sp2),
-                  _CircleIconButton(
-                    key: moveDownKey,
-                    icon: CraftskyIconsBold.moveDown,
-                    tooltip: l10n.postComposeMoveImageDown,
-                    onPressed: enabled && canMoveDown ? onMoveDown : null,
-                  ),
-                  SizedBox(width: spacing.sp2),
+                  if (allowReorder) ...[
+                    _CircleIconButton(
+                      key: moveUpKey,
+                      icon: CraftskyIconsBold.moveUp,
+                      tooltip: l10n.postComposeMoveImageUp,
+                      onPressed: enabled && canMoveUp ? onMoveUp : null,
+                    ),
+                    SizedBox(width: spacing.sp2),
+                    _CircleIconButton(
+                      key: moveDownKey,
+                      icon: CraftskyIconsBold.moveDown,
+                      tooltip: l10n.postComposeMoveImageDown,
+                      onPressed: enabled && canMoveDown ? onMoveDown : null,
+                    ),
+                    SizedBox(width: spacing.sp2),
+                  ],
                   _CircleIconButton(
                     key: removeKey,
                     icon: CraftskyIconsBold.delete,
@@ -730,17 +739,19 @@ class _DraftImageTile extends StatelessWidget {
                     foregroundColor: semanticColors.error,
                     onPressed: enabled ? onRemove : null,
                   ),
-                  SizedBox(width: spacing.sp2),
-                  Handle(
-                    child: Tooltip(
-                      message: l10n.postComposeDragToReorder,
-                      child: Icon(
-                        CraftskyIconsBold.reorder,
-                        color: colors.outline,
-                        size: 34,
+                  if (allowReorder) ...[
+                    SizedBox(width: spacing.sp2),
+                    Handle(
+                      child: Tooltip(
+                        message: l10n.postComposeDragToReorder,
+                        child: Icon(
+                          CraftskyIconsBold.reorder,
+                          color: colors.outline,
+                          size: 34,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
               SizedBox(height: spacing.sp3),

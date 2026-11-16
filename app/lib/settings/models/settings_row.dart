@@ -24,6 +24,7 @@ enum SettingsRowId {
   mutedAccounts,
   blockedAccounts,
   findPeopleFromInstagram,
+  businessDetails,
   businessEvents,
   businessProducts,
   accountStanding,

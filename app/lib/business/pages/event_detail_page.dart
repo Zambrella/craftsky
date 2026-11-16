@@ -5,18 +5,25 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
+import 'package:craftsky_app/business/pages/event_editor_dialog.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
+import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
 import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -81,8 +88,12 @@ class EventDetailPage extends ConsumerWidget {
       AsyncData(value: BusinessEventDetailAvailable(:final event)) => event,
       _ => null,
     };
+    final mutation = isOwner
+        ? ref.watch(businessEventMutationControllerProvider)
+        : null;
     final recordMenu = event != null
         ? CraftskyContextMenuButton(
+            enabled: mutation?.status != EventMutationStatus.saving,
             tooltip: account?.did == event.did
                 ? l10n.postMoreActions
                 : l10n.businessEventReportAction,
@@ -94,6 +105,20 @@ class EventDetailPage extends ConsumerWidget {
                     RecordLinks.event(event.did, event.rkey),
                     canSendViaChat: account != null,
                   ),
+                  if (isOwner) ...[
+                    CraftskyContextMenuItem(
+                      text: l10n.businessEventEditAction,
+                      icon: CraftskyIconsBold.edit,
+                      onPressed: () =>
+                          showEventEditorSheet(context, event: event),
+                    ),
+                    CraftskyContextMenuItem(
+                      text: l10n.businessEventDeleteAction,
+                      icon: CraftskyIconsBold.delete,
+                      style: CraftskyContextMenuItemStyle.destructive,
+                      onPressed: () => _deleteEvent(context, ref, event),
+                    ),
+                  ],
                   if (account != null && account?.did != event.did)
                     CraftskyContextMenuItem(
                       text: l10n.businessEventReportAction,
@@ -117,6 +142,27 @@ class EventDetailPage extends ConsumerWidget {
           event: event,
           isOwner: account?.did == event.did,
           reportAction: recordMenu,
+          mutationFeedback: switch (mutation?.status) {
+            EventMutationStatus.conflict => MaterialBanner(
+              content: Text(l10n.businessEventConflict),
+              actions: [
+                TextButton(
+                  onPressed: () => unawaited(
+                    ref
+                        .read(businessEventMutationControllerProvider.notifier)
+                        .reloadConflict(),
+                  ),
+                  child: Text(l10n.businessEventReload),
+                ),
+              ],
+            ),
+            EventMutationStatus.error ||
+            EventMutationStatus.ambiguous => MaterialBanner(
+              content: Text(l10n.businessEventActionError),
+              actions: const [SizedBox.shrink()],
+            ),
+            _ => null,
+          },
           launchExternal: launchExternal,
           confirmExternal: confirmExternal,
         ),
@@ -149,11 +195,37 @@ class EventDetailPage extends ConsumerWidget {
   }
 }
 
+Future<void> _deleteEvent(
+  BuildContext context,
+  WidgetRef ref,
+  BusinessEvent event,
+) async {
+  final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+  if (ownership == null || ownership.session.account.did != event.did) return;
+  final controller = ref.read(businessEventMutationControllerProvider.notifier);
+  final l10n = AppLocalizations.of(context);
+  final confirmed = await showCraftskyDestructiveConfirmDialog(
+    context,
+    title: l10n.businessEventDeleteConfirmTitle,
+    message: l10n.businessEventDeleteConfirmMessage,
+    confirmLabel: l10n.businessEventDeleteConfirmAction,
+    cancelLabel: l10n.businessProductCancel,
+  );
+  if (!confirmed ||
+      !context.mounted ||
+      ref.read(sessionRegistryProvider).value?.isCurrent(ownership) != true) {
+    return;
+  }
+  final deleted = await controller.delete(event, confirmed: true);
+  if (deleted && context.mounted) await Navigator.of(context).maybePop();
+}
+
 class _AvailableEventDetail extends StatefulWidget {
   const new({
     required this.event,
     required this.isOwner,
     required this.reportAction,
+    required this.mutationFeedback,
     required this.launchExternal,
     required this.confirmExternal,
   });
@@ -161,6 +233,7 @@ class _AvailableEventDetail extends StatefulWidget {
   final BusinessEvent event;
   final bool isOwner;
   final Widget? reportAction;
+  final Widget? mutationFeedback;
   final ExternalLinkLauncher launchExternal;
   final ExternalLinkConfirmer confirmExternal;
 
@@ -206,6 +279,8 @@ class _AvailableEventDetailState extends State<_AvailableEventDetail> {
               collapsed: _collapsed,
               reportAction: widget.reportAction,
             ),
+            if (widget.mutationFeedback case final feedback?)
+              SliverToBoxAdapter(child: feedback),
             SliverToBoxAdapter(
               child: _EventDetail(
                 event: widget.event,
@@ -340,23 +415,17 @@ class _EventDetail extends StatelessWidget {
                 spacing: spacing.sp2,
                 runSpacing: spacing.sp2,
                 children: [
-                  Chip(
-                    avatar: const Icon(CraftskyIcons.eventAvailable),
-                    label: Text(
-                      BusinessLabels.eventStatus(event.status, l10n),
-                    ),
+                  _EventStatusPill(
+                    icon: CraftskyIcons.eventAvailable,
+                    label: BusinessLabels.eventStatus(event.status, l10n),
                   ),
-                  Chip(
-                    avatar: Icon(
-                      event.past
-                          ? CraftskyIcons.history
-                          : CraftskyIcons.upcoming,
-                    ),
-                    label: Text(
-                      event.past
-                          ? l10n.businessEventLifecyclePast
-                          : l10n.businessEventLifecycleUpcoming,
-                    ),
+                  _EventStatusPill(
+                    icon: event.past
+                        ? CraftskyIcons.history
+                        : CraftskyIcons.upcoming,
+                    label: event.past
+                        ? l10n.businessEventLifecyclePast
+                        : l10n.businessEventLifecycleUpcoming,
                   ),
                 ],
               ),
@@ -391,12 +460,13 @@ class _EventDetail extends StatelessWidget {
                         title: BusinessLabels.eventMode(mode, l10n),
                       ),
                     ],
-                    if (isOwner && role.isNotEmpty) ...[
+                    if (role.isNotEmpty) ...[
                       Divider(height: spacing.sp5),
                       _EventInfo(
                         icon: CraftskyIcons.businessIdentity,
                         title: role,
-                        subtitle: l10n.businessEventRolesLabel,
+                        subtitle: isOwner ? l10n.businessEventRolesLabel : null,
+                        caption: isOwner ? null : _EventCreator(did: event.did),
                       ),
                     ],
                     if (isOwner) ...[
@@ -413,6 +483,16 @@ class _EventDetail extends StatelessWidget {
                   ],
                 ),
               ),
+              if (isOwner || role.isEmpty)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        UserProfileRoute(did: event.did).push<void>(context),
+                    icon: const Icon(CraftskyIcons.profile),
+                    label: Text(l10n.businessEventCreatorProfileAction),
+                  ),
+                ),
               if (eventDestination != null || registrationDestination != null)
                 Padding(
                   padding: EdgeInsets.only(top: spacing.sp4),
@@ -422,6 +502,30 @@ class _EventDetail extends StatelessWidget {
                     children: [
                       if (eventDestination != null)
                         OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurface,
+                            backgroundColor: theme
+                                .extension<BrandSwatchTheme>()!
+                                .paper3,
+                            elevation: 0,
+                            shadowColor: Colors.transparent,
+                            side: BorderSide(
+                              color: theme.colorScheme.onSurface,
+                              width: 1.5,
+                            ),
+                            shape: const StadiumBorder(),
+                            minimumSize: const Size(0, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            textStyle: theme.textTheme.labelLarge?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            iconSize: 20,
+                            iconColor: theme.colorScheme.onSurface,
+                          ),
                           onPressed: () => unawaited(
                             confirmAndLaunchExternalAction(
                               context,
@@ -430,11 +534,28 @@ class _EventDetail extends StatelessWidget {
                               confirmOpenLink: confirmExternal,
                             ),
                           ),
-                          icon: const Icon(CraftskyIconsBold.externalLink),
+                          icon: const Icon(CraftskyIcons.externalLink),
                           label: Text(l10n.businessEventWebsiteAction),
                         ),
                       if (registrationDestination != null)
-                        OutlinedButton.icon(
+                        ChunkyButton(
+                          style: ButtonStyle(
+                            minimumSize: const WidgetStatePropertyAll(
+                              Size(0, 48),
+                            ),
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                            ),
+                            textStyle: WidgetStatePropertyAll(
+                              theme.textTheme.labelLarge?.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                           onPressed: () => unawaited(
                             confirmAndLaunchExternalAction(
                               context,
@@ -443,10 +564,18 @@ class _EventDetail extends StatelessWidget {
                               confirmOpenLink: confirmExternal,
                             ),
                           ),
-                          icon: const Icon(
-                            CraftskyIconsBold.ticket,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(CraftskyIcons.externalLink, size: 20),
+                              SizedBox(width: spacing.sp2),
+                              Flexible(
+                                child: Text(
+                                  l10n.businessEventRegistrationAction,
+                                ),
+                              ),
+                            ],
                           ),
-                          label: Text(l10n.businessEventRegistrationAction),
                         ),
                     ],
                   ),
@@ -459,12 +588,91 @@ class _EventDetail extends StatelessWidget {
   }
 }
 
+class _EventStatusPill extends StatelessWidget {
+  const new({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Chip(
+    label: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18),
+        SizedBox(width: Theme.of(context).extension<SpacingTheme>()!.sp2),
+        Text(label),
+      ],
+    ),
+  );
+}
+
+class _EventCreator extends ConsumerWidget {
+  const new({required this.did});
+  final Did did;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref
+        .watch(
+          userProfileProvider(did, audience: ref.read(browsingContextProvider)),
+        )
+        .value;
+    final displayName = profile?.displayName?.trim();
+    final name = displayName != null && displayName.isNotEmpty
+        ? displayName
+        : profile != null
+        ? '@${profile.handle}'
+        : AppLocalizations.of(context).businessEventCreatorProfileAction;
+    return TextButton(
+      key: const Key('event-creator-profile'),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 48),
+        alignment: AlignmentDirectional.centerStart,
+      ),
+      onPressed: () => UserProfileRoute(did: did).push<void>(context),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ExcludeSemantics(
+            child: SizedBox.square(
+              dimension: 24,
+              child: FittedBox(
+                child: ProfileAvatar(
+                  seed: name,
+                  avatarUrl: profile?.avatar,
+                  size: ProfileAvatarSize.small,
+                  showShadow: false,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              name,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EventInfo extends StatelessWidget {
-  const new({required this.icon, required this.title, this.subtitle});
+  const new({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.caption,
+  });
 
   final IconData icon;
   final String title;
   final String? subtitle;
+  final Widget? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -473,13 +681,14 @@ class _EventInfo extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 24),
+        Icon(icon, size: 24, color: theme.colorScheme.primary),
         SizedBox(width: spacing.sp3),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: theme.textTheme.titleMedium),
+              ?caption,
               if (subtitle case final value?) ...[
                 SizedBox(height: spacing.sp1),
                 Text(

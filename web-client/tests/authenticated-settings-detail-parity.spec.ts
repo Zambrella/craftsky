@@ -472,6 +472,7 @@ test('all-day event edits retain future catalog values and freeze the original d
 	await page.route(
 		`**${appview}/events/${encodeURIComponent(alice.did)}/future-event`,
 		async (route) => {
+			if (route.request().method() === 'GET') return readJSON(route, event);
 			writes.push(capture(route));
 			if (writes.length === 1)
 				return route.fulfill({
@@ -488,33 +489,35 @@ test('all-day event edits retain future catalog values and freeze the original d
 		}
 	);
 	await page.goto('/settings/events');
+	await page
+		.getByLabel('Actions for Future maker weekend', { exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
-	const dialog = page.locator('.event-dialog');
+	const dialog = page.locator('.event-composer-form');
 	await expect(
-		dialog.getByRole('combobox', { name: 'Mode', exact: true })
+		dialog.getByRole('combobox', { name: 'Attendance mode', exact: true })
 	).toHaveValue('Future mode');
 	await expect(
 		dialog.getByRole('combobox', { name: 'Status', exact: true })
 	).toHaveValue('Future status');
-	await dialog
-		.getByRole('searchbox', { name: 'Your roles', exact: true })
-		.click();
-	await expect(dialog.getByLabel('Future role', { exact: true })).toBeChecked();
-	await dialog
-		.getByRole('searchbox', { name: 'Your roles', exact: true })
-		.press('Escape');
+	await expect(
+		dialog.getByRole('button', {
+			name: 'Remove Future role from Your role',
+			exact: true
+		})
+	).toBeVisible();
 	await dialog
 		.getByRole('switch', { name: 'All-day event', exact: true })
 		.check();
-	await expect(dialog.getByLabel('Starts', { exact: true })).toHaveAttribute(
+	await expect(dialog.getByLabel('Start', { exact: true })).toHaveAttribute(
 		'type',
 		'date'
 	);
-	await dialog.getByLabel('Starts', { exact: true }).fill('2027-06-01');
-	await dialog.getByLabel('Ends', { exact: true }).fill('2027-06-02');
+	await dialog.getByLabel('Start', { exact: true }).fill('2027-06-01');
+	await dialog.getByLabel('End', { exact: true }).fill('2027-06-02');
 	await dialog.getByRole('button', { name: 'Save event', exact: true }).click();
-	await expect(dialog.getByLabel('Starts', { exact: true })).toBeDisabled();
-	await dialog
+	await expect(dialog.getByLabel('Start', { exact: true })).toBeDisabled();
+	await page
 		.getByRole('button', { name: 'Check and retry action', exact: true })
 		.click();
 	await expect(dialog).not.toBeVisible();
@@ -525,8 +528,8 @@ test('all-day event edits retain future catalog values and freeze the original d
 	expect(writes[0].body).toMatchObject({
 		isAllDay: true,
 		timeZone: 'Europe/London',
-		startsAt: '2027-05-31T23:00:00.000Z',
-		endsAt: '2027-06-01T23:00:00.000Z',
+		startsAt: '2027-05-31T23:00:00Z',
+		endsAt: '2027-06-01T23:00:00Z',
 		roles: ['future-role'],
 		mode: 'future-mode',
 		status: 'future-status'

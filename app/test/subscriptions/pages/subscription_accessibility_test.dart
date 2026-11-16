@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
@@ -5,8 +6,11 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../../test_support/session_registry_storage.dart';
 
 void main() {
   testWidgets('AT-016 owner actions remain reachable at 320px and 2x text', (
@@ -18,45 +22,65 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightThemeData,
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: const TextScaler.linear(2),
+      ProviderScope(
+        overrides: [
+          // This override belongs to the test harness root scope.
+          // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            InMemorySessionRegistryStorage(),
           ),
-          child: child!,
-        ),
-        home: SubscriptionPageView(
-          model: SubscriptionPageModel(
-            access: SubscriptionAccess(
-              did: Did.parse('did:plc:alice'),
-              effectiveTier: SubscriptionTier.plus,
-              givesAccess: true,
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(2),
             ),
-            billingAvailability: BillingAvailability.available,
-            nativeStore: 'app_store',
-            billingState: _state(),
-            onPurchase: (_) {},
-            onRestore: () {},
-            onManage: () {},
-            onRefresh: () {},
+            child: child!,
+          ),
+          home: SubscriptionPageView(
+            model: SubscriptionPageModel(
+              access: SubscriptionAccess(
+                did: Did.parse('did:plc:alice'),
+                effectiveTier: SubscriptionTier.plus,
+                givesAccess: true,
+              ),
+              billingAvailability: BillingAvailability.available,
+              nativeStore: 'app_store',
+              billingState: _state(),
+              onPurchase: (_) {},
+              onRestore: () {},
+              onManage: () {},
+              onRefresh: () {},
+            ),
           ),
         ),
       ),
     );
 
     expect(tester.takeException(), isNull);
+    final badge = find.byKey(const ValueKey('subscription-status-plus'));
+    expect(badge, findsOneWidget);
     expect(
-      find.bySemanticsLabel(RegExp(r'Plus: Active\. View details')),
+      find.descendant(of: badge, matching: find.text('Active')),
+      findsOneWidget,
+    );
+    expect(find.text('Active'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('subscription-status-business')),
+      findsNothing,
+    );
+    expect(
+      find.bySemanticsLabel(RegExp(r'Plus: Active\. Manage')),
       findsOneWidget,
     );
     for (final finder in [
       find.byKey(const ValueKey('subscription-view-details-plus')),
       find.byKey(const ValueKey('subscription-view-details-business')),
       find.text('Restore purchases'),
-      find.text('Manage subscription'),
+      find.text('Manage'),
     ]) {
       await tester.ensureVisible(finder);
       await tester.pump();

@@ -162,7 +162,7 @@
 			{disabled}
 			readonly={!searchable}
 			value={open && searchable ? query : selected}
-			placeholder={(open && selected) || placeholder || `Select ${label}`}
+			placeholder={placeholder || (open && selected) || `Select ${label}`}
 			onclick={() => void show()}
 			onkeydown={key}
 			oninput={(event) => {

@@ -134,6 +134,11 @@ describe('business products', () => {
 			}
 		]);
 	});
+	it('omits the price when the amount is blank despite a suggested currency', () => {
+		expect(
+			productBody([{ ...product, amount: '', currency: 'GBP' }])[0]
+		).not.toHaveProperty('price');
+	});
 	it('rejects unsafe and duplicate destinations and incomplete prices', () => {
 		expect(() =>
 			productBody([{ ...product, uri: 'javascript:alert(1)' }])
@@ -150,7 +155,7 @@ describe('business products', () => {
 describe('business event time zones', () => {
 	it('resolves an explicit IANA timezone independently of the browser timezone', () => {
 		expect(zonedTimestamp('2026-07-02T12:30', 'Europe/London')).toBe(
-			'2026-07-02T11:30:00.000Z'
+			'2026-07-02T11:30:00Z'
 		);
 		expect(wallTime('2026-07-02T11:30:00Z', 'Europe/London')).toBe(
 			'2026-07-02T12:30'

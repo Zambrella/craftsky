@@ -29,7 +29,6 @@
 		isCurrentSubscription,
 		SubscriptionManagement,
 		subscriptionNeedsRefresh,
-		subscriptionProvider,
 		subscriptionTier,
 		type SubscriptionTier
 	} from './subscription-checkout.ts';
@@ -110,6 +109,40 @@
 			isCurrentSubscription(subscription)
 		) || []
 	);
+	const managedSubscription = $derived(
+		currentSubscriptions.length === 1 && currentSubscriptions[0].givesAccess
+			? currentSubscriptions[0]
+			: undefined
+	);
+	const managedTier = $derived(
+		managedSubscription && billing
+			? subscriptionTier(billing, managedSubscription)
+			: undefined
+	);
+	const willRenew = $derived(
+		!!managedSubscription &&
+			managedTier === access?.effectiveTier &&
+			!billing?.reconciliationStale &&
+			!!billing &&
+			billing.requestedGeneration <= billing.reconciledGeneration &&
+			!managedSubscription.pendingPayment &&
+			(!managedSubscription.anomaly ||
+				managedSubscription.anomaly === 'none') &&
+			['will_renew', 'will_change_product'].includes(
+				managedSubscription.autoRenewalStatus || ''
+			)
+	);
+	const accessDate = $derived(
+		willRenew
+			? managedSubscription?.currentPeriodEndsAt || access?.accessEndsAt
+			: access?.accessEndsAt
+	);
+	function manageCurrent() {
+		if (!managedSubscription || work.busy) return;
+		const url = storeManagementURL(managedSubscription.store);
+		if (url) location.assign(url);
+		else if (managedSubscription.store === 'stripe') manage();
+	}
 	const promotionalGrants = $derived(
 		billing ? activePromotionalGrants(billing) : []
 	);
@@ -279,16 +312,15 @@
 {#if !work.loading && access && billing}
 	<section class="panel">
 		<h2 class="access-title">
-			Current access: {title(access.effectiveTier)}
+			Current access: {access.effectiveTier === 'free'
+				? 'Standard'
+				: title(access.effectiveTier)}
 		</h2>
-		{#if access.accessEndsAt}<p class="muted">
-				Access until {dateTime(access.accessEndsAt)}
+		{#if accessDate}<p class="muted">
+				{willRenew ? 'Renews on' : 'Access until'}
+				{dateTime(accessDate)}
 			</p>{/if}
 	</section>
-	<p class="account-plan">
-		Your subscription belongs to this CraftSky account. Business includes
-		everything in Plus.
-	</p>
 	{#each promotionalGrants as grant (grant.id)}
 		<section
 			class="panel"
@@ -321,65 +353,28 @@
 			Your subscription status is still being checked. Please wait a moment.
 		</p>
 	{/if}
-	{#each currentSubscriptions as subscription}
-		{@const tier = subscriptionTier(billing, subscription)}
-		{@const managementURL = storeManagementURL(subscription.store)}
-		<section class="panel" aria-label="Current subscription">
-			<h2>{tier ? `CraftSky ${title(tier)}` : 'Subscription'}</h2>
-			<p>Billed through {subscriptionProvider(subscription.store)}.</p>
-			{#if subscription.pendingTier && subscription.autoRenewalStatus === 'will_change_product'}
-				<p class="notice">
-					Changes to CraftSky {title(subscription.pendingTier)} at the next renewal.
-					Your current benefits remain available until then.
-				</p>
-			{/if}
-			{#if subscription.pendingPayment}<p class="notice">
-					Payment is pending. Resolve it with your billing provider before
-					making another purchase.
-				</p>{/if}
-			{#if subscription.endsAt || subscription.currentPeriodEndsAt}
-				<p class="muted">
-					{subscription.autoRenewalStatus === 'will_renew'
-						? 'Renews on'
-						: 'Current period ends'}
-					{dateTime(subscription.endsAt || subscription.currentPeriodEndsAt)}
-				</p>
-			{/if}
-			{#if managementURL}<a
-					class="action"
-					href={managementURL}
-					target="_blank"
-					rel="noopener noreferrer"
-					>Manage in {subscriptionProvider(subscription.store)}</a
-				>
-			{:else if subscription.store === 'stripe'}
-				<button disabled={work.busy} onclick={manage}
-					>{managingSubscription
-						? 'Opening Stripe…'
-						: 'Manage in Stripe'}</button
-				>
-			{/if}
-		</section>
-	{/each}
-	{#if hasCurrentSubscription(billing)}
-		<p class="muted">
-			This account already has a subscription or a payment awaiting resolution.
-			Web plan changes are not available yet. To choose another plan here,
-			cancel your current subscription and wait for it to expire.
+	{#if currentSubscriptions.some((subscription) => subscription.pendingPayment)}
+		<p class="notice">
+			Payment is pending. Resolve it with your billing provider before making
+			another purchase.
 		</p>
-	{:else if !billing.webCheckoutAvailable}
+	{/if}
+	{#if !hasCurrentSubscription(billing) && !billing.webCheckoutAvailable}
 		<p class="muted">Web subscriptions are not available yet.</p>
-	{:else}
-		{#if promotionalGrants.length}
-			<p class="notice">
-				Subscribing starts paid billing immediately. Remaining complimentary
-				time is not added to your paid subscription.
-			</p>
-		{/if}
+	{:else if !hasCurrentSubscription(billing) && promotionalGrants.length}
+		<p class="notice">
+			Subscribing starts paid billing immediately. Remaining complimentary time
+			is not added to your paid subscription.
+		</p>
 	{/if}
 	{#each ['plus', 'business'] as tierValue}
 		{@const tier = tierValue as SubscriptionTier}
 		{@const status = tierState(billing, tier)}
+		{@const isActive = managedTier === tier}
+		{@const managementAvailable =
+			!!managedSubscription &&
+			(!!storeManagementURL(managedSubscription.store) ||
+				managedSubscription.store === 'stripe')}
 		{@const price = prices.find((price) => price.tier === tier)}
 		<section
 			class="panel tier-card"
@@ -399,17 +394,50 @@
 							? 'Loading price…'
 							: monthlyPrice(price) || 'Price unavailable'}
 					</p>
-					{#if status !== 'empty'}<p class="tier-status">
+					{#if status !== 'empty' && status !== 'active' && status !== 'dormant' && !isActive}<p
+							class="tier-status"
+						>
 							{tierStateLabel[status]}
 						</p>{/if}
 				</div>
+				{#if isActive || status === 'active'}
+					<span class="tier-active-label" data-subscription-status={tier}
+						>Active</span
+					>
+				{/if}
 			</div>
 			<p class="tier-benefits">
 				{tier === 'business'
 					? 'Everything in Plus, Featured products, Profile action button, Business details and events.'
 					: 'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'}
 			</p>
-			{#if canStartWebCheckout(billing)}
+			{#if isActive && managedSubscription?.pendingTier && managedSubscription.autoRenewalStatus === 'will_change_product'}
+				<p class="notice">
+					Changes to CraftSky {title(managedSubscription.pendingTier)} at the next
+					renewal. Your current benefits remain available until then.
+				</p>
+			{/if}
+			{#if isActive && managedSubscription?.pendingPayment}
+				<p class="notice">
+					Payment is pending. Resolve it with your billing provider before
+					making another purchase.
+				</p>
+			{/if}
+			{#if managedSubscription && managedTier}
+				<button
+					class="tier-action"
+					disabled={work.busy || !managementAvailable}
+					onclick={manageCurrent}
+				>
+					{managingSubscription
+						? 'Opening…'
+						: isActive
+							? 'Manage'
+							: tier === 'business'
+								? 'Upgrade'
+								: 'Downgrade'}
+				</button>
+			{:else if canStartWebCheckout(billing)}
 				<button
 					class="tier-action"
 					id={`subscription-${tier}-details`}
@@ -427,11 +455,11 @@
 			{/if}
 		</section>
 	{/each}
-	<p class="muted checkout-note">
-		You can review billing details before paying securely with Stripe.
-		{#if prices.length && prices.every((price) => price.taxBehavior === 'inclusive')}Tax
-			included.{:else}Final price and tax are shown before you pay.{/if}
-	</p>
+	{#if !managedSubscription}<p class="muted checkout-note">
+			You can review billing details before paying securely with Stripe.
+			{#if prices.length && prices.every((price) => price.taxBehavior === 'inclusive')}Tax
+				included.{:else}Final price and tax are shown before you pay.{/if}
+		</p>{/if}
 {/if}
 
 <style>
@@ -448,6 +476,21 @@
 		align-items: flex-start;
 		gap: 12px;
 		margin-bottom: 10px;
+	}
+	.tier-heading > div {
+		flex: 1;
+		min-width: 0;
+	}
+	.tier-active-label {
+		margin-inline-start: auto;
+		padding: 4px 12px;
+		border-radius: 999px;
+		background: var(--primary);
+		color: var(--on-primary);
+		font-size: 14px;
+		font-weight: 700;
+		line-height: 1.4;
+		flex-shrink: 0;
 	}
 	.tier-heading h2 {
 		margin: 0 0 2px;
@@ -471,9 +514,6 @@
 	.access-title {
 		font-size: 16px;
 		margin: 0;
-	}
-	.account-plan {
-		margin: 0 0 16px;
 	}
 	.tier-heading h2 {
 		font-size: 20px;

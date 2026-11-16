@@ -165,3 +165,91 @@ func TestEmbeddedManagedCheckoutUsesReturnURLAndClientSecret(t *testing.T) {
 		t.Fatal("hosted return fields sent to embedded Checkout")
 	}
 }
+
+func TestSubscriptionCustomerChecksMerchantEnvironmentAndIdentifier(t *testing.T) {
+	for _, test := range []struct {
+		name, merchant, id, customer string
+		live                         bool
+		want                         bool
+	}{
+		{"owned", "acct_test", "sub_owner", "cus_owner", false, true},
+		{"other merchant", "acct_other", "sub_owner", "cus_owner", false, false},
+		{"live", "acct_test", "sub_owner", "cus_owner", true, false},
+		{"other subscription", "acct_test", "sub_other", "cus_owner", false, false},
+		{"invalid customer", "acct_test", "sub_owner", "bad", false, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client := stripeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/account" {
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": test.merchant})
+					return
+				}
+				if r.URL.Path != "/subscriptions/sub_owner" {
+					t.Errorf("unexpected endpoint %s", r.URL.Path)
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": test.id, "customer": test.customer, "livemode": test.live})
+			})
+			got, err := client.SubscriptionCustomer(t.Context(), "sub_owner")
+			if test.want {
+				if err != nil || got != "cus_owner" {
+					t.Fatalf("customer lookup: %v", err)
+				}
+			} else if err == nil {
+				t.Fatal("mismatch accepted")
+			}
+		})
+	}
+}
+
+func TestSubscriptionItemManagementResolvesParentAndFailsClosed(t *testing.T) {
+	for _, test := range []struct {
+		name, item, parent, merchant, customer string
+		live, want                             bool
+	}{
+		{"owned", "si_owner", "sub_owner", "acct_test", "cus_owner", false, true},
+		{"wrong item", "si_other", "sub_owner", "acct_test", "cus_owner", false, false},
+		{"invalid parent", "si_owner", "cus_owner", "acct_test", "cus_owner", false, false},
+		{"missing parent", "si_owner", "", "acct_test", "cus_owner", false, false},
+		{"wrong merchant", "si_owner", "sub_owner", "acct_other", "cus_owner", false, false},
+		{"wrong environment", "si_owner", "sub_owner", "acct_test", "cus_owner", true, false},
+		{"invalid customer", "si_owner", "sub_owner", "acct_test", "invalid", false, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			portalRequests := 0
+			client := stripeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/account":
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": test.merchant})
+				case "/subscription_items/si_owner":
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": test.item, "subscription": test.parent})
+				case "/subscriptions/sub_owner":
+					_ = json.NewEncoder(w).Encode(map[string]any{"id": "sub_owner", "customer": test.customer, "livemode": test.live})
+				case "/billing_portal/sessions":
+					portalRequests++
+					_ = r.ParseForm()
+					if r.Form.Get("customer") != "cus_owner" {
+						t.Error("incorrect portal customer")
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"url": "https://billing.stripe.com/p/session/test_owner"})
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					w.WriteHeader(400)
+				}
+			})
+			customer, err := client.SubscriptionCustomer(t.Context(), "si_owner")
+			if test.want {
+				if err != nil || customer != "cus_owner" {
+					t.Fatalf("item resolution: %v", err)
+				}
+				if _, err = client.CreateManagement(t.Context(), customer, "https://app.example/billing"); err != nil {
+					t.Fatal(err)
+				}
+				if portalRequests != 1 {
+					t.Fatal("portal was not opened")
+				}
+			} else if err == nil || portalRequests != 0 {
+				t.Fatal("mismatch accepted")
+			}
+		})
+	}
+}

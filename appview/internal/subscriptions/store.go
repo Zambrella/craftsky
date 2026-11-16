@@ -14,11 +14,12 @@ import (
 )
 
 type Store struct {
-	pool              *pgxpool.Pool
-	accessEnvironment string
-	observer          BillingObserver
-	checkoutProvider  CheckoutProvider
-	checkoutConfig    WebCheckoutConfig
+	managementProvider ProviderClient
+	pool               *pgxpool.Pool
+	accessEnvironment  string
+	observer           BillingObserver
+	checkoutProvider   CheckoutProvider
+	checkoutConfig     WebCheckoutConfig
 }
 
 func (s *Store) AccessEnvironment() string { return s.accessEnvironment }

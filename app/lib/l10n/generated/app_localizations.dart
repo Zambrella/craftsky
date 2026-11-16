@@ -166,12 +166,6 @@ abstract class AppLocalizations {
   /// **'Cancel pending purchase'**
   String get subscriptionsCancelCheckout;
 
-  /// No description provided for @subscriptionsAccountPlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Your subscription belongs to this CraftSky account. Business includes everything in Plus.'**
-  String get subscriptionsAccountPlan;
-
   /// No description provided for @subscriptionsStoreAccountConflictKnown.
   ///
   /// In en, this message translates to:
@@ -2683,7 +2677,7 @@ abstract class AppLocalizations {
   /// Helper text under the photo heading before photos are attached.
   ///
   /// In en, this message translates to:
-  /// **'Up to {maxImages} photos'**
+  /// **'{maxImages, plural, =1{One photo} other{Up to {maxImages} photos}}'**
   String postComposePhotosLimitHelper(int maxImages);
 
   /// Helper text under the photo heading once photos are attached.
@@ -3772,6 +3766,156 @@ abstract class AppLocalizations {
   /// **'Business details'**
   String get editProfileBusinessHeading;
 
+  /// No description provided for @editProfileBusinessTypesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Business types'**
+  String get editProfileBusinessTypesHint;
+
+  /// No description provided for @editProfileBusinessOfferingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Offerings'**
+  String get editProfileBusinessOfferingsHint;
+
+  /// No description provided for @editProfileBusinessTaglineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand-dyed yarn inspired by nature'**
+  String get editProfileBusinessTaglineHint;
+
+  /// No description provided for @editProfileBusinessHoursHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Mon–Fri, 9am–5pm; Sat, 10am–2pm'**
+  String get editProfileBusinessHoursHint;
+
+  /// No description provided for @editProfileBusinessServiceAreaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'UK-wide shipping and local workshops'**
+  String get editProfileBusinessServiceAreaHint;
+
+  /// No description provided for @editProfileBusinessCountryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'GB or US'**
+  String get editProfileBusinessCountryHint;
+
+  /// No description provided for @editProfileBusinessLocalityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristol'**
+  String get editProfileBusinessLocalityHint;
+
+  /// No description provided for @editProfileBusinessActionHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose what visitors can do on your profile.'**
+  String get editProfileBusinessActionHelper;
+
+  /// No description provided for @editProfileBusinessActionSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Primary action'**
+  String get editProfileBusinessActionSearchHint;
+
+  /// No description provided for @editProfileBusinessShopUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop URL'**
+  String get editProfileBusinessShopUrlLabel;
+
+  /// No description provided for @editProfileBusinessPatternsUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Patterns URL'**
+  String get editProfileBusinessPatternsUrlLabel;
+
+  /// No description provided for @editProfileBusinessCustomOrderUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom order URL'**
+  String get editProfileBusinessCustomOrderUrlLabel;
+
+  /// No description provided for @editProfileBusinessBookingUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking URL'**
+  String get editProfileBusinessBookingUrlLabel;
+
+  /// No description provided for @editProfileBusinessCalendarUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event calendar URL'**
+  String get editProfileBusinessCalendarUrlLabel;
+
+  /// No description provided for @editProfileBusinessEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Email address'**
+  String get editProfileBusinessEmailLabel;
+
+  /// No description provided for @editProfileBusinessWebsiteUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Website URL'**
+  String get editProfileBusinessWebsiteUrlLabel;
+
+  /// No description provided for @editProfileBusinessWholesaleUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Wholesale enquiries URL'**
+  String get editProfileBusinessWholesaleUrlLabel;
+
+  /// No description provided for @editProfileBusinessPatternsUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/patterns'**
+  String get editProfileBusinessPatternsUrlHint;
+
+  /// No description provided for @editProfileBusinessCustomOrderUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/custom-orders'**
+  String get editProfileBusinessCustomOrderUrlHint;
+
+  /// No description provided for @editProfileBusinessBookingUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/book'**
+  String get editProfileBusinessBookingUrlHint;
+
+  /// No description provided for @editProfileBusinessCalendarUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/events'**
+  String get editProfileBusinessCalendarUrlHint;
+
+  /// No description provided for @editProfileBusinessWebsiteUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com'**
+  String get editProfileBusinessWebsiteUrlHint;
+
+  /// No description provided for @editProfileBusinessWholesaleUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/wholesale'**
+  String get editProfileBusinessWholesaleUrlHint;
+
+  /// No description provided for @editProfileBusinessActionUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/shop'**
+  String get editProfileBusinessActionUrlHint;
+
+  /// No description provided for @editProfileBusinessActionEmailHint.
+  ///
+  /// In en, this message translates to:
+  /// **'hello@example.com'**
+  String get editProfileBusinessActionEmailHint;
+
   /// Helper text for business-only profile fields.
   ///
   /// In en, this message translates to:
@@ -3889,7 +4033,7 @@ abstract class AppLocalizations {
   /// Label for the business primary action HTTPS or mailto destination.
   ///
   /// In en, this message translates to:
-  /// **'Action destination'**
+  /// **'Action URL'**
   String get editProfileBusinessActionDestinationLabel;
 
   /// Validation error for a malformed business action destination.
@@ -7164,7 +7308,7 @@ abstract class AppLocalizations {
   /// Optional event venue field label.
   ///
   /// In en, this message translates to:
-  /// **'Venue (optional)'**
+  /// **'Venue'**
   String get businessEventVenueLabel;
 
   /// No description provided for @businessEventPublishedLabel.
@@ -7455,6 +7599,78 @@ abstract class AppLocalizations {
   /// **'Save event'**
   String get businessEventSave;
 
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Autumn yarn fair'**
+  String get businessEventNameHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Meet local makers, browse handmade goods and join a workshop.'**
+  String get businessEventSummaryHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristol Craft Hall'**
+  String get businessEventVenueHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'https://your-business.com/events/autumn-fair'**
+  String get businessEventUriHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'https://your-business.com/events/autumn-fair/book'**
+  String get businessEventRegistrationUriHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Timezone'**
+  String get businessEventTimeZoneHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Attendance mode'**
+  String get businessEventModeHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Status'**
+  String get businessEventStatusHint;
+
+  /// Placeholder for the event role multi-select.
+  ///
+  /// In en, this message translates to:
+  /// **'Select roles'**
+  String get businessEventRolesSearchHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 4 roles.'**
+  String get businessEventRolesHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select date'**
+  String get businessEventDateHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'End is the first date after the event, in the selected timezone.'**
+  String get businessEventAllDayHint;
+
   /// Event name field label.
   ///
   /// In en, this message translates to:
@@ -7518,19 +7734,19 @@ abstract class AppLocalizations {
   /// Optional event summary field label.
   ///
   /// In en, this message translates to:
-  /// **'Summary (optional)'**
+  /// **'Summary'**
   String get businessEventSummaryLabel;
 
   /// Optional event information link field label.
   ///
   /// In en, this message translates to:
-  /// **'Event link (optional)'**
+  /// **'Event link'**
   String get businessEventUriLabel;
 
   /// Optional event registration link field label.
   ///
   /// In en, this message translates to:
-  /// **'Registration link (optional)'**
+  /// **'Registration link'**
   String get businessEventRegistrationUriLabel;
 
   /// Optional event image alt text label.
@@ -7568,6 +7784,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check the event details and try again.'**
   String get businessEventValidationError;
+
+  /// Link to the account that published an event.
+  ///
+  /// In en, this message translates to:
+  /// **'View creator profile'**
+  String get businessEventCreatorProfileAction;
+
+  /// Label explaining another account's roles at an event.
+  ///
+  /// In en, this message translates to:
+  /// **'Creator\'s roles'**
+  String get businessEventCreatorRolesLabel;
+
+  /// Event detail mutation failure message.
+  ///
+  /// In en, this message translates to:
+  /// **'The action could not be completed. Try again.'**
+  String get businessEventActionError;
 
   /// Event mutation failure message.
   ///
@@ -7803,10 +8037,10 @@ abstract class AppLocalizations {
   /// **'This post was not published because Plus access ended. Edit it to schedule again after subscribing.'**
   String get scheduledPostSubscriptionMissed;
 
-  /// Free subscription tier label.
+  /// Standard subscription tier label.
   ///
   /// In en, this message translates to:
-  /// **'Free'**
+  /// **'Standard'**
   String get subscriptionsTierFree;
 
   /// Plus subscription tier label.
@@ -8100,7 +8334,7 @@ abstract class AppLocalizations {
   /// Open Customer Center action.
   ///
   /// In en, this message translates to:
-  /// **'Manage subscription'**
+  /// **'Manage'**
   String get subscriptionsManage;
 
   /// Refresh AppView subscription state.
@@ -8744,6 +8978,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Photo details'**
   String get postComposePhotoDetailsTitle;
+
+  /// Summary guidance for a single attached composer photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo, remove it or add alt text'**
+  String get postComposeEditSinglePhotoHelper;
 
   /// Hint on the attached photo thumbnail card.
   ///
@@ -9656,6 +9896,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Available settings vary by provider. You may need to sign in again.'**
   String get accountProviderAvailabilityGeneric;
+
+  /// Open the existing billing provider to upgrade the subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get subscriptionsUpgrade;
+
+  /// Open the existing billing provider to downgrade the subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Downgrade'**
+  String get subscriptionsDowngrade;
 }
 
 class _AppLocalizationsDelegate

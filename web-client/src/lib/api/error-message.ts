@@ -15,7 +15,7 @@ export function apiErrorMessage(error: APIError): string {
 	if (error.code === 'web_checkout_pending')
 		return 'This account already has a checkout in progress. Continue with that plan or cancel the pending purchase before choosing another.';
 	if (error.code === 'web_management_unavailable')
-		return 'Subscription management is not available here yet. Use the management link in your Stripe receipt.';
+		return 'Subscription management is temporarily unavailable. Please try again.';
 	if (error.status === 0)
 		return "You're offline. Check your connection and try again.";
 	if (error.status === 401) return 'Please sign in again.';
