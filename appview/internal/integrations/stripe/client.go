@@ -37,7 +37,7 @@ func NewClient(config Config, transport *http.Client) (*Client, error) {
 		return nil, errors.New("invalid Stripe environment")
 	}
 	if config.AccountID == "" || !strings.HasPrefix(config.AccountID, "acct_") || (live && !strings.HasPrefix(config.SecretKey, "sk_live_")) || (!live && !strings.HasPrefix(config.SecretKey, "sk_test_")) {
-		return nil, errors.New("Stripe credentials do not match configured account environment")
+		return nil, errors.New("stripe credentials do not match configured account environment")
 	}
 	if transport == nil {
 		transport = &http.Client{Timeout: 10 * time.Second}
@@ -97,7 +97,7 @@ func (c *Client) CreateCheckout(ctx context.Context, request subscriptions.Check
 		return subscriptions.CheckoutSession{}, err
 	}
 	if account.ID != request.AccountID || request.AccountID != c.config.AccountID {
-		return subscriptions.CheckoutSession{}, errors.New("Stripe account mismatch")
+		return subscriptions.CheckoutSession{}, errors.New("stripe account mismatch")
 	}
 	values := url.Values{"mode": {"subscription"}, "line_items[0][price]": {request.PriceID}, "line_items[0][quantity]": {"1"}, "managed_payments[enabled]": {"true"}, "metadata[app_user_id]": {request.CustomerID.String()}, "subscription_data[metadata][app_user_id]": {request.CustomerID.String()}, "success_url": {request.SuccessURL}, "cancel_url": {request.CancelURL}}
 	if request.Embedded {
@@ -124,7 +124,7 @@ func (c *Client) verifyAccount(ctx context.Context) error {
 		return err
 	}
 	if account.ID != c.config.AccountID {
-		return errors.New("Stripe account mismatch")
+		return errors.New("stripe account mismatch")
 	}
 	return nil
 }
@@ -211,7 +211,7 @@ func (c *Client) request(ctx context.Context, method, path string, values url.Va
 		return &Error{Cause: err}
 	}
 	if len(raw) > 256*1024 {
-		return errors.New("Stripe response exceeds limit")
+		return errors.New("stripe response exceeds limit")
 	}
 	if err = json.Unmarshal(raw, result); err != nil {
 		return &Error{Cause: err}
@@ -255,7 +255,7 @@ func (c *Client) SubscriptionCustomer(ctx context.Context, id string) (string, e
 			return "", err
 		}
 		if item.ID != id || !regexp.MustCompile(`^sub_[A-Za-z0-9]+$`).MatchString(item.Subscription) {
-			return "", errors.New("Stripe management item mismatch")
+			return "", errors.New("stripe management item mismatch")
 		}
 		id = item.Subscription
 	}
@@ -268,7 +268,7 @@ func (c *Client) SubscriptionCustomer(ctx context.Context, id string) (string, e
 		return "", err
 	}
 	if sub.ID != id || sub.LiveMode == nil || *sub.LiveMode != (c.config.Environment == "production") || !regexp.MustCompile(`^cus_[A-Za-z0-9]+$`).MatchString(sub.Customer) {
-		return "", errors.New("Stripe management subscription mismatch")
+		return "", errors.New("stripe management subscription mismatch")
 	}
 	return sub.Customer, nil
 }

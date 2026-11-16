@@ -66,7 +66,7 @@ var stripeManagementPath = regexp.MustCompile(`^/p/session/[A-Za-z0-9_-]+$`)
 // ValidateWebCheckoutConfig permits only complete configurations. Empty means disabled.
 func ValidateWebCheckoutConfig(c WebCheckoutConfig, environment string) error {
 	if !stripeAccountID.MatchString(c.AccountID) || !stripePriceID.MatchString(c.PlusPriceID) || !stripePriceID.MatchString(c.BusinessPriceID) || c.PlusPriceID == c.BusinessPriceID {
-		return errors.New("Stripe checkout requires an account and two distinct price identifiers")
+		return errors.New("stripe checkout requires an account and two distinct price identifiers")
 	}
 	for _, raw := range []string{c.SuccessURL, c.CancelURL, c.BillingReturnURL} {
 		u, err := url.Parse(raw)
@@ -76,14 +76,14 @@ func ValidateWebCheckoutConfig(c WebCheckoutConfig, environment string) error {
 		localSandbox := environment == "sandbox" && u.Scheme == "http" &&
 			(u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
 		if (u.Scheme != "https" && !localSandbox) || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || u.Opaque != "" || u.RawPath != "" {
-			return errors.New("Stripe return URLs require fixed HTTPS or sandbox loopback URLs without credentials, query or fragment")
+			return errors.New("stripe return URLs require fixed HTTPS or sandbox loopback URLs without credentials, query or fragment")
 		}
 	}
 	return nil
 }
 func (s *Store) SetWebCheckoutProvider(provider CheckoutProvider, config WebCheckoutConfig) error {
 	if provider == nil {
-		return errors.New("Stripe checkout provider is required")
+		return errors.New("stripe checkout provider is required")
 	}
 	if err := ValidateWebCheckoutConfig(config, s.accessEnvironment); err != nil {
 		return err

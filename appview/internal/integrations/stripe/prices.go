@@ -51,7 +51,7 @@ func (c *Client) MonthlyPrice(ctx context.Context, id string) (subscriptions.Web
 		return subscriptions.WebPrice{}, err
 	}
 	if price.ID != id || !price.Active || price.LiveMode == nil || *price.LiveMode != (c.config.Environment == "production") || price.Amount == nil || *price.Amount <= 0 || *price.Amount > 9007199254740991 || !regexp.MustCompile(`^[a-z]{3}$`).MatchString(price.Currency) || price.Type != "recurring" || price.BillingScheme != "per_unit" || price.Recurring.Interval != "month" || price.Recurring.Count != 1 || price.Recurring.Usage != "licensed" || (len(price.Transform) != 0 && string(price.Transform) != "null") {
-		return subscriptions.WebPrice{}, errors.New("Stripe price is not an active monthly catalog price")
+		return subscriptions.WebPrice{}, errors.New("stripe price is not an active monthly catalog price")
 	}
 	value := subscriptions.WebPrice{Amount: *price.Amount, Currency: price.Currency, TaxBehavior: price.TaxBehavior}
 	c.pricesMu.Lock()
