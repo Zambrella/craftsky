@@ -14,6 +14,7 @@ class ProfileAvatarTransition {
     required this.handle,
     this.displayName,
     this.crafts = const [],
+    this.isBusiness = false,
   });
 
   final Object tag;
@@ -21,6 +22,7 @@ class ProfileAvatarTransition {
   final String handle;
   final String? displayName;
   final List<String> crafts;
+  final bool isBusiness;
 
   // Preserve the placeholder when a response replaces the loading header
   // during the flight. This key belongs only to the destination route.
@@ -30,6 +32,9 @@ class ProfileAvatarTransition {
   );
   final GlobalKey handleDestinationKey = GlobalKey(
     debugLabel: 'profile-handle-hero',
+  );
+  final GlobalKey businessDestinationKey = GlobalKey(
+    debugLabel: 'profile-business-hero',
   );
   final Map<String, GlobalKey> _craftDestinationKeys = {};
 
@@ -64,6 +69,7 @@ class ProfileAvatarHeroSource extends StatefulWidget {
     required this.builder,
     this.displayName,
     this.crafts = const [],
+    this.isBusiness = false,
     this.beforeOpen,
     super.key,
   });
@@ -73,6 +79,7 @@ class ProfileAvatarHeroSource extends StatefulWidget {
   final String handle;
   final String? displayName;
   final List<String> crafts;
+  final bool isBusiness;
   final ProfileAvatar avatar;
   final Widget Function(BuildContext, Widget avatar, VoidCallback openProfile)
   builder;
@@ -115,6 +122,7 @@ class _ProfileAvatarHeroSourceState extends State<ProfileAvatarHeroSource> {
     final handle = widget.handle;
     final displayName = widget.displayName;
     final crafts = List<String>.unmodifiable(widget.crafts);
+    final isBusiness = widget.isBusiness;
     await widget.beforeOpen?.call();
     if (!context.mounted) return;
     await UserProfileRoute(
@@ -127,6 +135,7 @@ class _ProfileAvatarHeroSourceState extends State<ProfileAvatarHeroSource> {
               handle: handle,
               displayName: displayName,
               crafts: crafts,
+              isBusiness: isBusiness,
             ),
     ).push<void>(context);
   }

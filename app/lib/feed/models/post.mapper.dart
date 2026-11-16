@@ -605,6 +605,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
         CidMapper(),
         ProfileCustomisationMapper(),
       ]);
+      AccountTypeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -644,6 +645,12 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     _$crafts,
     opt: true,
     def: const [],
+  );
+  static AccountType? _$accountType(PostAuthor v) => v.accountType;
+  static const Field<PostAuthor, AccountType> _f$accountType = Field(
+    'accountType',
+    _$accountType,
+    opt: true,
   );
   static Cid? _$avatarCid(PostAuthor v) => v.avatarCid;
   static dynamic _arg$avatarCid(f) => f<Cid>();
@@ -686,6 +693,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     #displayName: _f$displayName,
     #avatar: _f$avatar,
     #crafts: _f$crafts,
+    #accountType: _f$accountType,
     #avatarCid: _f$avatarCid,
     #muted: _f$muted,
     #blocking: _f$blocking,
@@ -702,6 +710,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
       crafts: data.dec(_f$crafts),
+      accountType: data.dec(_f$accountType),
       avatarCid: data.dec(_f$avatarCid),
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
@@ -777,6 +786,7 @@ abstract class PostAuthorCopyWith<$R, $In extends PostAuthor, $Out>
     String? displayName,
     String? avatar,
     List<String>? crafts,
+    AccountType? accountType,
     String? avatarCid,
     bool? muted,
     bool? blocking,
@@ -808,6 +818,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? avatar = $none,
     List<String>? crafts,
+    Object? accountType = $none,
     Object? avatarCid = $none,
     Object? muted = $none,
     Object? blocking = $none,
@@ -820,6 +831,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
       if (crafts != null) #crafts: crafts,
+      if (accountType != $none) #accountType: accountType,
       if (avatarCid != $none) #avatarCid: avatarCid,
       if (muted != $none) #muted: muted,
       if (blocking != $none) #blocking: blocking,
@@ -834,6 +846,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     displayName: data.get(#displayName, or: $value.displayName),
     avatar: data.get(#avatar, or: $value.avatar),
     crafts: data.get(#crafts, or: $value.crafts),
+    accountType: data.get(#accountType, or: $value.accountType),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),

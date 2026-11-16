@@ -818,7 +818,7 @@ void main() {
         find.descendant(of: collapsedTitle, matching: find.text('Business')),
         findsNothing,
       );
-      expect(find.text('Business'), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.storefront), findsOneWidget);
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);

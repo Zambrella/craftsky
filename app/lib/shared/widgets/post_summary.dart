@@ -429,6 +429,8 @@ class _PostSummaryAuthor extends StatelessWidget {
               handle: author.handle.toString(),
               displayName: author.displayName,
               crafts: author.crafts,
+              isBusiness: author.isBusiness,
+              customisation: author.customisation,
             ),
           ),
         ],
@@ -440,6 +442,7 @@ class _PostSummaryAuthor extends StatelessWidget {
             handle: author.handle.toString(),
             displayName: author.displayName,
             crafts: author.crafts,
+            isBusiness: author.isBusiness,
             avatar: avatar,
             builder: (context, avatar, openProfile) =>
                 identity(avatar, onTap ?? openProfile),

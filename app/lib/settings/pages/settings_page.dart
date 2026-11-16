@@ -500,6 +500,8 @@ class _SettingsIdentityHeader extends StatelessWidget {
           ? null
           : identity.primaryLabel,
       crafts: identity.crafts,
+      isBusiness: identity.isBusiness,
+      customisation: identity.customisation,
     ),
   );
 }

@@ -7,6 +7,7 @@ export type Author = {
 	avatar?: string;
 	crafts?: string[];
 	business?: boolean;
+	customisation?: import('./api/types').ProfileCustomisation;
 };
 export type Profile = Author & {
 	businessProfile?: import('./api/types').BusinessProfile;

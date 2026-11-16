@@ -21,6 +21,14 @@ crop dialogs retain their image-editing surface while using the same bar geometr
 and title typography. Settings bodies retain their 16px content inset without a
 second narrower width cap.
 
+Business identity uses a visually size-matched storefront before the display
+name on both clients, including compact and expanded profiles. Crafts stay after
+the name and retain their own overflow count. The separate web Business account
+line is removed. The marker uses the server's `accountType`, with no change to
+public craft data. Its colour follows the profile owner's selected theme,
+including the palette's dark accent in dark mode, with the default cobalt for
+missing customisation. See the [identity change evidence](../changes/2026-11-16-business-identity-icons/README.md).
+
 | Mobile domain | Web implementation | Verification and boundaries |
 |---|---|---|
 | Sign-in, create account, multiaccount, expired sessions | `web-client/src/routes/sign-in`, `routes/auth/browser`, `routes/api/auth`, `lib/features/shell` | OAuth registration delegates account creation to the configured provider, as mobile does. Passwords and PDS credentials stay with the provider/AppView. Browser BFF unit tests cover receipt/callback/state/account binding and additive identity enrichment. Existing-account sign-in was verified through the real provider and local AppView, reaching `/app/home` with an active browser session; live provider signup and recovery were not exercised. |

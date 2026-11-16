@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BusinessIdentityIcon from './BusinessIdentityIcon.svelte';
 	import ProfileShaderBackground from './ProfileShaderBackground.svelte';
 	import { profileShaderStyle } from './profile-background-shader.ts';
 	import { appendPage } from '#lib/pagination.ts';
@@ -376,6 +377,16 @@
 					large
 				/>{/if}
 			<h1>
+				{#if profile.accountType === 'business'}<span
+						class="business-icon"
+						role="img"
+						aria-label="Business"
+						title="Business"
+						><BusinessIdentityIcon
+							size={24}
+							customisation={profile.customisation}
+						/></span
+					>{/if}
 				{profile.displayName ||
 					(profile.handle ? '@' + profile.handle : 'Account unavailable')}
 			</h1>
@@ -383,9 +394,6 @@
 			<p class="handle">
 				{#if profile.displayName}@{profile.handle}{/if}
 			</p>
-			{#if profile.accountType === 'business'}<p class="business-label">
-					Business
-				</p>{/if}
 			<ul class="chips">
 				{#each profile.crafts || [] as craft}<li>
 						<CraftBadge {craft} />
@@ -923,16 +931,22 @@
 		width: 106px;
 		height: 106px;
 	}
+	.profile-identity h1 {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+	}
+	.business-icon {
+		display: inline-flex;
+		flex-shrink: 0;
+	}
 	.profile-identity {
 		margin-top: -53px;
 	}
 	.profile-identity h1 {
 		margin-top: 19px;
 		font-size: 28px;
-	}
-	.profile-identity .business-label {
-		font-size: 13px;
-		font-weight: 600;
 	}
 	.member-profile > .tabs {
 		position: sticky;
@@ -1013,8 +1027,5 @@
 		);
 		width: 40px;
 		height: 40px;
-	}
-	.profile-identity .business-label {
-		color: var(--primary);
 	}
 </style>

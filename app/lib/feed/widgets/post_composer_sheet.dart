@@ -2271,6 +2271,8 @@ class _ComposerTargetPreview extends StatelessWidget {
                     handle: post.author.handle.toString(),
                     displayName: displayName,
                     crafts: post.author.crafts,
+                    isBusiness: post.author.isBusiness,
+                    customisation: post.author.customisation,
                   ),
                 ),
               ],

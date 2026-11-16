@@ -20,6 +20,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
         HandleMapper(),
         ProfileCustomisationMapper(),
       ]);
+      AccountTypeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -58,6 +59,12 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     opt: true,
     def: const [],
   );
+  static AccountType? _$accountType(ProfileSearchResult v) => v.accountType;
+  static const Field<ProfileSearchResult, AccountType> _f$accountType = Field(
+    'accountType',
+    _$accountType,
+    opt: true,
+  );
   static String? _$displayName(ProfileSearchResult v) => v.displayName;
   static const Field<ProfileSearchResult, String> _f$displayName = Field(
     'displayName',
@@ -93,6 +100,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     #isCraftskyProfile: _f$isCraftskyProfile,
     #viewerIsFollowing: _f$viewerIsFollowing,
     #crafts: _f$crafts,
+    #accountType: _f$accountType,
     #displayName: _f$displayName,
     #description: _f$description,
     #avatar: _f$avatar,
@@ -106,6 +114,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
       isCraftskyProfile: data.dec(_f$isCraftskyProfile),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
       crafts: data.dec(_f$crafts),
+      accountType: data.dec(_f$accountType),
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
@@ -190,6 +199,7 @@ abstract class ProfileSearchResultCopyWith<
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
     List<String>? crafts,
+    AccountType? accountType,
     String? displayName,
     String? description,
     String? avatar,
@@ -222,6 +232,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
     List<String>? crafts,
+    Object? accountType = $none,
     Object? displayName = $none,
     Object? description = $none,
     Object? avatar = $none,
@@ -233,6 +244,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
       if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
       if (crafts != null) #crafts: crafts,
+      if (accountType != $none) #accountType: accountType,
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
@@ -252,6 +264,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
       or: $value.viewerIsFollowing,
     ),
     crafts: data.get(#crafts, or: $value.crafts),
+    accountType: data.get(#accountType, or: $value.accountType),
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),

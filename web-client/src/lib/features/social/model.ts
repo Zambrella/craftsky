@@ -33,7 +33,10 @@ export function publicPost(post: Post): PublicPost {
 			displayName: post.author.displayName || undefined,
 			avatar: post.author.avatar || undefined,
 			crafts: post.author.crafts ?? undefined,
-			business: post.author.accountType === 'business'
+			business: post.author.accountType === 'business',
+			...(post.author.customisation
+				? { customisation: post.author.customisation }
+				: {})
 		},
 		createdAt: post.createdAt,
 		editedAt: post.editedAt,

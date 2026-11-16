@@ -787,7 +787,9 @@
 							did: account.did,
 							handle: account.handle,
 							displayName: profile?.displayName || undefined,
-							crafts: profile?.crafts || []
+							crafts: profile?.crafts || [],
+							accountType: profile?.accountType,
+							customisation: profile?.customisation
 						}}
 					/>
 				</div>

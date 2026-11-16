@@ -51,6 +51,7 @@ class ChatPeerProfile extends ConsumerWidget {
       handle: handle,
       displayName: displayName,
       crafts: crafts,
+      isBusiness: profile?.isBusiness ?? false,
       avatar: avatar,
       builder: (context, avatar, openProfile) => builder(
         context,
@@ -59,6 +60,9 @@ class ChatPeerProfile extends ConsumerWidget {
           handle: handle,
           displayName: displayName,
           crafts: crafts,
+          isBusiness: profile?.isBusiness ?? false,
+          customisation:
+              profile?.customisation ?? ProfileCustomisation.defaults,
         ),
         openProfile,
       ),

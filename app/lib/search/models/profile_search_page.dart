@@ -1,3 +1,4 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -19,6 +20,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     required this.isCraftskyProfile,
     required this.viewerIsFollowing,
     this.crafts = const [],
+    this.accountType,
     this.displayName,
     this.description,
     this.avatar,
@@ -31,6 +33,9 @@ class ProfileSearchResult with ProfileSearchResultMappable {
   final bool isCraftskyProfile;
   final bool viewerIsFollowing;
   final List<String> crafts;
+  final AccountType? accountType;
+
+  bool get isBusiness => accountType == AccountType.business;
   final String? displayName;
   final String? description;
   final String? avatar;
@@ -44,6 +49,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     description: description,
     avatar: avatar,
     crafts: crafts,
+    accountType: accountType,
     customisation: customisation,
   );
 }

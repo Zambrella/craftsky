@@ -159,7 +159,9 @@
 							did: session.did,
 							handle: session.handle,
 							displayName: profile?.displayName,
-							crafts: profile?.crafts || []
+							crafts: profile?.crafts || [],
+							accountType: profile?.accountType,
+							customisation: profile?.customisation
 						}}
 					/>
 				</div>

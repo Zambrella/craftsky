@@ -1,15 +1,18 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/profile/widgets/profile_business_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
@@ -19,6 +22,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +73,8 @@ Future<GoRouter> _pumpScene(
                                 handle: identity.handle.toString(),
                                 displayName: identity.displayName,
                                 crafts: identity.crafts,
+                                accountType: identity.accountType,
+                                customisation: identity.customisation,
                                 isCraftskyProfile: true,
                               ),
                             ),
@@ -168,6 +174,104 @@ Future<int> _paintedIconPixels(
 }
 
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+      'business storefront flies through loading, hydration and Back '
+      '(dark: $dark)',
+      (tester) async {
+        final profile = _profile.copyWith(
+          accountType: AccountType.business,
+          customisation: const ProfileCustomisation(colour: 'rose'),
+        );
+        final pending = Completer<Profile>();
+        final router = await _pumpScene(
+          tester,
+          pending,
+          profile: profile,
+          dark: dark,
+        );
+        final sources = tester
+            .widgetList<ProfileBusinessHero>(
+              find.byType(ProfileBusinessHero),
+            )
+            .toList();
+        expect(sources, hasLength(2));
+        expect(sources.first.tag, isNot(sources.last.tag));
+        final source = find.byIcon(CraftskyIcons.storefront).last;
+        final sourceRect = tester.getRect(
+          find.byType(ProfileBusinessHero).last,
+        );
+        final sourceColour = tester.widget<Icon>(source).color;
+
+        await tester.tap(find.byType(ProfileAccountListTile).last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        final transition = router.state.extra! as ProfileAvatarTransition;
+        expect(transition.isBusiness, isTrue);
+        final flight = find.byKey(const Key('profile-business-flight'));
+        expect(flight, findsOneWidget);
+        final flyingRect = tester.getRect(flight);
+        expect(flyingRect.width, greaterThan(sourceRect.width));
+        expect(flyingRect.width, lessThan(24));
+        final flyingIcon = find.descendant(
+          of: flight,
+          matching: find.byIcon(CraftskyIcons.storefront),
+        );
+        expect(tester.widget<Icon>(flyingIcon).color, sourceColour);
+
+        pending.complete(profile);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(flight, findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ProfileIdentity),
+            matching: find.byIcon(CraftskyIcons.storefront),
+          ),
+          findsNothing,
+          reason:
+              'hydration must keep the destination hidden during its flight',
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(transition.businessDestinationKey), findsOneWidget);
+        expect(flight, findsNothing);
+
+        router.pop();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(flight, findsOneWidget);
+        expect(tester.widget<Icon>(flyingIcon).color, sourceColour);
+        await tester.pumpAndSettle();
+        expect(flight, findsNothing);
+        expect(
+          tester.getRect(find.byType(ProfileBusinessHero).last),
+          sourceRect,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('business storefront respects reduced motion', (tester) async {
+    final profile = _profile.copyWith(accountType: AccountType.business);
+    final pending = Completer<Profile>();
+    final router = await _pumpScene(
+      tester,
+      pending,
+      profile: profile,
+      reducedMotion: true,
+    );
+    await tester.tap(find.byType(ProfileAccountListTile).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(router.state.extra, isNull);
+    expect(find.byKey(const Key('profile-business-flight')), findsNothing);
+    pending.complete(profile);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(CraftskyIcons.storefront), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the selected duplicate avatar flies through nested navigation, '
       'cold loading, and Back', (tester) async {
     final pending = Completer<Profile>();
