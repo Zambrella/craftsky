@@ -19,7 +19,7 @@ void main() {
         hasUpcomingEvents: true,
         customisation: const ProfileCustomisation(
           colour: 'orchid',
-          background: 'skewdark',
+          background: 'craft-knitting',
         ),
       );
       final access = SubscriptionAccess(

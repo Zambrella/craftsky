@@ -1,3 +1,5 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
@@ -177,6 +179,48 @@ void main() {
       '2026-06-20T09:00:00.000Z',
     );
   });
+
+  test(
+    'recent profiles retain current decorations without saving them in history',
+    () {
+      final item = RecentSearchItem.fromMap({
+        'id': 'recent_profile',
+        'type': 'profile',
+        'displayLabel': 'Alice',
+        'updatedAt': '2026-11-16T12:00:00Z',
+        'payload': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.test',
+          'crafts': ['knitting'],
+          'accountType': 'business',
+          'customisation': {
+            'colour': 'orchid',
+            'profileBackground': 'animated-flow',
+          },
+        },
+      });
+      final profile = item.payload as ProfileRecentSearchPayload;
+      expect(profile.accountType, AccountType.business);
+      expect(
+        profile.customisation,
+        const ProfileCustomisation(
+          colour: 'orchid',
+          background: 'animated-flow',
+        ),
+      );
+      expect(profile.toMap(), {
+        'did': 'did:plc:alice',
+        'handle': 'alice.test',
+        'crafts': ['knitting'],
+      });
+      final older = ProfileRecentSearchPayload(
+        did: Did.parse('did:plc:alice'),
+        handle: 'alice.test',
+      );
+      expect(older.customisation, ProfileCustomisation.defaults);
+      expect(older.accountType, isNull);
+    },
+  );
 
   test('UT-009 stale recent-profile handle routes by stored DID', () {
     final payload = ProfileRecentSearchPayload(

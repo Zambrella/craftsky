@@ -83,6 +83,8 @@ class _RecentSearchSection extends ConsumerWidget {
             :final displayName,
             :final avatar,
             :final crafts,
+            :final accountType,
+            :final customisation,
           ))
             ProfileAccountListTile(
               contentPadding: EdgeInsets.zero,
@@ -93,6 +95,8 @@ class _RecentSearchSection extends ConsumerWidget {
                 displayName: displayName,
                 avatar: avatar,
                 crafts: crafts,
+                accountType: accountType,
+                customisation: customisation,
               ),
               trailing: IconButton(
                 tooltip: l10n.searchDeleteRecentAction,

@@ -32,12 +32,6 @@ void main() {
       ]);
       expect(profileBackgroundCatalogue, [
         'none',
-        'bayerdark',
-        'cubedark',
-        'dotcrossdark',
-        'scallopdark',
-        'skewdark',
-        'x2',
         'craft-sewing',
         'craft-knitting',
         'craft-crochet',
@@ -59,7 +53,7 @@ void main() {
       ]);
 
       expect(profileColourCatalogue.toSet(), hasLength(13));
-      expect(profileBackgroundCatalogue.toSet(), hasLength(25));
+      expect(profileBackgroundCatalogue.toSet(), hasLength(19));
       expect(profileCraftBackgrounds, {
         'craft-sewing': 'sewing',
         'craft-knitting': 'knitting',
@@ -228,19 +222,22 @@ void main() {
       final customisation = ProfileCustomisation.fromMap(const {
         'colour': 'future-colour',
         'profileBorder': 'retired-value',
-        'profileBackground': 'cubedark',
+        'profileBackground': 'craft-quilting',
       });
 
       expect(
         customisation,
-        const ProfileCustomisation(background: 'cubedark'),
+        const ProfileCustomisation(background: 'craft-quilting'),
       );
       expect(
         ProfileCustomisation.fromMap(const {
           'colour': 'seafoam',
-          'profileBackground': 'x2',
+          'profileBackground': 'craft-sewing',
         }),
-        const ProfileCustomisation(colour: 'seafoam', background: 'x2'),
+        const ProfileCustomisation(
+          colour: 'seafoam',
+          background: 'craft-sewing',
+        ),
       );
       expect(
         ProfileCustomisation.fromMap(const {
@@ -256,14 +253,20 @@ void main() {
     expect(
       ProfileCustomisation.fromMap(const {
         'colour': 'teal',
-        'profileBackground': 'x2',
+        'profileBackground': 'craft-sewing',
       }),
-      const ProfileCustomisation(background: 'x2'),
+      const ProfileCustomisation(background: 'craft-sewing'),
     );
     for (final background in [
       'animated-dust',
       'animated-satin',
       'animated-opal',
+      'bayerdark',
+      'cubedark',
+      'dotcrossdark',
+      'scallopdark',
+      'skewdark',
+      'x2',
     ]) {
       expect(
         ProfileCustomisation.fromMap({
@@ -316,7 +319,7 @@ void main() {
       'crafts': <String>[],
       'customisation': {
         'colour': 'seafoam',
-        'profileBackground': 'x2',
+        'profileBackground': 'craft-sewing',
       },
     });
     final malformed = PostAuthorMapper.fromMap({
@@ -327,7 +330,7 @@ void main() {
 
     expect(
       profile.customisation,
-      const ProfileCustomisation(colour: 'seafoam', background: 'x2'),
+      const ProfileCustomisation(colour: 'seafoam', background: 'craft-sewing'),
     );
     expect(malformed.customisation, ProfileCustomisation.defaults);
   });

@@ -71,7 +71,8 @@ describe('native preference presentation contracts', () => {
 	it('labels every persisted background choice without exposing asset identifiers', () => {
 		for (const value of backgrounds)
 			expect(backgroundLabels[value]).toBeTruthy();
-		expect(backgroundLabels.dotcrossdark).toBe('Cross stitch');
-		expect(backgroundLabels.skewdark).toBe('Diagonal weave');
+		expect(backgroundLabels['craft-embroidery']).toBe('Embroidery');
+		expect(backgroundLabels['animated-textile']).toBe('Woven');
+		expect(Object.keys(backgroundLabels)).toHaveLength(backgrounds.length);
 	});
 });

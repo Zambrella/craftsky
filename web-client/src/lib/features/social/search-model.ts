@@ -57,11 +57,24 @@ export function recentAuthor(item: RecentSearch): Author | undefined {
 		typeof p.handle !== 'string'
 	)
 		return;
+	const custom = p.customisation;
 	return {
 		did: p.did,
 		handle: p.handle,
 		displayName: typeof p.displayName === 'string' ? p.displayName : undefined,
 		avatar: typeof p.avatar === 'string' ? p.avatar : undefined,
+		accountType:
+			p.accountType === 'business' || p.accountType === 'regular'
+				? p.accountType
+				: undefined,
+		customisation:
+			custom &&
+			typeof custom === 'object' &&
+			!Array.isArray(custom) &&
+			typeof custom.colour === 'string' &&
+			typeof custom.profileBackground === 'string'
+				? { colour: custom.colour, profileBackground: custom.profileBackground }
+				: undefined,
 		crafts: Array.isArray(p.crafts)
 			? p.crafts.filter((craft): craft is string => typeof craft === 'string')
 			: []

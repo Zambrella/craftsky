@@ -155,6 +155,8 @@ void main() {
       cobaltChip.color?.resolve({WidgetState.selected}),
       profileColour(profileColourBundles['cobalt']!.base),
     );
+    final preview = find.byKey(const Key('profile-header-background'));
+    final previewRect = tester.getRect(preview);
     await _tapChoice(tester, 'Terracotta');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
@@ -165,11 +167,9 @@ void main() {
     await tester.drag(scrollable, const Offset(0, -120));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, 'Crochet'));
-    await tester.drag(
-      scrollable,
-      const Offset(0, 1000),
-    );
     await tester.pumpAndSettle();
+    expect(tester.getRect(preview), previewRect);
+    expect(find.byType(ProfileAvatar).hitTestable(), findsOneWidget);
 
     final avatar = tester.widget<Container>(
       find.byKey(const Key('profile-avatar-border')),
@@ -187,6 +187,7 @@ void main() {
       300,
       scrollable: scrollable,
     );
+    expect(tester.getRect(preview), previewRect);
     await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -401,7 +402,7 @@ void main() {
           .where((order) => order < 80),
       orderedEquals(<double>[
         ...List.generate(13, (index) => 10.0 + index),
-        ...List.generate(25, (index) => 30.0 + index),
+        ...List.generate(19, (index) => 30.0 + index),
       ]),
     );
     await tester.scrollUntilVisible(

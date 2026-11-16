@@ -286,18 +286,18 @@ void main() {
       '/v1/profiles/me/customisation',
       (server) => server.reply(200, {
         'colour': 'seafoam',
-        'profileBackground': 'x2',
+        'profileBackground': 'craft-sewing',
       }),
       data: {
         'colour': 'seafoam',
-        'profileBackground': 'x2',
+        'profileBackground': 'craft-sewing',
       },
     );
 
     final saved = await ProfileApiClient(dio).updateMyCustomisation(
       const ProfileCustomisation(
         colour: 'seafoam',
-        background: 'x2',
+        background: 'craft-sewing',
       ),
     );
 
@@ -305,7 +305,7 @@ void main() {
       saved,
       const ProfileCustomisation(
         colour: 'seafoam',
-        background: 'x2',
+        background: 'craft-sewing',
       ),
     );
   });

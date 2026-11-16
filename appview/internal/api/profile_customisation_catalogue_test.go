@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
@@ -27,12 +28,6 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 	})
 	assertCatalogue(t, "backgrounds", api.ProfileBackgroundCatalogue, []string{
 		"none",
-		"bayerdark",
-		"cubedark",
-		"dotcrossdark",
-		"scallopdark",
-		"skewdark",
-		"x2",
 		"craft-sewing",
 		"craft-knitting",
 		"craft-crochet",
@@ -67,11 +62,11 @@ func TestProfileCustomisationCatalogueFallsBackPerField(t *testing.T) {
 
 	got := api.EffectiveProfileCustomisation(api.ProfileCustomisation{
 		Colour:     "future-colour",
-		Background: "cubedark",
+		Background: "craft-quilting",
 	})
 	want := api.ProfileCustomisation{
 		Colour:     "cobalt",
-		Background: "cubedark",
+		Background: "craft-quilting",
 	}
 	if got != want {
 		t.Fatalf("effective customisation = %+v, want %+v", got, want)
@@ -80,11 +75,14 @@ func TestProfileCustomisationCatalogueFallsBackPerField(t *testing.T) {
 
 func TestRetiredProfileCustomisationChoicesFallBackIndependently(t *testing.T) {
 	t.Parallel()
-	got := api.EffectiveProfileCustomisation(api.ProfileCustomisation{Colour: "teal", Background: "x2"})
-	if got != (api.ProfileCustomisation{Colour: "cobalt", Background: "x2"}) {
+	got := api.EffectiveProfileCustomisation(api.ProfileCustomisation{Colour: "teal", Background: "craft-sewing"})
+	if got != (api.ProfileCustomisation{Colour: "cobalt", Background: "craft-sewing"}) {
 		t.Fatalf("retired colour fallback = %+v", got)
 	}
-	for _, background := range []string{"animated-dust", "animated-satin", "animated-opal"} {
+	for _, background := range []string{"animated-dust", "animated-satin", "animated-opal", "bayerdark", "cubedark", "dotcrossdark", "scallopdark", "skewdark", "x2"} {
+		if _, err := api.DecodeProfileCustomisationPut(strings.NewReader(`{"colour":"seafoam","profileBackground":"` + background + `"}`)); err == nil {
+			t.Fatalf("retired background %q was accepted for saving", background)
+		}
 		got = api.EffectiveProfileCustomisation(api.ProfileCustomisation{Colour: "seafoam", Background: background})
 		if got != (api.ProfileCustomisation{Colour: "seafoam", Background: "none"}) {
 			t.Fatalf("retired background %q fallback = %+v", background, got)

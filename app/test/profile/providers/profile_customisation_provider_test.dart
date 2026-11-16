@@ -85,7 +85,7 @@ void main() {
               profileCustomisationEditorProvider.notifier,
             )
             ..selectColour('seafoam')
-            ..selectBackground('x2');
+            ..selectBackground('craft-sewing');
       final draft = container.read(profileCustomisationEditorProvider).value!;
       expect(draft.isDirty, isTrue);
 
@@ -98,7 +98,7 @@ void main() {
 
       const authoritative = ProfileCustomisation(
         colour: 'seafoam',
-        background: 'x2',
+        background: 'craft-sewing',
       );
       save.complete(authoritative);
       await pending;
@@ -160,7 +160,7 @@ void main() {
 
       final notifier = container.read(
         profileCustomisationEditorProvider.notifier,
-      )..selectBackground('cubedark');
+      )..selectBackground('craft-quilting');
       final draft = container
           .read(profileCustomisationEditorProvider)
           .value!

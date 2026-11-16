@@ -61,7 +61,7 @@ func TestProfileCustomisationRoutePersistsForAuthenticatedOwner(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
 
-	body := `{"colour":"orchid","profileBackground":"skewdark"}`
+	body := `{"colour":"orchid","profileBackground":"craft-knitting"}`
 	request := func(authenticated, device bool, devDID string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/customisation", strings.NewReader(body))
@@ -91,7 +91,7 @@ func TestProfileCustomisationRoutePersistsForAuthenticatedOwner(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode valid response: %v", err)
 	}
-	want := api.ProfileCustomisation{Colour: "orchid", Background: "skewdark"}
+	want := api.ProfileCustomisation{Colour: "orchid", Background: "craft-knitting"}
 	if got != want {
 		t.Fatalf("response = %+v, want %+v", got, want)
 	}

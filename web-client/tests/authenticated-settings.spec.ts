@@ -930,13 +930,22 @@ test('customisation changes preview choices and saves the exact native colour an
 	await page.goto('/settings/customisation');
 	const save = page.getByRole('button', { name: 'Save', exact: true });
 	await expect(save).toBeDisabled();
+	for (const name of [
+		'Dither',
+		'Grid',
+		'Cross stitch',
+		'Scallops',
+		'Diagonal weave',
+		'Crosshatch'
+	])
+		await expect(page.getByRole('radio', { name, exact: true })).toHaveCount(0);
 	await page.getByText('Green', { exact: true }).click();
-	await page.getByText('Cross stitch', { exact: true }).click();
+	await page.getByText('Embroidery', { exact: true }).click();
 	await expect(
 		page.getByRole('radio', { name: 'Green', exact: true })
 	).toBeChecked();
 	await expect(
-		page.getByRole('radio', { name: 'Cross stitch', exact: true })
+		page.getByRole('radio', { name: 'Embroidery', exact: true })
 	).toBeChecked();
 	await expect(
 		page.getByLabel('Profile customisation preview')
@@ -957,19 +966,51 @@ test('customisation changes preview choices and saves the exact native colour an
 	expect(request?.owner).toBe(alice.did);
 	expect(request?.body).toEqual({
 		colour: 'lime',
-		profileBackground: 'dotcrossdark'
+		profileBackground: 'craft-embroidery'
 	});
 	await page.reload();
 	await expect(
 		page.getByRole('radio', { name: 'Green', exact: true })
 	).toBeChecked();
 	await expect(
-		page.getByRole('radio', { name: 'Cross stitch', exact: true })
+		page.getByRole('radio', { name: 'Embroidery', exact: true })
 	).toBeChecked();
 	await expect(
 		page.getByRole('button', { name: 'Save', exact: true })
 	).toBeDisabled();
 });
+
+for (const viewport of [
+	{ width: 1280, height: 480 },
+	{ width: 375, height: 640 }
+]) {
+	test(`customisation preview stays pinned while choosing backgrounds at ${viewport.width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize(viewport);
+		await page.goto('/settings/customisation');
+		const preview = page.getByLabel('Profile customisation preview');
+		await expect(preview).toBeVisible();
+		await page
+			.getByRole('button', { name: 'Save', exact: true })
+			.scrollIntoViewIfNeeded();
+		expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+		const pinned = await preview.boundingBox();
+		const header = await page.locator('.workspace-heading').boundingBox();
+		expect(pinned!.y).toBeCloseTo(header!.y + header!.height, 0);
+		await page.getByText('Embroidery', { exact: true }).click();
+		await expect(
+			page.getByRole('radio', { name: 'Embroidery', exact: true })
+		).toBeChecked();
+		await expect(preview.locator('.preview-pattern')).toHaveAttribute(
+			'style',
+			/craft-embroidery/
+		);
+		const updated = await preview.boundingBox();
+		expect(updated!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 1);
+		expect(updated!.y + updated!.height).toBeLessThanOrEqual(viewport.height);
+	});
+}
 
 test('product route cancellation restores existing details and removes an unsaved new product without writing', async ({
 	page

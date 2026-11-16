@@ -2003,24 +2003,6 @@
   "profileCustomisationBackgroundPrism": "Prism",
   "@profileCustomisationBackgroundPrism": { "description": "Label for the animated prism reference-inspired background." },
 
-  "profileCustomisationBackgroundDither": "Dither",
-  "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },
-
-  "profileCustomisationBackgroundGrid": "Grid",
-  "@profileCustomisationBackgroundGrid": { "description": "Label for the cubedark profile texture." },
-
-  "profileCustomisationBackgroundCrossStitch": "Cross stitch",
-  "@profileCustomisationBackgroundCrossStitch": { "description": "Label for the dotcrossdark profile texture." },
-
-  "profileCustomisationBackgroundScallops": "Scallops",
-  "@profileCustomisationBackgroundScallops": { "description": "Label for the scallopdark profile texture." },
-
-  "profileCustomisationBackgroundDiagonalWeave": "Diagonal weave",
-  "@profileCustomisationBackgroundDiagonalWeave": { "description": "Label for the skewdark profile texture." },
-
-  "profileCustomisationBackgroundCrosshatch": "Crosshatch",
-  "@profileCustomisationBackgroundCrosshatch": { "description": "Label for the x2 profile texture." },
-
   "craftSewing": "Sewing",
   "@craftSewing": { "description": "Display label for the 'sewing' craft option in the crafts picker." },
 

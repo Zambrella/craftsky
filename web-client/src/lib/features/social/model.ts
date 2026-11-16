@@ -138,16 +138,7 @@ export function texture(value?: ProfileCustomisation) {
 		)
 	)
 		return `url('/profile_backgrounds/${value!.profileBackground}.svg')`;
-	return [
-		'bayerdark',
-		'cubedark',
-		'dotcrossdark',
-		'scallopdark',
-		'skewdark',
-		'x2'
-	].includes(value?.profileBackground || '')
-		? `url('/profile_backgrounds/${value!.profileBackground}.png')`
-		: undefined;
+	return undefined;
 }
 export const name = (author: Author) =>
 	author.displayName || author.handle || author.did;

@@ -19,12 +19,6 @@ const profileColourCatalogue = <String>[
 
 const profileBackgroundCatalogue = <String>[
   'none',
-  'bayerdark',
-  'cubedark',
-  'dotcrossdark',
-  'scallopdark',
-  'skewdark',
-  'x2',
   'craft-sewing',
   'craft-knitting',
   'craft-crochet',

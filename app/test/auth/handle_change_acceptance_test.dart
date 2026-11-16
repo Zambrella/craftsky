@@ -48,7 +48,7 @@ void main() {
             cachedAvatarUrl: 'https://cdn.example/member.jpg',
             cachedCustomisation: const ProfileCustomisation(
               colour: 'seafoam',
-              background: 'cubedark',
+              background: 'craft-quilting',
             ),
           );
       initial = initial.saveRoutingBinding(

@@ -21,8 +21,8 @@ float softNoise(vec2 p) {
       mix(grainAt(cell + vec2(0.0, 1.0)), grainAt(cell + vec2(1.0)), f.x), f.y);
 }
 
-// Reference palettes follow the selected accent's hue; the original six
-// continue to use their existing translucent pigments without any changes.
+// Palettes follow the selected profile accent; each style retains its own
+// arrangement, luminance range and motion.
 float square(float x) { return x * x; }
 
 vec3 hsvColour(float h, float s, float v) {
@@ -41,6 +41,18 @@ float selectedHue() {
   else if (hi == uAccent.g) h = 2.0 + (uAccent.b - uAccent.r) / d;
   else h = 4.0 + (uAccent.r - uAccent.g) / d;
   return fract(h / 6.0 + 1.0);
+}
+
+// Keep translucent pigments in the selected colour family, including its
+// muted saturation. Near-black accents use neutral shades rather than an
+// arbitrary hue. Brightness stays bounded for legible light header controls.
+vec3 profilePigment(float hueOffset, float saturationScale, float brightness) {
+  float hi = max(uAccent.r, max(uAccent.g, uAccent.b));
+  float lo = min(uAccent.r, min(uAccent.g, uAccent.b));
+  float saturation = (hi - lo) / max(hi, 0.001);
+  saturation *= smoothstep(0.10, 0.25, hi);
+  return hsvColour(selectedHue() + hueOffset,
+      clamp(saturation * saturationScale, 0.0, 0.96), brightness);
 }
 
 vec3 referenceStyle(vec2 uv) {
@@ -153,17 +165,17 @@ void main() {
   if (uStyle >= 6.0) {
     fragColor = vec4(clamp(referenceStyle(uv), 0.0, 1.0), 1.0);
   } else if (uStyle < 0.5) {
-    // Aurora: wide, overlapping teal and violet ribbons, softly undulating.
+    // Aurora: softly undulating ribbons of neighbouring accent hues.
     float upper = uv.y - (0.24 + 0.18 * sin(uv.x * 3.5 + uPhase));
     float lower = uv.y - (0.74 + 0.16 * cos(uv.x * 2.8 - uPhase));
-    float teal = exp(-upper * upper * 15.0);
-    float violet = exp(-lower * lower * 13.0);
+    float upperRibbon = exp(-upper * upper * 15.0);
+    float lowerRibbon = exp(-lower * lower * 13.0);
     float drift = 0.5 + 0.5 * sin(uv.x * 3.0 + uv.y * 2.0 + uPhase);
-    vec3 cool = mix(vec3(0.015, 0.10, 0.25),
-        vec3(0.015, 0.24, 0.18), drift);
-    vec3 tint = mix(cool, vec3(0.24, 0.035, 0.30),
-        violet / max(teal + violet, 0.001));
-    float alpha = 0.28 + 0.40 * max(teal, violet);
+    vec3 cool = mix(profilePigment(-0.025, 0.95, 0.25),
+        profilePigment(-0.12, 0.90, 0.30), drift);
+    vec3 tint = mix(cool, profilePigment(0.10, 0.90, 0.34),
+        lowerRibbon / max(upperRibbon + lowerRibbon, 0.001));
+    float alpha = 0.28 + 0.40 * max(upperRibbon, lowerRibbon);
     fragColor = vec4(tint * alpha, alpha);
   } else if (uStyle < 1.5) {
     // Two drifting pools of cool and warm dye, mixed over the selected colour.
@@ -174,26 +186,26 @@ void main() {
     float cool = exp(-dot(a, a) * 8.0);
     float warm = exp(-dot(b, b) * 9.0);
     float pigment = warm / max(cool + warm, 0.001);
-    vec3 tint = mix(vec3(0.015, 0.12, 0.22),
-        vec3(0.30, 0.035, 0.15), pigment);
+    vec3 tint = mix(profilePigment(-0.08, 0.95, 0.25),
+        profilePigment(0.10, 0.85, 0.34), pigment);
     float alpha = 0.25 + 0.42 * max(cool, warm);
     fragColor = vec4(tint * alpha, alpha);
   } else if (uStyle < 2.5) {
-    // Sunset: a slow mesh of copper, berry and indigo, with three moving centres.
+    // Sunset: three moving centres with a warm-to-cool accent-relative palette.
     vec2 a = uv - vec2(0.18 + 0.15 * cos(uPhase),
         0.28 + 0.20 * sin(uPhase));
     vec2 b = uv - vec2(0.70 + 0.18 * sin(uPhase),
         0.24 + 0.16 * cos(uPhase));
     vec2 c = uv - vec2(0.48 + 0.24 * cos(uPhase),
         0.80 + 0.12 * sin(uPhase));
-    float copper = exp(-dot(a, a) * 5.0);
-    float berry = exp(-dot(b, b) * 6.0);
-    float indigo = exp(-dot(c, c) * 5.5);
-    float total = max(copper + berry + indigo, 0.001);
-    vec3 tint = (vec3(0.44, 0.13, 0.025) * copper
-        + vec3(0.30, 0.025, 0.14) * berry
-        + vec3(0.045, 0.035, 0.19) * indigo) / total;
-    float alpha = 0.32 + 0.40 * max(copper, max(berry, indigo));
+    float firstPool = exp(-dot(a, a) * 5.0);
+    float secondPool = exp(-dot(b, b) * 6.0);
+    float thirdPool = exp(-dot(c, c) * 5.5);
+    float total = max(firstPool + secondPool + thirdPool, 0.001);
+    vec3 tint = (profilePigment(0.12, 0.90, 0.44) * firstPool
+        + profilePigment(0.025, 0.95, 0.32) * secondPool
+        + profilePigment(-0.10, 0.85, 0.22) * thirdPool) / total;
+    float alpha = 0.32 + 0.40 * max(firstPool, max(secondPool, thirdPool));
     fragColor = vec4(tint * alpha, alpha);
   } else if (uStyle < 3.5) {
     // Pigment: saturated dye clouds on a fine, stationary paper grain.
@@ -201,8 +213,8 @@ void main() {
     p += vec2(0.35 * sin(uPhase), 0.30 * cos(uPhase));
     float cloud = softNoise(p + vec2(softNoise(p + vec2(2.7)), 0.0));
     float mixValue = smoothstep(0.28, 0.72, cloud);
-    vec3 tint = mix(vec3(0.005, 0.17, 0.21),
-        vec3(0.36, 0.025, 0.15), mixValue);
+    vec3 tint = mix(profilePigment(-0.10, 1.0, 0.25),
+        profilePigment(0.10, 0.95, 0.36), mixValue);
     float grain = grainAt(FlutterFragCoord().xy / 1.25) - 0.5;
     float alpha = clamp(0.18 + 0.66 * mixValue + grain * 0.10, 0.12, 0.89);
     fragColor = vec4(tint * alpha, alpha);
@@ -214,9 +226,9 @@ void main() {
     float field = uv.x * 8.0 + uv.y * 4.0 + warp * 7.0 + uPhase;
     float band = 0.5 + 0.5 * sin(field);
     float vein = 1.0 - smoothstep(0.025, 0.14, abs(sin(field * 2.0)));
-    vec3 tint = mix(vec3(0.035, 0.19, 0.22),
-        vec3(0.30, 0.035, 0.25), band);
-    tint = mix(tint, vec3(0.015, 0.01, 0.035), vein * 0.8);
+    vec3 tint = mix(profilePigment(-0.08, 0.85, 0.25),
+        profilePigment(0.08, 0.90, 0.34), band);
+    tint = mix(tint, profilePigment(0.0, 0.60, 0.035), vein * 0.8);
     float grain = grainAt(FlutterFragCoord().xy / 1.4) - 0.5;
     float alpha = clamp(0.20 + 0.48 * band + 0.20 * vein + grain * 0.045,
         0.16, 0.91);
@@ -225,8 +237,8 @@ void main() {
     // Woven: the gradient drifts behind a fixed, softly crossed textile weave.
     float field = 0.5 + 0.5 * sin(uv.x * 4.0 + uv.y * 2.0
         + 1.2 * sin(uv.y * 3.0 - uPhase) + uPhase);
-    vec3 tint = mix(vec3(0.015, 0.15, 0.20),
-        vec3(0.34, 0.095, 0.055), field);
+    vec3 tint = mix(profilePigment(-0.08, 0.85, 0.24),
+        profilePigment(0.08, 0.80, 0.34), field);
     vec2 fibres = FlutterFragCoord().xy / 3.5;
     float warp = 0.5 + 0.5 * sin(fibres.x * 6.2831853);
     float weft = 0.5 + 0.5 * sin(fibres.y * 6.2831853);

@@ -6,60 +6,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
-  test('every texture background key maps to one bundled local PNG', () {
-    expect(
-      profileBackgroundAssets.keys,
-      profileBackgroundCatalogue.skip(1).take(6),
-    );
-    for (final asset in profileBackgroundAssets.values) {
-      expect(asset, startsWith('assets/profile_backgrounds/'));
-      expect(asset, endsWith('.png'));
-      expect(asset, isNot(contains('://')));
-    }
-  });
-
   test('every craft background key maps to a bundled craft icon', () {
     expect(
       profileCraftBackgrounds.keys,
-      profileBackgroundCatalogue.skip(7).take(5),
+      profileBackgroundCatalogue.skip(1).take(5),
     );
     for (final craft in profileCraftBackgrounds.values) {
       expect(CraftIcon.assetPathFor(craft), isNotNull);
     }
   });
 
-  testWidgets('texture is clipped, tiled, and tinted by the selected bundle', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightThemeData,
-        home: const SizedBox(
-          width: 180,
-          height: 80,
-          child: ProfileHeaderBackground(
-            customisation: ProfileCustomisation(
-              colour: 'seafoam',
-              background: 'x2',
+  testWidgets(
+    'retired textures render the selected base without asset requests',
+    (
+      tester,
+    ) async {
+      for (final background in [
+        'bayerdark',
+        'cubedark',
+        'dotcrossdark',
+        'scallopdark',
+        'skewdark',
+        'x2',
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightThemeData,
+            home: SizedBox(
+              width: 180,
+              height: 80,
+              child: ProfileHeaderBackground(
+                customisation: ProfileCustomisation(
+                  colour: 'seafoam',
+                  background: background,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
-
-    expect(find.byType(ClipRect), findsOneWidget);
-    final image = tester.widget<Image>(
-      find.byKey(const Key('profile-header-background-texture')),
-    );
-    expect(image.image, isA<AssetImage>());
-    expect((image.image as AssetImage).assetName, endsWith('/x2.png'));
-    expect(image.repeat, ImageRepeat.repeat);
-    expect(image.color?.a, moreOrLessEquals(0.18));
-    expect(image.color?.r, 1);
-    expect(image.color?.g, 1);
-    expect(image.color?.b, 1);
-    expect(image.colorBlendMode, BlendMode.srcIn);
-  });
+        );
+        final box = tester.widget<ColoredBox>(
+          find.byKey(const Key('profile-header-background')),
+        );
+        expect(box.color, const Color(0xFF246B60));
+        expect(find.byType(Image), findsNothing);
+        expect(
+          find.byKey(const Key('profile-header-background-texture')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets('none paints only the selected base colour', (tester) async {
     await tester.pumpWidget(

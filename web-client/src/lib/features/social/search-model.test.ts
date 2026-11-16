@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { searchDestination, recentDestination } from './search-model';
+import {
+	searchDestination,
+	recentDestination,
+	recentAuthor
+} from './search-model';
 import type { RecentSearch } from '#lib/api/types.ts';
 
 describe('native search intent', () => {
@@ -14,6 +18,40 @@ describe('native search intent', () => {
 			'/search?q=linen+dress&tab=posts&sort=popular'
 		);
 		expect(searchDestination('   ')).toBeUndefined();
+	});
+	it('retains hydrated profile decorations with safe defaults for old history', () => {
+		const recent: RecentSearch = {
+			id: 'profile',
+			type: 'profile',
+			displayLabel: 'Bob',
+			payload: {
+				did: 'did:plc:bob',
+				handle: 'bob.test',
+				accountType: 'business',
+				customisation: { colour: 'orchid', profileBackground: 'animated-flow' }
+			}
+		};
+		expect(recentAuthor(recent)).toMatchObject({
+			accountType: 'business',
+			customisation: recent.payload.customisation
+		});
+		expect(
+			recentAuthor({
+				...recent,
+				payload: { did: 'did:plc:bob', handle: 'bob.test' }
+			})
+		).toMatchObject({ accountType: undefined, customisation: undefined });
+		expect(
+			recentAuthor({
+				...recent,
+				payload: {
+					did: 'did:plc:bob',
+					handle: 'bob.test',
+					accountType: 'future',
+					customisation: []
+				}
+			})
+		).toMatchObject({ accountType: undefined, customisation: undefined });
 	});
 	it('opens query history with native default intent while retaining explicit project searches', () => {
 		expect(

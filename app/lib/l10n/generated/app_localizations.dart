@@ -4300,42 +4300,6 @@ abstract class AppLocalizations {
   /// **'Prism'**
   String get profileCustomisationBackgroundPrism;
 
-  /// Label for the bayerdark profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Dither'**
-  String get profileCustomisationBackgroundDither;
-
-  /// Label for the cubedark profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Grid'**
-  String get profileCustomisationBackgroundGrid;
-
-  /// Label for the dotcrossdark profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Cross stitch'**
-  String get profileCustomisationBackgroundCrossStitch;
-
-  /// Label for the scallopdark profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Scallops'**
-  String get profileCustomisationBackgroundScallops;
-
-  /// Label for the skewdark profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Diagonal weave'**
-  String get profileCustomisationBackgroundDiagonalWeave;
-
-  /// Label for the x2 profile texture.
-  ///
-  /// In en, this message translates to:
-  /// **'Crosshatch'**
-  String get profileCustomisationBackgroundCrosshatch;
-
   /// Display label for the 'sewing' craft option in the crafts picker.
   ///
   /// In en, this message translates to:

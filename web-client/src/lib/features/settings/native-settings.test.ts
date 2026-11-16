@@ -180,12 +180,21 @@ describe('native settings catalogues and future values', () => {
 
 	it('retires removed choices without losing the other supported selection', () => {
 		expect(
-			effectiveCustomisation({ colour: 'teal', profileBackground: 'x2' })
-		).toEqual({ colour: 'cobalt', background: 'x2' });
+			effectiveCustomisation({
+				colour: 'teal',
+				profileBackground: 'craft-sewing'
+			})
+		).toEqual({ colour: 'cobalt', background: 'craft-sewing' });
 		for (const profileBackground of [
 			'animated-dust',
 			'animated-satin',
-			'animated-opal'
+			'animated-opal',
+			'bayerdark',
+			'cubedark',
+			'dotcrossdark',
+			'scallopdark',
+			'skewdark',
+			'x2'
 		]) {
 			expect(
 				effectiveCustomisation({ colour: 'seafoam', profileBackground })

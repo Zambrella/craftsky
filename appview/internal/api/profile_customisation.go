@@ -47,12 +47,6 @@ var (
 	}
 	ProfileBackgroundCatalogue = []string{
 		"none",
-		"bayerdark",
-		"cubedark",
-		"dotcrossdark",
-		"scallopdark",
-		"skewdark",
-		"x2",
 		"craft-sewing",
 		"craft-knitting",
 		"craft-crochet",

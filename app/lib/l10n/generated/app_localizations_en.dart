@@ -2428,24 +2428,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationBackgroundPrism => 'Prism';
 
   @override
-  String get profileCustomisationBackgroundDither => 'Dither';
-
-  @override
-  String get profileCustomisationBackgroundGrid => 'Grid';
-
-  @override
-  String get profileCustomisationBackgroundCrossStitch => 'Cross stitch';
-
-  @override
-  String get profileCustomisationBackgroundScallops => 'Scallops';
-
-  @override
-  String get profileCustomisationBackgroundDiagonalWeave => 'Diagonal weave';
-
-  @override
-  String get profileCustomisationBackgroundCrosshatch => 'Crosshatch';
-
-  @override
   String get craftSewing => 'Sewing';
 
   @override

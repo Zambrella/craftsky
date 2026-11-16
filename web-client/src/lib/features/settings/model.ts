@@ -77,12 +77,6 @@ export const colours: Record<string, string> = {
 };
 export const backgrounds = [
 	'none',
-	'bayerdark',
-	'cubedark',
-	'dotcrossdark',
-	'scallopdark',
-	'skewdark',
-	'x2',
 	'craft-sewing',
 	'craft-knitting',
 	'craft-crochet',

@@ -105,67 +105,77 @@ class _LoadedCustomisationPageState
         appBar: AppBar(title: Text(l10n.profileCustomisationTitle)),
         body: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          child: Column(
             children: [
-              Semantics(
-                label: l10n.profileCustomisationPreview,
-                container: true,
-                child: ProfileCustomisationTheme(
-                  customisation: draft,
-                  child: SizedBox(
-                    height: 160,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      alignment: Alignment.center,
-                      children: [
-                        ProfileHeaderBackground(customisation: draft),
-                        Center(
-                          child: ProfileAvatar(
-                            seed: widget.value.previewSeed,
-                            avatarUrl: widget.value.previewAvatarUrl,
-                            size: ProfileAvatarSize.large,
-                            customisation: draft,
-                            showShadow: false,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Semantics(
+                  label: l10n.profileCustomisationPreview,
+                  container: true,
+                  child: ProfileCustomisationTheme(
+                    customisation: draft,
+                    child: SizedBox(
+                      height: 160,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        alignment: Alignment.center,
+                        children: [
+                          ProfileHeaderBackground(customisation: draft),
+                          Center(
+                            child: ProfileAvatar(
+                              seed: widget.value.previewSeed,
+                              avatarUrl: widget.value.previewAvatarUrl,
+                              size: ProfileAvatarSize.large,
+                              customisation: draft,
+                              showShadow: false,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              _ChoiceGroup(
-                label: l10n.profileCustomisationColour,
-                values: profileColourCatalogue,
-                selected: draft.colour,
-                labels: _colourLabels(l10n),
-                selectedColourBundles: profileColourBundles,
-                orderStart: 10,
-                onSelected: notifier.selectColour,
-              ),
-              const SizedBox(height: 20),
-              _ChoiceGroup(
-                label: l10n.profileCustomisationBackground,
-                values: profileBackgroundCatalogue,
-                selected: draft.background,
-                labels: _backgroundLabels(l10n),
-                orderStart: 30,
-                onSelected: notifier.selectBackground,
-              ),
-              const SizedBox(height: 28),
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(80),
-                child: ChunkyButton(
-                  onPressed: widget.value.isDirty && !widget.isSaving
-                      ? () => unawaited(notifier.save())
-                      : null,
-                  child: widget.isSaving
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(l10n.profileCustomisationSave),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                  children: [
+                    _ChoiceGroup(
+                      label: l10n.profileCustomisationColour,
+                      values: profileColourCatalogue,
+                      selected: draft.colour,
+                      labels: _colourLabels(l10n),
+                      selectedColourBundles: profileColourBundles,
+                      orderStart: 10,
+                      onSelected: notifier.selectColour,
+                    ),
+                    const SizedBox(height: 20),
+                    _ChoiceGroup(
+                      label: l10n.profileCustomisationBackground,
+                      values: profileBackgroundCatalogue,
+                      selected: draft.background,
+                      labels: _backgroundLabels(l10n),
+                      orderStart: 30,
+                      onSelected: notifier.selectBackground,
+                    ),
+                    const SizedBox(height: 28),
+                    FocusTraversalOrder(
+                      order: const NumericFocusOrder(80),
+                      child: ChunkyButton(
+                        onPressed: widget.value.isDirty && !widget.isSaving
+                            ? () => unawaited(notifier.save())
+                            : null,
+                        child: widget.isSaving
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.profileCustomisationSave),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -309,12 +319,6 @@ Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'animated-lagoon': l10n.profileCustomisationBackgroundLagoon,
   'animated-nebula': l10n.profileCustomisationBackgroundNebula,
   'animated-prism': l10n.profileCustomisationBackgroundPrism,
-  'bayerdark': l10n.profileCustomisationBackgroundDither,
-  'cubedark': l10n.profileCustomisationBackgroundGrid,
-  'dotcrossdark': l10n.profileCustomisationBackgroundCrossStitch,
-  'scallopdark': l10n.profileCustomisationBackgroundScallops,
-  'skewdark': l10n.profileCustomisationBackgroundDiagonalWeave,
-  'x2': l10n.profileCustomisationBackgroundCrosshatch,
   'craft-sewing': craftLabel(Craft.sewing, l10n),
   'craft-knitting': craftLabel(Craft.knitting, l10n),
   'craft-crochet': craftLabel(Craft.crochet, l10n),

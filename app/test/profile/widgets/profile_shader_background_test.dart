@@ -15,6 +15,7 @@ Widget _subject(
   String colour = 'terracotta',
   bool reduceMotion = false,
   bool enabled = true,
+  bool includeBase = true,
 }) => MediaQuery(
   data: MediaQueryData(disableAnimations: reduceMotion),
   child: Directionality(
@@ -27,12 +28,23 @@ Widget _subject(
           child: SizedBox(
             width: 300,
             height: 120,
-            child: ProfileHeaderBackground(
-              customisation: ProfileCustomisation(
-                colour: colour,
-                background: background,
-              ),
-            ),
+            child: includeBase
+                ? ProfileHeaderBackground(
+                    customisation: ProfileCustomisation(
+                      colour: colour,
+                      background: background,
+                    ),
+                  )
+                : ProfileShaderBackground(
+                    style: profileShaderBackgrounds[background]!,
+                    accent: ui.Color(
+                      int.parse(
+                            profileColourBundles[colour]!.base.substring(1),
+                            radix: 16,
+                          ) |
+                          0xFF000000,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -111,6 +123,51 @@ void main() {
       await tester.pump();
       expect(await _pixels(tester), isNot(orderedEquals(cobalt)));
       expect(tester.binding.transientCallbackCount, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'translucent pigments follow the selected accent without the base layer',
+    (
+      tester,
+    ) async {
+      await tester.runAsync(ProfileShaderBackground.prepareAssets);
+      for (final background in profileShaderBackgrounds.keys.take(6)) {
+        final samples = <List<int>>[];
+        for (final colour in ['cobalt', 'seafoam', 'terracotta', 'ink']) {
+          await tester.pumpWidget(
+            _subject(
+              background,
+              colour: colour,
+              reduceMotion: true,
+              includeBase: false,
+            ),
+          );
+          await tester.pump();
+          samples.add(await _pixels(tester));
+        }
+        for (var i = 1; i < samples.length; i++) {
+          expect(
+            samples[i],
+            isNot(orderedEquals(samples[0])),
+            reason: background,
+          );
+        }
+        final neutral = samples.last;
+        for (var i = 0; i < neutral.length; i += 4) {
+          expect(
+            (neutral[i] - neutral[i + 1]).abs(),
+            lessThanOrEqualTo(1),
+            reason: background,
+          );
+          expect(
+            (neutral[i + 1] - neutral[i + 2]).abs(),
+            lessThanOrEqualTo(1),
+            reason: background,
+          );
+        }
+      }
       await tester.pumpWidget(const SizedBox());
     },
   );

@@ -620,7 +620,9 @@
 <style>
 	.profile-preview {
 		height: 160px;
-		position: relative;
+		position: sticky;
+		top: var(--app-bar-height);
+		z-index: 2;
 		overflow: hidden;
 		display: flex;
 		align-items: center;
