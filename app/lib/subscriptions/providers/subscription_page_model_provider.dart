@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -92,6 +94,16 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           }
         }
       }
+      requireCurrent();
+      final refresh = Timer(
+        subscriptionRefreshDelay(ref.read(subscriptionAccessClockProvider)(), [
+          for (final grant in state.promotionalGrants) grant.expiresAt,
+          for (final subscription in state.subscriptions)
+            if (subscription.givesAccess) subscription.currentPeriodEndsAt,
+        ]),
+        ref.invalidateSelf,
+      );
+      ref.onDispose(refresh.cancel);
       return SubscriptionPageModel(
         access: access,
         billingAvailability: service.availability,

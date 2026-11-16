@@ -34,6 +34,7 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -43,6 +44,65 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  for (final failReload in [false, true]) {
+    test(
+      'late conflict reload ${failReload ? 'failure' : 'result'} is discarded '
+      'after account switch',
+      () async {
+        final repository = _ConflictRepository();
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(_registry()),
+            ),
+            businessRepositoryProvider.overrideWithValue(repository),
+            businessTimeZoneServiceProvider.overrideWithValue(
+              BusinessTimeZoneService.initialized(),
+            ),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final subscription = container.listen(
+          businessEventMutationControllerProvider,
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
+        final controller = container.read(
+          businessEventMutationControllerProvider.notifier,
+        );
+        expect(
+          await controller.update(
+            _event('conflict', owner: 'did:plc:alice'),
+            _eventDraft('Edit'),
+          ),
+          isFalse,
+        );
+        final reload = controller.reloadConflict();
+        await _switch(container, AccountKey('did:plc:bob'));
+
+        if (failReload) {
+          repository.reload.completeError(
+            StateError('Old account reload failed'),
+          );
+        } else {
+          repository.reload.complete(
+            _event('reloaded', owner: 'did:plc:alice'),
+          );
+        }
+
+        expect(await reload, isNull);
+        expect(
+          container.read(businessEventMutationControllerProvider).status,
+          EventMutationStatus.ready,
+        );
+        expect(
+          container.read(businessEventMutationControllerProvider).serverEvent,
+          isNull,
+        );
+      },
+    );
+  }
 
   test(
     'IT-010 late Alice profile list detail values and errors never publish '
@@ -778,4 +838,23 @@ final class _MutationBusinessRepository extends Fake
     calls.add('report:$owner:$rkey:${submission.reasonType}');
     return report.future;
   }
+}
+
+final class _ConflictRepository extends Fake implements BusinessRepository {
+  final reload = Completer<BusinessEvent>();
+
+  @override
+  Future<RecordMutationResult> updateEvent(
+    Did owner,
+    RecordKey rkey,
+    Cid expectedCid,
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async => throw const ApiBadRequest(
+    'pds_record_conflict',
+    details: ApiFailureDetails(statusCode: 409),
+  );
+
+  @override
+  Future<BusinessEvent> getEvent(Did owner, RecordKey rkey) => reload.future;
 }

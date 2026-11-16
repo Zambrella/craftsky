@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SubscriptionAccess } from '#lib/api/types.ts';
 import { SubscriptionAccessState } from './subscription-access.svelte.ts';
 
@@ -9,8 +9,31 @@ const access = (tier: 'free' | 'plus' | 'business'): SubscriptionAccess => ({
 	effectiveTier: tier,
 	givesAccess: tier !== 'free'
 });
+afterEach(() => vi.useRealTimers());
 
 describe('shared subscription access', () => {
+	it('refreshes on a crossed access boundary or age without revoking provider-confirmed grace access', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-11-16T10:00:00Z'));
+		const state = new SubscriptionAccessState(account, did, () => account);
+		expect(state.needsRefresh()).toBe(true);
+		const value = {
+			...access('business'),
+			accessEndsAt: '2026-11-16T10:01:00Z'
+		};
+		state.beginRead(account)(value);
+		expect(state.needsRefresh()).toBe(false);
+		vi.advanceTimersByTime(60_000);
+		expect(state.needsRefresh()).toBe(true);
+		expect(state.value).toEqual(value);
+		state.beginRead(account)(value);
+		expect(state.needsRefresh()).toBe(false);
+		vi.advanceTimersByTime(5 * 60_000);
+		expect(state.needsRefresh()).toBe(true);
+		state.beginRead(account)(access('free'));
+		expect(state.value).toEqual(access('free'));
+		expect(state.needsRefresh()).toBe(false);
+	});
 	it('publishes both newly paid access and confirmed access loss', () => {
 		const state = new SubscriptionAccessState(account, did, () => account);
 		for (const tier of ['free', 'plus', 'business', 'free'] as const) {

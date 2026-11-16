@@ -46,7 +46,12 @@
 		access = $state<SubscriptionAccess>();
 	let theme = $state('Use device setting');
 	const openAccounts = getContext<() => void>('craftsky-open-accounts');
-	let paid = $derived(!!access?.givesAccess && access.effectiveTier !== 'free');
+	let paid = $derived(
+		premium.allowed(
+			'plus',
+			!!access?.givesAccess && access.effectiveTier !== 'free'
+		)
+	);
 	function loadMenu() {
 		void menu.load(
 			async () => {
@@ -97,8 +102,10 @@
 		visibleSettingsGroups(
 			restricted,
 			subscriptionsEnabled() &&
-				!!access?.givesAccess &&
-				access.effectiveTier === 'business'
+				premium.allowed(
+					'business',
+					!!access?.givesAccess && access.effectiveTier === 'business'
+				)
 		)
 	);
 	async function signOut() {

@@ -4,7 +4,7 @@
 	const premium = useSubscriptionFeature();
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import {
 		newOperationKey,
 		type Author,
@@ -41,7 +41,12 @@
 		latest = $state<number | null>(null),
 		change = $state<number | null>(null);
 	let available = $state(''),
-		allowsPlus = $state(false);
+		loadedPlus = $state(false);
+	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
+	$effect(() => {
+		if (section === 'growth' && loaded && allowsPlus && !loadedPlus)
+			untrack(() => void load());
+	});
 	let query = $state('');
 	let chartWidth = $state(600);
 	let chart = $derived(followerChart(points, period, chartWidth));
@@ -78,7 +83,7 @@
 		if (section === 'growth')
 			return work.load(
 				async () => {
-					const access = await api.billing.access();
+					const access = await premium.readAccess(() => api.billing.access());
 					const data =
 						access.givesAccess && access.effectiveTier !== 'free'
 							? await api.profiles.followerGrowth(period)
@@ -103,7 +108,7 @@
 							: null;
 					change = typeof value.netChange === 'number' ? value.netChange : null;
 					available = text(value.availableFrom);
-					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
+					loadedPlus = access.givesAccess && access.effectiveTier !== 'free';
 				},
 				'settings.Connections.load'
 			);

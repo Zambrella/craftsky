@@ -72,6 +72,7 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 
 	result := subscriptions.CompleteSnapshot{}
 	seen := make(map[string]struct{}, c.config.MaxPages)
+	seenSubscriptions := make(map[string]struct{})
 	for page := 0; page < c.config.MaxPages; page++ {
 		pageKey := pageURL.String()
 		if _, duplicate := seen[pageKey]; duplicate {
@@ -97,6 +98,13 @@ func (c *Client) ListCustomerSubscriptions(ctx context.Context, customerID uuid.
 			if err != nil {
 				return subscriptions.CompleteSnapshot{}, err
 			}
+			// A repeated resource is an inconsistent enumeration, not another
+			// paid plan. Applying it would classify one purchase as a duplicate
+			// subscription and revoke the customer's confirmed access.
+			if _, duplicate := seenSubscriptions[snapshot.ID]; duplicate {
+				return subscriptions.CompleteSnapshot{}, errors.New("duplicate RevenueCat subscription")
+			}
+			seenSubscriptions[snapshot.ID] = struct{}{}
 			if item.Store == "promotional" {
 				entitlements, err := c.promotionalEntitlements(ctx, item)
 				if err != nil {
@@ -217,7 +225,8 @@ func (resource subscriptionResource) snapshot() (subscriptions.ProviderSubscript
 	if err := json.Unmarshal(resource.ProductID, &productID); err != nil {
 		return subscriptions.ProviderSubscriptionSnapshot{}, &ProviderError{stage: "decode", statusCode: http.StatusOK, cause: err}
 	}
-	if productID != nil && strings.TrimSpace(*productID) == "" {
+	if (resource.Store != "promotional" && productID == nil) ||
+		(productID != nil && strings.TrimSpace(*productID) == "") {
 		return subscriptions.ProviderSubscriptionSnapshot{}, errors.New("invalid RevenueCat subscription response")
 	}
 	product := ""

@@ -179,11 +179,18 @@ final class BillingState with BillingStateMappable {
     for (final license in licenses) license.subscriptionId: license,
   };
 
-  /// Complimentary access is separate from paid provider obligations. Keep
-  /// access authority on the server, including when a refresh is delayed.
-  Map<SubscriptionTier, DateTime?> get promotionalAccessEndsByTier {
+  /// Promotional dates are hard expiries, independently of paid provider
+  /// grace periods. A cached grant must not remain displayed after it ends.
+  Map<SubscriptionTier, DateTime?> get promotionalAccessEndsByTier =>
+      promotionalAccessEndsByTierAt(DateTime.now());
+
+  Map<SubscriptionTier, DateTime?> promotionalAccessEndsByTierAt(DateTime now) {
     final result = <SubscriptionTier, DateTime?>{};
-    for (final grant in promotionalGrants.where((value) => value.givesAccess)) {
+    for (final grant in promotionalGrants.where(
+      (value) =>
+          value.givesAccess &&
+          (value.expiresAt == null || value.expiresAt!.isAfter(now)),
+    )) {
       if (!result.containsKey(grant.tier)) {
         result[grant.tier] = grant.expiresAt;
       } else {

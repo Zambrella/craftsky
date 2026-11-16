@@ -411,6 +411,16 @@ func (s *Store) startWebCheckout(ctx context.Context, did syntax.DID, tier Tier,
 				return nil
 			}
 		}
+		// The checkout fence is shared across environments. Recovering an old
+		// operation may have cleared this environment's pending flag, but an
+		// unresolved operation elsewhere must still block a new payable session.
+		var pending bool
+		if err := conn.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM billing_web_checkouts WHERE billing_account_id=$1)`, state.BillingAccountID).Scan(&pending); err != nil {
+			return fmt.Errorf("read remaining checkout operations: %w", err)
+		}
+		if pending {
+			return ErrWebCheckoutPending
+		}
 		if err := checkoutPreflight(state, now); err != nil {
 			return err
 		}

@@ -96,7 +96,7 @@ void main() {
   test('UT-006 maps direct paywall results deterministically', () async {
     final expected = {
       DirectPaywallResult.purchased: PaywallOutcome.reconcile,
-      DirectPaywallResult.restored: PaywallOutcome.reconcile,
+      DirectPaywallResult.restored: PaywallOutcome.restored,
       DirectPaywallResult.cancelled: PaywallOutcome.cancelled,
       DirectPaywallResult.error: PaywallOutcome.providerError,
     };

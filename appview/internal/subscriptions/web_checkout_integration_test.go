@@ -281,6 +281,55 @@ func TestStripePendingFlagSurvivesDisabledConfigurationAndBothEnvironments(t *te
 		t.Fatal("resolved pending flag was retained")
 	}
 }
+
+func TestStripeCheckoutCannotCreateWhileAnotherEnvironmentIsPending(t *testing.T) {
+	for _, environment := range []string{"production", "sandbox"} {
+		for _, recoverExpired := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/recoverExpired=%t", environment, recoverExpired), func(t *testing.T) {
+				store, pool, fake, did, account, now := checkoutFixture(t)
+				store.accessEnvironment = environment
+				otherEnvironment := "sandbox"
+				if environment == "sandbox" {
+					otherEnvironment = "production"
+				}
+				insertOperation := func(env string, sessionID *string) {
+					t.Helper()
+					_, err := pool.Exec(t.Context(), `INSERT INTO billing_web_checkouts(billing_account_id,environment,operation_id,tier,stripe_account_id,price_id,success_url,cancel_url,created_at,session_id) VALUES($1,$2,$3,'plus','acct_merchant','price_plus','https://app.example/success','https://app.example/cancel',$4,$5)`, account.ID, env, uuid.New(), now, sessionID)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				insertOperation(otherEnvironment, nil)
+				if recoverExpired {
+					sessionID := "cs_live_expired"
+					if environment == "sandbox" {
+						sessionID = "cs_test_expired"
+					}
+					fake.session = CheckoutSession{
+						ID: sessionID, Status: "expired", AppUserID: account.RevenueCatAppUserID.String(),
+						EnvironmentKnown: true, LiveMode: environment == "production", Managed: true, StripeTaxLiability: true,
+					}
+					insertOperation(environment, &sessionID)
+				}
+				if _, err := store.WebCheckoutURL(t.Context(), did, TierPlus, now); !errors.Is(err, ErrWebCheckoutPending) {
+					t.Fatalf("new checkout error = %v, want pending", err)
+				}
+				if len(fake.requests) != 0 {
+					t.Fatal("created a second payable checkout")
+				}
+				var count int
+				if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM billing_web_checkouts WHERE billing_account_id=$1`, account.ID).Scan(&count); err != nil || count != 1 {
+					t.Fatalf("remaining operations = %d, err = %v", count, err)
+				}
+				state, err := store.OwnerState(t.Context(), did, now)
+				if err != nil || !state.WebCheckoutPending {
+					t.Fatalf("pending state = %t, err = %v", state.WebCheckoutPending, err)
+				}
+			})
+		}
+	}
+}
+
 func TestStripeCheckoutRechecksLifecycleBeforeDispatch(t *testing.T) {
 	store, pool, fake, did, _, now := checkoutFixture(t)
 	if _, err := pool.Exec(t.Context(), `CREATE OR REPLACE FUNCTION appview_owner_is_active(candidate_did TEXT) RETURNS BOOLEAN LANGUAGE SQL AS $$ SELECT false $$`); err != nil {

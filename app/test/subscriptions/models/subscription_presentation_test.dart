@@ -36,9 +36,9 @@ void main() {
     );
   });
 
-  test('UT-010 unknown provider state fails closed to safe fallback', () {
+  test('UT-010 unknown inactive provider state uses a safe fallback', () {
     final presentation = projectTierPresentation(
-      _state(status: 'future_provider_value', givesAccess: true),
+      _state(status: 'future_provider_value'),
     );
 
     expect(presentation, SubscriptionTierPresentation.statusUnavailable);
@@ -50,6 +50,29 @@ void main() {
       SubscriptionTier.free,
     );
   });
+
+  for (final status in [
+    'trialing',
+    'in_grace_period',
+    'in_billing_retry',
+    'future_provider_value',
+  ]) {
+    test('$status preserves authoritative paid access presentation', () {
+      final state = _state(status: status, givesAccess: true);
+      expect(
+        projectTierPresentation(state),
+        SubscriptionTierPresentation.active,
+      );
+      expect(
+        projectLicensePresentation(state, state.licenses.single),
+        SubscriptionTierPresentation.active,
+      );
+      expect(
+        effectiveTierForPresentation(state, _access(SubscriptionTier.free)),
+        SubscriptionTier.free,
+      );
+    });
+  }
 
   test('UT-010 AppView none anomaly sentinel renders healthy state', () {
     expect(

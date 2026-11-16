@@ -48,6 +48,7 @@
 		type BusinessImage
 	} from './model.ts';
 	import { safeURL } from '#lib/public.ts';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
@@ -66,6 +67,7 @@
 		productIndex?: string;
 	} = $props();
 	const work = new Work('settings.Business.action');
+	const premium = useSubscriptionFeature();
 	const returnTo =
 		getContext<(destination: string) => Promise<void>>('craftsky-return') ||
 		((destination: string) => goto(destination, { replaceState: true }));
@@ -73,11 +75,15 @@
 	let loaded = $state(false);
 	let loadingMore = $state(false);
 	let cid = $state<string | null>(null),
-		allowsBusiness = $state(false),
+		loadedBusiness = $state(false),
 		types = $state<string[]>([]),
 		offers = $state<string[]>([]),
 		unknownTypes = $state<string[]>([]),
 		unknownOffers = $state<string[]>([]);
+	const allowsBusiness = $derived(premium.allowed('business', loadedBusiness));
+	$effect(() => {
+		if (loaded && allowsBusiness && !loadedBusiness) untrack(() => void load());
+	});
 	let tagline = $state(''),
 		hours = $state(''),
 		area = $state(''),
@@ -111,8 +117,7 @@
 					uri: '',
 					images: [],
 					amount: '',
-					currency:
-						new Intl.Locale(navigator.language).region === 'GB' ? 'GBP' : 'USD'
+					currency: ''
 				}
 			];
 		productBaseline = JSON.stringify($state.snapshot(products));
@@ -405,7 +410,7 @@
 	async function data() {
 		const [profile, access] = await Promise.all([
 			api.profiles.me(),
-			api.billing.access()
+			premium.readAccess(() => api.billing.access())
 		]);
 		const allowed = access.givesAccess && access.effectiveTier === 'business';
 		const page =
@@ -440,7 +445,7 @@
 			(value) => {
 				loaded = true;
 				applyProfile(value.profile);
-				allowsBusiness = value.allowed;
+				loadedBusiness = value.allowed;
 				events = value.page?.items || [];
 				cursor = value.page?.cursor || null;
 				if (section === 'event' && value.allowed) editEvent(value.event);
@@ -784,7 +789,7 @@
 		try {
 			requireRecordText(eventName, 'Event name', 200, 2000);
 			requireRecordText(summary, 'Summary', 1000, 10000);
-			requireRecordText(venue, 'Venue name', 200, 2000);
+			requireRecordText(venue, 'Venue', 200, 2000);
 			if (!eventName.trim())
 				throw new FieldValidationError('Event name', 'Enter an event name.');
 			if (!eventRoles.length || eventRoles.length > 4)
@@ -806,15 +811,17 @@
 					'Ends',
 					'The end must be after the start, within 31 days.'
 				);
+			const eventLink = eventUri.trim(),
+				registrationLink = registrationUri.trim();
 			if (
-				(eventUri && !https(eventUri)) ||
-				(registrationUri && !https(registrationUri))
+				(eventLink && !https(eventLink)) ||
+				(registrationLink && !https(registrationLink))
 			)
 				throw new FieldValidationError(
-					eventUri && !https(eventUri) ? 'Event website' : 'Registration link',
+					eventLink && !https(eventLink) ? 'Event link' : 'Registration link',
 					'Use secure HTTPS event and registration links.'
 				);
-			if (eventUri && eventUri === registrationUri)
+			if (eventLink && eventLink === registrationLink)
 				throw new FieldValidationError(
 					'Registration link',
 					'Event and registration links must be different.'
@@ -832,8 +839,8 @@
 				isAllDay: allDay,
 				...(summary.trim() ? { summary: summary.trim() } : {}),
 				...(venue.trim() ? { venueName: venue.trim() } : {}),
-				...(eventUri ? { eventUri } : {}),
-				...(registrationUri ? { registrationUri } : {}),
+				...(eventLink ? { eventUri: eventLink } : {}),
+				...(registrationLink ? { registrationUri: registrationLink } : {}),
 				...(photo ? { image: imageBody(photo) } : {})
 			};
 			const original = editing,
@@ -1098,6 +1105,7 @@
 				</div>
 				<SingleSelect
 					label="Primary action"
+					clearable={false}
 					helperText="Choose what visitors can do on your profile."
 					placeholder="Select Primary action"
 					value={action}
@@ -1106,7 +1114,9 @@
 						...[
 							...actions,
 							...(action && !actions.includes(action) ? [action] : [])
-						].map((id) => ({ id, label: title(id) }))
+						]
+							.map((id) => ({ id, label: title(id) }))
+							.sort((a, b) => a.label.localeCompare(b.label))
 					]}
 					onchange={(value) => {
 						action = value;
@@ -1159,7 +1169,7 @@
 								>{#if product.amount}<small
 										>{product.currency} {product.amount}</small
 									>{/if}</span
-							><SettingsIcon name="chevron" size={20} /></button
+							></button
 						>
 
 						<details class="product-menu" use:contextMenu>
@@ -1218,15 +1228,17 @@
 				disabled={work.busy || !!work.retry || imageTransformBusy}
 			>
 				<div class="business-composer-scroll">
+					<RecordTextField
+						label="Title"
+						name="product.title"
+						required
+						limit={{ graphemes: 150, bytes: 1500 }}
+						bind:value={product.title}
+					/>
 					<label
-						>Title<input
-							name="product.title"
-							required
-							bind:value={product.title}
-						/></label
-					><label
-						>Destination<input
+						><span>Destination <small>required</small></span><input
 							name="product.uri"
+							aria-label="Destination"
 							type="url"
 							required
 							bind:value={product.uri}
@@ -1630,7 +1642,7 @@
 		min-height: 40px;
 		margin-left: -8px;
 	}
-	.event-composer-form :global(label > span > small) {
+	.business-composer-form :global(label > span > small) {
 		color: var(--ink-2);
 		font-size: 12px;
 		letter-spacing: 1.68px;

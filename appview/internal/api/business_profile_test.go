@@ -359,6 +359,7 @@ func TestBusinessProfilePreconditionConflicts(t *testing.T) {
 
 func TestBusinessProfilePutUsesStrictCamelCaseValidation(t *testing.T) {
 	t.Parallel()
+	const productImages = `"images":[{"image":{"$type":"blob","ref":{"$link":"` + businessProfileCID1 + `"},"mimeType":"image/png","size":12},"alt":"Wool"}]`
 	tests := []struct {
 		name string
 		body string
@@ -369,6 +370,8 @@ func TestBusinessProfilePutUsesStrictCamelCaseValidation(t *testing.T) {
 		{name: "unknown field", body: `{"ownerDid":"did:plc:other"}`, code: "unexpected_field"},
 		{name: "invalid known value", body: `{"businessTypes":["unknown"]}`, code: "validation_failed"},
 		{name: "overlong tagline", body: `{"tagline":"` + strings.Repeat("a", 101) + `"}`, code: "validation_failed"},
+		{name: "empty product title", body: `{"products":[{"title":"","uri":"https://shop.example/wool",` + productImages + `}]}`, code: "validation_failed"},
+		{name: "blank product title", body: `{"products":[{"title":" \t\u2003","uri":"https://shop.example/wool",` + productImages + `}]}`, code: "validation_failed"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -377,7 +380,11 @@ func TestBusinessProfilePutUsesStrictCamelCaseValidation(t *testing.T) {
 				return effects, nil
 			})
 			response := serveBusinessProfileRequest(t, handler, http.MethodPut, test.body, "*")
-			if response.Code != http.StatusBadRequest && response.Code != http.StatusUnprocessableEntity {
+			wantStatus := http.StatusBadRequest
+			if test.code == "validation_failed" {
+				wantStatus = http.StatusUnprocessableEntity
+			}
+			if response.Code != wantStatus {
 				t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 			}
 			var body envelope.Error

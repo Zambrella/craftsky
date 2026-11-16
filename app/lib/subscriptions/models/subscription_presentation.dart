@@ -39,10 +39,6 @@ SubscriptionTierPresentation projectTierPresentation(
   if (pairs.any((pair) => pair.$2!.pendingPayment)) {
     return SubscriptionTierPresentation.pending;
   }
-  const knownStatuses = {'active', 'cancelled', 'expired'};
-  if (pairs.any((pair) => !knownStatuses.contains(pair.$2!.status))) {
-    return SubscriptionTierPresentation.statusUnavailable;
-  }
   if (pairs.any(
     (pair) => pair.$2!.status == 'cancelled' && pair.$2!.givesAccess,
   )) {
@@ -50,6 +46,10 @@ SubscriptionTierPresentation projectTierPresentation(
   }
   if (pairs.any((pair) => pair.$2!.givesAccess)) {
     return SubscriptionTierPresentation.active;
+  }
+  const knownStatuses = {'active', 'cancelled', 'expired'};
+  if (pairs.any((pair) => !knownStatuses.contains(pair.$2!.status))) {
+    return SubscriptionTierPresentation.statusUnavailable;
   }
   return SubscriptionTierPresentation.dormant;
 }
@@ -73,13 +73,13 @@ SubscriptionTierPresentation projectLicensePresentation(
   if (subscription.pendingPayment) {
     return SubscriptionTierPresentation.pending;
   }
-  if (!const {'active', 'cancelled', 'expired'}.contains(subscription.status)) {
-    return SubscriptionTierPresentation.statusUnavailable;
-  }
   if (subscription.status == 'cancelled' && subscription.givesAccess) {
     return SubscriptionTierPresentation.canceledAccessible;
   }
   if (subscription.givesAccess) return SubscriptionTierPresentation.active;
+  if (!const {'active', 'cancelled', 'expired'}.contains(subscription.status)) {
+    return SubscriptionTierPresentation.statusUnavailable;
+  }
   return SubscriptionTierPresentation.dormant;
 }
 

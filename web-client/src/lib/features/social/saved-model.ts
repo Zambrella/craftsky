@@ -1,4 +1,24 @@
 import type { CraftskyAPI, SavedFolder } from '#lib/api/client.ts';
+import { FieldValidationError } from '#lib/field-validation.ts';
+
+/** Match the folder-name contract used by the mobile client and AppView. */
+export function normalizeSavedFolderName(value: string): string {
+	const name = value.trim();
+	if (!name)
+		throw new FieldValidationError('folderName', 'Enter a folder name.');
+	if (Array.from(name).length > 100)
+		throw new FieldValidationError(
+			'folderName',
+			'Use 100 characters or fewer.'
+		);
+	if (/[\\/\u0000-\u001f\u007f-\u009f]/u.test(name))
+		throw new FieldValidationError(
+			'folderName',
+			'Folder names cannot contain slashes or control characters.'
+		);
+	return name;
+}
+
 /** Resolve every folder page for the compact picker, retaining opaque cursors unchanged. */
 export async function allFolders(api: CraftskyAPI): Promise<SavedFolder[]> {
 	const folders: SavedFolder[] = [];

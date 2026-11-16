@@ -113,7 +113,7 @@ test('free saved posts keeps the badged folder action and opens a cancellable up
 	});
 	await page.goto('/saved');
 	const create = page.getByRole('button', {
-		name: 'Create folder',
+		name: 'New folder',
 		exact: true
 	});
 	await expect(create).toBeVisible();
@@ -159,6 +159,123 @@ test('free settings feature opens the Plus paywall without navigating', async ({
 		page.getByRole('dialog', { name: 'CraftSky Plus', exact: true })
 	).toBeVisible();
 });
+
+for (const section of ['customisation', 'growth'] as const)
+	test(`purchasing from locked ${section} unlocks its current page without navigation`, async ({
+		page
+	}) => {
+		test.skip(!enabled);
+		await access(page, 'free');
+		let tier: 'free' | 'plus' = 'free';
+		await page.route('**/api/appview/v1/subscriptions/access', (route) =>
+			route.fulfill({
+				json: {
+					did: account.did,
+					effectiveTier: tier,
+					givesAccess: tier !== 'free'
+				}
+			})
+		);
+		await page.goto(`/settings/${section}`);
+		await page
+			.getByRole('button', { name: 'Learn about subscriptions', exact: true })
+			.click();
+		const paywall = page.getByRole('dialog', {
+			name: 'CraftSky Plus',
+			exact: true
+		});
+		await paywall
+			.getByRole('button', { name: 'Continue to checkout', exact: true })
+			.click();
+		tier = 'plus';
+		await page
+			.getByRole('button', { name: 'Complete fixture payment', exact: true })
+			.click();
+		await expect(paywall).not.toBeVisible();
+		await expect(page).toHaveURL(new RegExp(`/settings/${section}$`));
+		await expect(
+			page.getByRole('button', {
+				name: 'Learn about subscriptions',
+				exact: true
+			})
+		).toHaveCount(0);
+		if (section === 'customisation')
+			await expect(page.locator('.customisation-form')).toBeVisible();
+		else
+			await expect(
+				page.getByRole('heading', { name: 'Trend', exact: true })
+			).toBeVisible();
+	});
+
+test('foreground access changes unlock business details and hide them again after confirmed access loss', async ({
+	page
+}) => {
+	test.skip(!enabled);
+	await access(page, 'free');
+	let tier: 'free' | 'business' = 'free';
+	await page.route('**/api/appview/v1/subscriptions/access', (route) =>
+		route.fulfill({
+			json: {
+				did: account.did,
+				effectiveTier: tier,
+				givesAccess: tier !== 'free'
+			}
+		})
+	);
+	await page.goto('/settings/business');
+	await expect(
+		page.getByRole('searchbox', { name: 'Business types', exact: true })
+	).toHaveCount(0);
+	tier = 'business';
+	await page.evaluate(() =>
+		document.dispatchEvent(new Event('visibilitychange'))
+	);
+	await expect(
+		page.getByRole('searchbox', { name: 'Business types', exact: true })
+	).toBeVisible();
+	tier = 'free';
+	await page.evaluate(() =>
+		document.dispatchEvent(new Event('visibilitychange'))
+	);
+	await expect(
+		page.getByRole('searchbox', { name: 'Business types', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('link', { name: 'View subscription access', exact: true })
+	).toBeVisible();
+});
+
+for (const updated of ['free', 'plus'] as const)
+	test(`period boundary refresh respects server-confirmed ${updated} access`, async ({
+		page
+	}) => {
+		test.skip(!enabled);
+		await page.clock.install({ time: new Date('2026-11-16T10:00:00Z') });
+		await access(page, 'plus');
+		let tier: 'free' | 'plus' = 'plus',
+			reads = 0;
+		await page.route('**/api/appview/v1/subscriptions/access', (route) => {
+			reads++;
+			return route.fulfill({
+				json: {
+					did: account.did,
+					effectiveTier: tier,
+					givesAccess: tier !== 'free',
+					accessEndsAt: '2026-11-16T10:00:20Z'
+				}
+			});
+		});
+		await page.goto('/compose');
+		const when = page.getByRole('button', { name: 'When', exact: true });
+		await expect(when.locator('[data-plus-badge]')).toHaveCount(0);
+		const initialReads = reads;
+		tier = updated;
+		await page.clock.fastForward(30_000);
+		await expect.poll(() => reads).toBeGreaterThan(initialReads);
+		if (updated === 'free')
+			await expect(when.locator('[data-plus-badge]')).toBeVisible();
+		else await expect(when.locator('[data-plus-badge]')).toHaveCount(0);
+	});
 
 for (const composer of ['post', 'project'] as const)
 	test(`free ${composer} scheduling keeps a small Plus overlay and opens Plus`, async ({
@@ -229,20 +346,20 @@ for (const tier of ['plus', 'business'] as const)
 		await access(page, tier);
 		await page.goto('/saved');
 		const create = page.getByRole('button', {
-			name: 'Create folder',
+			name: 'New folder',
 			exact: true
 		});
 		await expect(create).toBeVisible();
 		await expect(create.locator('[data-plus-badge]')).toHaveCount(0);
 		await create.click();
 		await expect(
-			page.getByRole('dialog', { name: 'Create folder', exact: true })
+			page.getByRole('dialog', { name: 'New folder', exact: true })
 		).toBeVisible();
 		await expect(
 			page.getByRole('dialog', { name: 'CraftSky Plus' })
 		).toHaveCount(0);
 		const dialog = page.getByRole('dialog', {
-			name: 'Create folder',
+			name: 'New folder',
 			exact: true
 		});
 		await dialog.getByRole('textbox', { name: 'Folder name' }).fill('Knitting');
@@ -264,9 +381,7 @@ test('unknown access prompts to retry rather than advertising an upgrade', async
 	test.skip(!enabled);
 	await access(page, 'unknown');
 	await page.goto('/saved');
-	await page
-		.getByRole('button', { name: 'Create folder', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'New folder', exact: true }).click();
 	const modal = page.getByRole('dialog', {
 		name: 'Subscription access unavailable',
 		exact: true
@@ -323,9 +438,7 @@ test('free post actions prompt for Pin and New folder without losing the save di
 	await expect(folder).toBeFocused();
 });
 
-test('free saved post offers a badged Move to folder action', async ({
-	page
-}) => {
+test('free saved post offers a badged Move action', async ({ page }) => {
 	test.skip(!enabled);
 	await access(page, 'free');
 	const response = await page.request.get(
@@ -347,9 +460,7 @@ test('free saved post offers a badged Move to folder action', async ({
 	);
 	await page.goto('/saved');
 	await page.getByLabel('Saved post actions', { exact: true }).first().click();
-	const move = page
-		.getByRole('button', { name: 'Move to folder', exact: true })
-		.first();
+	const move = page.getByRole('button', { name: 'Move', exact: true }).first();
 	await expect(move.locator('[data-plus-badge]')).toBeVisible();
 	await move.click();
 	await expect(
@@ -364,7 +475,7 @@ test('a mismatched access response during feature preparation cannot open a payw
 	await access(page, 'free');
 	await page.goto('/saved');
 	const trigger = page.getByRole('button', {
-		name: 'Create folder',
+		name: 'New folder',
 		exact: true
 	});
 	await expect(trigger).toBeVisible();
@@ -398,7 +509,7 @@ test('freshly recognized paid or promotional access bypasses the feature paywall
 	await access(page, 'free');
 	await page.goto('/saved');
 	const trigger = page.getByRole('button', {
-		name: 'Create folder',
+		name: 'New folder',
 		exact: true
 	});
 	await expect(trigger.locator('[data-plus-badge]')).toBeVisible();
@@ -418,7 +529,7 @@ test('freshly recognized paid or promotional access bypasses the feature paywall
 		page.getByRole('dialog', { name: 'CraftSky Plus', exact: true })
 	).toHaveCount(0);
 	const folderDialog = page.getByRole('dialog', {
-		name: 'Create folder',
+		name: 'New folder',
 		exact: true
 	});
 	// The initial page load can discover the updated access before the first click.

@@ -24,6 +24,56 @@ import 'package:material_ui/material_ui.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  testWidgets('pending Stripe payment opens portal instead of native billing', (
+    tester,
+  ) async {
+    final harness = _Harness(initialTier: SubscriptionTier.business);
+    harness.api
+      ..store = 'stripe'
+      ..paidAccess = false
+      ..pendingPayment = true;
+    addTearDown(harness.dispose);
+    await harness.pump(tester);
+    await _tap(tester, 'manage');
+    await tester.pumpAndSettle();
+
+    expect(harness.managementURLs.single.host, 'billing.stripe.com');
+    expect(harness.service.effectCalls, 0);
+    expect(harness.pending, isNull);
+  });
+  testWidgets(
+    'Business paywall can restore Plus without a pending Business purchase',
+    (tester) async {
+      final harness = _Harness();
+      addTearDown(harness.dispose);
+      final presentation = Completer<DirectPaywallResult>();
+      harness.service.paywall = () => presentation.future;
+      await harness.pump(tester);
+      final business = find.byKey(
+        const ValueKey('subscription-view-details-business'),
+      );
+      await tester.ensureVisible(business);
+      await tester.tap(business);
+      await tester.pump();
+      expect(harness.service.effectCalls, 1);
+
+      harness.api.tier = SubscriptionTier.plus;
+      presentation.complete(DirectPaywallResult.restored);
+      await tester.pumpAndSettle();
+
+      expect(harness.pending, isNull);
+      expect(harness.access.effectiveTier, SubscriptionTier.plus);
+      expect(
+        find.byKey(const ValueKey('subscription-status-plus')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('subscription-status-business')),
+        findsNothing,
+      );
+      expect(harness.service.effectCalls, 1);
+    },
+  );
   testWidgets('Stripe Manage opens the owner portal without native billing', (
     tester,
   ) async {
@@ -436,6 +486,7 @@ final class _Harness {
   late final ProviderContainer container;
   late final ProviderSubscription<AsyncValue<SubscriptionAccess>>
   accessListener;
+  bool _disposed = false;
 
   SubscriptionAccess get access => container
       .read(subscriptionAccessProvider(registry.activeLease!.session))
@@ -445,27 +496,30 @@ final class _Harness {
 
   Future<void> pump(WidgetTester tester, {bool featureEntry = false}) async {
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: ValueListenableBuilder<bool>(
-            valueListenable: showPage,
-            builder: (_, visible, _) => !visible
-                ? const SizedBox()
-                : featureEntry
-                ? Builder(
-                    builder: (context) => Scaffold(
-                      body: TextButton(
-                        onPressed: () =>
-                            showPlusFeaturePrompt(context, 'Folders'),
-                        child: const Text('Paid feature'),
+      _HarnessLifetime(
+        onDispose: dispose,
+        child: UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ValueListenableBuilder<bool>(
+              valueListenable: showPage,
+              builder: (_, visible, _) => !visible
+                  ? const SizedBox()
+                  : featureEntry
+                  ? Builder(
+                      builder: (context) => Scaffold(
+                        body: TextButton(
+                          onPressed: () =>
+                              showPlusFeaturePrompt(context, 'Folders'),
+                          child: const Text('Paid feature'),
+                        ),
                       ),
-                    ),
-                  )
-                : const SubscriptionPage(),
+                    )
+                  : const SubscriptionPage(),
+            ),
           ),
         ),
       ),
@@ -474,9 +528,29 @@ final class _Harness {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     accessListener.close();
     container.dispose();
     showPage.dispose();
+  }
+}
+
+class _HarnessLifetime extends StatefulWidget {
+  const new({required this.onDispose, required this.child});
+  final VoidCallback onDispose;
+  final Widget child;
+  @override
+  State<_HarnessLifetime> createState() => _HarnessLifetimeState();
+}
+
+class _HarnessLifetimeState extends State<_HarnessLifetime> {
+  @override
+  Widget build(BuildContext context) => widget.child;
+  @override
+  void dispose() {
+    widget.onDispose();
+    super.dispose();
   }
 }
 
@@ -491,6 +565,8 @@ final class _Api implements SubscriptionApi, SubscriptionManagementApi {
       ? Uri.parse('https://billing.stripe.com/p/session/test_owner#capability')
       : await managementPending!.future;
   SubscriptionTier tier = SubscriptionTier.free;
+  bool paidAccess = true;
+  bool pendingPayment = false;
   SubscriptionTier? promotionalTier;
   int generation = 1;
   Future<BillingState> Function()? billingRead;
@@ -509,8 +585,8 @@ final class _Api implements SubscriptionApi, SubscriptionManagementApi {
               productId: 'plus',
               store: store,
               status: 'active',
-              givesAccess: true,
-              pendingPayment: false,
+              givesAccess: paidAccess,
+              pendingPayment: pendingPayment,
               anomaly: 'none',
               autoRenewalStatus: 'will_renew',
             ),
@@ -549,11 +625,14 @@ final class _Api implements SubscriptionApi, SubscriptionManagementApi {
   @override
   Future<SubscriptionAccess> getAccess() async => SubscriptionAccess(
     did: Did.parse('did:plc:alice'),
-    effectiveTier:
-        promotionalTier != null && promotionalTier!.index > tier.index
+    effectiveTier: !paidAccess
+        ? promotionalTier ?? SubscriptionTier.free
+        : promotionalTier != null && promotionalTier!.index > tier.index
         ? promotionalTier!
         : tier,
-    givesAccess: tier != SubscriptionTier.free || promotionalTier != null,
+    givesAccess:
+        (tier != SubscriptionTier.free && paidAccess) ||
+        promotionalTier != null,
     assignedTier: promotionalTier != null && promotionalTier!.index > tier.index
         ? promotionalTier
         : tier == SubscriptionTier.free

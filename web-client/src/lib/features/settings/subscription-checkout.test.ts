@@ -80,10 +80,44 @@ describe('account subscription checkout eligibility', () => {
 			expect(canStartWebCheckout(value)).toBe(true);
 		}
 	});
-	it('allows a retained checkout to be resumed while AppView enforces its tier', () => {
+	it('does not display a cached promotion past its hard expiry even if its old snapshot still grants access', () => {
+		const now = Date.parse('2026-11-16T10:00:00Z');
+		const promotionalGrants = [
+			{
+				id: 'expired',
+				tier: 'business' as const,
+				givesAccess: true,
+				expiresAt: '2026-11-16T09:59:59Z'
+			},
+			{
+				id: 'boundary',
+				tier: 'business' as const,
+				givesAccess: true,
+				expiresAt: '2026-11-16T10:00:00Z'
+			},
+			{
+				id: 'unknown',
+				tier: 'plus' as const,
+				givesAccess: true,
+				expiresAt: 'invalid'
+			},
+			{
+				id: 'lifetime',
+				tier: 'plus' as const,
+				givesAccess: true,
+				expiresAt: null
+			}
+		];
+		expect(
+			activePromotionalGrants({ ...state(), promotionalGrants }, now).map(
+				(grant) => grant.id
+			)
+		).toEqual(['lifetime']);
+	});
+	it('blocks new SDK paywalls until retained direct checkouts are resolved', () => {
 		for (const webCheckoutPending of [undefined, false, true]) {
 			const billing = { ...state(), webCheckoutPending };
-			expect(canStartWebCheckout(billing)).toBe(true);
+			expect(canStartWebCheckout(billing)).toBe(!webCheckoutPending);
 			expect(
 				canStartWebCheckout({ ...billing, reconciliationStale: true })
 			).toBe(false);

@@ -497,9 +497,7 @@ test('saved posts keep the reading position when an earlier removal finishes', a
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	const first = page.locator('.member-post').first();
 	await first.getByLabel('Saved post actions', { exact: true }).click();
-	await first
-		.getByRole('button', { name: 'Remove from saved posts', exact: true })
-		.click();
+	await first.getByRole('button', { name: 'Unsave', exact: true }).click();
 	await page.locator('.member-post').nth(6).scrollIntoViewIfNeeded();
 	const survivor = page.locator('[data-scroll-anchor$="/save7"]');
 	const before = (await survivor.boundingBox())!.y;

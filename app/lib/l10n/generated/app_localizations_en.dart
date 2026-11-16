@@ -4405,6 +4405,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Check the event details and try again.';
 
   @override
+  String get businessEventTimeDoesNotExist =>
+      'This time does not exist in the selected time zone. Choose another time.';
+
+  @override
   String get businessEventCreatorProfileAction => 'View creator profile';
 
   @override

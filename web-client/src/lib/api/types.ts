@@ -619,7 +619,7 @@ export interface BillingState {
 	reconciledAt?: string;
 	reconciliationStale: boolean;
 	webCheckoutAvailable?: boolean;
-	/** A retained checkout may be resumed; AppView enforces its original tier. */
+	/** An unresolved direct checkout blocks new SDK purchases until provider recovery. */
 	webCheckoutPending?: boolean;
 	/** Actual paid subscriptions and their projections, excluding complimentary grants. */
 	subscriptions: BillingSubscription[];

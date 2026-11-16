@@ -327,11 +327,14 @@ test('subscriptions belong to the active account without assignment or duplicate
 }) => {
 	await page.goto('/settings/subscriptions');
 	await expect(
-		page.getByRole('link', { name: 'Manage in App Store', exact: true })
-	).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions');
+		page.getByRole('heading', { name: 'Current access: Business', exact: true })
+	).toBeVisible();
 	await expect(
-		page.getByText('Your subscription belongs to', { exact: false })
-	).toContainText('@alice.test');
+		page.getByRole('button', { name: 'Manage', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Downgrade', exact: true })
+	).toBeVisible();
 	await expect(
 		page.getByRole('button', { name: 'Assign license', exact: true })
 	).toHaveCount(0);
@@ -339,12 +342,18 @@ test('subscriptions belong to the active account without assignment or duplicate
 	await expect(
 		page.getByRole('button', { name: /^Choose (Plus|Business)$/ })
 	).toHaveCount(0);
-	await expect(
-		page.getByText('Web plan changes are not available yet.', { exact: false })
-	).toBeVisible();
+	await page.route('https://apps.apple.com/account/subscriptions', (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: '<h1>App Store subscription management</h1>'
+		})
+	);
+	await page.getByRole('button', { name: 'Manage', exact: true }).click();
+	await expect(page).toHaveURL('https://apps.apple.com/account/subscriptions');
+	await page.goto('/settings/subscriptions');
 	await page.reload();
 	await expect(
-		page.getByRole('link', { name: 'Manage in App Store', exact: true })
+		page.getByRole('button', { name: 'Manage', exact: true })
 	).toBeVisible();
 	expect(
 		(await calls()).some(
@@ -1114,6 +1123,9 @@ for (const width of [1280, 390])
 		const save = page.getByRole('button', { name: 'Save', exact: true });
 		await expect(destination).toHaveCount(0);
 		await choosePrimaryAction(page, 'Shop');
+		await expect(
+			page.getByRole('button', { name: 'Clear Primary action', exact: true })
+		).toHaveCount(0);
 		await expect(page.getByLabel('Shop URL', { exact: true })).toHaveAttribute(
 			'placeholder',
 			'https://example.com/shop'
@@ -1174,6 +1186,77 @@ test('email action saves and reopens a plain email address', async ({
 	await expect(page.getByLabel('Email address', { exact: true })).toHaveValue(
 		'hello@example.com'
 	);
+});
+
+test('product editor enforces native title limits and points incomplete prices to their fields', async ({
+	page
+}) => {
+	await page.goto('/compose/product/edit?product=0');
+	const form = page.locator('.product-composer-form');
+	const title = form.getByLabel('Title', { exact: true });
+	await title.fill('🧶'.repeat(151));
+	await expect(title).toHaveValue('🧶'.repeat(150));
+	await expect(title.locator('..').locator('.field-count')).toHaveText(
+		'150/150'
+	);
+	await title.fill('Blue wool');
+	const amount = form.getByLabel('Amount', { exact: true });
+	await amount.fill('12.34567');
+	await form.getByRole('button', { name: 'Save product', exact: true }).click();
+	await expect(amount).toHaveAttribute('aria-invalid', 'true');
+	await expect(form.locator('.field-error')).toHaveText(
+		'Use a valid decimal price and three-letter currency code.'
+	);
+	await amount.fill('12.50');
+	await form
+		.getByRole('button', { name: 'Clear Currency', exact: true })
+		.click();
+	await form.getByRole('button', { name: 'Save product', exact: true }).click();
+	await expect(
+		form.getByRole('combobox', { name: 'Currency', exact: true })
+	).toHaveAttribute('aria-invalid', 'true');
+	await expect(form.locator('.field-error')).toHaveText(
+		'Enter both the price and currency, or leave both blank.'
+	);
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+		)
+	).toHaveLength(0);
+});
+
+test('event link validation is shown beside the field without losing the draft', async ({
+	page
+}) => {
+	await page.goto('/compose/event');
+	await page.getByLabel('Event name', { exact: true }).fill('Maker fair');
+	await page.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+	await page.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+	await page.getByLabel('Your role', { exact: true }).click();
+	await page.getByRole('checkbox', { name: 'Organizer', exact: true }).click();
+	const link = page.getByLabel('Event link', { exact: true });
+	await link.fill('http://example.com/event');
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(link).toHaveAttribute('aria-invalid', 'true');
+	await expect(page.locator('.field-error')).toHaveText(
+		'Use secure HTTPS event and registration links.'
+	);
+	await expect(page.getByLabel('Event name', { exact: true })).toHaveValue(
+		'Maker fair'
+	);
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'POST' && row.path === '/v1/events'
+		)
+	).toHaveLength(0);
+	await link.fill('  https://example.com/event  ');
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page).toHaveURL(/\/settings\/events$/);
+	expect(
+		(await calls()).find(
+			(row) => row.method === 'POST' && row.path === '/v1/events'
+		)?.body.eventUri
+	).toBe('https://example.com/event');
 });
 
 async function addProductPhoto(page: Page) {

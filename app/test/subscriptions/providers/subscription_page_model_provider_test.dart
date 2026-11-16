@@ -13,6 +13,7 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
@@ -22,6 +23,53 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  testWidgets('billing refreshes at a grant expiry before paid access ends', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 16);
+    final api = _Api('did:plc:alice', SubscriptionTier.business)
+      ..promotionalGrants = [
+        PromotionalGrant(
+          id: '50000000-0000-4000-8000-000000000001',
+          tier: SubscriptionTier.plus,
+          givesAccess: true,
+          expiresAt: now.add(const Duration(seconds: 30)),
+        ),
+      ];
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(_registry()),
+        ),
+        revenueCatServiceProvider.overrideWithValue(
+          const UnavailableRevenueCatService(),
+        ),
+        subscriptionAccessClockProvider.overrideWithValue(() => now),
+        subscriptionRepositoryProvider.overrideWith((_, _) async => api),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final listener = container.listen(subscriptionPageModelProvider, (_, _) {});
+    await tester.pump();
+    final initial = await container.read(subscriptionPageModelProvider.future);
+    expect(initial.billingState?.promotionalGrants, hasLength(1));
+    expect(api.ownerReads, 1);
+
+    api.promotionalGrants = [];
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pump();
+    final refreshed = await container.read(
+      subscriptionPageModelProvider.future,
+    );
+
+    expect(api.ownerReads, 2);
+    expect(refreshed.billingState?.promotionalGrants, isEmpty);
+    expect(refreshed.access.allowsBusiness, isTrue);
+    listener.close();
+    container.dispose();
+  });
   test('consumed price failure reports its original cause once', () async {
     final error = Exception('PRIVATE_BILLING_PAYLOAD');
     final reporter = RecordingErrorReporter();
@@ -266,6 +314,7 @@ final class _Api implements SubscriptionApi {
   final SubscriptionTier tier;
   final String revenueCatAppUserId;
   int ownerReads = 0;
+  List<PromotionalGrant> promotionalGrants = [];
   final Future<void>? accessGate;
   final Future<void>? ownerGate;
   final accessStarted = Completer<void>();
@@ -295,6 +344,7 @@ final class _Api implements SubscriptionApi {
       reconciliationStale: false,
       subscriptions: [],
       licenses: [],
+      promotionalGrants: promotionalGrants,
     );
   }
 

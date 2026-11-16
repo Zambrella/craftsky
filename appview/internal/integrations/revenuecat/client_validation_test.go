@@ -32,10 +32,6 @@ func TestClientRejectsMalformedSuccessfulSubscriptionPages(t *testing.T) {
 	}
 	for _, key := range []string{"id", "product_id", "store", "environment", "status", "gives_access", "pending_payment"} {
 		for _, value := range []string{"missing", "null"} {
-			// A null product is documented for promotional subscriptions.
-			if key == "product_id" && value == "null" {
-				continue
-			}
 			item := make(map[string]any, len(valid))
 			for key, value := range valid {
 				item[key] = value
@@ -87,6 +83,41 @@ func TestClientRejectsMalformedSuccessfulSubscriptionPages(t *testing.T) {
 				}
 				if requests != wantRequests {
 					t.Fatalf("requests = %d, want %d", requests, wantRequests)
+				}
+			})
+		}
+	}
+}
+
+func TestClientRejectsRepeatedSubscriptionResources(t *testing.T) {
+	for _, store := range []string{"app_store", "promotional"} {
+		for _, laterPage := range []bool{false, true} {
+			t.Run(store+map[bool]string{false: "/same page", true: "/later page"}[laterPage], func(t *testing.T) {
+				item := promoResource()
+				item["store"] = store
+				if store != "promotional" {
+					item["product_id"] = "prod-plus"
+				}
+				client, requests := promoClient(t, 3, func(request *http.Request, count int) (int, any) {
+					if !laterPage {
+						return http.StatusOK, map[string]any{"items": []any{item, item}}
+					}
+					body := map[string]any{"items": []any{item}}
+					if count == 1 {
+						body["next_page"] = request.URL.Path + "?starting_after=sub-promo"
+					}
+					return http.StatusOK, body
+				})
+				snapshot, err := client.ListCustomerSubscriptions(context.Background(), uuid.New())
+				if err == nil || snapshot.Complete || len(snapshot.Subscriptions) != 0 {
+					t.Fatalf("duplicate resource produced authoritative snapshot: %+v, error %v", snapshot, err)
+				}
+				wantRequests := 1
+				if laterPage {
+					wantRequests = 2
+				}
+				if *requests != wantRequests {
+					t.Fatalf("requests = %d, want %d", *requests, wantRequests)
 				}
 			})
 		}

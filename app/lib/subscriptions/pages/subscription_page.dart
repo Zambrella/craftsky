@@ -416,6 +416,8 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             isForeground: () => _operationIsForeground,
             onProviderConfirmed: (tier, before) =>
                 _pendingOperations.recordPurchase(operationId, tier, before),
+            onRestoreConfirmed: (before) =>
+                _pendingOperations.recordPaywallRestore(operationId, before),
             readAccess: _readAssignedAccess,
           );
           return await _handlePurchaseResult(
@@ -625,7 +627,11 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             dependencies.api.getBillingAccount,
           );
           final current = state.subscriptions
-              .where((sub) => sub.givesAccess)
+              .where(
+                (sub) =>
+                    sub.givesAccess ||
+                    (sub.store == 'stripe' && sub.pendingPayment),
+              )
               .toList();
           if (current.length == 1 && current.single.store == 'stripe') {
             final api = dependencies.api;
@@ -1268,13 +1274,20 @@ class _TierCard extends StatelessWidget {
       return null;
     }
     final current = state.subscriptions
-        .where((subscription) => subscription.givesAccess)
+        .where(
+          (subscription) =>
+              subscription.givesAccess ||
+              (subscription.store == 'stripe' && subscription.pendingPayment),
+        )
         .toList();
     if (current.length == 1) {
       final currentLicense = state.licenses
           .where((license) => license.subscriptionId == current.single.id)
           .firstOrNull;
       if (currentLicense != null) {
+        if (!current.single.givesAccess && currentLicense.tier != tier) {
+          return null;
+        }
         return (
           currentLicense.tier == tier
               ? l10n.subscriptionsManage

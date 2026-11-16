@@ -120,6 +120,96 @@ const grant: BillingPromotionalGrant = {
 	expiresAt: '2032-05-20T12:00:00Z'
 };
 
+test('a failed billing reload after shared access changes waits for an explicit retry', async ({
+	page
+}) => {
+	await page.clock.install({ time: new Date('2026-11-16T10:00:00Z') });
+	await billingFixture(page, [], false);
+	let changed = false,
+		failedReads = 0;
+	await page.route(`**${appview}/subscriptions/access`, (route) =>
+		route.fulfill({
+			json: {
+				did: alice.did,
+				effectiveTier: changed ? 'business' : 'free',
+				givesAccess: changed,
+				accessEndsAt: '2026-11-16T10:00:20Z'
+			}
+		})
+	);
+	await page.route(`**${appview}/billing/account`, (route) => {
+		if (!changed) return route.fallback();
+		failedReads++;
+		return route.fulfill({
+			status: 503,
+			json: { error: 'unavailable', message: 'Temporarily unavailable' }
+		});
+	});
+	await page.goto('/settings/subscriptions');
+	await expect(page.getByText('Current access: Standard')).toBeVisible();
+	changed = true;
+	await page.clock.fastForward(30_000);
+	const retry = page.getByRole('button', { name: 'Try again', exact: true });
+	await expect(retry).toBeVisible();
+	await page.clock.runFor(1_000);
+	expect(failedReads).toBe(1);
+	await page.unroute(`**${appview}/billing/account`);
+	await billingFixture(page, [], false, {
+		grants: [],
+		effectiveTier: 'business'
+	});
+	await retry.click();
+	await expect(retry).toHaveCount(0);
+	await expect(page.getByText('Current access: Business')).toBeVisible();
+});
+
+test('visible billing refreshes cancellation metadata even when access is unchanged', async ({
+	page
+}) => {
+	await page.clock.install({ time: new Date('2026-11-16T10:00:00Z') });
+	const subscription: BillingSubscription = {
+		id: 'current-plus',
+		tier: 'plus',
+		productId: 'plus',
+		store: 'stripe',
+		status: 'active',
+		givesAccess: true,
+		pendingPayment: false,
+		anomaly: 'none',
+		autoRenewalStatus: 'will_renew',
+		currentPeriodEndsAt: '2026-12-15T15:14:00Z',
+		endsAt: '2026-12-15T15:14:00Z'
+	};
+	await billingFixture(page, [subscription], false, {
+		grants: [],
+		effectiveTier: 'plus'
+	});
+	await page.route(`**${appview}/subscriptions/access`, (route) =>
+		route.fulfill({
+			json: {
+				did: alice.did,
+				effectiveTier: 'plus',
+				givesAccess: true,
+				accessEndsAt: '2026-12-15T15:14:00Z'
+			}
+		})
+	);
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByText('Renews on Dec 15, 2026, 3:14 PM', { exact: true })
+	).toBeVisible();
+	subscription.autoRenewalStatus = 'will_not_renew';
+	await page.clock.fastForward(5 * 60_000);
+	await expect(
+		page.getByText('Access until Dec 15, 2026, 3:14 PM', { exact: true })
+	).toBeVisible();
+	await expect(
+		page
+			.getByRole('region', { name: 'CraftSky Plus', exact: true })
+			.locator('[data-subscription-status]')
+	).toHaveText('Active');
+});
+
 for (const tier of ['plus', 'business'] as const)
 	test(`complimentary Plus permits choosing ${tier} before expiry`, async ({
 		page
@@ -359,6 +449,46 @@ test('hides purchases while Stripe payment or a canceled native subscription is 
 			page.getByRole('button', { name: /Assign|Unassign/ })
 		).toHaveCount(0);
 	}
+});
+
+test('pending Stripe payment can be managed without claiming active access or offering another plan', async ({
+	page
+}) => {
+	await billingFixture(page, [
+		{
+			id: 'pending',
+			tier: 'plus',
+			productId: 'plus',
+			store: 'stripe',
+			status: 'pending',
+			givesAccess: false,
+			pendingPayment: true,
+			anomaly: 'none'
+		}
+	]);
+	await page.route(`**${appview}/billing/web-management`, (route) =>
+		route.fulfill({
+			json: { url: 'https://billing.stripe.com/p/session/test_pending' }
+		})
+	);
+	await page.route('https://billing.stripe.com/**', (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: '<h1>Resolve pending payment</h1>'
+		})
+	);
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByRole('heading', { name: 'Current access: Standard', exact: true })
+	).toBeVisible();
+	await expect(page.locator('[data-subscription-status]')).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: /Upgrade|Downgrade|View.*details/ })
+	).toHaveCount(0);
+	await page.getByRole('button', { name: 'Manage', exact: true }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Resolve pending payment', exact: true })
+	).toBeVisible();
 });
 
 test('unconfigured checkout and provider errors never navigate away or expose private customer IDs', async ({
@@ -977,3 +1107,116 @@ for (const [autoRenewalStatus, expected] of [
 		await page.goto('/settings/subscriptions');
 		await expect(page.getByText(expected, { exact: true })).toBeVisible();
 	});
+
+test('an expired previous Plus row cannot supply the active Business date or badge', async ({
+	page
+}) => {
+	await billingFixture(
+		page,
+		[
+			{
+				id: 'old-plus',
+				tier: 'plus',
+				productId: 'plus',
+				store: 'stripe',
+				status: 'expired',
+				givesAccess: false,
+				pendingPayment: false,
+				anomaly: 'none',
+				currentPeriodEndsAt: '2026-11-15T15:14:00Z'
+			},
+			{
+				id: 'current-business',
+				tier: 'business',
+				productId: 'business',
+				store: 'stripe',
+				status: 'active',
+				givesAccess: true,
+				pendingPayment: false,
+				anomaly: 'none',
+				currentPeriodEndsAt: '2026-12-15T15:14:00Z',
+				autoRenewalStatus: 'will_renew'
+			}
+		],
+		true,
+		{ grants: [], effectiveTier: 'business' }
+	);
+	await page.route(`**${appview}/subscriptions/access`, (route) =>
+		route.fulfill({
+			json: {
+				did: alice.did,
+				effectiveTier: 'business',
+				givesAccess: true,
+				accessEndsAt: '2026-12-15T15:14:00Z'
+			}
+		})
+	);
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByText('Renews on Dec 15, 2026, 3:14 PM', { exact: true })
+	).toBeVisible();
+	await expect(page.getByText(/Nov 15, 2026/)).toHaveCount(0);
+	const business = page.getByRole('region', {
+		name: 'CraftSky Business',
+		exact: true
+	});
+	await expect(business.locator('[data-subscription-status]')).toHaveText(
+		'Active'
+	);
+	await expect(
+		business.getByRole('button', { name: 'Manage', exact: true })
+	).toBeVisible();
+	await expect(business.locator('.business-plan-icon svg')).toBeVisible();
+	const plus = page.getByRole('region', { name: 'CraftSky Plus', exact: true });
+	await expect(plus.locator('[data-subscription-status]')).toHaveCount(0);
+	await expect(
+		plus.getByRole('button', { name: 'Downgrade', exact: true })
+	).toBeVisible();
+});
+
+test('a retained direct checkout exposes recovery and blocks both new SDK paywalls until canceled', async ({
+	page
+}) => {
+	await billingFixture(page);
+	let pending = true;
+	await page.route(`**${appview}/billing/account`, (route) =>
+		route.fulfill({
+			json: {
+				billingAccountId: 'account',
+				revenueCatAppUserId: privateId,
+				requestedGeneration: 1,
+				reconciledGeneration: 1,
+				reconciliationStale: false,
+				reconciledAt: new Date().toISOString(),
+				webCheckoutAvailable: true,
+				webCheckoutPending: pending,
+				subscriptions: [],
+				licenses: [],
+				promotionalGrants: []
+			}
+		})
+	);
+	await page.route(`**${appview}/billing/web-checkout/cancel`, (route) => {
+		pending = false;
+		return route.fulfill({ json: { status: 'canceled' } });
+	});
+	await page.goto('/settings/subscriptions');
+	await expect(
+		page.getByRole('button', { name: 'View Plus details', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'View Business details', exact: true })
+	).toHaveCount(0);
+	await page
+		.getByRole('button', { name: 'Cancel pending purchase', exact: true })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'View Plus details', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'View Business details', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Cancel pending purchase', exact: true })
+	).toHaveCount(0);
+});

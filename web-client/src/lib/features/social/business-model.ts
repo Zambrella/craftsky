@@ -12,26 +12,36 @@ export function businessEventLink(did: string, rkey: string): string {
 }
 
 export function eventDisplay(
-	event: Pick<BusinessEvent, 'startsAt' | 'endsAt' | 'isAllDay'>,
+	event: Pick<BusinessEvent, 'startsAt' | 'endsAt' | 'isAllDay' | 'timeZone'>,
 	locale?: string
 ) {
 	const start = new Date(event.startsAt),
-		end = new Date(Date.parse(event.endsAt) - (event.isAllDay ? 86400000 : 0));
+		// The exclusive all-day boundary can follow a 23- or 25-hour day.
+		end = new Date(Date.parse(event.endsAt) - (event.isAllDay ? 1 : 0));
 	if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()))
 		return { date: 'Date unavailable', time: '' };
+	let timeZone = event.timeZone || 'UTC';
+	try {
+		new Intl.DateTimeFormat(locale, { timeZone }).format(start);
+	} catch {
+		timeZone = 'UTC';
+	}
 	const date = (value: Date) =>
 		value.toLocaleDateString(locale, {
+			timeZone,
 			day: 'numeric',
 			month: 'short',
 			year: 'numeric'
 		});
 	const time = (value: Date) =>
-		value.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+		value.toLocaleTimeString(locale, {
+			timeZone,
+			hour: 'numeric',
+			minute: '2-digit'
+		});
 	return {
 		date:
-			event.isAllDay && date(start) !== date(end)
-				? `${date(start)} – ${date(end)}`
-				: date(start),
+			date(start) !== date(end) ? `${date(start)} – ${date(end)}` : date(start),
 		time: event.isAllDay ? 'All day' : `${time(start)} – ${time(end)}`
 	};
 }
@@ -72,9 +82,9 @@ export const businessLabels = (value: string) =>
 const actions: Record<string, string> = {
 	shop: 'Shop',
 	'browse-patterns': 'Browse patterns',
-	'request-custom-order': 'Request a custom order',
-	'book-class': 'Book a class',
-	'book-appointment': 'Book an appointment',
+	'request-custom-order': 'Request custom order',
+	'book-class': 'Book class',
+	'book-appointment': 'Book appointment',
 	'view-event-calendar': 'View event calendar',
 	email: 'Email',
 	'visit-website': 'Visit website',

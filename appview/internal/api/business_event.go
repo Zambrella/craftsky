@@ -792,7 +792,7 @@ func decodeBusinessEventRequest(body io.Reader, now time.Time, existing bool) (b
 func validateBusinessEventRequest(request *businessEventRequest, now time.Time, existing bool) *FieldError {
 	fields := make(map[string]string)
 	event := request.eventWrite()
-	if event.Name == "" || business.ValidateText(business.TextFieldEventName, event.Name) != nil {
+	if strings.TrimSpace(event.Name) == "" || business.ValidateText(business.TextFieldEventName, event.Name) != nil {
 		fields["name"] = "is invalid"
 	}
 	if request.Summary != nil && business.ValidateText(business.TextFieldEventSummary, *request.Summary) != nil {

@@ -138,9 +138,31 @@ void main() {
           },
         ],
       });
-      expect(state.promotionalAccessEndsByTier, {
+      expect(state.promotionalAccessEndsByTierAt(DateTime.utc(2026, 11, 16)), {
         SubscriptionTier.plus: DateTime.utc(2027, 6, 13),
       });
+    });
+
+    test('cached promotional grants expire at their exact boundary', () {
+      final expiry = DateTime.utc(2027, 5, 13);
+      final state = BillingState.fromMap({
+        ..._ownerFixture(),
+        'promotionalGrants': [_grantFixture()],
+      });
+
+      expect(
+        state.promotionalAccessEndsByTierAt(
+          expiry.subtract(const Duration(seconds: 1)),
+        ),
+        {SubscriptionTier.plus: expiry},
+      );
+      expect(state.promotionalAccessEndsByTierAt(expiry), isEmpty);
+      expect(
+        state.promotionalAccessEndsByTierAt(
+          expiry.add(const Duration(seconds: 1)),
+        ),
+        isEmpty,
+      );
     });
 
     test('rejects malformed UUIDs and unresolved relationships', () {

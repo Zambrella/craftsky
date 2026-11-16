@@ -6,6 +6,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:flutter/foundation.dart';
 
 const _unset = Object();
@@ -32,6 +33,7 @@ enum EventDraftError {
   modeInvalid,
   statusInvalid,
   timeZoneInvalid,
+  timeDoesNotExist,
   allDayBoundaryInvalid,
   endNotAfterStart,
   durationTooLong,
@@ -95,6 +97,9 @@ class BusinessEventDraft {
   }
 
   final String name;
+
+  /// Wall-clock calendar fields in [timeZone], rather than UTC instants.
+  /// The editor uses UTC DateTime containers to avoid the device's DST rules.
   final DateTime startsAt;
   final DateTime endsAt;
   final List<String> roles;
@@ -173,6 +178,10 @@ class BusinessEventDraft {
       errors.add(EventDraftError.allDayBoundaryInvalid);
     }
     if (timeZones.contains(timeZone)) {
+      if (!timeZones.isRepresentable(timeZone, startsAt) ||
+          !timeZones.isRepresentable(timeZone, endsAt)) {
+        errors.add(EventDraftError.timeDoesNotExist);
+      }
       final start = timeZones.toUtc(timeZone, startsAt);
       final end = timeZones.toUtc(timeZone, endsAt);
       if (!end.isAfter(start)) {
@@ -205,6 +214,10 @@ class BusinessEventDraft {
   BusinessEventUtcRange utcRange(BusinessTimeZoneService timeZones) {
     if (!timeZones.contains(timeZone)) {
       throw ArgumentError.value(timeZone, 'timeZone', 'Unknown IANA timezone');
+    }
+    if (!timeZones.isRepresentable(timeZone, startsAt) ||
+        !timeZones.isRepresentable(timeZone, endsAt)) {
+      throw ArgumentError('Time does not exist in the selected timezone');
     }
     final start = timeZones.toUtc(timeZone, startsAt);
     final end = timeZones.toUtc(timeZone, endsAt);
@@ -764,8 +777,7 @@ bool _validImage(
     const {'image/jpeg', 'image/png', 'image/webp'}.contains(mime) &&
     size >= 0 &&
     size <= 2000000 &&
-    alt.characters.length <= businessImageAltLimit &&
-    utf8.encode(alt).length <= businessImageAltLimit &&
+    RecordTextLimits.imageAlt.accepts(alt) &&
     (aspectRatio == null || (aspectRatio.width > 0 && aspectRatio.height > 0));
 
 bool _validPrice(String amount, String currency) {

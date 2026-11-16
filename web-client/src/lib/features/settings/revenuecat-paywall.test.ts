@@ -235,3 +235,28 @@ it('waits for checkout layout before mounting the provider and stops if closed m
 	expect(f.purchase).not.toHaveBeenCalled();
 	await f.running;
 });
+
+it('allows only one purchase through asynchronous preflight and releases the guard after cancellation', async () => {
+	let release!: () => void;
+	const guard = vi.fn(
+		() =>
+			new Promise<void>((resolve) => {
+				release = resolve;
+			})
+	);
+	const f = fixture(guard);
+	await ready(f);
+	const first = f.sdk.purchase({} as PurchaseParams);
+	await expect(f.sdk.purchase({} as PurchaseParams)).rejects.toThrow(
+		'already in progress'
+	);
+	expect(guard).toHaveBeenCalledOnce();
+	f.purchase.mockRejectedValueOnce({ errorCode: 1 });
+	release();
+	await expect(first).rejects.toMatchObject({ errorCode: 1 });
+	guard.mockResolvedValue();
+	await f.sdk.purchase({} as PurchaseParams);
+	expect(f.purchase).toHaveBeenCalledTimes(2);
+	f.scope.close();
+	await f.running;
+});

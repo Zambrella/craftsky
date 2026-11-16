@@ -607,7 +607,8 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   late final AccountActivationCoordinator _activation;
   final GlobalKey<ScaffoldState> _compactScaffoldKey = GlobalKey();
   final FocusNode _drawerProfileSwitcherFocusNode = FocusNode(
@@ -624,6 +625,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _activation = AccountActivationCoordinator(
       readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
       commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
@@ -635,10 +637,18 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _drawerButtonFocusNode.dispose();
     _drawerProfileSwitcherFocusNode.dispose();
     _profileSwitcherFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease?.session;
+    if (lease != null) ref.invalidate(subscriptionAccessProvider(lease));
   }
 
   @override

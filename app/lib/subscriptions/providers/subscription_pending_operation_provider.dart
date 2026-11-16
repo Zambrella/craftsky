@@ -166,6 +166,21 @@ final class SubscriptionPendingOperationController
     );
   }
 
+  void recordPaywallRestore(Object operationId, BillingState beforeProvider) {
+    final current = state;
+    if (current == null ||
+        !identical(current.operationId, operationId) ||
+        current.kind != PendingSubscriptionOperationKind.purchase ||
+        current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
+      return;
+    }
+    state = PendingSubscriptionOperation.restorePending(
+      current.ownerDid,
+      beforeProvider,
+      operationId,
+    );
+  }
+
   void recordCustomerCenterMutation(Object operationId) {
     final current = state;
     if (current == null ||

@@ -143,6 +143,16 @@ describe('business products', () => {
 			productBody([{ ...product, amount: '', currency: 'GBP' }])[0]
 		).not.toHaveProperty('price');
 	});
+	it('trims product text and detects duplicate destinations after trimming', () => {
+		expect(
+			productBody([
+				{ ...product, title: '  Blue wool  ', uri: ` ${product.uri} ` }
+			])[0]
+		).toMatchObject({ title: 'Blue wool', uri: product.uri });
+		expect(() =>
+			productBody([product, { ...product, uri: ` ${product.uri} ` }])
+		).toThrow('different destination');
+	});
 	it('rejects unsafe and duplicate destinations and incomplete prices', () => {
 		expect(() =>
 			productBody([{ ...product, uri: 'javascript:alert(1)' }])

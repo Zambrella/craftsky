@@ -75,7 +75,8 @@
 				? `/profile_backgrounds/${background}.svg`
 				: `/profile_backgrounds/${background}.png`
 	);
-	let allowsPlus = $state(false);
+	let loadedPlus = $state(false);
+	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
 	let canSetPolicy = $state(false),
 		chatState = $state('disabled');
 	let incoming = $state<'everyone' | 'following' | 'nobody'>('everyone'),
@@ -104,7 +105,11 @@
 			);
 		if (section === 'customisation')
 			return work.load(
-				() => Promise.all([api.profiles.me(), api.billing.access()]),
+				() =>
+					Promise.all([
+						api.profiles.me(),
+						premium.readAccess(() => api.billing.access())
+					]),
 				([profile, access]) => {
 					loaded = true;
 					const custom = effectiveCustomisation(profile.customisation);
@@ -114,7 +119,7 @@
 					savedBackground = background;
 					profileAvatar = profile.avatar || '';
 					profileName = profile.displayName || '';
-					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
+					loadedPlus = access.givesAccess && access.effectiveTier !== 'free';
 				},
 				'settings.Preferences.load'
 			);

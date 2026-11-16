@@ -118,6 +118,8 @@ class EditProfileDialog extends ConsumerStatefulWidget {
 
 class _EditProfileDialogState extends ConsumerState<EditProfileDialog> {
   Profile? _snapshot;
+  Profile? _businessFormSnapshot;
+  AccountSessionLease? _businessFormLease;
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +146,13 @@ class _EditProfileDialogState extends ConsumerState<EditProfileDialog> {
         .value
         ?.activeLease
         ?.session;
+    if (_businessFormLease != lease) {
+      _businessFormLease = lease;
+      _businessFormSnapshot = null;
+    }
     SubscriptionAccess? confirmedAccess;
+    var businessAccessConfirmed = false;
+    VoidCallback? retryBusinessAccess;
     if (lease?.account.did == myDid) {
       final access = ref.watch(subscriptionAccessProvider(lease!));
       if (access.isLoading && _snapshot == null) {
@@ -152,14 +160,62 @@ class _EditProfileDialogState extends ConsumerState<EditProfileDialog> {
       }
       if (access case AsyncData(:final value)) {
         confirmedAccess = value;
+        businessAccessConfirmed =
+            !access.isLoading &&
+            !access.hasError &&
+            value.did == myDid &&
+            value.allowsBusiness;
+      }
+      if (!access.isLoading) {
+        retryBusinessAccess = () =>
+            ref.invalidate(subscriptionAccessProvider(lease));
       }
     }
+    Profile present(Profile profile) {
+      final projected = projectOwnerFeatureAccess(profile, confirmedAccess);
+      if (!widget.businessDetails) return projected;
+      if (businessAccessConfirmed) _businessFormSnapshot = projected;
+      // Keep a previously authorized form mounted while access is uncertain
+      // or revoked, so refreshing cannot erase unsaved fields. Saving and
+      // editing remain disabled until Business access is confirmed again.
+      return _businessFormSnapshot ?? projected;
+    }
+
     _snapshot = profileAsync.value ?? _snapshot;
+    if (widget.businessDetails &&
+        !businessAccessConfirmed &&
+        _businessFormSnapshot == null) {
+      final l10n = AppLocalizations.of(context);
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.editProfileBusinessHeading)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.plusFeatureAccessUnavailable(
+                    l10n.editProfileBusinessHeading,
+                  ),
+                ),
+                TextButton(
+                  onPressed: retryBusinessAccess,
+                  child: Text(l10n.subscriptionsRefresh),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_snapshot case final value?) {
       return _EditProfileForm(
         key: ValueKey((myDid, widget.businessDetails)),
         businessDetails: widget.businessDetails,
-        profile: projectOwnerFeatureAccess(value, confirmedAccess),
+        profile: present(value),
+        businessAccessConfirmed: businessAccessConfirmed,
+        retryBusinessAccess: retryBusinessAccess,
         linkLauncher: widget.linkLauncher,
         confirmOpenLink: widget.confirmOpenLink,
       );
@@ -168,7 +224,9 @@ class _EditProfileDialogState extends ConsumerState<EditProfileDialog> {
       AsyncValue(:final value?) => _EditProfileForm(
         key: ValueKey((myDid, widget.businessDetails)),
         businessDetails: widget.businessDetails,
-        profile: projectOwnerFeatureAccess(value, confirmedAccess),
+        profile: present(value),
+        businessAccessConfirmed: businessAccessConfirmed,
+        retryBusinessAccess: retryBusinessAccess,
         linkLauncher: widget.linkLauncher,
         confirmOpenLink: widget.confirmOpenLink,
       ),
@@ -209,6 +267,8 @@ class _EditProfileForm extends ConsumerStatefulWidget {
   const new({
     required this.profile,
     required this.businessDetails,
+    required this.businessAccessConfirmed,
+    required this.retryBusinessAccess,
     required this.linkLauncher,
     required this.confirmOpenLink,
     super.key,
@@ -220,6 +280,8 @@ class _EditProfileForm extends ConsumerStatefulWidget {
   /// changes mid-edit, since that would clobber the user's typing.
   final Profile profile;
   final bool businessDetails;
+  final bool businessAccessConfirmed;
+  final VoidCallback? retryBusinessAccess;
   final ExternalLinkLauncher linkLauncher;
   final ExternalLinkConfirmer confirmOpenLink;
 
@@ -369,7 +431,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// atomic, so any field absent from the PUT gets cleared on the PDS.
   /// See `ProfileApiClient.updateMyProfile` for the rationale.
   Future<void> _save() async {
-    if (_imageUploadInFlight) return;
+    if (_imageUploadInFlight ||
+        (widget.businessDetails && !widget.businessAccessConfirmed)) {
+      return;
+    }
     final form = _formKey.currentState;
     if (form == null) return;
     if (!form.saveAndValidate()) return;
@@ -529,7 +594,11 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       }
     });
 
-    final canSave = _hasChanges && !isSaving && !_imageUploadInFlight;
+    final canSave =
+        _hasChanges &&
+        !isSaving &&
+        !_imageUploadInFlight &&
+        (!widget.businessDetails || widget.businessAccessConfirmed);
 
     return PopScope<Object?>(
       canPop: !_hasChanges || isSaving,
@@ -577,6 +646,20 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (widget.businessDetails && !widget.businessAccessConfirmed)
+                  MaterialBanner(
+                    content: Text(
+                      l10n.plusFeatureAccessUnavailable(
+                        l10n.editProfileBusinessHeading,
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: widget.retryBusinessAccess,
+                        child: Text(l10n.subscriptionsRefresh),
+                      ),
+                    ],
+                  ),
                 if (!widget.businessDetails)
                   EditProfileBannerAvatar(
                     profile: widget.profile,
@@ -722,7 +805,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           widget.profile.accountType == AccountType.business)
                         BusinessProfileFields(
                           initial: _businessBaseline,
-                          enabled: !isSaving,
+                          enabled: !isSaving && widget.businessAccessConfirmed,
                         ),
                     ],
                   ),

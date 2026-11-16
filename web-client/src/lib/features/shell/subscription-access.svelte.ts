@@ -7,6 +7,7 @@ export class SubscriptionAccessState {
 	value = $state<SubscriptionAccess>();
 	private active = true;
 	private revision = 0;
+	private checkedAt: number | undefined;
 
 	constructor(
 		private readonly account: string,
@@ -15,7 +16,7 @@ export class SubscriptionAccessState {
 	) {}
 
 	/** Capture before reading so an older boot or refresh cannot replace newer state. */
-	beginRead(account: string): (value: SubscriptionAccess) => boolean {
+	beginRead(account = this.account): (value: SubscriptionAccess) => boolean {
 		if (!this.isCurrent(account)) return () => false;
 		const revision = ++this.revision;
 		return (value) => {
@@ -26,8 +27,20 @@ export class SubscriptionAccessState {
 			)
 				return false;
 			this.value = value;
+			this.checkedAt = Date.now();
 			return true;
 		};
+	}
+
+	/** Dates request a server refresh; paid grace/renewal access remains provider-owned. */
+	needsRefresh(now = Date.now()): boolean {
+		if (this.checkedAt === undefined || !this.value) return true;
+		const endsAt = Date.parse(this.value.accessEndsAt || '');
+		return (
+			now - this.checkedAt >= 5 * 60_000 ||
+			now < this.checkedAt ||
+			(Number.isFinite(endsAt) && this.checkedAt < endsAt && endsAt <= now)
+		);
 	}
 
 	dispose() {

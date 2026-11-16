@@ -26,7 +26,7 @@ aliases = {
     "mute": "speakerSlash", "block": "prohibit", "report": "flag", "copy": "link",
     "heart": "heart", "comment": "chatCircle", "share": "shareNetwork", "shareCard": "qrCode", "repost": "repeat",
     "more": "dotsThree", "refresh": "arrowsClockwise", "filter": "funnelSimple",
-    "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "check": "check", "edit": "pencilSimple",
+    "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "newFolder": "folderPlus", "moveToFolder": "folderOpen", "check": "check", "edit": "pencilSimple",
     "external": "arrowSquareOut", "link": "link", "pin": "pushPin", "shield": "shieldCheck",
     "eventAvailable": "calendarCheck", "upcoming": "calendar", "history": "clockCounterClockwise",
     "people": "users", "businessIdentity": "identificationBadge", "publish": "uploadSimple",

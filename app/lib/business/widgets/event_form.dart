@@ -94,8 +94,8 @@ class EventFormState extends ConsumerState<EventForm> {
     _name = TextEditingController(text: initial?.name);
     _startFocus = FocusNode();
     _endFocus = FocusNode();
-    _start = initial?.startsAt;
-    _end = initial?.endsAt;
+    _start = _civilTime(initial?.startsAt);
+    _end = _civilTime(initial?.endsAt);
     _summary = TextEditingController(text: initial?.summary);
     _venue = TextEditingController(text: initial?.venueName);
     _eventUri = TextEditingController(text: initial?.eventUri);
@@ -130,10 +130,15 @@ class EventFormState extends ConsumerState<EventForm> {
     final formValid = _formKey.currentState?.validate() ?? false;
     final draft = _buildDraft();
     final errors = draft?.validate(ref.read(businessTimeZoneServiceProvider));
+    final l10n = AppLocalizations.of(context);
     setState(() {
-      _draftError = draft == null || (errors?.isNotEmpty ?? true)
-          ? AppLocalizations.of(context).businessEventValidationError
-          : null;
+      if (errors?.contains(EventDraftError.timeDoesNotExist) ?? false) {
+        _draftError = l10n.businessEventTimeDoesNotExist;
+      } else {
+        _draftError = draft == null || (errors?.isNotEmpty ?? true)
+            ? l10n.businessEventValidationError
+            : null;
+      }
     });
     if (!formValid || draft == null || errors!.isNotEmpty || _preparingImage) {
       return null;
@@ -512,14 +517,31 @@ class EventFormState extends ConsumerState<EventForm> {
       lastDate: DateTime(initial.year + 100),
     );
     if (date == null || !mounted) return null;
-    if (_isAllDay) return DateTime(date.year, date.month, date.day);
+    if (_isAllDay) return DateTime.utc(date.year, date.month, date.day);
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null || !mounted) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    return DateTime.utc(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
   }
+
+  static DateTime? _civilTime(DateTime? value) => value == null
+      ? null
+      : DateTime.utc(
+          value.year,
+          value.month,
+          value.day,
+          value.hour,
+          value.minute,
+          value.second,
+        );
 
   Widget _catalogField({
     required Key key,
@@ -558,14 +580,14 @@ class EventFormState extends ConsumerState<EventForm> {
       _isAllDay = value;
       if (value) {
         if (_start case final start?) {
-          _start = DateTime(start.year, start.month, start.day);
+          _start = DateTime.utc(start.year, start.month, start.day);
         }
         if (_end case final end?) {
-          _end = DateTime(end.year, end.month, end.day);
+          _end = DateTime.utc(end.year, end.month, end.day);
         }
         if (_start case final start?
             when _end == null || !_end!.isAfter(start)) {
-          _end = DateTime(start.year, start.month, start.day + 1);
+          _end = DateTime.utc(start.year, start.month, start.day + 1);
         }
       }
     });

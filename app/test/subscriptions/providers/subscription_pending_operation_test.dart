@@ -6,6 +6,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('paywall restoration retains restore intent after route disposal', () {
+    final container = ProviderContainer.test();
+    final controller = container.read(
+      subscriptionPendingOperationProvider.notifier,
+    );
+    final did = Did.parse('did:plc:alice');
+    controller.beginPurchase(did, SubscriptionTier.business);
+    final operation = container.read(subscriptionPendingOperationProvider)!;
+
+    controller
+      ..recordPaywallRestore(operation.operationId, _state)
+      ..clearUnconfirmed(operation.operationId);
+
+    final pending = container.read(subscriptionPendingOperationProvider)!;
+    expect(pending.kind, PendingSubscriptionOperationKind.restore);
+    expect(pending.tier, isNull);
+    expect(pending.beforeProvider, same(_state));
+    expect(pending.operationId, same(operation.operationId));
+    expect(pending.canReconcile, isTrue);
+    container.dispose();
+  });
   test('late callbacks cannot mutate or clear a replacement operation', () {
     final container = ProviderContainer.test();
     addTearDown(container.dispose);
@@ -32,6 +53,7 @@ void main() {
     final replacement = container.read(subscriptionPendingOperationProvider)!;
     controller
       ..recordPurchase(original.operationId, SubscriptionTier.plus, _state)
+      ..recordPaywallRestore(original.operationId, _state)
       ..clearUnconfirmed(original.operationId)
       ..clear(original.operationId);
     expect(

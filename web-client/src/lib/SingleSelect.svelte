@@ -9,6 +9,7 @@
 		options,
 		disabled = false,
 		required = false,
+		clearable = true,
 		placeholder = '',
 		showRequired = required,
 		onchange
@@ -19,6 +20,7 @@
 		options: { id: string; label: string; description?: string }[];
 		disabled?: boolean;
 		required?: boolean;
+		clearable?: boolean;
 		placeholder?: string;
 		showRequired?: boolean;
 		onchange: (value: string) => void;
@@ -177,7 +179,7 @@
 			}}
 		/>
 		<div class="single-adornments">
-			{#if value && !required}<button
+			{#if value && !required && clearable}<button
 					type="button"
 					aria-label={'Clear ' + label}
 					{disabled}

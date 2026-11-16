@@ -310,23 +310,24 @@ export function productBody(products: Product[]): JsonObject[] {
 		throw new InputError('You can feature up to four products.');
 	const destinations = new Set<string>();
 	return products.map((p) => {
+		const uri = p.uri.trim();
 		requireRecordText(p.title, 'Product title', 150, 1500);
 		if (!p.title.trim())
 			throw new FieldValidationError(
 				'Title',
 				'Each product needs a title of up to 150 characters.'
 			);
-		if (!https(p.uri))
+		if (!https(uri))
 			throw new FieldValidationError(
 				'Destination',
 				'Each product needs a secure HTTPS destination.'
 			);
-		if (destinations.has(p.uri))
+		if (destinations.has(uri))
 			throw new FieldValidationError(
 				'Destination',
 				'Each product needs a different destination.'
 			);
-		destinations.add(p.uri);
+		destinations.add(uri);
 		if (!p.images.length || p.images.length > 4)
 			throw new FieldValidationError(
 				'Photos',
@@ -339,7 +340,7 @@ export function productBody(products: Product[]): JsonObject[] {
 		const currency = p.currency.trim().toUpperCase();
 		if (amount && !currency)
 			throw new FieldValidationError(
-				'Price',
+				'Currency',
 				'Enter both the price and currency, or leave both blank.'
 			);
 		if (
@@ -350,12 +351,12 @@ export function productBody(products: Product[]): JsonObject[] {
 					(currencyScales[currency as keyof typeof currencyScales] ?? 0))
 		)
 			throw new FieldValidationError(
-				'Price',
+				'Amount',
 				'Use a valid decimal price and three-letter currency code.'
 			);
 		return {
-			title: p.title,
-			uri: p.uri,
+			title: p.title.trim(),
+			uri,
 			images: p.images.map(imageBody),
 			...(amount ? { price: { amount, currency } } : {})
 		};

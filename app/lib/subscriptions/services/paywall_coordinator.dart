@@ -6,6 +6,7 @@ import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dar
 
 enum PaywallOutcome {
   reconcile,
+  restored,
   cancelled,
   offeringUnavailable,
   providerError,
@@ -86,8 +87,8 @@ final class PaywallCoordinator {
             result = await service.presentPaywall(offering);
           }
           return switch (result) {
-            DirectPaywallResult.purchased ||
-            DirectPaywallResult.restored => PaywallOutcome.reconcile,
+            DirectPaywallResult.purchased => PaywallOutcome.reconcile,
+            DirectPaywallResult.restored => PaywallOutcome.restored,
             DirectPaywallResult.cancelled => PaywallOutcome.cancelled,
             DirectPaywallResult.error => PaywallOutcome.providerError,
             DirectPaywallResult.storeAccountConflict =>

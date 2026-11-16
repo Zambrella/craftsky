@@ -455,7 +455,7 @@ func validateBusinessProfileRequest(request *businessProfileRequest) *FieldError
 	products := make([]business.Product, 0, len(request.Products))
 	for index, product := range request.Products {
 		prefix := "products[" + formatInt64(int64(index)) + "]"
-		if business.ValidateText(business.TextFieldProductTitle, product.Title) != nil {
+		if strings.TrimSpace(product.Title) == "" || business.ValidateText(business.TextFieldProductTitle, product.Title) != nil {
 			fields[prefix+".title"] = "is invalid"
 		}
 		if business.ValidateWebDestination(product.URI) != nil {

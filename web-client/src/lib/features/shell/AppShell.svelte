@@ -374,6 +374,31 @@
 		tier: 'plus' | 'business';
 		trigger: HTMLElement | null;
 	} | null>(null);
+	let readingAccess = false;
+	let accessRefreshFailed = false;
+	async function refreshAccess(force = false) {
+		if (
+			dead ||
+			document.hidden ||
+			!billingIdentityAllowed ||
+			readingAccess ||
+			(!force && !subscriptionAccess.needsRefresh())
+		)
+			return;
+		readingAccess = true;
+		const accept = subscriptionAccess.beginRead(account);
+		try {
+			const value = await api.billing.access();
+			if (!dead && accept(value)) accessRefreshFailed = false;
+		} catch (cause) {
+			if (!dead && !accessRefreshFailed) {
+				accessRefreshFailed = true;
+				void reportFailure(cause, 'startup.access');
+			}
+		} finally {
+			readingAccess = false;
+		}
+	}
 	setContext('craftsky-feature-paywall', (tier: 'plus' | 'business') => {
 		if (dead || featurePaywall || !billingIdentityAllowed) return;
 		featurePaywall = {
@@ -477,7 +502,10 @@
 		updateDesktop();
 		desktopQuery.addEventListener('change', updateDesktop);
 		void boot();
-		timer = setInterval(counts, 30000);
+		timer = setInterval(() => {
+			void counts();
+			void refreshAccess();
+		}, 30000);
 		const draftSaved = (event: Event) => {
 			const detail = (event as CustomEvent<unknown>).detail;
 			if (dead || expired || !ready || !detail || typeof detail !== 'object')
@@ -683,7 +711,10 @@
 	><meta name="robots" content="noindex, nofollow" /></svelte:head
 ><svelte:document
 	onvisibilitychange={() => {
-		if (!document.hidden) void counts();
+		if (!document.hidden) {
+			void counts();
+			void refreshAccess(true);
+		}
 	}}
 />
 <BrowserPush {api} {session} />

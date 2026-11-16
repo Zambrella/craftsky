@@ -13,6 +13,7 @@ export class RevenueCatPaywall {
 	private active = true;
 	private token = Symbol();
 	private sdk: InstanceType<SDK['Purchases']> | undefined;
+	private purchasing = false;
 	private release: (() => void) | undefined;
 	constructor(
 		private readonly details: WebPaywallDetails,
@@ -66,15 +67,26 @@ export class RevenueCatPaywall {
 				const purchase = sdk.purchase.bind(sdk);
 				sdk.purchase = async (params: PurchaseParams) => {
 					this.check();
-					await this.beforePurchase();
-					this.check();
-					await presentation?.onCheckoutChange(true);
-					this.check();
+					if (this.purchasing)
+						throw new UserFacingError(
+							'A payment attempt is already in progress. Finish or close it before trying again.'
+						);
+					this.purchasing = true;
+					let checkoutStarted = false;
 					try {
+						await this.beforePurchase();
+						this.check();
+						checkoutStarted = true;
+						await presentation?.onCheckoutChange(true);
+						this.check();
 						return await purchase(params);
 					} finally {
-						if (this.active && this.current())
-							await presentation?.onCheckoutChange(false);
+						try {
+							if (checkoutStarted && this.active && this.current())
+								await presentation?.onCheckoutChange(false);
+						} finally {
+							this.purchasing = false;
+						}
 					}
 				};
 				const offerings = await sdk.getOfferings();

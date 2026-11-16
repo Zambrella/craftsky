@@ -3389,6 +3389,8 @@
   "@businessEventUploadError": { "description": "Recoverable event image upload failure." },
   "businessEventValidationError": "Check the event details and try again.",
   "@businessEventValidationError": { "description": "Bounded event form validation message." },
+  "businessEventTimeDoesNotExist": "This time does not exist in the selected time zone. Choose another time.",
+  "@businessEventTimeDoesNotExist": { "description": "Event boundary falls in a skipped daylight-saving time." },
   "businessEventCreatorProfileAction": "View creator profile",
   "@businessEventCreatorProfileAction": { "description": "Link to the account that published an event." },
   "businessEventCreatorRolesLabel": "Creator's roles",

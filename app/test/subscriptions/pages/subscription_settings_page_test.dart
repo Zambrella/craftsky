@@ -17,6 +17,51 @@ import 'package:material_ui/material_ui.dart';
 import '../../test_support/session_registry_storage.dart';
 
 void main() {
+  testWidgets('pending Stripe payment offers only current-tier Manage', (
+    tester,
+  ) async {
+    var managed = 0;
+    await _pump(
+      tester,
+      _model(
+        store: 'stripe',
+        paidTier: SubscriptionTier.business,
+        pendingPayment: true,
+        paidAccess: false,
+        onManage: () => managed++,
+      ),
+    );
+
+    expect(find.text('Active'), findsNothing);
+    expect(find.text('Downgrade'), findsNothing);
+    await tester.ensureVisible(find.text('Manage'));
+    await tester.tap(find.text('Manage'));
+    expect(managed, 1);
+  });
+  for (final status in ['trialing', 'in_grace_period', 'in_billing_retry']) {
+    testWidgets('$status keeps the paid tier Active and manageable', (
+      tester,
+    ) async {
+      var managed = 0;
+      await _pump(
+        tester,
+        _model(
+          store: 'app_store',
+          subscriptionStatus: status,
+          onManage: () => managed++,
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('subscription-status-plus')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Manage'));
+      await tester.tap(find.text('Manage'));
+
+      expect(managed, 1);
+    });
+  }
   for (final status in [
     'will_renew',
     'will_change_product',
@@ -314,6 +359,9 @@ SubscriptionPageModel _model({
   DateTime? accessEndsAt,
   DateTime? currentPeriodEndsAt,
   String? renewalStatus = 'will_renew',
+  String subscriptionStatus = 'active',
+  bool pendingPayment = false,
+  bool paidAccess = true,
   VoidCallback? onManage,
   bool promo = false,
   bool lifetimePromo = false,
@@ -327,9 +375,11 @@ SubscriptionPageModel _model({
 }) => SubscriptionPageModel(
   access: SubscriptionAccess(
     did: Did.parse('did:plc:alice'),
-    effectiveTier: store == null && !promo ? SubscriptionTier.free : paidTier,
+    effectiveTier: (store == null || !paidAccess) && !promo
+        ? SubscriptionTier.free
+        : paidTier,
     accessEndsAt: accessEndsAt,
-    givesAccess: store != null || promo,
+    givesAccess: (store != null && paidAccess) || promo,
   ),
   billingAvailability: BillingAvailability.available,
   tierPrices: const {
@@ -351,9 +401,9 @@ SubscriptionPageModel _model({
               id: '30000000-0000-4000-8000-000000000001',
               productId: 'plus',
               store: store,
-              status: 'active',
-              givesAccess: true,
-              pendingPayment: false,
+              status: subscriptionStatus,
+              givesAccess: paidAccess,
+              pendingPayment: pendingPayment,
               anomaly: 'none',
               autoRenewalStatus: renewalStatus,
               currentPeriodEndsAt: currentPeriodEndsAt,

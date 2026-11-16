@@ -70,6 +70,7 @@ Future<void> _pumpEditDialog(
   BusinessRepository? businessRepository,
   bool businessAccess = false,
   bool businessDetails = false,
+  Future<SubscriptionAccess> Function(Did did)? loadAccess,
   ProfileImageFailure? imageFailure,
   Object? imageException,
   ErrorReporter? reporter,
@@ -104,6 +105,7 @@ Future<void> _pumpEditDialog(
           ),
         ),
         subscriptionAccessProvider.overrideWith((ref, lease) async {
+          if (loadAccess != null) return await loadAccess(lease.account.did);
           final tier = businessAccess || businessRepository != null
               ? SubscriptionTier.business
               : SubscriptionTier.plus;
@@ -165,6 +167,109 @@ final class _EditRegistryStorage implements SessionRegistryStorage {
 }
 
 void main() {
+  testWidgets('initial access failure cannot seed an empty Business form', (
+    tester,
+  ) async {
+    final profile = _seedProfile.copyWith(
+      accountType: AccountType.business,
+      business: _businessDeclaration,
+    );
+    var reads = 0;
+    await _pumpEditDialog(
+      tester,
+      repo: FakeProfileRepository(onFetch: (_) async => profile),
+      businessDetails: true,
+      loadAccess: (did) async {
+        if (reads++ == 0) throw StateError('Access unavailable');
+        return SubscriptionAccess(
+          did: did,
+          effectiveTier: SubscriptionTier.business,
+          givesAccess: true,
+          assignedTier: SubscriptionTier.business,
+        );
+      },
+    );
+
+    expect(find.byType(BusinessProfileFields), findsNothing);
+    await tester.tap(find.text('Refresh status'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.widgetWithText(TextField, 'Thoughtful classes'),
+      findsOneWidget,
+    );
+    final fields = tester.widget<BusinessProfileFields>(
+      find.byType(BusinessProfileFields),
+    );
+    expect(fields.initial.expectedCid, _businessDeclaration.cid);
+    expect(fields.initial.businessTypes, _businessDeclaration.businessTypes);
+    expect(fields.initial.offerings, _businessDeclaration.offerings);
+  });
+  testWidgets('business drafts survive access refresh, error and recovery', (
+    tester,
+  ) async {
+    final repository = _RecordingBusinessRepository();
+    final profile = _seedProfile.copyWith(
+      accountType: AccountType.business,
+      business: _businessDeclaration,
+    );
+    SubscriptionAccess access(SubscriptionTier tier) => SubscriptionAccess(
+      did: profile.did,
+      effectiveTier: tier,
+      givesAccess: tier != SubscriptionTier.free,
+      assignedTier: tier == SubscriptionTier.free ? null : tier,
+    );
+    var next = Future.value(access(SubscriptionTier.business));
+    await _pumpEditDialog(
+      tester,
+      repo: FakeProfileRepository(onFetch: (_) async => profile),
+      businessRepository: repository,
+      businessDetails: true,
+      loadAccess: (_) => next,
+    );
+    final tagline = find.widgetWithText(TextField, 'Thoughtful classes');
+    await tester.ensureVisible(tagline);
+    await tester.enterText(tagline, 'My unsaved Business details');
+    await tester.pump();
+    final edited = find.widgetWithText(
+      TextField,
+      'My unsaved Business details',
+    );
+    final save = find.widgetWithText(TextButton, 'Save');
+    final container = ProviderScope.containerOf(tester.element(edited));
+    final lease = container
+        .read(sessionRegistryProvider)
+        .requireValue
+        .activeLease!
+        .session;
+    final pending = Completer<SubscriptionAccess>();
+    next = pending.future;
+    container.invalidate(subscriptionAccessProvider(lease));
+    await tester.pump();
+    expect(edited, findsOneWidget);
+    expect(tester.widget<TextField>(edited).enabled, isFalse);
+    expect(tester.widget<TextButton>(save).onPressed, isNull);
+
+    pending.completeError(StateError('Access could not be refreshed'));
+    await tester.pumpAndSettle();
+    expect(edited, findsOneWidget);
+    expect(tester.widget<TextButton>(save).onPressed, isNull);
+    next = Future.value(access(SubscriptionTier.business));
+    await tester.ensureVisible(find.text('Refresh status'));
+    await tester.tap(find.text('Refresh status'));
+    await tester.pumpAndSettle();
+    expect(edited, findsOneWidget);
+    expect(tester.widget<TextField>(edited).enabled, isTrue);
+    expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+
+    next = Future.value(access(SubscriptionTier.free));
+    container.invalidate(subscriptionAccessProvider(lease));
+    await tester.pumpAndSettle();
+    expect(edited, findsOneWidget);
+    expect(tester.widget<TextField>(edited).enabled, isFalse);
+    expect(tester.widget<TextButton>(save).onPressed, isNull);
+    expect(repository.putCalls, 0);
+  });
   group('EditProfileDialog', () {
     testWidgets(
       'image editing IR-001 REG-003: disposal ignores late avatar completion',

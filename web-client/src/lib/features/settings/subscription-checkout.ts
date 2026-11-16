@@ -35,9 +35,18 @@ export function hasCurrentSubscription(state: BillingState): boolean {
 
 /** AppView confirms promotional access separately from recurring billing obligations. */
 export function activePromotionalGrants(
-	state: BillingState
+	state: BillingState,
+	now = Date.now()
 ): BillingPromotionalGrant[] {
-	return state.promotionalGrants?.filter((grant) => grant.givesAccess) || [];
+	return (
+		state.promotionalGrants?.filter(
+			(grant) =>
+				grant.givesAccess &&
+				(grant.expiresAt === undefined ||
+					grant.expiresAt === null ||
+					Date.parse(grant.expiresAt) > now)
+		) || []
+	);
 }
 
 export function subscriptionNeedsRefresh(state: BillingState): boolean {
@@ -54,6 +63,7 @@ export function subscriptionNeedsRefresh(state: BillingState): boolean {
 export function canStartWebCheckout(state: BillingState): boolean {
 	return (
 		state.webCheckoutAvailable === true &&
+		!state.webCheckoutPending &&
 		!subscriptionNeedsRefresh(state) &&
 		!hasCurrentSubscription(state) &&
 		!state.subscriptions.some(

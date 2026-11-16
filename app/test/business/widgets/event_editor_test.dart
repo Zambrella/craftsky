@@ -310,8 +310,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(submitted?.isAllDay, isTrue);
-      expect(submitted?.startsAt, DateTime(2026, 9, 5));
-      expect(submitted?.endsAt, DateTime(2026, 9, 6));
+      expect(submitted?.startsAt, DateTime.utc(2026, 9, 5));
+      expect(submitted?.endsAt, DateTime.utc(2026, 9, 6));
     },
   );
 
@@ -339,10 +339,42 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('event-submit')));
       await tester.pumpAndSettle();
       expect(submitted?.isAllDay, isTrue);
-      expect(submitted?.startsAt, DateTime(2026, 9, 5));
-      expect(submitted?.endsAt, DateTime(2026, 9, 6));
+      expect(submitted?.startsAt, DateTime.utc(2026, 9, 5));
+      expect(submitted?.endsAt, DateTime.utc(2026, 9, 6));
     },
   );
+
+  testWidgets('DST gaps show a correction message without submitting', (
+    tester,
+  ) async {
+    var submissions = 0;
+    await tester.pumpWidget(
+      _app(
+        EventEditorDialog(
+          initialDraft: _draft(
+            startsAt: DateTime.utc(2026, 3, 29, 1, 30),
+            endsAt: DateTime.utc(2026, 3, 29, 3),
+          ),
+          onSubmit: (_) async {
+            submissions++;
+            return true;
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('event-submit')));
+    await tester.pumpAndSettle();
+
+    expect(submissions, 0);
+    expect(
+      find.text(
+        'This time does not exist in the selected time zone. '
+        'Choose another time.',
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets(
     'AT-007 authors complete timed event on compact and wide layouts',

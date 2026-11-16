@@ -7,7 +7,7 @@
 		type WebSubscriptionPrice,
 		type BillingState
 	} from '#lib/api/client.ts';
-	import SettingsIcon from './SettingsIcon.svelte';
+	import Icon from '../shell/Icon.svelte';
 	import PlusTierIcon from '../shell/PlusTierIcon.svelte';
 	import RevenueCatPaywall from './RevenueCatPaywall.svelte';
 	import type { WebPaywallDetails } from './revenuecat-paywall';
@@ -55,10 +55,31 @@
 			if (active && read === priceRead) pricesLoading = false;
 		}
 	}
-	let access = $state<SubscriptionAccess | null>(null),
+	let loadedAccess = $state<SubscriptionAccess | null>(null),
 		billing = $state<BillingState | null>(null),
 		purchasingTier = $state<SubscriptionTier | null>(null),
 		managingSubscription = $state(false);
+	const access = $derived(sharedAccess?.value ?? loadedAccess);
+	// A failed account read must not retry itself whenever Work.loading clears.
+	// A newer shared snapshot or the explicit Retry action may try again.
+	let attemptedAccessReload: SubscriptionAccess | null = null;
+	$effect(() => {
+		if (
+			loadedAccess &&
+			access &&
+			!paywallDetails &&
+			!work.loading &&
+			!work.busy &&
+			!work.retry &&
+			(loadedAccess.effectiveTier !== access.effectiveTier ||
+				loadedAccess.givesAccess !== access.givesAccess ||
+				loadedAccess.accessEndsAt !== access.accessEndsAt)
+		) {
+			if (attemptedAccessReload === access) return;
+			attemptedAccessReload = access;
+			untrack(() => void load());
+		}
+	});
 	let paywallDetails = $state<WebPaywallDetails | null>(null);
 	let checkoutTier = $state<SubscriptionTier>('plus');
 	let cancelingCheckout = $state(false);
@@ -110,7 +131,9 @@
 		) || []
 	);
 	const managedSubscription = $derived(
-		currentSubscriptions.length === 1 && currentSubscriptions[0].givesAccess
+		currentSubscriptions.length === 1 &&
+			(currentSubscriptions[0].givesAccess ||
+				currentSubscriptions[0].pendingPayment)
 			? currentSubscriptions[0]
 			: undefined
 	);
@@ -170,8 +193,8 @@
 	}
 	function apply(value: Awaited<ReturnType<typeof read>>) {
 		requireCurrent();
-		if (value.publishAccess && !value.publishAccess(value.access)) return;
-		access = value.access;
+		value.publishAccess?.(value.access);
+		loadedAccess = value.access;
 		billing = value.billing;
 	}
 	async function reconciled() {
@@ -267,7 +290,25 @@
 			if (event.persisted) refresh();
 		};
 		window.addEventListener('pageshow', restored);
-		return () => window.removeEventListener('pageshow', restored);
+		const visible = () => {
+			if (!document.hidden && !paywallDetails) void load();
+		};
+		document.addEventListener('visibilitychange', visible);
+		const timer = window.setInterval(() => {
+			if (
+				!document.hidden &&
+				!paywallDetails &&
+				!work.loading &&
+				!work.busy &&
+				!work.retry
+			)
+				void load();
+		}, 5 * 60_000);
+		return () => {
+			window.clearInterval(timer);
+			window.removeEventListener('pageshow', restored);
+			document.removeEventListener('visibilitychange', visible);
+		};
 	});
 	onDestroy(() => {
 		active = false;
@@ -370,7 +411,8 @@
 	{#each ['plus', 'business'] as tierValue}
 		{@const tier = tierValue as SubscriptionTier}
 		{@const status = tierState(billing, tier)}
-		{@const isActive = managedTier === tier}
+		{@const isManagedTier = managedTier === tier}
+		{@const isActive = isManagedTier && !!managedSubscription?.givesAccess}
 		{@const managementAvailable =
 			!!managedSubscription &&
 			(!!storeManagementURL(managedSubscription.store) ||
@@ -383,9 +425,9 @@
 		>
 			<div class="tier-heading">
 				<span class="tier-icon"
-					>{#if tier === 'plus'}<PlusTierIcon />{:else}<SettingsIcon
-							name="business"
-						/>{/if}</span
+					>{#if tier === 'plus'}<PlusTierIcon />{:else}<span
+							class="business-plan-icon"><Icon name="business" /></span
+						>{/if}</span
 				>
 				<div>
 					<h2>{title(tier)}</h2>
@@ -417,26 +459,28 @@
 					renewal. Your current benefits remain available until then.
 				</p>
 			{/if}
-			{#if isActive && managedSubscription?.pendingPayment}
+			{#if isManagedTier && managedSubscription?.pendingPayment}
 				<p class="notice">
 					Payment is pending. Resolve it with your billing provider before
 					making another purchase.
 				</p>
 			{/if}
 			{#if managedSubscription && managedTier}
-				<button
-					class="tier-action"
-					disabled={work.busy || !managementAvailable}
-					onclick={manageCurrent}
-				>
-					{managingSubscription
-						? 'Opening…'
-						: isActive
-							? 'Manage'
-							: tier === 'business'
-								? 'Upgrade'
-								: 'Downgrade'}
-				</button>
+				{#if !managedSubscription.pendingPayment || isManagedTier}
+					<button
+						class="tier-action"
+						disabled={work.busy || !managementAvailable}
+						onclick={manageCurrent}
+					>
+						{managingSubscription
+							? 'Opening…'
+							: isManagedTier
+								? 'Manage'
+								: tier === 'business'
+									? 'Upgrade'
+									: 'Downgrade'}
+					</button>
+				{/if}
 			{:else if canStartWebCheckout(billing)}
 				<button
 					class="tier-action"
@@ -510,6 +554,15 @@
 	.tier-status {
 		color: var(--tier-accent);
 		font-size: 14px;
+	}
+	.business-plan-icon {
+		display: inline-flex;
+		width: 24px;
+		height: 24px;
+		line-height: 0;
+	}
+	.business-plan-icon :global(svg) {
+		transform: scale(1.25);
 	}
 	.access-title {
 		font-size: 16px;

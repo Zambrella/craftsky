@@ -10,6 +10,68 @@ import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final restoredTier in [SubscriptionTier.free, SubscriptionTier.plus]) {
+    test(
+      'restoring ${restoredTier.name} from Business paywall confirms restore '
+      'without buying Business',
+      () async {
+        final after = _state(
+          2,
+          2,
+          licenses: restoredTier == SubscriptionTier.free
+              ? []
+              : [_pair('restored')],
+        );
+        var purchases = 0;
+        var restores = 0;
+        final result = await _controller(
+          _ScriptedApi([_state(1, 1), _state(1, 1), after]),
+          presentPaywall: (_, _) async => PaywallOutcome.restored,
+          onProviderConfirmed: (_, _) => purchases++,
+          onRestoreConfirmed: (_) => restores++,
+        ).purchase(SubscriptionTier.business);
+
+        expect(result.outcome, SubscriptionPurchaseOutcome.completed);
+        expect(result.retry, isNull);
+        expect(purchases, 0);
+        expect(restores, 1);
+        expect(result.state, same(after));
+      },
+    );
+  }
+
+  test(
+    'restored paywall retries reconciliation without tier or payment',
+    () async {
+      var current = true;
+      var presentations = 0;
+      var restores = 0;
+      final api = _ScriptedApi([_state(1, 1)]);
+      final controller = _controller(
+        api,
+        isCurrent: () => current,
+        presentPaywall: (_, _) async {
+          presentations++;
+          current = false;
+          return PaywallOutcome.restored;
+        },
+        onRestoreConfirmed: (_) => restores++,
+      );
+      final pending = await controller.purchase(SubscriptionTier.business);
+      expect(pending.outcome, SubscriptionPurchaseOutcome.pending);
+      expect(restores, 1);
+      current = true;
+      api.states.addAll([
+        _state(1, 1),
+        _state(2, 2, licenses: [_pair('restored')]),
+      ]);
+      final restored = await pending.retry!();
+
+      expect(restored.outcome, SubscriptionPurchaseOutcome.completed);
+      expect(presentations, 1);
+      expect(api.reconciliationCalls, 1);
+    },
+  );
   test(
     'existing store purchase requests sync without confirming a new tier',
     () async {
@@ -659,6 +721,7 @@ SubscriptionPurchaseController _controller(
   Future<SubscriptionAccess> Function(Did)? readAccess,
   SessionRegistry Function()? readRegistry,
   void Function(SubscriptionTier, BillingState)? onProviderConfirmed,
+  void Function(BillingState)? onRestoreConfirmed,
 }) {
   final registry = readRegistry ?? _ownerRegistry;
   return SubscriptionPurchaseController(
@@ -672,6 +735,7 @@ SubscriptionPurchaseController _controller(
     isCurrent: isCurrent ?? () => true,
     isForeground: isForeground ?? () => true,
     onProviderConfirmed: onProviderConfirmed,
+    onRestoreConfirmed: onRestoreConfirmed,
     readAccess:
         readAccess ??
         (did) async => SubscriptionAccess(

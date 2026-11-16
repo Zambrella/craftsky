@@ -44,7 +44,8 @@ func TestMalformedProviderResponsePreservesReconciledAccessAndPins(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response := `{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_renew"}]}`
+	const paidResource = `{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false,"auto_renewal_status":"will_renew"}`
+	response := `{"items":[` + paidResource + `]}`
 	var firstPage string
 	requests := 0
 	client, err := NewClient(ClientConfig{BaseURL: "https://revenuecat.invalid/v2", APIKey: "secret", ProjectID: "project"}, &http.Client{Transport: responseTransport(func(request *http.Request) *http.Response {
@@ -77,6 +78,9 @@ func TestMalformedProviderResponsePreservesReconciledAccessAndPins(t *testing.T)
 		`null`, `{}`, `{"items":null}`,
 		`{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"expired","pending_payment":false}]}`,
 		`{"items":[{"id":"sub-preserve","product_id":"prod-plus","store":"app_store","environment":"production","status":"expired","gives_access":false}]}`,
+		`{"items":[` + strings.Replace(paidResource, `"product_id":"prod-plus",`, "", 1) + `]}`,
+		`{"items":[` + strings.Replace(paidResource, `"product_id":"prod-plus"`, `"product_id":null`, 1) + `]}`,
+		`{"items":[` + paidResource + `,` + paidResource + `]}`,
 	} {
 		for _, laterPage := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/later=%t", malformed, laterPage), func(t *testing.T) {

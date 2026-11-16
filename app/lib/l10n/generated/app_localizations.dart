@@ -7791,6 +7791,12 @@ abstract class AppLocalizations {
   /// **'Check the event details and try again.'**
   String get businessEventValidationError;
 
+  /// Event boundary falls in a skipped daylight-saving time.
+  ///
+  /// In en, this message translates to:
+  /// **'This time does not exist in the selected time zone. Choose another time.'**
+  String get businessEventTimeDoesNotExist;
+
   /// Link to the account that published an event.
   ///
   /// In en, this message translates to:
