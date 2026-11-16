@@ -323,7 +323,7 @@ function visualData(owner) {
 	if (!state.events.length) state.events.push(event);
 	state.business.products = state.business.products.map((product) => ({
 		...product,
-		image: { ...product.image, ...visualImage }
+		images: product.images.map((image) => ({ ...image, ...visualImage }))
 	}));
 	for (const category of [
 		'like',
@@ -419,12 +419,14 @@ function reset() {
 						{
 							title: 'Blue wool',
 							uri: 'https://shop.example/wool',
-							image: {
-								cid: 'bafyproduct',
-								mime: 'image/png',
-								size: 200,
-								alt: 'Blue wool'
-							},
+							images: [
+								{
+									cid: 'bafyproduct',
+									mime: 'image/png',
+									size: 200,
+									alt: 'Blue wool'
+								}
+							],
 							price: { amount: '12.5', currency: 'GBP' }
 						}
 					]
@@ -1161,7 +1163,18 @@ createServer(async (req, res) => {
 				...previous.businessTypes.filter((value) => !value.known)
 			],
 			offerings: body.offerings.map((value) => ({ value, known: true })),
-			products: body.preserveProducts ? previous.products : body.products
+			products: body.preserveProducts
+				? previous.products
+				: body.products.map((product) => ({
+						...product,
+						images: product.images.map(({ image, alt, aspectRatio }) => ({
+							cid: image.ref.$link,
+							mime: image.mimeType,
+							size: image.size,
+							alt,
+							...(aspectRatio ? { aspectRatio } : {})
+						}))
+					}))
 		};
 		return send(200, { cid: state.business.cid });
 	}

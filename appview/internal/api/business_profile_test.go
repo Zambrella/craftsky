@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -202,7 +203,7 @@ func TestBusinessProfileConditionalCreateReplaceAndDelete(t *testing.T) {
 
 func TestBusinessProfileCompleteKnownReplacementsPreserveUnknownExtension(t *testing.T) {
 	t.Parallel()
-	const productImage = `"image":{"image":{"$type":"blob","ref":{"$link":"` + businessProfileCID1 + `"},"mimeType":"image/png","size":12},"alt":"Product"}`
+	const productImage = `"images":[{"image":{"$type":"blob","ref":{"$link":"` + businessProfileCID1 + `"},"mimeType":"image/png","size":12},"alt":"Product"}]`
 	tests := []struct {
 		name             string
 		body             string
@@ -466,3 +467,38 @@ func TestBusinessDetailPreservationAlsoWorksWithoutCommandExecutor(t *testing.T)
 		t.Fatalf("record=%#v", effects.record)
 	}
 }
+
+func TestProductPhotoCountAndMetadata(t *testing.T) {
+	for _, count := range []int{0, 1, 4, 5} {
+		t.Run(formatPhotoCount(count), func(t *testing.T) {
+			images := make([]map[string]any, count)
+			for i := range images {
+				images[i] = map[string]any{"image": map[string]any{"$type": "blob", "ref": map[string]any{"$link": businessProfileCID1}, "mimeType": "image/png", "size": 12}, "alt": formatPhotoCount(i)}
+			}
+			body, _ := json.Marshal(map[string]any{"products": []any{map[string]any{"title": "Wool", "uri": "https://shop.example/wool", "images": images}}})
+			effects := &businessProfileEffects{}
+			handler := api.PutBusinessProfileHandler(func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) { return effects, nil })
+			response := serveBusinessProfileRequest(t, handler, http.MethodPut, string(body), "*")
+			if count == 0 || count == 5 {
+				if response.Code != http.StatusUnprocessableEntity || len(effects.puts) != 0 {
+					t.Fatalf("invalid count %d: status %d writes %d", count, response.Code, len(effects.puts))
+				}
+				return
+			}
+			if response.Code != http.StatusOK {
+				t.Fatalf("count %d: %d %s", count, response.Code, response.Body.String())
+			}
+			products := effects.record["products"].([]any)
+			got := products[0].(map[string]any)["images"].([]any)
+			if len(got) != count {
+				t.Fatalf("photos = %d, want %d", len(got), count)
+			}
+			for i, image := range got {
+				if image.(map[string]any)["alt"] != formatPhotoCount(i) {
+					t.Fatal("photo order/description changed")
+				}
+			}
+		})
+	}
+}
+func formatPhotoCount(count int) string { return fmt.Sprintf("photo-%d", count) }

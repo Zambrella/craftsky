@@ -154,7 +154,7 @@ describe('native record text limits', () => {
 			uri: 'https://shop.example/wool',
 			amount: '',
 			currency: '',
-			image: { cid: 'bafyimage', mime: 'image/jpeg', size: 100, alt: '' }
+			images: [{ cid: 'bafyimage', mime: 'image/jpeg', size: 100, alt: '' }]
 		};
 		expect(productBody([product])[0].title).toBe(product.title);
 		expect(() =>

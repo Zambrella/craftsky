@@ -301,7 +301,7 @@ export function imageBody(image: BusinessImage): JsonObject {
 export interface Product {
 	title: string;
 	uri: string;
-	image?: BusinessImage;
+	images: BusinessImage[];
 	amount: string;
 	currency: string;
 }
@@ -327,10 +327,10 @@ export function productBody(products: Product[]): JsonObject[] {
 				'Each product needs a different destination.'
 			);
 		destinations.add(p.uri);
-		if (!p.image)
+		if (!p.images.length || p.images.length > 4)
 			throw new FieldValidationError(
-				'Product image',
-				'Add an image to each product.'
+				'Photos',
+				'Add one to four photos to each product.'
 			);
 		const amount = p.amount
 			.trim()
@@ -356,7 +356,7 @@ export function productBody(products: Product[]): JsonObject[] {
 		return {
 			title: p.title,
 			uri: p.uri,
-			image: imageBody(p.image),
+			images: p.images.map(imageBody),
 			...(amount ? { price: { amount, currency } } : {})
 		};
 	});

@@ -467,7 +467,7 @@ export interface BusinessProfile {
 	products?: {
 		title: string;
 		uri?: string;
-		image?: Image;
+		images: Image[];
 		price?: JsonObject;
 	}[];
 }

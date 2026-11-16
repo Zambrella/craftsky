@@ -215,6 +215,8 @@
 					><strong>{images.length ? 'Add another photo' : 'Add a photo'}</strong
 					>{#if images.length}<small
 							>Up to {maxImages - images.length} more</small
+						>{:else if maxImages > 1}<small
+							>Choose up to {maxImages} photos</small
 						>{/if}<span class="drop-hint"
 						>{maxImages === 1
 							? 'Or drag and drop a photo here'
@@ -276,7 +278,7 @@
 		aria-label="Photo details"
 		use:mountComposerPage
 	>
-		<header class="photo-page-header">
+		<header class="photo-page-header page-appbar">
 			<button
 				type="button"
 				aria-label={backLabel}
@@ -504,13 +506,7 @@
 		flex-direction: column;
 	}
 	.photo-page-header {
-		display: flex;
-		align-items: center;
-		gap: 16px;
-		flex: none;
-		height: 56px;
-		border-bottom: 1.5px solid var(--ink);
-		padding: 0 8px;
+		justify-content: flex-start;
 	}
 	.photo-page-header button {
 		width: 48px;
@@ -520,11 +516,6 @@
 		background: transparent;
 		box-shadow: none;
 		border-radius: 50%;
-	}
-	.photo-page-header h2 {
-		font-size: 20px;
-		font-weight: 600;
-		margin: 0;
 	}
 	.photo-page-scroll {
 		overflow: auto;

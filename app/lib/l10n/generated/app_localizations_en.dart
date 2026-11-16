@@ -1505,6 +1505,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String postComposeChoosePhotosHelper(int maxImages) {
+    return 'Choose up to $maxImages photos';
+  }
+
+  @override
   String postComposePhotosLimitHelper(int maxImages) {
     String _temp0 = intl.Intl.pluralLogic(
       maxImages,

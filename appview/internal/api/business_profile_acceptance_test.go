@@ -81,10 +81,10 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 		"location":{"country":"gb","locality":"Leeds","region":"West Yorkshire","street":"Not public"},
 		"primaryAction":{"type":"shop","destination":"https://shop.example/products?from=craftsky"},
 		"products":[
-			{"title":"First skein","uri":"https://shop.example/first","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":101},"alt":"Rust-coloured yarn","aspectRatio":{"width":4,"height":3}},"price":{"amount":"12.5","currency":"GBP"}},
-			{"title":"Second skein","uri":"https://shop.example/second","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/png","size":102}}},
-			{"title":"Third skein","uri":"https://shop.example/third","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/webp","size":103},"alt":"Blue yarn"}},
-			{"title":"Fourth skein","uri":"https://shop.example/fourth","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":104}},"price":{"amount":"20","currency":"GBP"}}
+			{"title":"First skein","uri":"https://shop.example/first","images":[{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":101},"alt":"Rust-coloured yarn","aspectRatio":{"width":4,"height":3}}],"price":{"amount":"12.5","currency":"GBP"}},
+			{"title":"Second skein","uri":"https://shop.example/second","images":[{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/png","size":102}}]},
+			{"title":"Third skein","uri":"https://shop.example/third","images":[{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/webp","size":103},"alt":"Blue yarn"}]},
+			{"title":"Fourth skein","uri":"https://shop.example/fourth","images":[{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":104}}],"price":{"amount":"20","currency":"GBP"}}
 		]
 	}`); err != nil {
 		t.Fatalf("seed eligible business profile: %v", err)
@@ -159,8 +159,8 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 		if !ok || product["title"] != wantTitle || product["uri"] != "https://shop.example/"+[]string{"first", "second", "third", "fourth"}[index] {
 			t.Errorf("business.products[%d] = %#v", index, products[index])
 		}
-		if _, ok := product["image"].(map[string]any); !ok {
-			t.Errorf("business.products[%d].image = %#v, want object", index, product["image"])
+		if _, ok := product["images"].([]any); !ok {
+			t.Errorf("business.products[%d].image = %#v, want object", index, product["images"])
 		}
 	}
 	first := products[0].(map[string]any)
@@ -176,7 +176,7 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 			"height": float64(3),
 		},
 	}
-	if got := first["image"]; !jsonObjectsEqual(got, wantImage) {
+	if got := first["images"].([]any)[0]; !jsonObjectsEqual(got, wantImage) {
 		t.Errorf("first product image = %#v, want exact normalized image %#v", got, wantImage)
 	}
 	price, ok := first["price"].(map[string]any)

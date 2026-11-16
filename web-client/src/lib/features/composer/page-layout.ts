@@ -1,7 +1,7 @@
 export function mountComposerPage(node: HTMLElement) {
 	// Retain editor ancestry and scoped field styles while showing its detail page.
 	const scroller = node.closest<HTMLElement>(
-		'.composer-scroll,.event-composer-scroll'
+		'.composer-scroll,.business-composer-scroll'
 	);
 	const scrollTop = scroller?.scrollTop || 0;
 	const hidden: { node: HTMLElement; display: string; inert: boolean }[] = [];

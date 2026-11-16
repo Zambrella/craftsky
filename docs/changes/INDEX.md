@@ -110,7 +110,7 @@ These are package-specific historical limits and questions. Check later evidence
 | [Business profiles and products](catalog/2026-08-27-business-profiles.md) | implemented | archived | profiles, taxonomy | Implemented business-profile records, indexed product metadata and package-backed country/currency catalogues. |
 | [Flutter business profiles and event/product editors](catalog/2026-08-29-flutter-business-profiles.md) | implemented | archived | profiles, concurrency | The recorded Flutter slice adds regular/business account switching, business profile information, event/product surfaces and integrated editing against AppView contracts. |
 | [Business profile save and conflict recovery](catalog/2026-10-05-business-profile-save.md) | implemented | archived | editing, concurrency | Preserved independent business-product/catalogue data and added explicit retry after stale-version save conflicts. |
-| [Business settings and web event/product parity](catalog/2026-11-15-business-client-parity.md) | implemented | active | editing, settings, parity | Separates business details from personal profile editing and aligns web event/product editors and management with Flutter. |
+| [Business settings and web event/product parity](catalog/2026-11-15-business-client-parity.md) | implemented | active | editing, settings, parity | Separates business details from profile editing, aligns event/product clients, and supports four product photos with large profile carousels. |
 
 ## chat
 

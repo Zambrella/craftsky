@@ -146,3 +146,11 @@ routine upstream maintenance.
   destination safety, canonical money, and event temporal policy.
 - AppView never fetches authored action, product, event, registration, or email
   destinations.
+
+
+### Pre-launch product photos amendment (2026-11-16)
+
+[ADR 028](028-product-photo-carousels.md) replaces the single product photo with
+an ordered list of up to four. The maintainer confirmed products are not live
+and requested a direct change without a migration or legacy compatibility.
+This exception is scoped to product photos; the other evolution rules remain.

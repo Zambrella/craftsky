@@ -509,18 +509,19 @@
 		display: flex;
 		align-items: center;
 		gap: 16px;
-		height: 56px;
-		min-height: 56px;
-		padding: 8px 16px;
+		height: var(--app-bar-height);
+		min-height: var(--app-bar-height);
+		padding: var(--app-bar-padding);
 	}
 	.image-edit-heading h2 {
 		flex: 1;
 		margin: 0;
 		color: inherit;
 		font-family: inherit;
-		font-size: 20px;
-		font-weight: 700;
-		line-height: 1.3;
+		font-size: var(--app-bar-title-size);
+		font-weight: var(--app-bar-title-weight);
+		line-height: var(--app-bar-title-line-height);
+		letter-spacing: 0;
 	}
 	.image-edit-heading button {
 		display: grid;

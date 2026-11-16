@@ -4,16 +4,20 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
+import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
@@ -26,9 +30,13 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sealed_countries/sealed_countries.dart';
 import 'package:uuid/uuid.dart';
 
-typedef ProductImagePicker = Future<ProfileImagePickResult?> Function(
+typedef ProductImagePicker = Future<PreparedProfileImage?> Function(
   ImageSource source,
   void Function(Uint8List bytes) onPreviewReady,
+);
+
+typedef ProductImagesPicker = Future<List<PreparedProfileImage>> Function(
+  int limit,
 );
 
 Future<ProductDraft?> showProductEditorSheet(
@@ -57,6 +65,9 @@ class ProductEditor extends ConsumerStatefulWidget {
     required this.onSave,
     this.initial,
     this.pickImage,
+    this.pickImages,
+    this.editImage,
+    this.uploadImage,
     this.onCancel,
     this.locale,
     this.persist,
@@ -67,6 +78,10 @@ class ProductEditor extends ConsumerStatefulWidget {
   final ProductDraft? initial;
   final ValueChanged<ProductDraft> onSave;
   final ProductImagePicker? pickImage;
+  final ProductImagesPicker? pickImages;
+  final BasicImageEditor? editImage;
+  final Future<UploadedImageBlob> Function(PreparedProfileImage image)?
+  uploadImage;
   final VoidCallback? onCancel;
   final Locale? locale;
   final Future<bool> Function(ProductDraft product)? persist;
@@ -78,15 +93,14 @@ class ProductEditor extends ConsumerStatefulWidget {
 
 class _ProductEditorState extends ConsumerState<ProductEditor> {
   final _formKey = GlobalKey<FormState>();
+  final _photos = <_ProductPhoto>[];
+  int _photoSequence = 0;
   late final TextEditingController _title;
   late final TextEditingController _destination;
   late final TextEditingController _amount;
-  late final TextEditingController _alt;
   late String _currency;
   late List<CraftskySelectOption<String>> _currencyOptions;
-  late BusinessImageDraft _image;
-  Uint8List? _pendingPreview;
-  bool _uploading = false;
+  bool _preparingImage = false;
   bool _showImageError = false;
   bool _showPriceError = false;
   String? _uploadError;
@@ -109,8 +123,12 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           : _editableAmount(initial.amount, initial.currency),
     );
     _currency = initial?.currency ?? '';
-    _image = initial?.image ?? const MissingBusinessImageDraft();
-    _alt = TextEditingController(text: _image.alt);
+    for (final image in initial?.photos ?? <BusinessImageDraft>[]) {
+      if (!image.hasImage) continue;
+      _photos.add(
+        _ProductPhoto(id: _newPhotoId(), image: image, alt: image.alt),
+      );
+    }
   }
 
   @override
@@ -155,7 +173,6 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     _title.dispose();
     _destination.dispose();
     _amount.dispose();
-    _alt.dispose();
     super.dispose();
   }
 
@@ -165,6 +182,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return PopScope<Object?>(
       canPop: !_saving && !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
@@ -202,6 +220,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                         CraftskyTextFormField(
                           textFieldKey: const ValueKey('product-title'),
                           controller: _title,
+                          enabled: !_saving,
                           label: l10n.businessProductTitleLabel,
                           required: true,
                           maxLength: businessProductTitleLimit,
@@ -218,6 +237,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                         CraftskyTextFormField(
                           textFieldKey: const ValueKey('product-destination'),
                           controller: _destination,
+                          enabled: !_saving,
                           label: l10n.businessProductDestinationLabel,
                           hintText: l10n.businessProductDestinationHint,
                           required: true,
@@ -240,27 +260,42 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                         SizedBox(height: spacing.sp5),
                         ComposerImageAttachmentSection(
                           imagesState: ComposerImagesState(
-                            images: [?_attachmentDraft],
+                            images: _photos.map(_attachmentDraft).toList(),
                           ),
-                          enabled: !_uploading,
+                          enabled: !_preparingImage && !_saving,
                           required: true,
-                          maxImages: 1,
+                          maxImages: businessProductImageLimit,
+                          useDetailsRoute: true,
                           keyPrefix: 'product',
-                          imageUrlFor: (_) => _image.previewUrl,
+                          imageUrlFor: (image) => _photos
+                              .where((photo) => photo.id == image.id)
+                              .firstOrNull
+                              ?.image
+                              .previewUrl,
                           onAddImages: () => _pickImage(ImageSource.gallery),
                           onTakePhoto: () => _pickImage(ImageSource.camera),
-                          onAltTextChanged: (_, value) {
-                            _alt.text = value;
+                          onAltTextChanged: (id, value) {
+                            setState(() => _photo(id).alt = value);
                             _markDirty();
                           },
-                          onRemove: (_) => _removeImage(),
-                          onReplace: (_, source) => _pickImage(source),
-                          onReplaceUnavailable: (_, source) =>
-                              _pickImage(source),
-                          onReorder: (_, _) {},
+                          onRemove: _removeImage,
+                          onReplace: (id, source) =>
+                              _pickImage(source, replacing: id),
+                          onReplaceUnavailable: (id, source) =>
+                              _pickImage(source, replacing: id),
+                          onEditImage: _editImage,
+                          onReorder: (oldIndex, newIndex) {
+                            setState(
+                              () => _photos.insert(
+                                newIndex,
+                                _photos.removeAt(oldIndex),
+                              ),
+                            );
+                            _markDirty();
+                          },
                           validationErrorText:
                               _uploadError ??
-                              (_showImageError && !_image.hasImage
+                              (_showImageError && _photos.isEmpty
                                   ? l10n.businessProductImageRequired
                                   : null),
                         ),
@@ -305,9 +340,12 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                   top: false,
                   child: Padding(
                     padding: EdgeInsets.only(bottom: spacing.sp4),
-                    child: ChunkyButton(
-                      key: const ValueKey('product-submit'),
-                      onPressed: _uploading || _saving ? null : _save,
+                    child: ComposerBottomAction(
+                      keyboardVisible: keyboardVisible,
+                      doneKey: const Key('product-composer-done'),
+                      actionKey: const ValueKey('product-submit'),
+                      label: l10n.businessProductSave,
+                      onPressed: _preparingImage || _saving ? null : _save,
                       style: ButtonStyle(
                         minimumSize: WidgetStatePropertyAll(
                           Size.fromHeight(spacing.sp7),
@@ -321,7 +359,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                                 semanticsLabel: l10n.businessSaving,
                               ),
                             )
-                          : Text(l10n.businessProductSave),
+                          : null,
                     ),
                   ),
                 ),
@@ -342,11 +380,13 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
       label: l10n.businessProductAmountLabel,
       textFieldKey: const ValueKey('product-amount'),
       controller: _amount,
+      enabled: !_saving,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [_productAmountFormatter],
     );
     final currency = CraftskySingleSelectInput<String>(
       label: l10n.businessProductCurrencyLabel,
+      enabled: !_saving,
       value: _currency.isEmpty ? null : _currency,
       options: _currencyOptions,
       keyPrefix: 'product-currency',
@@ -397,41 +437,156 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  String _newPhotoId() =>
+      _photoSequence++ == 0 ? 'image' : 'image-${_photoSequence - 1}';
+  _ProductPhoto _photo(String id) =>
+      _photos.firstWhere((photo) => photo.id == id);
+
+  Future<void> _pickImage(ImageSource source, {String? replacing}) async {
+    if (_saving ||
+        _preparingImage ||
+        (replacing == null && _photos.length >= businessProductImageLimit)) {
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    if (!mounted || !_isCurrent(_owner)) return;
     final l10n = AppLocalizations.of(context);
-    final ownership = _owner;
     final reporter = ref.read(errorReporterProvider);
     final picker =
         widget.pickImage ??
         (source, onPreviewReady) => ref
             .read(profileImagePickerProvider)
-            .pickAndUpload(source: source, onPreviewReady: onPreviewReady);
+            .pickAndPrepare(
+              source: source,
+              onPreviewReady: onPreviewReady,
+              isCurrent: () => _isCurrent(_owner),
+            );
     setState(() {
-      _uploading = true;
+      _preparingImage = true;
       _uploadError = null;
-      _pendingPreview = null;
     });
     try {
-      final result = await picker(source, (bytes) {
-        if (_isCurrent(ownership)) {
-          setState(() => _pendingPreview = bytes);
-        }
-      });
-      if (!_isCurrent(ownership)) return;
-      if (result != null) {
-        setState(() {
-          _image = UploadedBusinessImageDraft.fromUpload(
-            result.uploaded,
-            alt: _alt.text,
-            previewBytes: result.previewBytes,
-          );
-          _pendingPreview = result.previewBytes;
-          _showImageError = false;
-          _dirty = true;
-        });
+      final limit = replacing == null
+          ? businessProductImageLimit - _photos.length
+          : 1;
+      final List<PreparedProfileImage> results;
+      if (source == ImageSource.gallery &&
+          replacing == null &&
+          widget.pickImage == null) {
+        results =
+            await (widget.pickImages?.call(limit) ??
+                ref
+                    .read(profileImagePickerProvider)
+                    .pickGalleryAndPrepare(
+                      limit: limit,
+                      isCurrent: () => _isCurrent(_owner),
+                    ));
       } else {
-        setState(() => _pendingPreview = null);
+        final result = await picker(source, (_) {});
+        results = [?result];
       }
+      if (!_isCurrent(_owner) || results.isEmpty) return;
+      if (results.length > limit) {
+        throw ProfileImageSelectionLimitException(limit);
+      }
+      setState(() {
+        for (final result in results) {
+          final photo =
+              (replacing == null
+                    ? _ProductPhoto(
+                        id: _newPhotoId(),
+                        image: const MissingBusinessImageDraft(),
+                        alt: '',
+                      )
+                    : _photo(replacing))
+                ..pending = result
+                ..preview = result.bytes;
+          if (replacing == null) _photos.add(photo);
+        }
+        _showImageError = false;
+        _dirty = true;
+      });
+    } on Object catch (error, stackTrace) {
+      unawaited(
+        reportImagePickFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stackTrace,
+          operation: ImagePickOperation.businessProduct,
+          accountDid: _owner?.session.account.did.value,
+        ),
+      );
+      if (_isCurrent(_owner)) {
+        setState(
+          () => _uploadError = imagePickFailureMessage(
+            error,
+            l10n,
+            fallback: l10n.businessProductsUploadError,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _preparingImage = false);
+    }
+  }
+
+  Future<void> _editImage(String id) async {
+    final photo = _photo(id);
+    final image = photo.pending;
+    if (image == null || _preparingImage || _saving) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    if (!mounted || !_isCurrent(_owner)) return;
+    final ownership = _owner;
+    final reporter = ref.read(errorReporterProvider);
+    final media = ref.read(profileImageMediaServiceProvider);
+    setState(() {
+      _preparingImage = true;
+      _uploadError = null;
+    });
+    bool current() =>
+        mounted && _isCurrent(ownership) && identical(photo.pending, image);
+    try {
+      final request = BasicImageEditRequest(
+        bytes: image.bytes,
+        mimeType: image.mimeType,
+        mode: BasicImageEditMode.composer,
+      );
+      final output =
+          await (widget.editImage?.call(request) ??
+              showBasicImageEditor(context, request, ownership: ownership));
+      if (output == null || !current()) return;
+      final prepared = await media
+          .prepareImage(
+            bytes: output.bytes,
+            fileName: output.mimeType == 'image/png'
+                ? 'edited.png'
+                : 'edited.jpg',
+            mimeType: output.mimeType,
+          )
+          .future;
+      if (!current()) return;
+      final check = media.validatePreparedUploadBytes(
+        originalBytes: output.bytes.length,
+        preparedBytes: prepared.bytes.length,
+        width: prepared.width,
+        height: prepared.height,
+      );
+      if (!check.canUpload) {
+        throw const ProfileImagePickException(expectedRejection: true);
+      }
+      setState(() {
+        photo
+          ..pending = PreparedProfileImage(
+            bytes: prepared.bytes,
+            mimeType: prepared.mimeType,
+            width: prepared.width,
+            height: prepared.height,
+          )
+          ..preview = prepared.bytes;
+        _markDirty();
+      });
     } on Object catch (error, stackTrace) {
       unawaited(
         reportImagePickFailure(
@@ -442,29 +597,20 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
           accountDid: ownership?.session.account.did.value,
         ),
       );
-      if (!_isCurrent(ownership)) return;
-      setState(() {
-        _pendingPreview = null;
-        _uploadError = imagePickFailureMessage(
-          error,
-          l10n,
-          fallback: l10n.businessProductsUploadError,
+      if (current()) {
+        setState(
+          () => _uploadError = AppLocalizations.of(context).imageEditFailed,
         );
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _uploading = false;
-          if (!_isCurrent(ownership)) _pendingPreview = null;
-        });
       }
+    } finally {
+      if (mounted) setState(() => _preparingImage = false);
     }
   }
 
-  void _removeImage() {
+  void _removeImage(String id) {
     setState(() {
-      _image = const RemovedBusinessImageDraft();
-      _pendingPreview = null;
+      _photos.removeWhere((photo) => photo.id == id);
+      _uploadError = null;
       _dirty = true;
     });
   }
@@ -472,24 +618,45 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   bool _isCurrent(ActiveAccountLease? ownership) =>
       ActiveAccountOperation.fromWidget(ref, ownership).isCurrent;
 
+  BusinessImageDraft _draftImage(_ProductPhoto photo) {
+    final pending = photo.pending;
+    if (pending != null) {
+      return UploadedBusinessImageDraft(
+        cid: '',
+        mime: pending.mimeType,
+        size: pending.bytes.length,
+        alt: photo.alt,
+        aspectRatio: BusinessImageAspectRatio(
+          width: pending.width,
+          height: pending.height,
+        ),
+      );
+    }
+    return switch (photo.image) {
+      final ExistingBusinessImageDraft image => image.withAlt(photo.alt),
+      final UploadedBusinessImageDraft image => image.withAlt(photo.alt),
+      _ => photo.image,
+    };
+  }
+
   Future<void> _save() async {
-    if (!_isCurrent(_owner)) return;
+    if (!_isCurrent(_owner) || _saving || _preparingImage) return;
     final l10n = AppLocalizations.of(context);
     final amount = _canonicalAmount(_amount.text);
-    final image = switch (_image) {
-      final ExistingBusinessImageDraft value => value.withAlt(_alt.text),
-      final UploadedBusinessImageDraft value => value.withAlt(_alt.text),
-      _ => _image,
-    };
-    final product = ProductDraft(
-      id: widget.initial?.id ?? const Uuid().v4(),
-      title: _title.text,
-      destination: _destination.text,
-      image: image,
+    final id = widget.initial?.id ?? const Uuid().v4();
+    final title = _title.text;
+    final destination = _destination.text;
+    final currency = amount.isEmpty ? '' : _currency;
+    final reporter = ref.read(errorReporterProvider);
+    ProductDraft product() => ProductDraft(
+      id: id,
+      title: title,
+      destination: destination,
+      images: _photos.map(_draftImage).toList(),
       amount: amount,
-      currency: amount.isEmpty ? '' : _currency,
+      currency: currency,
     );
-    final errors = product.validate();
+    final errors = product().validate();
     final formValid = _formKey.currentState?.validate() ?? false;
     setState(() {
       _showImageError = errors.contains(ProductDraftError.imageRequired);
@@ -499,68 +666,125 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
       _saveError = null;
     });
     if (!formValid || errors.isNotEmpty) return;
-    final persist = widget.persist;
-    if (persist != null) {
-      setState(() => _saving = true);
-      final success = await persist(product);
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _saveError = success ? null : l10n.businessProductsSaveError;
-      });
-      if (!success) return;
+    setState(() => _saving = true);
+    try {
+      for (final photo in _photos) {
+        final pending = photo.pending;
+        if (pending == null) continue;
+        try {
+          final uploaded =
+              await (widget.uploadImage?.call(pending) ??
+                  ref
+                      .read(blobApiClientProvider)
+                      .uploadImage(
+                        bytes: pending.bytes,
+                        mimeType: pending.mimeType,
+                      ));
+          if (!_isCurrent(_owner)) return;
+          setState(() {
+            photo
+              ..image = UploadedBusinessImageDraft.fromUpload(
+                uploaded,
+                alt: photo.alt,
+                previewBytes: pending.bytes,
+                aspectRatio: BusinessImageAspectRatio(
+                  width: pending.width,
+                  height: pending.height,
+                ),
+              )
+              ..pending = null
+              ..preview = pending.bytes;
+            _uploadError = null;
+          });
+        } on Object catch (error, stackTrace) {
+          unawaited(
+            reportImagePickFailure(
+              reporter: reporter,
+              error: error,
+              stackTrace: stackTrace,
+              operation: ImagePickOperation.businessProduct,
+              accountDid: _owner?.session.account.did.value,
+            ),
+          );
+          if (_isCurrent(_owner)) {
+            setState(
+              () => _uploadError = imagePickFailureMessage(
+                error,
+                l10n,
+                fallback: l10n.businessProductsUploadError,
+              ),
+            );
+          }
+          return;
+        }
+      }
+      final saved = product();
+      final success = await (widget.persist?.call(saved) ?? Future.value(true));
+      if (!_isCurrent(_owner)) return;
+      if (!success) {
+        setState(() => _saveError = l10n.businessProductsSaveError);
+        return;
+      }
+      _dirty = false;
+      widget.onSave(saved);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    _dirty = false;
-    widget.onSave(product);
   }
 
-  ComposerImageDraft? get _attachmentDraft {
-    final bytes = _pendingPreview ?? _image.previewBytes;
-    if (!_uploading && !_image.hasImage && bytes == null) return null;
-    final businessRatio = switch (_image) {
-      ExistingBusinessImageDraft(:final aspectRatio) ||
-      UploadedBusinessImageDraft(:final aspectRatio) => aspectRatio,
-      _ => null,
-    };
-    final ratio = businessRatio == null
-        ? null
-        : CreatePostImageAspectRatio(
-            width: businessRatio.width,
-            height: businessRatio.height,
-          );
-    final phase = _uploading
-        ? const ImagePreparing()
+  ComposerImageDraft _attachmentDraft(_ProductPhoto photo) {
+    final image = photo.image;
+    final pending = photo.pending;
+    final ratio = pending != null
+        ? CreatePostImageAspectRatio(
+            width: pending.width,
+            height: pending.height,
+          )
+        : switch (image) {
+            ExistingBusinessImageDraft(:final aspectRatio) ||
+            UploadedBusinessImageDraft(
+              :final aspectRatio,
+            ) when aspectRatio != null => CreatePostImageAspectRatio(
+              width: aspectRatio.width,
+              height: aspectRatio.height,
+            ),
+            _ => null,
+          };
+    final phase = pending != null
+        ? ImageReady(
+            bytes: pending.bytes,
+            mimeType: pending.mimeType,
+            width: pending.width,
+            height: pending.height,
+            sha256: '',
+          )
         : ImageUploaded(
             UploadedDraftImage(
-              cid: switch (_image) {
-                ExistingBusinessImageDraft(:final cid) => cid,
+              cid: switch (image) {
+                ExistingBusinessImageDraft(:final cid) ||
                 UploadedBusinessImageDraft(:final cid) => cid,
                 _ => '',
               },
-              mime: switch (_image) {
-                ExistingBusinessImageDraft(:final mime) => mime,
+              mime: switch (image) {
+                ExistingBusinessImageDraft(:final mime) ||
                 UploadedBusinessImageDraft(:final mime) => mime,
                 _ => 'image/jpeg',
               },
-              size: switch (_image) {
-                ExistingBusinessImageDraft(:final size) => size,
+              size: switch (image) {
+                ExistingBusinessImageDraft(:final size) ||
                 UploadedBusinessImageDraft(:final size) => size,
-                _ => bytes?.length ?? 0,
+                _ => 0,
               },
               aspectRatio: ratio,
             ),
           );
     return ComposerImageDraft(
-      id: 'image',
-      fileName: 'product-image',
-      mimeType: switch (_image) {
-        ExistingBusinessImageDraft(:final mime) => mime,
-        UploadedBusinessImageDraft(:final mime) => mime,
-        _ => 'image/jpeg',
-      },
-      altText: _alt.text,
+      id: photo.id,
+      fileName: 'product-${photo.id}',
+      mimeType: pending?.mimeType ?? 'image/jpeg',
+      altText: photo.alt,
       phase: phase,
-      previewBytes: bytes,
+      previewBytes: photo.preview ?? image.previewBytes,
       previewAspectRatio: ratio,
     );
   }
@@ -568,6 +792,15 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
   void _markDirty() {
     if (!_dirty) setState(() => _dirty = true);
   }
+}
+
+class _ProductPhoto {
+  new({required this.id, required this.image, required this.alt});
+  final String id;
+  BusinessImageDraft image;
+  String alt;
+  PreparedProfileImage? pending;
+  Uint8List? preview;
 }
 
 final _productAmountFormatter = TextInputFormatter.withFunction((old, next) {

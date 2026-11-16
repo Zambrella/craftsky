@@ -12,12 +12,29 @@ export function contentBounds(node: HTMLElement) {
 	};
 	const observer = new ResizeObserver(update);
 	observer.observe(node);
-	window.addEventListener('resize', update);
+	// The discovery column can move a capped-width main column without resizing it.
+	const layout = new MutationObserver(update);
+	layout.observe(node, {
+		attributes: true,
+		attributeFilter: ['class', 'style']
+	});
+	let frame: number | undefined;
+	const resized = () => {
+		if (frame !== undefined) cancelAnimationFrame(frame);
+		// Read after responsive shell state and styles have settled.
+		frame = requestAnimationFrame(() => {
+			frame = undefined;
+			update();
+		});
+	};
+	window.addEventListener('resize', resized);
 	update();
 	return {
 		destroy() {
 			observer.disconnect();
-			window.removeEventListener('resize', update);
+			layout.disconnect();
+			window.removeEventListener('resize', resized);
+			if (frame !== undefined) cancelAnimationFrame(frame);
 		}
 	};
 }

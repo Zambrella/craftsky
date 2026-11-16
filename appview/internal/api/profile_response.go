@@ -60,10 +60,10 @@ type BusinessProfileResponse struct {
 }
 
 type BusinessProductResponse struct {
-	Title string             `json:"title"`
-	URI   string             `json:"uri,omitempty"`
-	Image *BusinessImageView `json:"image,omitempty"`
-	Price *business.Price    `json:"price,omitempty"`
+	Title  string               `json:"title"`
+	URI    string               `json:"uri,omitempty"`
+	Images []*BusinessImageView `json:"images"`
+	Price  *business.Price      `json:"price,omitempty"`
 }
 
 type BusinessImageView struct {
@@ -86,9 +86,13 @@ func BuildBusinessProfileResponse(owner syntax.DID, view *business.ProfileView) 
 		Location: view.Location, PrimaryAction: view.PrimaryAction,
 	}
 	for _, product := range view.Products {
+		images := make([]*BusinessImageView, 0, len(product.Images))
+		for _, image := range product.Images {
+			images = append(images, buildBusinessImageView(owner, image))
+		}
 		response.Products = append(response.Products, BusinessProductResponse{
 			Title: product.Title, URI: product.URI,
-			Image: buildBusinessImageView(owner, product.Image), Price: product.Price,
+			Images: images, Price: product.Price,
 		})
 	}
 	return response

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -292,7 +291,7 @@ void main() {
         id: initialProducts.products.single.id,
         title: 'Alice unsaved product',
         destination: 'https://alice.example/unsaved',
-        image: initialProducts.products.single.image,
+        images: [initialProducts.products.single.image],
       );
       final aliceEvent = _event(
         'alice-mutation',
@@ -413,7 +412,7 @@ void main() {
   testWidgets(
     'IT-010 late Alice upload cannot populate or submit the Bob editor',
     (tester) async {
-      final upload = Completer<ProfileImagePickResult?>();
+      final upload = Completer<PreparedProfileImage?>();
       final storage = _RegistryStorage(_registry());
       final container = ProviderContainer.test(
         overrides: [
@@ -440,6 +439,10 @@ void main() {
           ),
         ),
       );
+      final details = find.byKey(const Key('product-edit-images'));
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Replace image'));
       await tester.tap(find.text('Replace image'));
       await tester.pumpAndSettle();
@@ -456,7 +459,16 @@ void main() {
                 .requireValue
                 .leaseFor(AccountKey('did:plc:bob'))!,
           );
-      upload.complete(_uploadedPick('bafy-alice-upload'));
+      upload.complete(
+        PreparedProfileImage(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          mimeType: 'image/png',
+          width: 1,
+          height: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save product'));
       await tester.tap(find.text('Save product'));
@@ -668,14 +680,16 @@ Profile _profile(
             BusinessProductView(
               title: productTitle,
               uri: 'https://$account.example/product',
-              image: BusinessImageView(
-                cid: 'bafy-$account-image',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: '$account product',
-                thumb: 'https://cdn.example/$account/thumb',
-                fullsize: 'https://cdn.example/$account/full',
-              ),
+              images: [
+                BusinessImageView(
+                  cid: 'bafy-$account-image',
+                  mime: 'image/jpeg',
+                  size: 10,
+                  alt: '$account product',
+                  thumb: 'https://cdn.example/$account/thumb',
+                  fullsize: 'https://cdn.example/$account/full',
+                ),
+              ],
             ),
           ],
   ),
@@ -696,31 +710,13 @@ ProductDraft _productDraft(String title) => ProductDraft(
   id: 'alice-product',
   title: title,
   destination: 'https://alice.example/product',
-  image: const UploadedBusinessImageDraft(
-    cid: 'bafy-alice-saved-image',
-    mime: 'image/jpeg',
-    size: 10,
-  ),
-);
-
-ProfileImagePickResult _uploadedPick(String cid) => ProfileImagePickResult(
-  previewBytes: Uint8List.fromList(
-    base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC'
-      'AAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+  images: const [
+    UploadedBusinessImageDraft(
+      cid: 'bafy-alice-saved-image',
+      mime: 'image/jpeg',
+      size: 10,
     ),
-  ),
-  uploaded: UploadedImageBlob(
-    blob: UploadedBlob(
-      type: 'blob',
-      ref: UploadedBlobRef(link: cid),
-      mimeType: 'image/jpeg',
-      size: 3,
-    ),
-    cid: cid,
-    mime: 'image/jpeg',
-    size: 3,
-  ),
+  ],
 );
 
 BusinessEvent _event(String name, {String owner = 'did:plc:business'}) =>

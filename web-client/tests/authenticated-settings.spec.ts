@@ -6,11 +6,12 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 	page
 }) => {
 	await page.goto('/settings/products');
-	await page
-		.getByRole('button', { name: 'Edit Blue wool', exact: true })
-		.click();
-	const productDialog = page.locator('.product-dialog');
-	await expect(productDialog).toBeVisible();
+	await page.getByRole('button', { name: 'Add product', exact: true }).click();
+	const productDialog = page.locator('.product-composer-form');
+	await productDialog.getByLabel('Title', { exact: true }).fill('Rotated wool');
+	await productDialog
+		.getByLabel('Destination', { exact: true })
+		.fill('https://shop.example/rotated');
 	const png = await page.evaluate(() => {
 		const canvas = document.createElement('canvas');
 		canvas.width = 32;
@@ -18,47 +19,39 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 		canvas.getContext('2d')!.fillRect(0, 0, 32, 48);
 		return canvas.toDataURL('image/png').split(',')[1];
 	});
-	const large = Buffer.concat([
-		Buffer.from(png, 'base64'),
-		Buffer.alloc(2_100_000)
-	]);
-	await productDialog
-		.getByLabel('Replace image', { exact: true })
-		.setInputFiles({
-			name: 'large-source.png',
-			mimeType: 'image/png',
-			buffer: large
-		});
-	const dialog = page.locator('.business-image-dialog');
-	await expect(dialog).toBeVisible();
+	await productDialog.getByLabel('Add images', { exact: true }).setInputFiles({
+		name: 'large-source.png',
+		mimeType: 'image/png',
+		buffer: Buffer.concat([Buffer.from(png, 'base64'), Buffer.alloc(2_100_000)])
+	});
+	const details = page.locator('.photo-details-page');
+	await expect(details).toBeVisible();
 	expect(
 		(await calls()).filter((row) => row.path === '/v1/blobs/images')
 	).toHaveLength(0);
-	await dialog
-		.getByRole('button', { name: 'Crop / rotate', exact: true })
+	await details
+		.getByRole('button', { name: 'Edit photo', exact: true })
 		.click();
-	await expect(
-		dialog.getByRole('button', { name: 'Use image', exact: true })
-	).toBeDisabled();
-	await dialog
+	const editor = page.getByRole('dialog', { name: 'Edit photo', exact: true });
+	await editor
 		.getByRole('button', { name: 'Rotate photo', exact: true })
 		.click();
-	await dialog.getByRole('button', { name: 'Apply edit', exact: true }).click();
-	await expect(
-		dialog.getByRole('button', { name: 'Use image', exact: true })
-	).toBeEnabled();
-	await dialog
+	await editor.getByRole('button', { name: 'Apply edit', exact: true }).click();
+	await expect(editor).not.toBeVisible();
+	await details
 		.getByLabel('Image description', { exact: true })
 		.fill('Portrait image rotated to landscape');
-	await dialog.getByRole('button', { name: 'Use image', exact: true }).click();
-	await expect(dialog).not.toBeVisible();
-	await expect(productDialog).toBeVisible();
+	await details
+		.getByRole('button', { name: 'Back to product', exact: true })
+		.click();
+	await expect(details).not.toBeVisible();
 	await productDialog
 		.getByRole('button', { name: 'Save product', exact: true })
 		.click();
 	await expect(
-		page.getByRole('status').filter({ hasText: 'Products saved.' })
+		page.getByRole('button', { name: 'Edit Rotated wool', exact: true })
 	).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/products$/);
 	const requests = await calls();
 	const upload = requests.find(
 		(row) => row.path === '/v1/blobs/images'
@@ -68,17 +61,19 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 	const write = requests.find(
 		(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
 	);
-	expect(write?.owner).toBe(alice.did);
-	expect(write?.ifMatch).toBe('business-cid-0');
-	expect(write?.key).toMatch(/^[0-9a-f-]{36}$/);
-	expect(write?.body.products).toEqual([
-		expect.objectContaining({
-			image: expect.objectContaining({
-				alt: 'Portrait image rotated to landscape',
-				aspectRatio: { width: 48, height: 32 }
+	expect(write?.body.products).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				title: 'Rotated wool',
+				images: [
+					expect.objectContaining({
+						alt: 'Portrait image rotated to landscape',
+						aspectRatio: { width: 48, height: 32 }
+					})
+				]
 			})
-		})
-	]);
+		])
+	);
 });
 test('bundled service worker activates without Firebase credentials or remote requests', async ({
 	page
@@ -967,35 +962,41 @@ test('customisation changes preview choices and saves the exact native colour an
 	).toBeDisabled();
 });
 
-test('product modal cancellation restores existing details and removes an unsaved new product without writing', async ({
+test('product route cancellation restores existing details and removes an unsaved new product without writing', async ({
 	page
 }) => {
 	await page.goto('/settings/products');
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
-	let dialog = page.locator('.product-dialog');
+	let dialog = page.locator('.product-composer-form');
 	await expect(dialog).toBeVisible();
 	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved wool');
 	await dialog.getByLabel('Amount', { exact: true }).fill('99');
-	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Close product editor', exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
-	dialog = page.locator('.product-dialog');
+	dialog = page.locator('.product-composer-form');
 	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue(
 		'Blue wool'
 	);
 	await expect(dialog.getByLabel('Amount', { exact: true })).toHaveValue(
 		'12.5'
 	);
-	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Close product editor', exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Add product', exact: true }).click();
 	await expect(dialog).toBeVisible();
 	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved new product');
-	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Close product editor', exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(
 		page.getByText('1 of 4 products', { exact: true })
@@ -1183,21 +1184,21 @@ async function addProductPhoto(page: Page) {
 		canvas.getContext('2d')!.fillRect(0, 0, 32, 32);
 		return canvas.toDataURL('image/png').split(',')[1];
 	});
-	await page.getByLabel('Product image', { exact: true }).setInputFiles({
+	await page.getByLabel('Add images', { exact: true }).setInputFiles({
 		name: 'product.png',
 		mimeType: 'image/png',
 		buffer: Buffer.from(png, 'base64')
 	});
 	await page
-		.locator('.business-image-dialog')
-		.getByRole('button', { name: 'Use image', exact: true })
+		.locator('.photo-details-page')
+		.getByRole('button', { name: 'Back to product', exact: true })
 		.click();
 }
 
 for (const width of [1280, 390])
 	test(`Business product can be created without a declaration at ${width}px`, async ({
 		page
-	}) => {
+	}, testInfo) => {
 		await page.setViewportSize({ width, height: 900 });
 		await fetch('http://127.0.0.1:19847/__test/control', {
 			method: 'POST',
@@ -1208,9 +1209,24 @@ for (const width of [1280, 390])
 		await page
 			.getByRole('button', { name: 'Add product', exact: true })
 			.click();
-		const dialog = page.getByRole('dialog', {
+		const dialog = page.getByRole('form', {
 			name: 'Add product',
 			exact: true
+		});
+		await expect(page).toHaveURL(/\/compose\/product$/);
+		await expect(page.locator('dialog[open]')).toHaveCount(0);
+		await expect(
+			page.getByRole('heading', { name: 'Add product', exact: true })
+		).toBeVisible();
+		await expect(
+			dialog.getByRole('button', { name: 'Save product', exact: true })
+		).toBeInViewport();
+		const audit = await new AxeBuilder({ page })
+			.include('.product-composer')
+			.analyze();
+		expect(audit.violations).toEqual([]);
+		await page.locator('.product-composer').screenshot({
+			path: testInfo.outputPath(`product-composer-${width}.png`)
 		});
 		await dialog.getByLabel('Title', { exact: true }).fill('New indigo wool');
 		await dialog
@@ -1240,11 +1256,13 @@ for (const width of [1280, 390])
 		expect(
 			(write?.body.products as Record<string, unknown>[])[0]
 		).not.toHaveProperty('price');
-		const bounds = await page.locator('.product-dialog').evaluate((node) => ({
-			left: node.getBoundingClientRect().left,
-			right: node.getBoundingClientRect().right,
-			viewport: innerWidth
-		}));
+		const bounds = await page
+			.locator('.product-composer-form')
+			.evaluate((node) => ({
+				left: node.getBoundingClientRect().left,
+				right: node.getBoundingClientRect().right,
+				viewport: innerWidth
+			}));
 		expect(bounds.left).toBeGreaterThanOrEqual(0);
 		expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
 	});
@@ -1531,4 +1549,421 @@ test('event owner can postpone from management and cancel from detail without lo
 	});
 	expect(writes[1].body).not.toHaveProperty('createdAt');
 	expect(writes[0].key).not.toBe(writes[1].key);
+});
+
+for (const width of [390, 1280]) {
+	test(`four product photos preserve order and descriptions at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/settings/products');
+		await page
+			.getByRole('button', { name: 'Add product', exact: true })
+			.click();
+		const dialog = page.locator('.product-composer-form');
+		await dialog.getByLabel('Title', { exact: true }).fill('Four photo wool');
+		await dialog
+			.getByLabel('Destination', { exact: true })
+			.fill('https://shop.example/four-photos');
+		const png = await page.evaluate(() => {
+			const c = document.createElement('canvas');
+			c.width = 40;
+			c.height = 30;
+			c.getContext('2d')!.fillRect(0, 0, 40, 30);
+			return c.toDataURL('image/png').split(',')[1];
+		});
+		await dialog.getByLabel('Add images', { exact: true }).setInputFiles(
+			Array.from({ length: 4 }, (_, i) => ({
+				name: `photo-${i}.png`,
+				mimeType: 'image/png',
+				buffer: Buffer.from(png, 'base64')
+			}))
+		);
+		const details = page.locator('.photo-details-page');
+		await expect(details).toBeVisible();
+		await expect(details.getByLabel('Add images', { exact: true })).toHaveCount(
+			0
+		);
+		for (let i = 0; i < 4; i++)
+			await details
+				.getByLabel('Image description', { exact: true })
+				.nth(i)
+				.fill(`Photo ${i + 1}`);
+		for (let i = 4; i > 1; i--)
+			await details
+				.getByRole('button', { name: `Move image ${i} earlier`, exact: true })
+				.click();
+		await details
+			.getByRole('button', { name: 'Remove image 3', exact: true })
+			.click();
+		await expect(details.getByLabel('Add images', { exact: true })).toHaveCount(
+			1
+		);
+		await details.getByLabel('Add images', { exact: true }).setInputFiles({
+			name: 'photo-5.png',
+			mimeType: 'image/png',
+			buffer: Buffer.from(png, 'base64')
+		});
+		await details
+			.getByLabel('Image description', { exact: true })
+			.nth(3)
+			.fill('Photo 5');
+		await page.keyboard.press('Escape');
+		await expect(details).not.toBeVisible();
+		await expect(dialog).toBeVisible();
+		await dialog.locator('.photo-summary').click();
+		await expect(
+			details.getByLabel('Image description', { exact: true }).nth(0)
+		).toHaveValue('Photo 4');
+		await details
+			.getByRole('button', { name: 'Back to product', exact: true })
+			.click();
+		await dialog
+			.getByRole('button', { name: 'Save product', exact: true })
+			.click();
+		await expect(dialog).not.toBeVisible();
+		const write = (await calls())
+			.filter(
+				(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+			)
+			.at(-1);
+		const products = write?.body.products as { images: { alt: string }[] }[];
+		expect(products.at(-1)?.images.map((image) => image.alt)).toEqual([
+			'Photo 4',
+			'Photo 1',
+			'Photo 3',
+			'Photo 5'
+		]);
+	});
+}
+
+for (const width of [390, 1280]) {
+	test(`profile products use a large four-image carousel at ${width}px`, async ({
+		page
+	}, testInfo) => {
+		await page.route('https://fixture.craftsky.test/**', (route) =>
+			route.fulfill({ path: 'static/app-icon.png', contentType: 'image/png' })
+		);
+		await page.setViewportSize({ width, height: 900 });
+		const image = {
+			cid: 'bafyproduct',
+			mime: 'image/png',
+			size: 200,
+			alt: 'Wool',
+			thumb: 'https://fixture.craftsky.test/app-icon.png',
+			fullsize: 'https://fixture.craftsky.test/app-icon.png',
+			aspectRatio: { width: 4, height: 3 }
+		};
+		await fetch('http://127.0.0.1:19847/__test/control', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				visual: true,
+				owners: {
+					alice: {
+						business: {
+							cid: 'business-four',
+							businessTypes: [{ value: 'dyer', known: true }],
+							products: [
+								{
+									title: 'Four photo wool',
+									uri: 'https://shop.example/four',
+									images: Array.from({ length: 4 }, (_, i) => ({
+										...image,
+										alt: `Photo ${i + 1}`
+									})),
+									price: { amount: '12.5', currency: 'GBP' }
+								}
+							]
+						}
+					}
+				}
+			})
+		});
+		await page.goto(`/profiles/${alice.did}?tab=products`);
+		const card = page.locator('.product-card');
+		await expect(card).toBeVisible();
+		await expect(card.locator('.image-counter')).toHaveText(/1\s*\/\s*4/);
+		const bounds = await card.locator('.gallery').boundingBox();
+		expect(bounds!.height).toBeGreaterThan(240);
+		expect(bounds!.width).toBeGreaterThan(300);
+		await page.mouse.move(
+			bounds!.x + bounds!.width * 0.8,
+			bounds!.y + bounds!.height / 2
+		);
+		await page.mouse.down();
+		await page.mouse.move(
+			bounds!.x + bounds!.width * 0.2,
+			bounds!.y + bounds!.height / 2,
+			{ steps: 12 }
+		);
+		await page.mouse.up();
+		await expect(card.locator('.image-counter')).toHaveText(/2\s*\/\s*4/);
+		await expect(
+			page.getByRole('dialog', { name: 'Open link?', exact: true })
+		).not.toBeVisible();
+		await card
+			.getByRole('button', { name: 'Previous image', exact: true })
+			.click();
+		await expect(card.locator('.image-counter')).toHaveText(/1\s*\/\s*4/);
+		await card.getByRole('button', { name: 'Next image', exact: true }).click();
+		await expect(card.locator('.image-counter')).toHaveText(/2\s*\/\s*4/);
+		const openLink = page.getByRole('dialog', {
+			name: 'Open link?',
+			exact: true
+		});
+		await expect(openLink).not.toBeVisible();
+		await card
+			.getByRole('button', { name: 'Image description', exact: true })
+			.click();
+		const description = page.getByRole('dialog', {
+			name: 'Image description',
+			exact: true
+		});
+		await expect(description).toBeVisible();
+		await expect(openLink).not.toBeVisible();
+		await description
+			.getByRole('button', { name: 'Close', exact: true })
+			.click();
+		await expect(card.locator('.gallery a').nth(1)).toHaveAttribute(
+			'href',
+			'https://shop.example/four'
+		);
+		await card.locator('.gallery a').nth(1).click();
+		await expect(openLink).toBeVisible();
+		await expect(
+			openLink.getByRole('link', { name: 'Open link', exact: true })
+		).toHaveAttribute('href', 'https://shop.example/four');
+		await openLink.getByRole('button', { name: 'Cancel', exact: true }).click();
+		// The full footer padding is part of the same link, including empty space.
+		await card.locator('.product-link').click({ position: { x: 4, y: 4 } });
+		await expect(openLink).toBeVisible();
+		await openLink.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await card.locator('.product-link').focus();
+		await page.keyboard.press('Enter');
+		await expect(openLink).toBeVisible();
+		await openLink.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await expect(
+			page.getByRole('dialog', { name: 'Image gallery', exact: true })
+		).not.toBeVisible();
+		await expect(card.locator('.product-link')).toHaveAttribute(
+			'href',
+			'https://shop.example/four'
+		);
+		const audit = await new AxeBuilder({ page })
+			.include('.product-grid')
+			.analyze();
+		expect(audit.violations).toEqual([]);
+		await card.evaluate((node) => node.scrollIntoView({ block: 'start' }));
+		await expect(card.locator('.gallery img').nth(1)).toHaveJSProperty(
+			'complete',
+			true
+		);
+		expect(
+			await card
+				.locator('.gallery img')
+				.nth(1)
+				.evaluate((image) => (image as HTMLImageElement).naturalWidth)
+		).toBeGreaterThan(0);
+		await expect(card.locator('.product-link')).toBeInViewport();
+		await card.screenshot({
+			path: testInfo.outputPath(`product-carousel-${width}.png`)
+		});
+	});
+}
+
+test('product composer routes load directly, refresh and protect browser back', async ({
+	page
+}) => {
+	await page.goto('/settings/products');
+	await page.getByRole('button', { name: 'Add product', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/product$/);
+	await page.reload();
+	await expect(
+		page.getByRole('heading', { name: 'Add product', exact: true })
+	).toBeVisible();
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue('');
+	await page
+		.getByLabel('Title', { exact: true })
+		.fill('Unfinished routed product');
+	await page.goBack();
+	await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/product$/);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Unfinished routed product'
+	);
+	await page.goBack();
+	await page.getByRole('button', { name: 'Discard', exact: true }).click();
+	await expect(page).toHaveURL(/\/settings\/products$/);
+	await page.goto('/compose/product/edit?product=0');
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Blue wool'
+	);
+	await page.reload();
+	await expect(
+		page.getByRole('heading', { name: 'Edit product', exact: true })
+	).toBeVisible();
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Blue wool'
+	);
+	await page.getByLabel('Title', { exact: true }).fill('Edited routed wool');
+	await page.getByRole('button', { name: 'Save product', exact: true }).click();
+	await expect(page).toHaveURL(/\/settings\/products$/);
+	await page
+		.getByRole('button', { name: 'Edit Edited routed wool', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/compose\/product\/edit\?product=0$/);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Edited routed wool'
+	);
+	await page
+		.getByRole('button', { name: 'Close product editor', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/settings\/products$/);
+	await page.goto('/compose/product');
+	await expect(page.getByLabel('Title', { exact: true })).toBeVisible();
+	await page
+		.getByRole('button', { name: 'Close product editor', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/settings\/products$/);
+});
+
+for (const query of [
+	'',
+	'?product=-1',
+	'?product=1',
+	'?product=0.5',
+	'?product=invalid'
+])
+	test(`invalid product edit route ${query || '(missing)'} does not open another product`, async ({
+		page
+	}) => {
+		await page.goto('/compose/product/edit' + query);
+		await expect(
+			page.getByRole('heading', { name: 'Edit product', exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Try again', exact: true })
+		).toBeVisible();
+		await expect(page.locator('.product-composer-form')).toHaveCount(0);
+	});
+
+test('direct product creation respects the four-product limit', async ({
+	page
+}) => {
+	await fetch('http://127.0.0.1:19847/__test/control', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({
+			owners: {
+				alice: {
+					business: {
+						cid: 'full-catalog',
+						businessTypes: [],
+						offerings: [],
+						products: Array.from({ length: 4 }, (_, i) => ({
+							title: `Product ${i}`,
+							uri: `https://shop.example/${i}`,
+							images: []
+						}))
+					}
+				}
+			}
+		})
+	});
+	await page.goto('/compose/product');
+	await expect(
+		page.getByRole('button', { name: 'Try again', exact: true })
+	).toBeVisible();
+	await expect(page.locator('.product-composer-form')).toHaveCount(0);
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+		)
+	).toHaveLength(0);
+});
+
+for (const width of [390, 1280, 1767])
+	test(`product photo details stay inside the main column at ${width}px`, async ({
+		page
+	}, testInfo) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/compose/product');
+		await expect(page.getByLabel('Title', { exact: true })).toBeVisible();
+		const main = page.locator('main.app-main');
+		const original = await main.boundingBox();
+		const png = await page.evaluate(() => {
+			const canvas = document.createElement('canvas');
+			canvas.width = 40;
+			canvas.height = 30;
+			return canvas.toDataURL('image/png').split(',')[1];
+		});
+		await page.getByLabel('Add images', { exact: true }).setInputFiles({
+			name: 'product.png',
+			mimeType: 'image/png',
+			buffer: Buffer.from(png, 'base64')
+		});
+		const details = page.getByRole('region', {
+			name: 'Photo details',
+			exact: true
+		});
+		await expect(details).toBeVisible();
+		const bounds = await details.boundingBox();
+		expect(bounds!.x).toBeCloseTo(original!.x, 0);
+		expect(bounds!.width).toBeCloseTo(original!.width, 0);
+		await details.screenshot({
+			path: testInfo.outputPath(`product-photo-details-${width}.png`)
+		});
+		await page.setViewportSize({ width: width + 180, height: 900 });
+		await expect
+			.poll(async () => {
+				const mainBox = await main.boundingBox(),
+					photoBox = await details.boundingBox();
+				return (
+					Math.abs(mainBox!.x - photoBox!.x) +
+					Math.abs(mainBox!.width - photoBox!.width)
+				);
+			})
+			.toBeLessThan(1);
+		await details
+			.getByRole('button', { name: 'Back to product', exact: true })
+			.click();
+		await expect(details).toBeHidden();
+		await expect(page.getByLabel('Title', { exact: true })).toBeVisible();
+	});
+
+test('product photo details restore composer scroll on return', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 520 });
+	await page.goto('/compose/product');
+	await page
+		.getByLabel('Title', { exact: true })
+		.fill('Unfinished photo draft');
+	await addProductPhoto(page);
+	await expect(
+		page.getByRole('region', { name: 'Photo details', exact: true })
+	).toBeHidden();
+	const scroller = page.locator('.business-composer-scroll');
+	const position = await scroller.evaluate((node) => {
+		node.scrollTop = node.scrollHeight;
+		return node.scrollTop;
+	});
+	expect(position).toBeGreaterThan(0);
+	await page.locator('.photo-summary').click();
+	const details = page.getByRole('region', {
+		name: 'Photo details',
+		exact: true
+	});
+	await expect(details).toBeVisible();
+	await details
+		.getByRole('button', { name: 'Back to product', exact: true })
+		.click();
+	await expect(details).toBeHidden();
+	await expect
+		.poll(() => scroller.evaluate((node) => node.scrollTop))
+		.toBeCloseTo(position, 0);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Unfinished photo draft'
+	);
 });

@@ -702,9 +702,48 @@ void main() {
           .read(composerImagesProvider('composer').notifier)
           .addImages();
 
+      expect(picker.lastMultiLimit, mediaConfig.maxImages);
       expect(picker.lastMultiMaxWidth, mediaConfig.maxImageWidth.toDouble());
       expect(picker.lastMultiMaxHeight, mediaConfig.maxImageHeight.toDouble());
     });
+
+    for (final attached in [1, 7, 8]) {
+      test(
+        'native gallery limit accounts for $attached existing post photos',
+        () async {
+          final picker = _FakeImagePicker(() async => const []);
+          final container = _containerWithPicker(picker);
+          addTearDown(container.dispose);
+          final sub = _listenComposer(container);
+          addTearDown(sub.close);
+          final provider = composerImagesProvider('composer');
+          final notifier = container.read(provider.notifier);
+          final images = [
+            for (var i = 0; i < attached; i++)
+              ComposerImageDraft(
+                id: 'image-$i',
+                fileName: 'photo-$i.jpg',
+                mimeType: 'image/jpeg',
+                altText: 'Photo $i',
+                phase: PublishedImageReady(
+                  existingIndex: i,
+                  url: 'https://cdn.example/photo-$i.jpg',
+                ),
+              ),
+          ];
+          notifier.seedPublishedImages(images);
+          await notifier.addImages();
+          expect(container.read(provider).images, images);
+          expect(picker.pickCount, attached == mediaConfig.maxImages ? 0 : 1);
+          expect(
+            picker.lastMultiLimit,
+            attached == mediaConfig.maxImages
+                ? null
+                : mediaConfig.maxImages - attached,
+          );
+        },
+      );
+    }
 
     test('rejects WebP selections before adding draft images', () async {
       final container = _containerWithPicker(
@@ -1145,6 +1184,7 @@ class _FakeImagePicker extends ImagePicker {
   final Future<List<XFile>> Function() _pick;
   final Future<XFile?> Function()? pickSingle;
   int pickCount = 0;
+  int? lastMultiLimit;
   double? lastMultiMaxWidth;
   double? lastMultiMaxHeight;
   double? lastSingleMaxWidth;
@@ -1160,6 +1200,7 @@ class _FakeImagePicker extends ImagePicker {
     bool requestFullMetadata = true,
   }) {
     pickCount += 1;
+    lastMultiLimit = limit;
     lastMultiMaxWidth = maxWidth;
     lastMultiMaxHeight = maxHeight;
     return _pick();

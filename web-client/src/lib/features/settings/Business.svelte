@@ -4,8 +4,7 @@
 	import { reportFailure } from '../diagnostics/client.ts';
 	import {
 		FieldValidationError,
-		presentFieldErrors,
-		showFieldError
+		presentFieldErrors
 	} from '#lib/field-validation.ts';
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { contextMenu } from '../social/context-menu';
@@ -17,11 +16,9 @@
 	import RecordTextField from '#lib/RecordTextField.svelte';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
-	import { getContext, onMount, onDestroy, tick, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
-	import BusinessMediaField from './BusinessMediaField.svelte';
 	import PhotoAttachments from '../composer/PhotoAttachments.svelte';
-	import MediaEditor from '../composer/MediaEditor.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
 	import { prepareImage } from '../composer/media.ts';
 	import type { DraftMedia } from '../drafts/store.ts';
@@ -59,12 +56,14 @@
 		api,
 		session,
 		section,
-		eventRkey
+		eventRkey,
+		productIndex
 	}: {
 		api: CraftskyAPI;
 		session: Session;
 		section: string;
 		eventRkey?: string;
+		productIndex?: string;
 	} = $props();
 	const work = new Work('settings.Business.action');
 	const returnTo =
@@ -87,11 +86,17 @@
 		action = $state(''),
 		destination = $state('');
 	let productEditor = $state<number | null>(null);
-	let productDialog = $state<HTMLDialogElement>();
 	let productSnapshot = $state<Product[] | null>(null);
+	let productPhotos = $state<DraftMedia[]>([]);
+	let productPhotoOpen = $state(false);
+	let productPhotoBaseline = $state('');
+	let productBaseline = $state('');
+	let productSaved = $state(false);
 	$effect(() => {
-		if (productEditor !== null)
-			void tick().then(() => productDialog?.showModal());
+		if (productSaved && !work.busy && !work.retry) {
+			productSaved = false;
+			untrack(() => void returnTo('/settings/products'));
+		}
 	});
 	function editProduct(index: number | null) {
 		productSnapshot = structuredClone($state.snapshot(products));
@@ -104,18 +109,27 @@
 				{
 					title: '',
 					uri: '',
+					images: [],
 					amount: '',
 					currency:
 						new Intl.Locale(navigator.language).region === 'GB' ? 'GBP' : 'USD'
 				}
 			];
+		productBaseline = JSON.stringify($state.snapshot(products));
+		setProductPhotos(productEditor);
+		productPhotoBaseline = JSON.stringify($state.snapshot(productPhotos));
 	}
 	async function cancelProduct() {
-		if (work.busy || work.retry || imageEditor || imageTransformBusy) return;
+		if (work.busy || work.retry || imageTransformBusy || imageEditing) return;
+		if (productPhotoOpen) {
+			history.back();
+			return;
+		}
 		if (productDirty && !(await discardChanges())) return;
 		if (productSnapshot) products = productSnapshot;
 		productSnapshot = null;
 		productEditor = null;
+		await returnTo('/settings/products');
 	}
 	let products = $state<Product[]>([]),
 		events = $state<BusinessEvent[]>([]),
@@ -185,7 +199,8 @@
 	}
 	const productDirty = $derived(
 		productSnapshot !== null &&
-			JSON.stringify(products) !== JSON.stringify(productSnapshot)
+			(JSON.stringify(products) !== productBaseline ||
+				JSON.stringify(productPhotos) !== productPhotoBaseline)
 	);
 	const eventDirty = $derived(eventOpen && eventDraft() !== eventBaseline);
 	const dirty = $derived(
@@ -205,7 +220,13 @@
 	}
 	confirmNavigation(
 		() =>
-			dirty || !!work.retry || work.busy || eventPhotoBusy || eventPhotoEditing,
+			dirty ||
+			!!work.retry ||
+			work.busy ||
+			imageTransformBusy ||
+			imageEditing ||
+			eventPhotoBusy ||
+			eventPhotoEditing,
 		discardOptions
 	);
 	function unload(event: BeforeUnloadEvent) {
@@ -213,6 +234,8 @@
 			dirty ||
 			work.busy ||
 			work.retry ||
+			imageTransformBusy ||
+			imageEditing ||
 			eventPhotoBusy ||
 			eventPhotoEditing
 		) {
@@ -224,7 +247,6 @@
 		if (
 			work.busy ||
 			work.retry ||
-			imageEditor ||
 			imageTransformBusy ||
 			eventPhotoBusy ||
 			eventPhotoEditing
@@ -235,81 +257,93 @@
 		await returnTo('/settings/events');
 	}
 	const previews = new Set<string>();
-	let imageDialog = $state<HTMLDialogElement>();
-	let imageEditor = $state<{
-		target: number;
-		media: DraftMedia;
-		original?: BusinessImage;
-	} | null>(null);
 	let imageTransformBusy = $state(false),
 		imageEditing = $state(false);
-	async function openImage(
-		target: number,
-		media: DraftMedia,
-		original?: BusinessImage
-	) {
-		imageEditor = { target, media, original };
-		imageTransformBusy = false;
-		imageEditing = false;
-		work.error = '';
-		await tick();
-		imageDialog?.showModal();
-	}
-	function cancelImage() {
-		if (work.busy || imageTransformBusy) return;
-		imageDialog?.close();
-		imageEditor = null;
-	}
-	function editImage(target: number, image: BusinessImage) {
-		void openImage(
-			target,
-			{
-				id: crypto.randomUUID(),
-				name: 'business-image.jpg',
+	const productPhotoSources = new Map<string, BusinessImage>();
+	const productUploads = new WeakMap<Blob, BusinessImage>();
+	function setProductPhotos(index: number) {
+		productPhotoSources.clear();
+		productPhotos = products[index].images.map((image) => {
+			const id = crypto.randomUUID();
+			productPhotoSources.set(id, image);
+			return {
+				id,
+				name: 'product-photo',
 				mime: image.mime,
 				alt: image.alt,
-				remoteUrl: image.thumb
-			},
-			image
-		);
+				remoteUrl: image.thumb,
+				width: image.aspectRatio?.width,
+				height: image.aspectRatio?.height
+			};
+		});
 	}
-	function useImage() {
-		if (!imageEditor || imageTransformBusy || imageEditing || work.busy) return;
-		const selection = imageEditor,
-			media = $state.snapshot(selection.media);
-		void work.run(
+	async function addProductPhotos(files: FileList | null) {
+		if (
+			!files?.length ||
+			work.busy ||
+			work.retry ||
+			imageTransformBusy ||
+			imageEditing
+		)
+			return;
+		await work.run(
 			async () => {
-				if (!media.blob) {
-					if (!selection.original)
-						throw new InputError('Choose an image first.');
-					return { ...selection.original, alt: media.alt };
-				}
-				const prepared = await prepareImage(media.blob, media.name);
-				const upload = await api.media.image(prepared.blob!, prepared.mime);
-				return {
-					cid: upload.blob.ref.$link,
-					mime: upload.blob.mimeType,
-					size: upload.blob.size,
-					alt: media.alt,
-					thumb: URL.createObjectURL(prepared.blob!),
-					...(prepared.width && prepared.height
-						? {
-								aspectRatio: { width: prepared.width, height: prepared.height }
-							}
-						: {})
-				};
-			},
-			(image) => {
-				if (image.thumb?.startsWith('blob:')) previews.add(image.thumb);
-				products = products.map((product, index) =>
-					index === selection.target ? { ...product, image } : product
+				if (productPhotos.length + files.length > 4)
+					throw new InputError('Choose up to four photos for a product.');
+				return Promise.all(
+					Array.from(files).map((file) => prepareImage(file, file.name))
 				);
-				imageDialog?.close();
-				imageEditor = null;
+			},
+			(images) => {
+				productPhotos = [...productPhotos, ...images];
 			},
 			'',
 			'settings.Business.useImage'
 		);
+	}
+	async function productPhotosForSave(): Promise<BusinessImage[] | null> {
+		if (!productPhotos.length || productPhotos.length > 4)
+			throw new FieldValidationError(
+				'Photos',
+				'Add one to four photos to each product.'
+			);
+		const images: BusinessImage[] = [];
+		for (const media of productPhotos) {
+			requireRecordText(media.alt, 'Image description', 1000, 10000);
+			if (!media.blob) {
+				const original = productPhotoSources.get(media.id);
+				if (!original) throw new InputError('Choose the product photo again.');
+				images.push({ ...original, alt: media.alt });
+				continue;
+			}
+			const blob = media.blob;
+			let uploaded = productUploads.get(blob);
+			if (!uploaded) {
+				await work.run(
+					() => api.media.image(blob, media.mime),
+					(upload) => {
+						const thumb = URL.createObjectURL(blob);
+						previews.add(thumb);
+						uploaded = {
+							cid: upload.blob.ref.$link,
+							mime: upload.blob.mimeType,
+							size: upload.blob.size,
+							alt: media.alt,
+							thumb,
+							...(media.width && media.height
+								? { aspectRatio: { width: media.width, height: media.height } }
+								: {})
+						};
+						productUploads.set(blob, uploaded);
+					},
+					'',
+					'settings.Business.useImage'
+				);
+				if (!uploaded) return null;
+			}
+			images.push({ ...uploaded, alt: media.alt });
+		}
+		return images;
 	}
 
 	function fromImage(value: unknown): BusinessImage | undefined {
@@ -355,7 +389,11 @@
 					return {
 						title: text(p.title),
 						uri: text(p.uri),
-						image: fromImage(p.image),
+						images: Array.isArray(p.images)
+							? p.images
+									.map(fromImage)
+									.filter((image): image is BusinessImage => !!image)
+							: [],
 						amount: text(price.amount),
 						currency: text(price.currency)
 					};
@@ -374,6 +412,19 @@
 			section === 'events' && allowed
 				? await api.business.ownerEvents(filter)
 				: null;
+		if (section === 'product' && allowed) {
+			const current = record(record(profile).business).products;
+			const count = Array.isArray(current) ? current.length : 0;
+			if (
+				productIndex !== undefined &&
+				(!/^[0-3]$/.test(productIndex) || Number(productIndex) >= count)
+			)
+				throw new InputError(
+					'Choose a product from your Products page to edit.'
+				);
+			if (productIndex === undefined && count >= 4)
+				throw new InputError('You can feature up to four products.');
+		}
 		if (section === 'event' && eventRkey === '') {
 			throw new InputError('Choose an event from your Events page to edit.');
 		}
@@ -393,6 +444,8 @@
 				events = value.page?.items || [];
 				cursor = value.page?.cursor || null;
 				if (section === 'event' && value.allowed) editEvent(value.event);
+				if (section === 'product' && value.allowed)
+					editProduct(productIndex === undefined ? null : Number(productIndex));
 			},
 			'settings.Business.load'
 		);
@@ -503,9 +556,16 @@
 	}
 	async function saveProfile(event?: SubmitEvent) {
 		event?.preventDefault();
-		if (imageEditor || imageTransformBusy || imageEditing) return;
+		if (work.busy || work.retry || imageTransformBusy || imageEditing) return;
 		try {
-			const body = profileBody(section !== 'products'),
+			if (section === 'product' && productEditor !== null) {
+				const images = await productPhotosForSave();
+				if (!images) return;
+				products = products.map((product, index) =>
+					index === productEditor ? { ...product, images } : product
+				);
+			}
+			const body = profileBody(section !== 'products' && section !== 'product'),
 				expected = cid,
 				key = newOperationKey();
 			const acceptedProducts = structuredClone($state.snapshot(products));
@@ -516,12 +576,15 @@
 					cid = result.cid;
 					detailsBaseline = acceptedDetails;
 					savedProducts = acceptedProducts;
-					if (section === 'products') {
+					if (section === 'product') {
+						productSaved = true;
 						productEditor = null;
 						productSnapshot = null;
 					}
 				},
-				section === 'products' ? 'Products saved.' : 'Business profile saved.',
+				section === 'products' || section === 'product'
+					? 'Products saved.'
+					: 'Business profile saved.',
 				'settings.Business.saveProfile'
 			);
 			if (
@@ -597,27 +660,6 @@
 			return;
 		products = products.filter((_, i) => i !== index);
 		saveProfile();
-	}
-	async function upload(event: Event, index: number) {
-		const file = (event.currentTarget as HTMLInputElement).files?.[0];
-		if (!file) return;
-		if (
-			!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
-			file.size > 40000000
-		) {
-			showFieldError(
-				event.currentTarget as HTMLInputElement,
-				'Choose a JPEG, PNG or WebP image smaller than 40 MB.'
-			);
-			return;
-		}
-		await openImage(index, {
-			id: crypto.randomUUID(),
-			name: file.name,
-			mime: file.type,
-			blob: file,
-			alt: products[index]?.image?.alt || ''
-		});
 	}
 
 	function editEvent(value: BusinessEvent | null) {
@@ -733,7 +775,6 @@
 		if (
 			work.busy ||
 			work.retry ||
-			imageEditor ||
 			imageTransformBusy ||
 			imageEditing ||
 			eventPhotoBusy ||
@@ -909,15 +950,25 @@
 
 <svelte:window onbeforeunload={unload} />
 
-{#if section === 'event'}
-	<header class="event-composer-heading">
+{#if section === 'product'}
+	<header class="business-composer-heading page-appbar">
 		<button
 			type="button"
-			class="close-event-composer"
+			class="close-business-composer"
+			aria-label="Close product editor"
+			disabled={work.busy || !!work.retry || imageTransformBusy || imageEditing}
+			onclick={cancelProduct}><Icon name="close" /></button
+		>
+		<h1>{productIndex === undefined ? 'Add product' : 'Edit product'}</h1>
+	</header>
+{:else if section === 'event'}
+	<header class="business-composer-heading page-appbar">
+		<button
+			type="button"
+			class="close-business-composer"
 			aria-label="Close event editor"
 			disabled={work.busy ||
 				!!work.retry ||
-				!!imageEditor ||
 				imageTransformBusy ||
 				eventPhotoBusy ||
 				eventPhotoEditing}
@@ -926,7 +977,7 @@
 		<h1>{eventRkey !== undefined ? 'Edit event' : 'Create event'}</h1>
 	</header>
 {:else if section === 'business'}
-	<header class="business-details-header">
+	<header class="business-details-header page-appbar">
 		<h1>Business details</h1>
 		{#if loaded && allowsBusiness}<button
 				class="business-save"
@@ -960,10 +1011,7 @@
 		>
 			<fieldset
 				class="form-fields"
-				disabled={work.busy ||
-					!!work.retry ||
-					!!imageEditor ||
-					imageTransformBusy}
+				disabled={work.busy || !!work.retry || imageTransformBusy}
 			>
 				<p class="business-helper">
 					These details appear on your public business profile.
@@ -977,10 +1025,7 @@
 						options={businessTypes
 							.map((value) => ({ id: value, label: title(value) }))
 							.sort((a, b) => a.label.localeCompare(b.label))}
-						disabled={work.busy ||
-							!!work.retry ||
-							!!imageEditor ||
-							imageTransformBusy}
+						disabled={work.busy || !!work.retry || imageTransformBusy}
 						onchange={(value) => {
 							types = value;
 						}}
@@ -999,10 +1044,7 @@
 						options={offerings
 							.map((value) => ({ id: value, label: title(value) }))
 							.sort((a, b) => a.label.localeCompare(b.label))}
-						disabled={work.busy ||
-							!!work.retry ||
-							!!imageEditor ||
-							imageTransformBusy}
+						disabled={work.busy || !!work.retry || imageTransformBusy}
 						onchange={(value) => {
 							offers = value;
 						}}
@@ -1083,10 +1125,7 @@
 					{#if cid}<button
 							type="button"
 							class="danger"
-							disabled={work.busy ||
-								!!work.retry ||
-								!!imageEditor ||
-								imageTransformBusy}
+							disabled={work.busy || !!work.retry || imageTransformBusy}
 							onclick={deleteProfile}>Remove business declaration</button
 						>{/if}
 				</div>
@@ -1108,9 +1147,9 @@
 							class="product-summary"
 							disabled={work.busy || !!work.retry}
 							aria-label={`Edit ${product.title || 'new product'}`}
-							onclick={() => editProduct(index)}
-							>{#if safeURL(product.image?.thumb)}<img
-									src={safeURL(product.image?.thumb)}
+							onclick={() => goto(`/compose/product/edit?product=${index}`)}
+							>{#if safeURL(product.images[0]?.thumb)}<img
+									src={safeURL(product.images[0]?.thumb)}
 									alt=""
 								/>{:else}<span class="product-placeholder"
 									><SettingsIcon name="products" size={32} /></span
@@ -1133,7 +1172,7 @@
 								<button
 									type="button"
 									disabled={work.busy || !!work.retry}
-									onclick={() => editProduct(index)}
+									onclick={() => goto(`/compose/product/edit?product=${index}`)}
 									><Icon name="edit" />Edit product</button
 								>
 								{#if index > 0}<button
@@ -1155,118 +1194,100 @@
 								>
 							</div>
 						</details>
-						{#if productEditor === index}<dialog
-								class="settings-dialog business-editor-dialog product-dialog"
-								aria-label={productSnapshot && index < productSnapshot.length
-									? 'Edit product'
-									: 'Add product'}
-								bind:this={productDialog}
-								oncancel={(event) => {
-									event.preventDefault();
-									cancelProduct();
-								}}
-							>
-								<form onsubmit={saveProfile}>
-									<Feedback {work} />
-									<fieldset
-										class="form-fields"
-										disabled={work.busy ||
-											!!work.retry ||
-											!!imageEditor ||
-											imageTransformBusy}
-									>
-										<div class="stack product-editor">
-											<div class="editor-header">
-												<h2>
-													{productSnapshot && index < productSnapshot.length
-														? 'Edit product'
-														: 'Add product'}
-												</h2>
-												<button
-													type="button"
-													class="icon-button"
-													aria-label="Close product editor"
-													onclick={cancelProduct}
-													disabled={work.busy || !!work.retry}
-													><Icon name="close" /></button
-												>
-											</div>
-											<label
-												>Title<input
-													name="product.title"
-													required
-													bind:value={product.title}
-												/></label
-											><label
-												>Destination<input
-													name="product.uri"
-													type="url"
-													required
-													bind:value={product.uri}
-													placeholder="https://example.com/product"
-												/></label
-											><BusinessMediaField
-												image={product.image}
-												required
-												disabled={work.busy || !!work.retry}
-												onupload={(event) => upload(event, index)}
-												onedit={() => editImage(index, product.image!)}
-											/>{#if product.image}<label
-													>Image alternative text<textarea
-														name="product.image.alt"
-														bind:value={product.image.alt}></textarea></label
-												>{/if}
-											<div class="two-col">
-												<label
-													>Amount<input
-														name="product.amount"
-														inputmode="decimal"
-														bind:value={product.amount}
-														placeholder="24.5"
-													/></label
-												><SingleSelect
-													label="Currency"
-													value={product.currency}
-													options={[
-														{ id: '', label: 'None' },
-														...currencyOptions.map((currency) => ({
-															id: currency.code,
-															label: currency.label
-														}))
-													]}
-													onchange={(value) => (product.currency = value)}
-												/>
-											</div>
-											<div class="actions editor-footer">
-												<button
-													class="primary"
-													disabled={work.busy || !!work.retry}
-													>Save product</button
-												><button
-													type="button"
-													disabled={work.busy || !!work.retry}
-													onclick={cancelProduct}>Cancel</button
-												>
-											</div>
-										</div>
-									</fieldset>
-								</form>
-							</dialog>{/if}
 					</section>{/each}
 				<div class="actions product-actions">
 					{#if products.length < 4}<button
 							type="button"
 							class="primary"
-							disabled={work.busy ||
-								!!work.retry ||
-								!!imageEditor ||
-								imageTransformBusy}
-							onclick={() => editProduct(null)}
+							disabled={work.busy || !!work.retry || imageTransformBusy}
+							onclick={() => goto('/compose/product')}
 							><SettingsIcon name="plus" />Add product</button
 						>{/if}
 				</div>
 			</div>
 		</div>
+	{:else if section === 'product' && productEditor !== null}
+		{@const product = products[productEditor]}
+		<form
+			class="product-composer-form business-composer-form"
+			aria-label={productIndex === undefined ? 'Add product' : 'Edit product'}
+			onsubmit={saveProfile}
+		>
+			<fieldset
+				class="business-composer-fields"
+				disabled={work.busy || !!work.retry || imageTransformBusy}
+			>
+				<div class="business-composer-scroll">
+					<label
+						>Title<input
+							name="product.title"
+							required
+							bind:value={product.title}
+						/></label
+					><label
+						>Destination<input
+							name="product.uri"
+							type="url"
+							required
+							bind:value={product.uri}
+							placeholder="https://example.com/product"
+						/></label
+					>
+					<section data-field="Photos">
+						<PhotoAttachments
+							images={productPhotos}
+							maxImages={4}
+							required
+							backLabel="Back to product"
+							disabled={work.busy || !!work.retry || imageTransformBusy}
+							onadd={addProductPhotos}
+							onchange={(images) => {
+								productPhotos = images;
+							}}
+							onBusyChange={(_, busy) => {
+								imageTransformBusy = busy;
+							}}
+							onEditingChange={(_, editing) => {
+								imageEditing = editing;
+							}}
+							onOpenChange={(open) => {
+								productPhotoOpen = open;
+							}}
+						/>
+					</section>
+					<div class="two-col">
+						<label
+							>Amount<input
+								name="product.amount"
+								inputmode="decimal"
+								bind:value={product.amount}
+								placeholder="24.5"
+							/></label
+						><SingleSelect
+							label="Currency"
+							value={product.currency}
+							options={[
+								{ id: '', label: 'None' },
+								...currencyOptions.map((currency) => ({
+									id: currency.code,
+									label: currency.label
+								}))
+							]}
+							onchange={(value) => (product.currency = value)}
+						/>
+					</div>
+				</div>
+				<footer class="actions business-composer-actions">
+					<button
+						class="primary"
+						disabled={work.busy ||
+							!!work.retry ||
+							imageTransformBusy ||
+							imageEditing}>Save product</button
+					>
+				</footer>
+			</fieldset>
+		</form>
 	{:else if section === 'events'}
 		<section class="events-manager">
 			<div class="settings-tabs" use:dragScroll aria-label="Events">
@@ -1358,10 +1379,7 @@
 			<div class="actions events-toolbar">
 				<button
 					class="primary"
-					disabled={work.busy ||
-						!!work.retry ||
-						!!imageEditor ||
-						imageTransformBusy}
+					disabled={work.busy || !!work.retry || imageTransformBusy}
 					onclick={() => goto('/compose/event')}
 					><SettingsIcon name="plus" />Create event</button
 				>
@@ -1369,18 +1387,15 @@
 		</section>
 	{:else if section === 'event' && eventOpen}
 		<form
-			class="event-composer-form"
+			class="event-composer-form business-composer-form"
 			aria-label={eventRkey !== undefined ? 'Edit event' : 'Create event'}
 			onsubmit={saveEvent}
 		>
 			<fieldset
-				class="event-composer-fields"
-				disabled={work.busy ||
-					!!work.retry ||
-					!!imageEditor ||
-					imageTransformBusy}
+				class="business-composer-fields"
+				disabled={work.busy || !!work.retry || imageTransformBusy}
 			>
-				<div class="event-composer-scroll">
+				<div class="business-composer-scroll">
 					<RecordTextField
 						label="Event name"
 						name="eventName"
@@ -1525,12 +1540,11 @@
 						/>
 					</section>
 				</div>
-				<footer class="actions event-composer-actions">
+				<footer class="actions business-composer-actions">
 					<button
 						class="primary"
 						disabled={work.busy ||
 							!!work.retry ||
-							!!imageEditor ||
 							imageTransformBusy ||
 							eventPhotoBusy ||
 							eventPhotoEditing}
@@ -1542,54 +1556,10 @@
 	{/if}
 {/if}
 
-<dialog
-	bind:this={imageDialog}
-	class="business-image-dialog"
-	oncancel={(event) => {
-		if (work.busy || imageTransformBusy) event.preventDefault();
-		else imageEditor = null;
-	}}
->
-	{#if imageEditor}<h2>Product image</h2>
-		<MediaEditor
-			media={imageEditor.media}
-			index={0}
-			count={1}
-			allowReorder={false}
-			disabled={work.busy}
-			onBusyChange={(value) => (imageTransformBusy = value)}
-			onEditingChange={(value) => (imageEditing = value)}
-			onchange={(media) => {
-				if (imageEditor) imageEditor = { ...imageEditor, media };
-			}}
-			onremove={cancelImage}
-			onmove={() => {}}
-		/>
-		<div class="actions">
-			<button
-				class="primary"
-				disabled={work.busy || imageTransformBusy || imageEditing}
-				onclick={useImage}
-				>{work.busy ? 'Preparing image…' : 'Use image'}</button
-			><button disabled={work.busy || imageTransformBusy} onclick={cancelImage}
-				>Cancel image</button
-			>
-		</div>{/if}
-</dialog>
-
 <style>
 	.business-details-header {
-		position: sticky;
-		top: 0;
-		z-index: 5;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		min-height: 56px;
 		margin: 0 -16px 16px;
-		padding: 0 16px 0 72px;
-		border-bottom: 1.5px solid var(--ink);
-		background: var(--paper);
+		padding-left: 72px;
 	}
 	:global(.settings-workspace) .business-details-header h1 {
 		position: static;
@@ -1623,48 +1593,8 @@
 		display: grid;
 		gap: 24px;
 	}
-	:global(.settings-workspace) .business-editor-dialog {
-		width: min(880px, calc(100vw - 32px));
-		max-width: 880px;
-		max-height: calc(100dvh - 48px);
-		padding: 0;
-		overflow: auto;
-		background: var(--paper);
-	}
-	.business-editor-dialog form {
-		padding: 0 24px 24px;
-	}
-	.editor-header {
-		position: sticky;
-		top: 0;
-		z-index: 2;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 16px;
-		background: var(--paper);
-		border-bottom: 1.5px solid var(--ink);
-		padding: 16px 0;
-		margin-bottom: 24px;
-	}
-	.editor-header h2 {
-		margin: 0;
-		font-size: 24px;
-	}
-	.editor-footer {
-		position: sticky;
-		bottom: 0;
-		z-index: 1;
-		background: var(--paper);
-		padding: 16px 0;
-		margin-top: 24px;
-	}
-	.editor-footer .primary {
-		flex: 1;
-		justify-content: center;
-	}
-	.event-composer-form,
-	.event-composer-fields {
+	.business-composer-form,
+	.business-composer-fields {
 		display: flex;
 		flex-direction: column;
 		flex: 1;
@@ -1674,7 +1604,7 @@
 		margin: 0;
 		padding: 0;
 	}
-	.event-composer-scroll {
+	.business-composer-scroll {
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
@@ -1684,27 +1614,14 @@
 		gap: 24px;
 		padding: 16px;
 	}
-	.event-composer-heading {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		min-height: 64px;
-		padding: 8px 16px;
-		border-bottom: 1.5px solid var(--ink);
-		background: var(--paper);
-		flex: none;
+	.business-composer-heading {
+		justify-content: flex-start;
 	}
-	.event-composer-heading h1 {
-		position: static;
-		min-height: 0;
-		border: 0;
-		margin: 0;
-		padding: 0;
-		font-size: 20px;
-		font-weight: 700;
-		line-height: 1.3;
+	.business-composer-heading h1 {
+		flex: 1;
+		min-width: 0;
 	}
-	:global(.settings-workspace) .close-event-composer {
+	:global(.settings-workspace) .close-business-composer {
 		border: 0;
 		background: transparent;
 		box-shadow: none;
@@ -1719,14 +1636,14 @@
 		letter-spacing: 1.68px;
 		margin-left: 8px;
 	}
-	.event-composer-actions {
+	.business-composer-actions {
 		flex: none;
 		border: 0;
 		padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
 		margin: 0;
 		background: var(--paper);
 	}
-	.event-composer-actions .primary {
+	.business-composer-actions .primary {
 		flex: 1;
 	}
 
@@ -1752,7 +1669,7 @@
 		display: none;
 	}
 	@media (max-width: 719px) {
-		.event-composer-form .two-col {
+		.business-composer-form .two-col {
 			grid-template-columns: 1fr;
 			gap: 24px;
 		}
@@ -1777,35 +1694,6 @@
 	}
 	.product-summary :global(.tile-copy) {
 		min-width: 0;
-	}
-	@media (max-width: 600px) {
-		:global(.settings-workspace) .business-editor-dialog {
-			width: 100vw;
-			max-width: 100vw;
-			height: 100dvh;
-			max-height: 100dvh;
-			margin: 0;
-			border-radius: 0;
-		}
-		.business-editor-dialog form {
-			padding: 0 16px 24px;
-		}
-	}
-
-	.business-image-dialog {
-		max-width: 620px;
-		width: calc(100vw - 3rem);
-		max-height: 90vh;
-		overflow: auto;
-		background: var(--surface);
-		color: var(--ink);
-		border: 1.5px solid var(--ink);
-		border-radius: 14px;
-		padding: 1.25rem;
-		box-shadow: 4px 4px 0 var(--ink);
-	}
-	.business-image-dialog::backdrop {
-		background: rgb(0 0 0 / 0.5);
 	}
 
 	.product-actions {
@@ -1863,9 +1751,6 @@
 	.product-summary small {
 		color: var(--ink-2);
 		font-size: 14px;
-	}
-	.product-editor {
-		padding: 0;
 	}
 	.events-manager {
 		display: flex;

@@ -7,7 +7,9 @@
   "archive": "active",
   "components": [
     "app",
-    "web-client"
+    "web-client",
+    "appview",
+    "lexicon"
   ],
   "topics": [
     "business",
@@ -19,7 +21,7 @@
     "Business details",
     "businessDetails",
     "BusinessDetailsRoute",
-    "BusinessMediaField",
+    "Product photo carousels, composer routes and shared web page/app bar sizing",
     "RecordTextField",
     "character limits",
     "field placeholders",
@@ -30,10 +32,10 @@
     "Events tab bar",
     "Event composer placeholders",
     "compose/event routes",
-    "PhotoAttachments maxImages",
-    "Flutter event Photo details",
+    "PhotoAttachments maxImages and native picker remaining limits",
+    "Flutter event/product Photo details and keyboard Done",
     "Event detail pills and CTAs",
-    "Card image inner clipping",
+    "Card image clipping, product outline, full-card link and photo detail alignment",
     "Upcoming events footer",
     "Web event detail styling",
     "Event creator profile and roles",
@@ -46,15 +48,23 @@
     "header Save",
     "preserveProducts"
   ],
-  "summary": "Separates business details from personal profile editing and aligns web event/product editors and management with Flutter.",
+  "summary": "Separates business details from profile editing, aligns event/product clients, and supports four product photos with large profile carousels.",
   "currentDocs": [
     "docs/development/web-client-parity.md",
-    "docs/adr/010-business-profile-event-lexicons-and-pinned-data.md"
+    "docs/adr/010-business-profile-event-lexicons-and-pinned-data.md",
+    "docs/adr/028-product-photo-carousels.md"
   ],
   "code": [
     "app/lib/business/pages/business_details_settings_page.dart",
     "app/lib/business/widgets/business_profile_summary.dart",
     "app/lib/business/widgets/event_form.dart",
+    "app/lib/business/widgets/product_editor.dart",
+    "app/lib/business/widgets/product_card.dart",
+    "appview/internal/api/business_profile.go",
+    "appview/internal/index/image_safety_subject.go",
+    "lexicon/social/craftsky/business/defs.json",
+    "web-client/src/lib/features/social/ProductCard.svelte",
+    "app/lib/business/models/business_drafts.dart",
     "app/lib/business/pages/event_detail_page.dart",
     "app/lib/business/widgets/event_card.dart",
     "app/lib/theme/craftsky_card.dart",
@@ -63,6 +73,12 @@
     "app/lib/profile/pages/edit_profile_dialog.dart",
     "web-client/src/lib/features/settings/Business.svelte",
     "web-client/src/lib/features/settings/EventComposerWorkspace.svelte",
+    "web-client/src/lib/features/settings/ProductComposerWorkspace.svelte",
+    "web-client/src/lib/features/shell/content-bounds.ts",
+    "web-client/src/lib/features/composer/page-layout.ts",
+    "web-client/src/style.css",
+    "web-client/src/lib/features/settings/settings.css",
+    "web-client/src/lib/features/composer/composer.css",
     "web-client/src/lib/features/composer/PhotoAttachments.svelte",
     "web-client/src/lib/features/settings/BusinessMediaField.svelte",
     "web-client/src/lib/RecordTextField.svelte",

@@ -160,3 +160,197 @@ Validation: native event-editor and shared multi-select tests passed (40 checks)
 
 
 The web multi-select's required marker now shares the existing field-label baseline layout, 8px gap and required-note typography. This prevents settings label grid styles from moving the marker onto its own line. The rule is scoped to the shared component's heading label; option descriptions keep their own styling. Verified with the event-composer browser/layout/accessibility check and web check/lint/build.
+
+
+## Mobile product photo and keyboard flow
+
+Product draft conversion now retains the in-memory preview from a locally accepted business image, including when alt text is changed. Previously the conversion retained only the empty thumbnail URL, so products could display correctly on the profile while appearing broken in the manager and reopened composer. Preview bytes remain transient and are excluded from record JSON.
+
+The mobile product editor now uses the shared post/event Photo details route with a one-photo limit, description, replacement, removal and the existing crop/rotate editor. Photo preparation and editing remain local until Save product; failed uploads retain the selection, while successful uploads are reused if the record save needs retrying. Failed/cancelled replacement or editing retains the earlier image. Account/lifetime checks fence late results. The bottom action now uses ComposerBottomAction: the keyboard morphs Save product into Done, which dismisses the keyboard without saving and retains field contents.
+
+Validation: 73 focused native product/event model, controller, manager and editor tests passed. The final 20 product-editor checks and focused static analysis passed after save-state refinements. Coverage includes local preview reopening, photo edit apply/cancel/failure, descriptions, upload and persistence retries, and Done without saving. Native was hot reloaded/restarted. No API or lexicon change; this follow-up is mobile-only.
+
+
+On the iPhone simulator, a temporary product draft showed Done above the keyboard; tapping it preserved the title and restored Save product. Selecting a library photo opened Photo details with visible pixels. Rotate 90° and Done returned the edited photo successfully, and the composer showed the thumbnail. Product photo selection/editing also explicitly hides native text input so a lingering keyboard cannot cover editing controls. The temporary draft was discarded without saving a product. Android was not manually exercised.
+
+
+## Four product photos and large profile carousels
+
+Products now use an ordered `images` array with up to four photo objects. Each
+has its own blob, description and aspect ratio. First-party writes require one
+to four; the portable schema permits no photos. The maintainer confirmed products
+are not live and requested no migration or legacy path: clients, API and schema
+change directly. ADR 028 records the pre-launch exception to ADR 010. Generated
+Go/CBOR and Flutter mappings are updated; storage continues to retain source JSON.
+
+AppView validates every photo, hydrates safe metadata in order and registers all
+blobs for image-safety checks. Both editors use the shared post Photo details flow
+with descriptions, crop/rotate, removal and ordering. Successful uploads are cached
+per photo, so a later failed upload or record mutation retry retains earlier
+uploads. The first photo remains the cover in the compact products manager.
+
+Profile cards on both clients now display full-width post carousels above the
+seller's title, price and external-link action. They reuse swipe/page indicators,
+web arrows/keyboard controls, pinch/zoom and fullscreen viewing. Local native
+preview bytes use the shared carousel without being serialized. Swiping or opening
+a photo never launches the product destination; the existing external-link
+confirmation is retained on the title/price action.
+
+Validation: 222 native business/shared-carousel tests passed, including four-photo
+selection limits, ordering, removal, descriptions, partial-upload retry, local
+previews, account-switch fencing and shop-action separation. Focused analysis
+passed. Twenty-nine web model checks, six product-editor browser checks and 21
+carousel/preloading/profile checks passed, with product cards covered at 390px
+and 1280px and no axe violations. Web check/lint/build passed. Profile screenshots
+were visually inspected with decoded image fixtures. The local AppView was rebuilt
+and the running iPhone app hot restarted. No production deployment was performed.
+
+AppView's focused integration gate passed across API, business, index, source
+validation, generated types/schema, Tap and routes. Additional tests verify
+zero/five-photo API rejection, four-photo order and descriptions, the portable
+schema bound and a separate image-safety slot for every photo. `just lexgen-check`
+passed, proving generation has no drift. Existing development products in the old
+single-photo shape are not rewritten; photos must be selected again when editing.
+
+
+Final checks also passed all 599 web unit tests and 15 native business-settings
+navigation tests (two existing platform skips). Web Photo details now handles
+Escape as Back to product without discarding the parent draft; both width cases
+passed after that refinement. Native runtime error collection was empty after
+restart and the empty product composer opened normally on the simulator. No
+product was created, edited or removed during device verification. Android was
+covered by shared widget logic but was not manually exercised.
+
+
+## Native product gallery batch selection
+
+The mobile product add-photo action now calls the native multi-image picker with
+the remaining capacity (four minus attached photos). Previously it still called
+the single-image API despite accepting four attachments. A single remaining slot,
+camera capture and individual replacement retain single selection. The shared
+picker prepares selected files sequentially in order, without uploading, and
+checks account currentness throughout. Cancellation or failed/oversized batches
+leave existing attachments intact. Platform over-selection gets the existing
+localized image-limit message rather than a generic upload error.
+
+Picker and product-editor regression tests cover native limits 1/2/4, ordered
+batch preparation without uploads, two batches filling the product, cancellation,
+stale-account selection and rejection above remaining capacity. The running iPhone
+app was hot reloaded without restarting or clearing the user's existing draft.
+
+
+Validation: all 40 focused picker/product-editor tests and focused analysis passed.
+On the iPhone simulator, a draft with one attached photo opened a gallery labelled
+Select up to 3 photos. Two photos could be selected together while the picker
+remained open. The temporary native selections were cancelled; the user's title,
+destination and original single attachment were retained. Android was not manually
+exercised. Web behavior is unchanged.
+
+
+The empty product photo picker now shows Choose up to 4 photos beneath its add
+label on mobile and web. This uses the shared photo picker's configured maximum;
+remaining-photo guidance and the existing post video guidance are retained.
+
+
+## Native limits on every multi-image picker
+
+Audited all native multi-image/media picker calls. The shared post/project image
+composer now passes its remaining capacity to `pickMultiImage`, alongside its
+existing image dimension bounds. Product gallery selection already passes its
+remaining four-photo capacity. No other production multi-image/media picker
+calls exist. App-side selection validation remains in place for platforms that
+ignore native limits. Existing single-image camera/replacement pickers keep their
+single selection.
+
+Validation: 45 focused composer/profile picker tests passed, including empty,
+partially filled, one-slot and full post composers, and product gallery limits.
+
+
+## Product card link interaction
+
+Both clients now open the product's existing link flow when tapping its photos,
+title, price or empty card padding. This supersedes the earlier fullscreen-photo
+interaction on product cards. Carousel swipes and web arrows/dots continue to
+select photos; web image descriptions remain available. Web image anchors expose
+the product destination for keyboard and browser link actions. Mobile product
+carousels omit the grey inner outline, while shared post carousels retain it.
+
+Validation: 33 mobile card/carousel/accessibility tests passed. Both 390px and
+1280px browser cases passed, covering photo/footer/keyboard confirmation, cancelled
+navigation, drag/arrow selection, image descriptions and accessibility auditing;
+19 additional shared carousel/preloading cases passed. Web checking, lint and
+production build passed. The running iPhone app was hot reloaded without resetting
+the existing draft. No production or physical-device verification was performed.
+
+
+## Routed web product composer
+
+Web product creation and editing now use `/compose/product` and
+`/compose/product/edit?product=…` in the application shell. The product manager's
+Add, summary and Edit menu actions navigate there. This supersedes the earlier
+large-dialog/compact-modal layout. Products and events share composer chrome:
+fixed close/title header, scrolling fields and persistent bottom action. Saving
+and closing return to Products; browser Back and unload protect unsaved changes
+and pending work. A pristine new product closes without a discard prompt. Direct
+edit routes reload the current account's versioned product snapshot, reject
+invalid indexes, and enforce the four-product creation limit. The four-photo
+preparation, descriptions, ordering, upload-on-save and retry logic are retained.
+
+The browser fixture now hydrates saved record image blobs back into API image
+views, so reloading a routed manager/editor exercises the real response shape.
+No AppView API or Lexicon changes are required. Flutter behavior is unchanged.
+
+Validation: 20 focused browser cases passed, including both 390px/1280px layouts
+and accessibility audits, create/edit/save/reopen, direct routes and refresh,
+clean/dirty close, browser Back, invalid indexes, the four-product cap, photo
+ordering/description/transform, reordering/removal, and pending-save recovery.
+The recovery check confirms the routed editor retains its draft, blocks Close,
+protects browser Back and returns to Products after the retry succeeds. All 32
+focused route/business-model unit tests passed. Web checking reported no errors
+or warnings; lint and the production build passed. No backend/API/Lexicon or
+Flutter changes were made for this routing change; no deployment was performed.
+
+
+## Photo-details column alignment
+
+Reproduced a stale photo-details position at 1767px: the main column was at
+436.75px while the cached fixed-panel coordinate remained 476px. The main column
+can move when shell/discovery classes change while retaining its capped width,
+so ResizeObserver alone did not refresh its left coordinate. The shared content
+bounds action now also observes the main element's layout attributes and reads
+window-resize coordinates after responsive updates settle. This keeps photo and
+other fixed composer detail pages inside the current main column. The shared
+page-layout action also uses the renamed business composer scroller when saving
+and restoring scroll position.
+
+Validation: 12 focused browser cases passed. The new alignment cases cover
+390px, 1280px and 1767px plus resizing with Photo details open; a short desktop
+viewport verifies scroll restoration and draft preservation on return. Shared
+post/project and event photo selection, Back, caret, descriptions, ordering and
+upload/retry checks also passed. Web type checking, lint and production build
+passed. No Flutter, API, Lexicon or production changes were made for this fix.
+
+
+## Shared web page width and app bars
+
+Removed the nested 760px limits from settings, post/project composers and event
+content; these now use the shell's main column (up to 800px). Shared CSS tokens
+own the content limit, 56px app bar height, 20px semibold title, line height and
+padding. Routed product/event, post/project, photo/video detail and project detail
+headers use the common app bar rules. Draft and message titles and bar padding
+now use the same values. Crop editor dialogs retain their dark image surface but
+share the bar geometry and typography. Settings' standalone back link remains
+above its sticky header and usable. Existing page actions, routes, body insets,
+hero headers and account/persistence boundaries are retained.
+
+Validation: 30 focused browser cases passed across the layout and affected
+interaction suites. The shared geometry matrix compares 13 page types against
+the main Home app bar at 390px, 1280px and 1767px, checking main-column bounds,
+bar height, title font/weight/line height, background and divider. It exercises
+Settings back links as well. Nested project/photo/crop headers match at phone
+and wide desktop sizes. Additional checks cover product/event routes and
+save/discard, four-photo preparation, photo Back/caret/scroll restoration,
+profile relationship parity, draft app bars and conversation actions. Screenshots
+of Settings and product/project composers were inspected. Web type checking
+reported no errors/warnings; lint and the production build passed. This change
+is limited to the web client; no Flutter changes or deployment were performed.

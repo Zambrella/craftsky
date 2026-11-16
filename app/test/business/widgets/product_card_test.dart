@@ -8,6 +8,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,13 +18,15 @@ void main() {
   ) async {
     final product = BusinessProductView(
       title: 'New image',
-      image: BusinessImageView.localPreview(
-        cid: 'bafy-local',
-        mime: 'image/png',
-        size: _transparentPng.length,
-        alt: 'Locally uploaded image',
-        previewBytes: _transparentPng,
-      ),
+      images: [
+        BusinessImageView.localPreview(
+          cid: 'bafy-local',
+          mime: 'image/png',
+          size: _transparentPng.length,
+          alt: 'Locally uploaded image',
+          previewBytes: _transparentPng,
+        ),
+      ],
     );
 
     await tester.pumpWidget(
@@ -31,7 +34,9 @@ void main() {
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(body: ProductCard(product: product)),
+        home: ProviderScope(
+          child: Scaffold(body: ProductCard(product: product)),
+        ),
       ),
     );
 
@@ -44,6 +49,82 @@ void main() {
     );
   });
 
+  testWidgets(
+    'product photos and footer open its link once '
+    'while swipes only select photos',
+    (tester) async {
+      var opened = 0;
+      var confirmed = 0;
+      var allowOpen = true;
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: ProductCard(
+                product: BusinessProductView(
+                  title: 'Wool',
+                  uri: 'https://shop.example/wool',
+                  images: [
+                    for (var i = 0; i < 4; i++)
+                      BusinessImageView.localPreview(
+                        cid: 'bafy-photo-$i',
+                        mime: 'image/png',
+                        size: _transparentPng.length,
+                        alt: 'Photo $i',
+                        previewBytes: _transparentPng,
+                      ),
+                  ],
+                ),
+                confirmExternal: (_, _) async {
+                  confirmed++;
+                  return allowOpen;
+                },
+                launchExternal: (_) async {
+                  opened++;
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      final frame = find.byKey(const Key('post-image-frame'));
+      expect(tester.getSize(frame).height, greaterThan(250));
+      expect(find.text('1/4'), findsOneWidget);
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('2/4'), findsOneWidget);
+      expect(opened, 0);
+      expect(confirmed, 0);
+      final outline = tester.widget<DecoratedBox>(
+        find.byKey(const Key('post-image-carousel-outline')),
+      );
+      expect((outline.decoration as BoxDecoration).border, isNull);
+      await tester.tap(frame);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(opened, 1);
+      expect(confirmed, 1);
+      await tester.tap(find.text('Wool'));
+      await tester.pumpAndSettle();
+      expect(opened, 2);
+      expect(confirmed, 2);
+      final card = tester.getRect(find.byKey(const Key('product-open-link')));
+      await tester.tapAt(Offset(card.left + 4, card.bottom - 4));
+      await tester.pumpAndSettle();
+      expect(opened, 3);
+      expect(confirmed, 3);
+      allowOpen = false;
+      await tester.tap(frame);
+      await tester.pumpAndSettle();
+      expect(confirmed, 4);
+      expect(opened, 3);
+    },
+  );
+
   testWidgets('AT-003 renders normalized product and launches exact URI', (
     tester,
   ) async {
@@ -53,14 +134,16 @@ void main() {
     final product = BusinessProductView(
       title: 'Midnight skein',
       uri: destination,
-      image: BusinessImageView(
-        cid: 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
-        mime: 'image/jpeg',
-        size: 1200,
-        alt: 'A deep blue skein of yarn',
-        thumb: 'https://cdn.example/thumb.jpg',
-        fullsize: 'https://cdn.example/full.jpg',
-      ),
+      images: [
+        BusinessImageView(
+          cid: 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
+          mime: 'image/jpeg',
+          size: 1200,
+          alt: 'A deep blue skein of yarn',
+          thumb: 'https://cdn.example/thumb.jpg',
+          fullsize: 'https://cdn.example/full.jpg',
+        ),
+      ],
       price: const BusinessPrice(amount: '12.5', currency: 'USD'),
     );
 
@@ -69,14 +152,16 @@ void main() {
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: ProductCard(
-            product: product,
-            launchExternal: (uri) async {
-              launched.add(uri);
-              return true;
-            },
-            confirmExternal: (_, _) async => true,
+        home: ProviderScope(
+          child: Scaffold(
+            body: ProductCard(
+              product: product,
+              launchExternal: (uri) async {
+                launched.add(uri);
+                return true;
+              },
+              confirmExternal: (_, _) async => true,
+            ),
           ),
         ),
       ),
@@ -92,7 +177,7 @@ void main() {
       'https://cdn.example/thumb.jpg',
     );
 
-    await tester.tap(find.byType(ProductCard));
+    await tester.tap(find.byKey(const Key('product-open-link')));
     await tester.pump();
     expect(launched, [Uri.parse(destination)]);
     expect(find.textContaining('checkout'), findsNothing);

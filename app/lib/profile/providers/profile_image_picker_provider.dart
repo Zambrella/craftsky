@@ -101,6 +101,49 @@ class ProfileImagePicker {
     final file = await _picker.pickImage(source: source);
     if (file == null || isCurrent?.call() == false) return null;
 
+    return await _preparePickedFile(
+      file,
+      onPreviewReady: onPreviewReady,
+      editImage: editImage,
+      isCurrent: isCurrent,
+    );
+  }
+
+  /// Prepares an ordered gallery selection without uploading any blobs.
+  Future<List<PreparedProfileImage>> pickGalleryAndPrepare({
+    required int limit,
+    bool Function()? isCurrent,
+  }) async {
+    if (limit < 1 || isCurrent?.call() == false) return [];
+    // The plugin requires at least two for pickMultiImage's limit.
+    final List<XFile> files;
+    if (limit == 1) {
+      final file = await _picker.pickImage(source: ImageSource.gallery);
+      files = [?file];
+    } else {
+      files = await _picker.pickMultiImage(limit: limit);
+    }
+    if (isCurrent?.call() == false) return [];
+    if (files.length > limit) throw ProfileImageSelectionLimitException(limit);
+    final prepared = <PreparedProfileImage>[];
+    for (final file in files) {
+      final image = await _preparePickedFile(
+        file,
+        onPreviewReady: (_) {},
+        isCurrent: isCurrent,
+      );
+      if (image == null || isCurrent?.call() == false) return [];
+      prepared.add(image);
+    }
+    return prepared;
+  }
+
+  Future<PreparedProfileImage?> _preparePickedFile(
+    XFile file, {
+    required void Function(Uint8List bytes) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
+  }) async {
     final mimeType = file.mimeType ?? _media.mimeTypeForFileName(file.name);
     final length = await file.length();
     if (isCurrent?.call() == false) return null;
@@ -232,4 +275,9 @@ class ProfileImagePickException implements Exception {
 
   final ProfileImageFailure reason;
   final bool expectedRejection;
+}
+
+class ProfileImageSelectionLimitException extends ProfileImagePickException {
+  const new(this.limit) : super(expectedRejection: true);
+  final int limit;
 }

@@ -2674,6 +2674,12 @@ abstract class AppLocalizations {
   /// **'{describedCount} / {imageCount} described'**
   String postComposeImagesDescribed(int describedCount, int imageCount);
 
+  /// Helper below an empty multi-photo composer picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to {maxImages} photos'**
+  String postComposeChoosePhotosHelper(int maxImages);
+
   /// Helper text under the photo heading before photos are attached.
   ///
   /// In en, this message translates to:

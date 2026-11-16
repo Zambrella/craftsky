@@ -69,6 +69,7 @@ class ComposerImages extends _$ComposerImages {
     final List<XFile> files;
     try {
       files = await _picker.pickMultiImage(
+        limit: remaining,
         maxWidth: _media.config.maxImageWidth.toDouble(),
         maxHeight: _media.config.maxImageHeight.toDouble(),
       );

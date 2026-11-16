@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -49,11 +50,15 @@ class PostImageCarousel extends ConsumerStatefulWidget {
     this.onImageTap,
     this.onPageChanged,
     this.onImageDoubleTap,
+    this.previewBytesFor,
+    this.showOutline = true,
     super.key,
   });
 
   final List<PostImage> images;
+  final Uint8List? Function(int index)? previewBytesFor;
   final int initialIndex;
+  final bool showOutline;
   final PostImageTapCallback? onImageTap;
   final ValueChanged<int>? onPageChanged;
   final VoidCallback? onImageDoubleTap;
@@ -146,9 +151,9 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     key: const Key('post-image-carousel-outline'),
                     position: DecorationPosition.foreground,
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
+                      border: widget.showOutline
+                          ? Border.all(color: theme.colorScheme.outlineVariant)
+                          : null,
                       borderRadius: borderRadius,
                     ),
                     child: SizedBox(
@@ -166,6 +171,25 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                           itemBuilder: (context, index) {
                             final image = widget.images[index];
                             final url = image.thumb ?? image.fullsize;
+                            final bytes = widget.previewBytesFor?.call(index);
+                            if (bytes != null) {
+                              return Hero(
+                                tag: _heroTags[index],
+                                child: InlinePinchZoom(
+                                  overlayContext: rootOverlayContext,
+                                  child: Semantics(
+                                    label: image.alt,
+                                    image: true,
+                                    child: Image.memory(
+                                      bytes,
+                                      fit: BoxFit.contain,
+                                      width: double.infinity,
+                                      height: height,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
                             if (url == null) {
                               final child = InlinePinchZoom(
                                 overlayContext: rootOverlayContext,

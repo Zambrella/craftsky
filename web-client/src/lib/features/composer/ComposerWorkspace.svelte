@@ -1215,7 +1215,7 @@
 />
 <svelte:window onbeforeunload={beforeLeave} />
 <section class="composer">
-	<header class="composer-heading">
+	<header class="composer-heading page-appbar">
 		<a
 			class="close-composer"
 			href={closeDestination}

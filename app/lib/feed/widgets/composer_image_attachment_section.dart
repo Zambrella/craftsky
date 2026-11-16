@@ -992,7 +992,7 @@ class _AddPhotoCard extends StatelessWidget {
         ? l10n.postComposePhotosOrVideoHelper
         : hasImages
         ? l10n.postComposePhotosRemaining(remainingCount)
-        : l10n.postComposePhotosLimitHelper(maxImages);
+        : l10n.postComposeChoosePhotosHelper(maxImages);
 
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp2),
@@ -1039,7 +1039,7 @@ class _AddPhotoCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        if (hasImages || supportsVideo)
+                        if (hasImages || supportsVideo || maxImages > 1)
                           Text(
                             subtitle,
                             style: theme.textTheme.bodyMedium?.copyWith(

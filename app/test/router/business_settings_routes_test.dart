@@ -439,27 +439,31 @@ final class _RouterHarness {
 final _firstProduct = BusinessProductView(
   title: 'One',
   uri: 'https://shop.example/one',
-  image: BusinessImageView(
-    cid: 'bafy-one',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: 'One',
-    thumb: 'https://cdn.example/one/thumb',
-    fullsize: 'https://cdn.example/one/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-one',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: 'One',
+      thumb: 'https://cdn.example/one/thumb',
+      fullsize: 'https://cdn.example/one/full',
+    ),
+  ],
 );
 
 final _secondProduct = BusinessProductView(
   title: 'Two',
   uri: 'https://shop.example/two',
-  image: BusinessImageView(
-    cid: 'bafy-two',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: 'Two',
-    thumb: 'https://cdn.example/two/thumb',
-    fullsize: 'https://cdn.example/two/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-two',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: 'Two',
+      thumb: 'https://cdn.example/two/thumb',
+      fullsize: 'https://cdn.example/two/full',
+    ),
+  ],
 );
 
 final class _BusinessRepository extends Fake implements BusinessRepository {

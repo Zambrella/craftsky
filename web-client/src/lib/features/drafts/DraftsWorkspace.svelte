@@ -267,12 +267,12 @@
 		justify-content: space-between;
 		gap: 12px;
 		min-height: 56px;
-		padding: 8px 16px;
+		padding: var(--app-bar-padding);
 	}
 	h1 {
 		margin: 0;
 		font-size: 20px;
-		font-weight: 700;
+		font-weight: var(--app-bar-title-weight);
 		font-family: inherit;
 	}
 	.draft-list {

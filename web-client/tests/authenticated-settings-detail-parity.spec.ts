@@ -414,7 +414,7 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
-	const dialog = page.locator('.product-dialog');
+	const dialog = page.locator('.product-composer-form');
 	const currency = dialog.getByRole('combobox', {
 		name: 'Currency',
 		exact: true
@@ -424,14 +424,12 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 	await dialog
 		.getByRole('option', { name: 'JPY - Japanese Yen', exact: true })
 		.click();
-	await dialog.getByLabel('Price · optional', { exact: true }).fill('2500');
+	await dialog.getByLabel('Amount', { exact: true }).fill('2500');
 	await dialog.getByLabel('Title', { exact: true }).fill('🧶'.repeat(150));
 	await dialog
 		.getByRole('button', { name: 'Save product', exact: true })
 		.click();
-	await expect(
-		page.getByRole('status').filter({ hasText: 'Products saved.' })
-	).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/products$/);
 	expect(writes).toHaveLength(1);
 	expect(writes[0].headers['x-craftsky-account-id']).toBe(alice.id);
 	expect(writes[0].headers['if-match']).toBe('business-cid-0');

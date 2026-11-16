@@ -1157,7 +1157,7 @@
 	.messages-workspace {
 		position: relative;
 		min-height: 100dvh;
-		max-width: 800px;
+		max-width: var(--app-content-max-width);
 		margin: auto;
 		background: var(--paper);
 	}
@@ -1173,17 +1173,17 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
-		padding: 8px 16px;
+		padding: var(--app-bar-padding);
 		min-height: 56px;
 		background: var(--paper);
 		flex: none;
 		z-index: 3;
 	}
 	.message-header h1 {
-		font-size: 20px;
+		font-size: var(--app-bar-title-size);
 		font-family: inherit;
-		font-weight: 700;
-		line-height: 1.35;
+		font-weight: var(--app-bar-title-weight);
+		line-height: var(--app-bar-title-line-height);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

@@ -192,7 +192,7 @@ func TestTransactionalDispatcherRoutesBusinessRecordsWithSourceRevision(t *testi
 		rkey   syntax.RecordKey
 		record json.RawMessage
 	}{
-		businessProfileCollection: {rkey: "self", record: json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"Independent","products":[{"title":"Yarn","uri":"https://shop.example/yarn","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":1024},"aspectRatio":{"width":4,"height":3}}}],"futureExtension":true}`)},
+		businessProfileCollection: {rkey: "self", record: json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"Independent","products":[{"title":"Yarn","uri":"https://shop.example/yarn","images":[{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":1024},"aspectRatio":{"width":4,"height":3}}]}],"futureExtension":true}`)},
 		businessEventCollection:   {rkey: "3meventrecord", record: json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`)},
 	}
 	for collection, fixture := range records {

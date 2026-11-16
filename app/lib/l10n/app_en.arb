@@ -1278,6 +1278,11 @@
     }
   },
 
+  "postComposeChoosePhotosHelper": "Choose up to {maxImages} photos",
+  "@postComposeChoosePhotosHelper": {
+    "description": "Helper below an empty multi-photo composer picker.",
+    "placeholders": { "maxImages": { "type": "int" } }
+  },
   "postComposePhotosLimitHelper": "{maxImages, plural, =1{One photo} other{Up to {maxImages} photos}}",
   "@postComposePhotosLimitHelper": {
     "description": "Helper text under the photo heading before photos are attached.",

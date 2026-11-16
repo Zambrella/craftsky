@@ -23,5 +23,7 @@ describe('shared page context', () => {
 		expect(routeTitle('/compose/edit')).toBe('Edit post · CraftSky');
 		expect(routeTitle('/compose/event')).toBe('Create event · CraftSky');
 		expect(routeTitle('/compose/event/edit')).toBe('Edit event · CraftSky');
+		expect(routeTitle('/compose/product')).toBe('Add product · CraftSky');
+		expect(routeTitle('/compose/product/edit')).toBe('Edit product · CraftSky');
 	});
 });

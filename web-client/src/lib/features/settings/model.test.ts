@@ -107,29 +107,33 @@ describe('business products', () => {
 		uri: 'https://shop.example/wool',
 		amount: '12.50',
 		currency: 'gbp',
-		image: {
-			cid: 'bafyimage',
-			mime: 'image/jpeg',
-			size: 100,
-			alt: 'Blue wool',
-			aspectRatio: { width: 100, height: 200 }
-		}
+		images: [
+			{
+				cid: 'bafyimage',
+				mime: 'image/jpeg',
+				size: 100,
+				alt: 'Blue wool',
+				aspectRatio: { width: 100, height: 200 }
+			}
+		]
 	};
 	it('converts image views back to blob references and canonical decimal prices', () => {
 		expect(productBody([product])).toEqual([
 			{
 				title: 'Hand dyed wool',
 				uri: 'https://shop.example/wool',
-				image: {
-					image: {
-						$type: 'blob',
-						ref: { $link: 'bafyimage' },
-						mimeType: 'image/jpeg',
-						size: 100
-					},
-					alt: 'Blue wool',
-					aspectRatio: { width: 100, height: 200 }
-				},
+				images: [
+					{
+						image: {
+							$type: 'blob',
+							ref: { $link: 'bafyimage' },
+							mimeType: 'image/jpeg',
+							size: 100
+						},
+						alt: 'Blue wool',
+						aspectRatio: { width: 100, height: 200 }
+					}
+				],
 				price: { amount: '12.5', currency: 'GBP' }
 			}
 		]);
@@ -147,9 +151,7 @@ describe('business products', () => {
 			'different destination'
 		);
 		expect(() => productBody([{ ...product, currency: '' }])).toThrow('both');
-		expect(() => productBody([{ ...product, image: undefined }])).toThrow(
-			'image'
-		);
+		expect(() => productBody([{ ...product, images: [] }])).toThrow('photos');
 	});
 });
 describe('business event time zones', () => {

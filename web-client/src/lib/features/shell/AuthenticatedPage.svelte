@@ -97,6 +97,12 @@
 					? ['settings', 'notifications']
 					: path}
 				session={data.session}
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose' && path[1] === 'product'}{#await loadPage(() => import('#lib/features/settings/ProductComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
+				{api}
+				session={data.session}
+				productIndex={path[2] === 'edit'
+					? page.url.searchParams.get('product') || ''
+					: undefined}
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose' && path[1] === 'event'}{#await loadPage(() => import('#lib/features/settings/EventComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}

@@ -384,7 +384,7 @@
 	.event-content {
 		padding: 16px;
 		gap: 16px;
-		max-width: 760px;
+		max-width: none;
 		margin-inline: auto;
 	}
 	.event-summary {
