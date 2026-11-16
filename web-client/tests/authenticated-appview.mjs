@@ -1247,6 +1247,23 @@ createServer(async (req, res) => {
 			uri: item.uri
 		});
 	}
+	if (pathname === '/v1/billing/web-prices' && method === 'GET')
+		return send(200, {
+			items: [
+				{
+					tier: 'plus',
+					amount: 249,
+					currency: 'gbp',
+					taxBehavior: 'inclusive'
+				},
+				{
+					tier: 'business',
+					amount: 899,
+					currency: 'gbp',
+					taxBehavior: 'inclusive'
+				}
+			]
+		});
 	if (pathname === '/v1/billing/account')
 		return send(200, {
 			billingAccountId: 'billing-1',

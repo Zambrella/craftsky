@@ -72,7 +72,7 @@ test('successful actions queue one toast at a time and pause while hovered', asy
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toContainText('Business profile saved.');
 	await page.evaluate(() =>
@@ -114,7 +114,7 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toHaveAttribute('role', 'alert');
 	await page.clock.fastForward(10000);
@@ -122,7 +122,7 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 	await toast.getByRole('button', { name: 'Dismiss notification' }).click();
 	await expect(toast).toHaveCount(0);
 	await expect(
-		page.getByRole('button', { name: 'Save business profile' })
+		page.getByRole('button', { name: 'Save', exact: true })
 	).toBeDisabled();
 	failing = false;
 	await page
@@ -204,7 +204,7 @@ test('account switching clears queued feedback from the previous account', async
 	]);
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(page.locator('.snackbar')).toBeVisible();
 	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
 	await page
@@ -238,7 +238,7 @@ test('mobile toasts remain in the viewport above bottom navigation and pause on 
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toBeVisible();
 	const bounds = await toast.boundingBox();

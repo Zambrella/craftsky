@@ -106,9 +106,7 @@ test('business country validation uses its field rather than the page error', as
 	await page.goto('/settings/business');
 	const country = page.getByLabel('Country code', { exact: true });
 	await country.fill('X');
-	await page
-		.getByRole('button', { name: 'Save business profile', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(country).toHaveAttribute('aria-invalid', 'true');
 	await expect(page.locator('.field-error')).toContainText('two-letter');
 	await country.fill('GB');

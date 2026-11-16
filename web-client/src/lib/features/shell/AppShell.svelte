@@ -753,10 +753,11 @@
 >
 	<RailNavigation {nav} {active} onSelect={reselect}>
 		{#snippet icon(key)}
-			{#if key === 'profile'}<Avatar author={identity || session} />{:else}<Icon
-					name={key}
-					filled={active(key)}
-				/>{/if}
+			{#if key === 'profile'}<span
+					class="nav-profile-avatar"
+					style={profileStyle(identity?.customisation)}
+					><Avatar author={identity || session} /></span
+				>{:else}<Icon name={key} filled={active(key)} />{/if}
 		{/snippet}
 		{#snippet badge(key)}
 			{#if key === 'activity' && activityBadge.count}<span class="count-badge"
@@ -912,9 +913,11 @@
 				}
 			}}
 			onclick={(event) => reselect(event, key)}
-			>{#if key === 'profile'}<Avatar
-					author={identity || session}
-				/>{:else}<Icon name={key} filled={active(key)} />{/if}<span
+			>{#if key === 'profile'}<span
+					class="nav-profile-avatar"
+					style={profileStyle(identity?.customisation)}
+					><Avatar author={identity || session} /></span
+				>{:else}<Icon name={key} filled={active(key)} />{/if}<span
 				class="visually-hidden">{label}</span
 			>{#if key === 'activity' && activityBadge.count}<span
 					class="bottom-count"
@@ -1006,6 +1009,10 @@
 </dialog>
 
 <style>
+	.nav-profile-avatar {
+		display: contents;
+	}
+
 	.account-menu:not(.anchored) {
 		top: auto;
 		bottom: 0;

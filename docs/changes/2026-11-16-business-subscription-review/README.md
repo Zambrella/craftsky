@@ -103,3 +103,49 @@ These checks establish local behavior and the inspected sandbox management
 flows. New App Store/Google Play transactions, Android device UI, production
 webhook delivery and production deployment were not exercised. The provider
 catalogue/offerings were inspected read-only; no shared paywall was published.
+
+## PR #372 CI follow-up
+
+The reported web and Flutter failures were reproduced before editing. Repairs
+are confined to tests, their mock AppView and CI test configuration:
+
+- Public/profile navigation assertions now distinguish the visible name from
+  the accessible Business icon. Chat's existing explicit heading name remains
+  unchanged. Business editor tests use the current exact Save button label.
+- The saved-language test checks only language-preference writes; account-wide
+  billing identity initialization must not count as changing language choices.
+- The unknown-provider subscription case checks the current Active badge from
+  authoritative access, disabled management for the unknown provider, and no
+  assignment or new checkout controls. It no longer expects retired wording.
+- The shared mock AppView serves the existing web-prices contract with fixture
+  GBP prices, so billing visual checks do not conceal a mock-only 404.
+- Two root ProviderScope storage overrides use the repository's documented,
+  line-scoped test-harness lint exception. Production provider dependencies are
+  unchanged.
+- Feature-entry tests run only when SUBSCRIPTIONS_ENABLED is true, matching the
+  existing feature-lock tests. CI retains the full default/coming-soon suite and
+  adds an explicit enabled-mode run of both subscription test files.
+
+Validation: `dart analyze --fatal-infos` is clean; `flutter test` passes 4,346
+tests with 50 intentional skips. The focused subscription files pass in disabled
+mode (20 passed, nine skipped) and enabled mode (28 passed, one disabled-only
+case skipped). `actionlint .github/workflows/backend-ci.yml` passes. All 16
+affected feedback/validation browser tests and all nine follow-up regression
+cases pass locally. No application, API, Lexicon, provider or production
+configuration was changed.
+
+Final web verification: `npm run test:release` passed end to end, including
+format/lint/type checks, 614 unit tests, the fixture build, and both Node and
+Worker browser runs. Each mode passed 12 public-page tests, 573 authenticated
+tests (three configured skips), 152 guest-browser tests and the disabled-build
+release check. The command also restored the caller's normal build at the end.
+
+## Navigation profile colour
+
+The web rail/drawer and compact navigation avatar now scope the active account's
+profile palette to the avatar itself. This fixes the default cobalt border
+without tinting other navigation controls. Temporary local browser checks at
+1280px and 390px passed on Node and Worker, covering a different profile view and
+switching to an account with another colour. Web check/lint/build pass. Flutter
+already passes subscription-gated customisation to the shared AccountAvatar; its
+existing colour/access-loss check passes and no native change was needed.

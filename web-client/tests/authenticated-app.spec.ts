@@ -310,9 +310,9 @@ test('home interactions and profile navigation use the authenticated account', a
 	await expect(page).toHaveURL(/\/posts\/did%3Aplc%3Aalice\/first/);
 	await page.locator('.post-card .author a').first().click();
 	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice/);
-	await expect(
-		page.getByRole('heading', { name: 'Alice Maker', exact: true })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		'Alice Maker'
+	);
 	await page
 		.getByRole('navigation', { name: 'Profile content' })
 		.getByRole('link', { name: 'Posts', exact: true })

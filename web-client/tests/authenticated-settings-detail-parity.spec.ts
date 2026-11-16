@@ -574,17 +574,21 @@ test('future subscription states show plans without exposing assignment or check
 		name: 'CraftSky Business',
 		exact: true
 	});
-	await expect(business).toContainText('Status unavailable');
+	await expect(
+		business.locator('[data-subscription-status="business"]')
+	).toHaveText('Active');
+	await expect(
+		business.getByRole('button', { name: 'Manage', exact: true })
+	).toBeDisabled();
 	await expect(
 		page.getByRole('button', { name: 'Assign license', exact: true })
 	).toHaveCount(0);
 	await expect(page.getByRole('link', { name: /^Manage in/ })).toHaveCount(0);
 	await expect(
-		page.getByText(
-			'This account already has a subscription or a payment awaiting resolution.',
-			{ exact: false }
-		)
-	).toBeVisible();
+		page.getByRole('button', {
+			name: /^(View (Plus|Business) details|Subscribe to (Plus|Business))$/
+		})
+	).toHaveCount(0);
 });
 
 test('Instagram keeps the native private confirmation choice and describes all revoke effects before deletion', async ({

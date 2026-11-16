@@ -7,7 +7,7 @@
   "archive": "active",
   "components": ["app", "web-client", "appview"],
   "topics": ["business", "subscriptions", "parity", "billing"],
-  "keywords": ["event timezone", "DST", "multilingual alt text", "conflict reload", "subscription cache", "promotional expiry", "restore from paywall", "pending payment", "RevenueCat duplicate pagination", "cross-environment checkout", "CraftSkyTester1", "billing retry loop", "business draft retention"],
+  "keywords": ["event timezone", "DST", "multilingual alt text", "conflict reload", "subscription cache", "promotional expiry", "restore from paywall", "pending payment", "RevenueCat duplicate pagination", "cross-environment checkout", "CraftSkyTester1", "billing retry loop", "business draft retention", "PR #372", "CI regression fixtures", "subscription test build modes", "navigation profile colour"],
   "summary": "Fixes business timezone, validation and account races, refreshes shared subscription access, preserves restore intent, hardens provider/checkout boundaries and verifies the tester's valid sandbox Business access.",
   "currentDocs": ["docs/development/web-client-parity.md", "docs/adr/027-per-did-subscriptions.md"],
   "code": ["app/lib/business", "app/lib/subscriptions", "app/lib/profile/pages/edit_profile_dialog.dart", "web-client/src/lib/features/settings", "web-client/src/lib/features/shell/subscription-access.svelte.ts", "web-client/src/lib/features/social/business-model.ts", "appview/internal/api/business_profile.go", "appview/internal/api/business_event.go", "appview/internal/subscriptions/web_checkout.go", "appview/internal/integrations/revenuecat/client.go"],
@@ -22,3 +22,9 @@
 Records concrete fixes and local/sandbox validation from the business and
 subscription audit. The tester's expired Plus history is distinct from its
 currently valid Business subscription through 15 December 2026.
+
+CI follow-up records reproduced stale selector/fixture failures, root-scope
+provider lint exceptions and explicit enabled subscription test coverage.
+
+The web navigation avatar scopes the active account colour to its own border,
+matching the existing Flutter adapter and updating on account switches.

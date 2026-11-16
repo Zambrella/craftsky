@@ -945,6 +945,8 @@ BusinessEvent _event({
 
 Widget _app(Widget child, {ErrorReporter? reporter}) => ProviderScope(
   overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     secureSessionRegistryStorageProvider.overrideWithValue(
       InMemorySessionRegistryStorage(),
     ),

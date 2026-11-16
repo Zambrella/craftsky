@@ -15,6 +15,7 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/providers/subscription_pending_operation_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -147,6 +148,7 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       },
+      skip: !subscriptionsEnabled,
     );
   }
   testWidgets(
@@ -175,6 +177,7 @@ void main() {
       expect(find.text('Paid feature'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
+    skip: !subscriptionsEnabled,
   );
   testWidgets(
     'feature entry rechecks promotional access before presenting a paywall',
@@ -190,6 +193,7 @@ void main() {
       expect(harness.access.allowsPlus, isTrue);
       expect(tester.takeException(), isNull);
     },
+    skip: !subscriptionsEnabled,
   );
   testWidgets('consumed paywall failure reports its original cause once', (
     tester,

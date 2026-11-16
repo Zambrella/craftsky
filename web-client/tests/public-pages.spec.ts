@@ -81,7 +81,11 @@ test('profile, tab, pagination and author navigation work without JavaScript', a
 }) => {
 	await page.goto('/profiles/alice.test');
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Alice');
-	await expect(page.getByText('Business', { exact: true })).toBeVisible();
+	await expect(
+		page
+			.getByRole('heading', { level: 1 })
+			.getByRole('img', { name: 'Business', exact: true })
+	).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Bad link' })).toHaveCount(0);
 	await page.getByRole('link', { name: 'Projects', exact: true }).click();
 	await expect(
