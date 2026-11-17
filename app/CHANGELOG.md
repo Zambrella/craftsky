@@ -1,5 +1,49 @@
 # App Changelog
 
+## 1.13.0+19 - 2026-11-17
+
+- feat(social): link plain text profile bios
+- feat(profile): add visitor follower and following lists
+- fix(instagram-migration): show export help after verification
+- fix(feed): preserve post anchor when collapsing body
+- fix(posts): preserve selected carousel image in details
+- fix(media): preserve image framing across clients
+- feat(catalog): add navy, turquoise, and teal colors
+- feat(app): add native sharing for profile and record links
+- test(app): update navigation callback assertions
+- feat(profile): add animated profile share card mockup
+- feat(profile): add tilt-lit craft foil share cards
+- feat(profile): share animated profile cards as PNG
+- fix(composer): trim submitted text before generating facets
+- feat(composer): limit posts to ten hashtags
+- test(profile): verify share card error reporting
+- fix(feed): preserve scroll position during refresh
+- fix: preserve loaded content during background refreshes
+- feat(subscriptions): add custom Plus tier icon
+- fix(subscriptions): clarify tier benefit summaries
+- fix(subscriptions): keep plus action icon within its size
+- feat(subscriptions): refine active billing and assignment UI
+- feat(settings): show account hosting provider details
+- feat(profile): add colour options and shader backgrounds
+- feat(profile): add reference-inspired shader backgrounds
+- chore(repo): optimize checks and client performance
+- chore(app): harden Riverpod lifecycles and enable linting
+- feat(subscriptions): support independent billing accounts
+- fix(observability): report consumed failures across app flows
+- feat(docs): add searchable change archive
+- fix(subscriptions): guard purchases by store ownership
+- feat(subscriptions): add complimentary access grants
+- feat(subscriptions): add embedded checkout and web paywalls
+- feat(subscriptions): open paywalls from locked features
+- feat(subscriptions): expand cross-client subscription and business parit
+- feat(business): add product photo carousels
+- feat(profile): show business identity icons across clients
+- fix(subscriptions): harden billing lifecycle and access handling
+- feat(profile): retire textures and decorate recent searches
+- test(ci): stabilize business and subscription regression checks
+- test: stabilize timezone and timestamp assertions
+- fix(app): improve form and composer keyboard actions
+
 ## 1.12.0+18 - 2026-11-10
 
 - fix(notifications): retain cold-start DM lookups
