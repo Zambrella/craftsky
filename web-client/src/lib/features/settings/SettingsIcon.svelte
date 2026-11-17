@@ -7,4 +7,9 @@
 	}: { name: string; size?: number; bold?: boolean } = $props();
 </script>
 
-<Icon {name} {size} {bold} filled={name === 'subscription'} />
+<Icon
+	name={name === 'business' ? 'businessIdentity' : name}
+	{size}
+	{bold}
+	filled={name === 'subscription'}
+/>

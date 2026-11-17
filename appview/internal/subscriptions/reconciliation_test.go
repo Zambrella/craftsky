@@ -28,10 +28,11 @@ func (provider *scriptedProvider) ListCustomerSubscriptions(context.Context, uui
 
 func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	store := NewStore(pool)
 	account, _, err := store.EnsureAccount(context.Background(), syntax.DID("did:plc:reconcile-owner"))
 	if err != nil {
@@ -68,8 +69,9 @@ func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
 	`, account.ID).Scan(&requested, &reconciled); err != nil {
 		t.Fatal(err)
 	}
-	if requested != 5 || reconciled != 4 {
-		t.Fatalf("generations after trigger during fetch = requested %d reconciled %d, want 5/4", requested, reconciled)
+	wantReconciled := account.RequestedGeneration + 4
+	if requested != wantReconciled+1 || reconciled != wantReconciled {
+		t.Fatalf("generations after trigger during fetch = requested %d reconciled %d, want %d/%d", requested, reconciled, wantReconciled+1, wantReconciled)
 	}
 	processed, err = reconciler.ProcessOne(context.Background())
 	if err != nil || !processed || provider.calls != 2 {

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import BusinessIdentityIcon from './BusinessIdentityIcon.svelte';
+	import ProfileShaderBackground from './ProfileShaderBackground.svelte';
+	import { profileShaderStyle } from './profile-background-shader.ts';
 	import { appendPage } from '#lib/pagination.ts';
 	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
@@ -312,6 +315,9 @@
 {#if profile ? profile.did !== session?.did : ![session?.did, session?.handle].includes(id)}<div
 		class="profile-navigation"
 		class:collapsed={headerCollapsed}
+		class:reference-background={(profileShaderStyle(
+			profile?.customisation?.profileBackground
+		) ?? -1) >= 6}
 		style={profile ? profileStyle(profile.customisation) : undefined}
 	>
 		<a
@@ -344,6 +350,10 @@
 		style={profileStyle(profile.customisation)}
 	>
 		<div class="profile-band">
+			{#if profileShaderStyle(profile.customisation?.profileBackground) !== undefined}<ProfileShaderBackground
+					style={profileShaderStyle(profile.customisation?.profileBackground)!}
+					colour={profile.customisation?.colour ?? 'cobalt'}
+				/>{/if}
 			{#if texture(profile.customisation)}<span
 					class="profile-texture"
 					style:mask-image={texture(profile.customisation)}
@@ -367,6 +377,16 @@
 					large
 				/>{/if}
 			<h1>
+				{#if profile.accountType === 'business'}<span
+						class="business-icon"
+						role="img"
+						aria-label="Business"
+						title="Business"
+						><BusinessIdentityIcon
+							size={24}
+							customisation={profile.customisation}
+						/></span
+					>{/if}
 				{profile.displayName ||
 					(profile.handle ? '@' + profile.handle : 'Account unavailable')}
 			</h1>
@@ -374,9 +394,6 @@
 			<p class="handle">
 				{#if profile.displayName}@{profile.handle}{/if}
 			</p>
-			{#if profile.accountType === 'business'}<p class="business-label">
-					Business
-				</p>{/if}
 			<ul class="chips">
 				{#each profile.crafts || [] as craft}<li>
 						<CraftBadge {craft} />
@@ -648,8 +665,8 @@
 						/>{:else}<EmptyState
 							title="Products"
 							detail={profile.did === session?.did
-								? 'Add products to show what your business offers.'
-								: 'No products shared yet.'}
+								? 'Add featured products to help visitors find your work.'
+								: 'No featured products yet.'}
 							icon="business"
 							>{#snippet actions()}{#if profile?.did === session?.did}<a
 										href="/settings/products">Manage products</a
@@ -662,8 +679,8 @@
 						/>{:else}{#if !contentWork.busy && !contentWork.error}<EmptyState
 								title="Upcoming events"
 								detail={profile.did === session?.did
-									? 'Share your next workshop, market or event.'
-									: 'No upcoming events.'}
+									? 'Add an event appearance to share what’s coming up.'
+									: 'No upcoming events yet.'}
 								icon="calendar"
 								>{#snippet actions()}{#if profile?.did === session?.did}<a
 											href="/settings/events">Manage events</a
@@ -786,6 +803,10 @@
 		box-shadow: none;
 		color: var(--profile-foreground, white);
 		border-radius: 50%;
+	}
+	.profile-navigation.reference-background:not(.collapsed) .icon-button {
+		background: var(--paper);
+		color: var(--ink);
 	}
 	.profile-navigation.collapsed .icon-button {
 		color: var(--ink);
@@ -910,16 +931,22 @@
 		width: 106px;
 		height: 106px;
 	}
+	.profile-identity h1 {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+	}
+	.business-icon {
+		display: inline-flex;
+		flex-shrink: 0;
+	}
 	.profile-identity {
 		margin-top: -53px;
 	}
 	.profile-identity h1 {
 		margin-top: 19px;
 		font-size: 28px;
-	}
-	.profile-identity .business-label {
-		font-size: 13px;
-		font-weight: 600;
 	}
 	.member-profile > .tabs {
 		position: sticky;
@@ -942,13 +969,16 @@
 	}
 	.profile-about h3 {
 		font-size: 12px;
+		line-height: 1.2;
+		letter-spacing: 1.68px;
 		color: var(--ink-2);
-		font-weight: 500;
+		font-weight: 600;
 		margin: 0 0 4px;
 	}
 	.profile-about p {
 		margin: 0;
-		font-size: 15px;
+		font-size: 14px;
+		line-height: 1.5;
 	}
 
 	.profile-actions > .button,
@@ -997,8 +1027,5 @@
 		);
 		width: 40px;
 		height: 40px;
-	}
-	.profile-identity .business-label {
-		color: var(--ink);
 	}
 </style>

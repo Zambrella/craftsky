@@ -322,6 +322,7 @@ class _ProfileAvatarLoadingShell extends StatelessWidget {
           handle: transition.handle,
           displayName: transition.displayName,
           crafts: transition.crafts,
+          isBusiness: transition.isBusiness,
           avatarUrl: transition.avatar.avatarUrl,
           customisation: transition.avatar.customisation,
         ),

@@ -2,9 +2,12 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/profile/widgets/profile_business_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
+import 'package:craftsky_app/shared/widgets/business_identity_icon.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -16,6 +19,8 @@ class CompactProfileIdentity extends StatelessWidget {
     required this.handle,
     this.displayName,
     this.crafts = const [],
+    this.isBusiness = false,
+    this.customisation = ProfileCustomisation.defaults,
     this.badge,
     super.key,
   });
@@ -23,6 +28,8 @@ class CompactProfileIdentity extends StatelessWidget {
   final String handle;
   final String? displayName;
   final List<String> crafts;
+  final bool isBusiness;
+  final ProfileCustomisation customisation;
   final Widget? badge;
 
   @override
@@ -41,6 +48,21 @@ class CompactProfileIdentity extends StatelessWidget {
         LayoutBuilder(
           builder: (context, rowConstraints) => Row(
             children: [
+              if (isBusiness) ...[
+                Semantics(
+                  label: l10n.businessProfileLabel,
+                  image: true,
+                  excludeSemantics: true,
+                  child: ProfileBusinessHero.source(
+                    context,
+                    child: BusinessIdentityIcon(
+                      size: 16,
+                      customisation: customisation,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -56,7 +78,11 @@ class CompactProfileIdentity extends StatelessWidget {
                       constraints.maxWidth,
                       math.max(
                         constraints.maxWidth - nameWidth,
-                        8 + _craftCountWidth(context, crafts.length),
+                        8 +
+                            _craftCountWidth(
+                              context,
+                              crafts.length,
+                            ),
                       ),
                     );
                     return Row(
@@ -76,7 +102,9 @@ class CompactProfileIdentity extends StatelessWidget {
                         if (crafts.isNotEmpty)
                           ConstrainedBox(
                             constraints: BoxConstraints(maxWidth: iconBudget),
-                            child: _CompactCraftIcons(crafts: crafts),
+                            child: _CompactCraftIcons(
+                              crafts: crafts,
+                            ),
                           ),
                       ],
                     );
@@ -130,7 +158,10 @@ class _CompactCraftIcons extends StatelessWidget {
     }
     if (entries.isEmpty) return const SizedBox.shrink();
     final ids = entries.keys.toList(growable: false);
-    final labels = entries.values.join(', ');
+    final labels = [
+      ...entries.values,
+    ].join(', ');
+    final entryCount = ids.length;
     const iconSize = 16.0;
     const gap = 4.0;
     const leadingGap = 8.0;
@@ -139,13 +170,13 @@ class _CompactCraftIcons extends StatelessWidget {
         // Measure the count with the user's text scaling, then reserve room
         // for it before choosing icons. Unknown crafts remain in the count
         // and accessible label even when they have no branded glyph.
-        final icons = ids
-            .where((id) => CraftIcon.assetPathFor(id) != null)
-            .toList(growable: false);
+        final icons = <String>[
+          ...ids.where((id) => CraftIcon.assetPathFor(id) != null),
+        ];
         var visible = icons.length;
 
         while (visible > 0) {
-          final hidden = ids.length - visible;
+          final hidden = entryCount - visible;
           final width =
               leadingGap +
               visible * iconSize +
@@ -154,7 +185,7 @@ class _CompactCraftIcons extends StatelessWidget {
           if (width <= constraints.maxWidth) break;
           visible--;
         }
-        final hidden = ids.length - visible;
+        final hidden = entryCount - visible;
         return Tooltip(
           message: labels,
           excludeFromSemantics: true,

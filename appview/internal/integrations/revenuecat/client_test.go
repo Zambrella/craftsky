@@ -2,6 +2,7 @@ package revenuecat
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,7 +116,7 @@ func TestClientRejectsUntrustedOrUnscopedPaginationURLs(t *testing.T) {
 				if requests > 1 {
 					t.Fatalf("untrusted pagination URL was requested: %s", r.URL.String())
 				}
-				_, _ = w.Write([]byte(`{"items":[{"id":"sub-one"}],"next_page":"` + test.nextPage + `"}`))
+				_, _ = w.Write([]byte(`{"items":[{"id":"sub-one","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":"` + test.nextPage + `"}`))
 			}))
 			t.Cleanup(server.Close)
 			client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", APIKey: "secret", ProjectID: "proj"}, server.Client())
@@ -141,7 +142,7 @@ func TestClientRejectsPaginationLoopsAndBoundsPages(t *testing.T) {
 		requests := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			requests++
-			_, _ = w.Write([]byte(`{"items":[{"id":"sub-one"}],"next_page":"` + path + `?starting_after=sub-one"}`))
+			_, _ = w.Write([]byte(`{"items":[{"id":"sub-one","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":"` + path + `?starting_after=sub-one"}`))
 		}))
 		t.Cleanup(server.Close)
 		client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", APIKey: "secret", ProjectID: "proj", PageLimit: 1, MaxPages: 3}, server.Client())
@@ -159,7 +160,7 @@ func TestClientRejectsPaginationLoopsAndBoundsPages(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requests++
 			next := path + `?starting_after=sub-` + string(rune('0'+requests))
-			_, _ = w.Write([]byte(`{"items":[{"id":"sub"}],"next_page":"` + next + `"}`))
+			_, _ = w.Write([]byte(`{"items":[{"id":"sub","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":"` + next + `"}`))
 		}))
 		t.Cleanup(server.Close)
 		client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", APIKey: "secret", ProjectID: "proj", MaxPages: 2}, server.Client())
@@ -181,20 +182,20 @@ func TestClientRejectsOversizedAndErrorPaginationPages(t *testing.T) {
 		secondPage func(http.ResponseWriter)
 	}{
 		{name: "provider error", secondPage: func(w http.ResponseWriter) { http.Error(w, "private-provider-canary", http.StatusBadGateway) }},
-		{name: "oversized", secondPage: func(w http.ResponseWriter) { _, _ = w.Write([]byte(strings.Repeat("x", 257))) }},
+		{name: "oversized", secondPage: func(w http.ResponseWriter) { _, _ = w.Write([]byte(strings.Repeat("x", 513))) }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			requests := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				requests++
 				if requests == 1 {
-					_, _ = w.Write([]byte(`{"items":[{"id":"sub-one"}],"next_page":"` + path + `?starting_after=sub-one"}`))
+					_, _ = w.Write([]byte(`{"items":[{"id":"sub-one","product_id":"prod-plus","store":"app_store","environment":"production","status":"active","gives_access":true,"pending_payment":false}],"next_page":"` + path + `?starting_after=sub-one"}`))
 					return
 				}
 				test.secondPage(w)
 			}))
 			t.Cleanup(server.Close)
-			client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", APIKey: "secret", ProjectID: "proj", MaxResponseBytes: 256}, server.Client())
+			client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", APIKey: "secret", ProjectID: "proj", MaxResponseBytes: 512}, server.Client())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -234,11 +235,11 @@ func TestClientPreservesAutoRenewalStatusEvidence(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{
 			"items":[
-				{"id":"missing","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false},
-				{"id":"empty","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"auto_renewal_status":""},
-				{"id":"unknown","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"auto_renewal_status":"future_provider_state"},
-				{"id":"resumable","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"auto_renewal_status":"will_pause"},
-				{"id":"non-renewing","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"auto_renewal_status":"will_not_renew"}
+				{"id":"missing","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false},
+				{"id":"empty","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false,"auto_renewal_status":""},
+				{"id":"unknown","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false,"auto_renewal_status":"future_provider_state"},
+				{"id":"resumable","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false,"auto_renewal_status":"will_pause"},
+				{"id":"non-renewing","product_id":"product","store":"app_store","environment":"production","status":"expired","gives_access":false,"pending_payment":false,"auto_renewal_status":"will_not_renew"}
 			],
 			"next_page":null
 		}`))
@@ -276,5 +277,76 @@ func TestClientProviderErrorsDoNotExposeResponseCanaries(t *testing.T) {
 	_, err = client.ListCustomerSubscriptions(context.Background(), uuid.New())
 	if err == nil || strings.Contains(err.Error(), canary) {
 		t.Fatalf("provider error = %v, want generic error without canary", err)
+	}
+}
+
+func TestFirstWebCustomerIsCreatedBeforeEmptySnapshotIsAccepted(t *testing.T) {
+	customer := uuid.New()
+	for _, tc := range []struct {
+		name         string
+		createStatus int
+		afterStatus  int
+		wantError    bool
+	}{
+		{"created", http.StatusCreated, http.StatusOK, false},
+		{"concurrent SDK creation", http.StatusConflict, http.StatusOK, false},
+		{"missing project", http.StatusNotFound, http.StatusNotFound, true},
+		{"insufficient create scope", http.StatusForbidden, http.StatusNotFound, true},
+		{"read still missing", http.StatusCreated, http.StatusNotFound, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reads, creates := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer secret" {
+					t.Error("missing authorization")
+				}
+				if r.Method == http.MethodPost {
+					creates++
+					if r.URL.Path != "/v2/projects/project/customers" {
+						t.Errorf("create path=%s", r.URL.Path)
+					}
+					raw, _ := io.ReadAll(r.Body)
+					if string(raw) != `{"id":"`+customer.String()+`"}` {
+						t.Errorf("customer body=%s", raw)
+					}
+					w.WriteHeader(tc.createStatus)
+					return
+				}
+				reads++
+				if reads == 1 {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(tc.afterStatus)
+				_, _ = w.Write([]byte(`{"object":"list","items":[],"next_page":null}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(ClientConfig{BaseURL: server.URL + "/v2", ProjectID: "project", APIKey: "secret"}, server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := client.ListCustomerSubscriptions(context.Background(), customer)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("snapshot=%+v err=%v", snapshot, err)
+			}
+			if creates != 1 {
+				t.Fatalf("create calls=%d", creates)
+			}
+			if tc.wantError && snapshot.Complete {
+				t.Fatal("missing/unavailable customer accepted as empty authoritative snapshot")
+			}
+			if !tc.wantError && (!snapshot.Complete || len(snapshot.Subscriptions) != 0) {
+				t.Fatalf("first customer snapshot=%+v", snapshot)
+			}
+		})
+	}
+}
+
+func TestSubscriptionSnapshotRetainsStoreIdentifierForManagement(t *testing.T) {
+	yes, no := true, false
+	resource := subscriptionResource{ID: "rc_subscription", StoreSubscriptionIdentifier: "sub_owner", ProductID: []byte(`"plus"`), Store: "stripe", Environment: "sandbox", Status: "active", GivesAccess: &yes, PendingPayment: &no}
+	snapshot, err := resource.snapshot()
+	if err != nil || snapshot.StoreSubscriptionIdentifier != "sub_owner" {
+		t.Fatalf("store identity lost: %v", err)
 	}
 }

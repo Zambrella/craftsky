@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PlusTierIcon from './PlusTierIcon.svelte';
 	import { nativeIconAliases, nativeIconPaths } from './native-icons.ts';
 	let {
 		name,
@@ -16,18 +17,22 @@
 	);
 </script>
 
-<svg
-	width={size}
-	height={size}
-	viewBox="0 0 1024 1024"
-	fill="currentColor"
-	aria-hidden="true"
-	focusable="false"
-	><path
-		d={bold
-			? icon.bold || icon.regular
-			: filled
-				? icon.fill || icon.regular
-				: icon.regular}
-	/></svg
->
+{#if name === 'subscription'}
+	<PlusTierIcon {size} />
+{:else}
+	<svg
+		width={size}
+		height={size}
+		viewBox="0 0 1024 1024"
+		fill="currentColor"
+		aria-hidden="true"
+		focusable="false"
+		><path
+			d={bold
+				? icon.bold || icon.regular
+				: filled
+					? icon.fill || icon.regular
+					: icon.regular}
+		/></svg
+	>
+{/if}

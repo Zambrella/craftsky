@@ -376,9 +376,9 @@ for (const label of ['Followers', 'Following']) {
 			.getByRole('link', { name: 'Back to profile', exact: true })
 			.click();
 		await expect(page).toHaveURL(/profiles\/did%3Aplc%3Abob$/);
-		await expect(
-			page.getByRole('heading', { name: 'Bob Maker', exact: true })
-		).toBeVisible();
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'Bob Maker'
+		);
 	});
 }
 

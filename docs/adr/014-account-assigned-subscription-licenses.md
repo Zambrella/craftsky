@@ -1,6 +1,6 @@
 ## Architecture Decision Record
 
-- Status: Accepted
+- Status: Superseded by [ADR 027](027-per-did-subscriptions.md) for subscription ownership, assignment and native tier groups; retained as historical context
 - Aspect: Subscription identity, multi-account billing, paid access authority
 - Date: 2026-09-07
 - Decision: Represent native-store subscriptions as independently assignable account licenses owned by a private CraftSky billing account

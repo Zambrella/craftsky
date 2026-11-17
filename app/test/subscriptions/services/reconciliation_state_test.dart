@@ -4,6 +4,70 @@ import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.d
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('same-ID active Plus to Business product change completes', () {
+    final tracker = ReconciliationTracker(
+      baseline: _state(requested: 1, reconciled: 1, includeLicense: true),
+      intent: ReconciliationIntent.purchase,
+      expectedTier: SubscriptionTier.business,
+    );
+    expect(
+      tracker
+          .evaluate(
+            _state(
+              requested: 2,
+              reconciled: 2,
+              includeLicense: true,
+              tier: SubscriptionTier.business,
+              productId: 'craftsky_business',
+            ),
+          )
+          .decision,
+      ReconciliationDecision.completed,
+    );
+  });
+  test(
+    'deferred downgrade waits for exact scheduled tier and keeps Business',
+    () {
+      final before = _state(
+        requested: 1,
+        reconciled: 1,
+        includeLicense: true,
+        tier: SubscriptionTier.business,
+      );
+      final tracker = ReconciliationTracker(
+        baseline: before,
+        intent: ReconciliationIntent.purchase,
+        expectedTier: SubscriptionTier.plus,
+      );
+      expect(
+        tracker
+            .evaluate(
+              _state(
+                requested: 2,
+                reconciled: 2,
+                includeLicense: true,
+                tier: SubscriptionTier.business,
+              ),
+            )
+            .decision,
+        ReconciliationDecision.pending,
+      );
+      final scheduled = _state(
+        requested: 2,
+        reconciled: 2,
+        includeLicense: true,
+        tier: SubscriptionTier.business,
+        pendingTier: SubscriptionTier.plus,
+        renewal: 'will_change_product',
+      );
+      expect(
+        tracker.evaluate(scheduled).decision,
+        ReconciliationDecision.completed,
+      );
+      expect(scheduled.licenses.single.tier, SubscriptionTier.business);
+    },
+  );
+
   test('UT-005 first observed post-baseline generation becomes target', () {
     final tracker = ReconciliationTracker(
       baseline: _state(requested: 7, reconciled: 7),
@@ -158,6 +222,10 @@ BillingState _state({
   bool includeLicense = false,
   bool givesAccess = true,
   String anomaly = '',
+  String productId = 'craftsky_plus',
+  SubscriptionTier tier = SubscriptionTier.plus,
+  SubscriptionTier? pendingTier,
+  String renewal = 'will_renew',
 }) => BillingState(
   billingAccountId: '10000000-0000-4000-8000-000000000001',
   revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
@@ -168,22 +236,23 @@ BillingState _state({
       ? [
           BillingSubscription(
             id: '30000000-0000-4000-8000-000000000001',
-            productId: 'craftsky_plus',
+            productId: productId,
             store: 'app_store',
             status: 'active',
             givesAccess: givesAccess,
             pendingPayment: false,
-            autoRenewalStatus: 'will_renew',
+            autoRenewalStatus: renewal,
+            pendingTier: pendingTier,
             anomaly: anomaly,
           ),
         ]
       : const [],
   licenses: includeLicense
-      ? const [
+      ? [
           BillingLicense(
             id: '40000000-0000-4000-8000-000000000001',
             subscriptionId: '30000000-0000-4000-8000-000000000001',
-            tier: SubscriptionTier.plus,
+            tier: tier,
             assignable: true,
             anomaly: 'none',
           ),

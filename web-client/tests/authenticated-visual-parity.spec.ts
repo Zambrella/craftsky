@@ -484,3 +484,159 @@ test('project detail page has the native compact app bar and accessible fields',
 		path: testInfo.outputPath('composer-project-details-desktop.png')
 	});
 });
+
+for (const withImage of [true, false]) {
+	test(`event detail header and actions match native: ${withImage ? 'photo' : 'no photo'}`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 402, height: 600 });
+		await page.route(
+			'**/api/appview/v1/events/**/visual-workshop',
+			async (route) => {
+				const response = await route.fetch();
+				const event = await response.json();
+				if (!withImage) delete event.image;
+				event.registrationUri = 'https://craftsky.social/register';
+				await route.fulfill({ response, json: event });
+			}
+		);
+		await settleAccountView(page, '/events/did%3Aplc%3Aalice/visual-workshop');
+		const bar = page.locator('.event-appbar');
+		const title = bar.getByRole('heading');
+		if (withImage) {
+			await expect(bar).toHaveClass(/expanded/);
+			await expect(title).toBeHidden();
+			await page.evaluate(() => window.scrollTo(0, 240));
+			await expect(bar).not.toHaveClass(/expanded/);
+			await expect(title).toBeVisible();
+			await page.evaluate(() => window.scrollTo(0, 0));
+			await expect(bar).toHaveClass(/expanded/);
+		} else {
+			await expect(page.locator('.event-hero')).toHaveCount(0);
+			await expect(title).toHaveText('Natural colour knitting workshop');
+			await expect(title).toBeVisible();
+		}
+		await page.getByLabel('Event actions', { exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'Copy event link', exact: true })
+		).toBeVisible();
+		await page.keyboard.press('Escape');
+		await page
+			.getByRole('link', { name: 'Event website', exact: true })
+			.click();
+		await expect(
+			page.getByRole('dialog', { name: 'Open link?', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await page.getByRole('link', { name: 'Register', exact: true }).click();
+		await expect(
+			page.getByRole('dialog', { name: 'Open link?', exact: true })
+		).toBeVisible();
+		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await page
+			.getByRole('link', { name: 'Back to organiser', exact: true })
+			.click();
+		await expect(page).toHaveURL(/profiles\/did%3Aplc%3Aalice\?tab=events$/);
+	});
+}
+
+test('visitor event details link to the creator, show roles and share through a chat draft', async ({
+	page
+}) => {
+	await page.route(
+		'**/api/appview/v1/events/**/visitor-workshop',
+		async (route) => {
+			const response = await page.request.get(
+				'/api/appview/v1/events/did%3Aplc%3Aalice/visual-workshop'
+			);
+			const event = await response.json();
+			await route.fulfill({
+				json: {
+					...event,
+					did: 'did:plc:bob',
+					rkey: 'visitor-workshop',
+					uri: 'at://did:plc:bob/social.craftsky.business.event/visitor-workshop'
+				}
+			});
+		}
+	);
+	const detail = '/events/did%3Aplc%3Abob/visitor-workshop';
+	await settleAccountView(page, detail);
+	await expect(
+		page.getByText('Organizer, Instructor', { exact: false })
+	).toBeVisible();
+	await expect(page.getByText("Creator's roles", { exact: true })).toHaveCount(
+		0
+	);
+	await page.getByRole('link', { name: 'Bob Maker', exact: true }).click();
+	await expect(page).toHaveURL(/profiles\/did%3Aplc%3Abob$/);
+	await page.goto(detail);
+	await page.getByLabel('Event actions', { exact: true }).click();
+	await expect(
+		page.getByRole('link', { name: 'Edit event', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Delete event', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Postpone event', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Cancel event', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Report event', exact: true })
+	).toBeVisible();
+	await page.getByRole('link', { name: 'Send via chat', exact: true }).click();
+	await expect(
+		page.getByText(
+			'Choose someone to send this link to. It will be added to your draft for review.'
+		)
+	).toBeVisible();
+	await page.locator('.conversation-list button.recipient').first().click();
+	await expect(
+		page.getByRole('textbox', { name: 'Message', exact: true })
+	).toHaveValue(
+		'https://app.craftsky.social/events/did%3Aplc%3Abob/visitor-workshop'
+	);
+});
+
+test('visitor creator attribution falls back to the handle with a tiny avatar', async ({
+	page
+}) => {
+	await page.route(
+		'**/api/appview/v1/events/**/visitor-workshop',
+		async (route) => {
+			const response = await page.request.get(
+				'/api/appview/v1/events/did%3Aplc%3Aalice/visual-workshop'
+			);
+			const event = await response.json();
+			await route.fulfill({
+				json: { ...event, did: 'did:plc:bob', rkey: 'visitor-workshop' }
+			});
+		}
+	);
+	await page.route(
+		'**/api/appview/v1/profiles/*did%3Aplc%3Abob',
+		async (route) => {
+			const response = await route.fetch();
+			const profile = await response.json();
+			await route.fulfill({
+				response,
+				json: {
+					...profile,
+					displayName: '   ',
+					avatar: 'https://fixture.craftsky.test/avatar.png'
+				}
+			});
+		}
+	);
+	await page.route('https://fixture.craftsky.test/avatar.png', (route) =>
+		route.fulfill({ path: 'static/app-icon.png', contentType: 'image/png' })
+	);
+	await settleAccountView(page, '/events/did%3Aplc%3Abob/visitor-workshop');
+	const creator = page.getByRole('link', { name: '@bob.test', exact: true });
+	await expect(creator).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
+	await expect(creator.locator('img')).toBeVisible();
+	await expect(creator.locator('.avatar')).toHaveCSS('width', '24px');
+});

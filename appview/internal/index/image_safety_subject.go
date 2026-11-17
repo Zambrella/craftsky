@@ -126,16 +126,16 @@ func extractBusinessProfileImages(raw json.RawMessage) ([]imageRequirement, erro
 	}
 	requirements := make([]imageRequirement, 0, len(record.Products))
 	for position, product := range record.Products {
-		if product == nil || product.Image == nil {
+		if product == nil {
 			continue
 		}
-		if product.Image.Image == nil {
-			return nil, fmt.Errorf("product image blob is missing")
+
+		for imageIndex, image := range product.Images {
+			if image == nil || image.Image == nil {
+				return nil, fmt.Errorf("product image blob is missing")
+			}
+			requirements = append(requirements, imageRequirement{slot: fmt.Sprintf("products.%d.images.%d", position, imageIndex), blob: image.Image})
 		}
-		requirements = append(requirements, imageRequirement{
-			slot: fmt.Sprintf("products.%d.image", position),
-			blob: product.Image.Image,
-		})
 	}
 	return requirements, nil
 }

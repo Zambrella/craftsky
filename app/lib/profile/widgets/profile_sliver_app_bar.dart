@@ -133,19 +133,9 @@ class ProfileSliverAppBar extends StatelessWidget {
             maxWidth: availableWidth,
           )
         : 0.0;
-    final businessLabelHeight = isBusiness
-        ? _measureTextHeight(
-            text: AppLocalizations.of(context).businessProfileLabel,
-            style: theme.textTheme.labelLarge,
-            textScaler: textScaler,
-            direction: direction,
-            maxWidth: availableWidth,
-          )
-        : 0.0;
     final measuredIdentityHeight =
         nameHeight +
         (pronounsHeight == 0 ? 0 : 2 + pronounsHeight) +
-        (businessLabelHeight == 0 ? 0 : 2 + businessLabelHeight) +
         (handleHeight == 0 ? 0 : 2 + handleHeight);
     final identityHeight = math.max(
       minimumIdentityHeight,
@@ -165,19 +155,23 @@ class ProfileSliverAppBar extends StatelessWidget {
     var rowWidth = 0.0;
     var chipHeight = 0.0;
 
-    for (final craft in crafts) {
-      final label = craft.isEmpty
-          ? craft
-          : craft[0].toUpperCase() + craft.substring(1);
+    final chips = [
+      for (final craft in crafts)
+        (
+          craft.isEmpty ? craft : craft[0].toUpperCase() + craft.substring(1),
+          CraftIcon.assetPathFor(craft) != null,
+        ),
+    ];
+    for (final (label, hasIcon) in chips) {
       final painter = TextPainter(
         text: TextSpan(text: label, style: theme.textTheme.labelMedium),
         textDirection: direction,
         textScaler: textScaler,
         maxLines: 1,
       )..layout();
-      final iconWidth = CraftIcon.assetPathFor(craft) == null
-          ? 0.0
-          : ProfileCraftChips.iconSize + spacing.sp1;
+      final iconWidth = hasIcon
+          ? ProfileCraftChips.iconSize + spacing.sp1
+          : 0.0;
       final measuredWidth = painter.width + iconWidth + (spacing.sp3 * 2);
       final width = math.min(measuredWidth, availableWidth);
       chipHeight = math.max(chipHeight, painter.height + 12);
@@ -244,14 +238,29 @@ class _ProfileLeadingAction extends StatelessWidget {
     final bundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
+    final needsBackplate =
+        (profileShaderBackgrounds[customisation.background] ?? -1) >= 6;
     final foregroundColor = Color.lerp(
-      profileColour(bundle.foreground),
+      needsBackplate
+          ? theme.colorScheme.onSurface
+          : profileColour(bundle.foreground),
       theme.colorScheme.onSurface,
       collapsed,
     );
     final style = ButtonStyle(
-      backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+      backgroundColor: WidgetStatePropertyAll(
+        needsBackplate
+            ? Color.lerp(
+                theme.extension<BrandSwatchTheme>()!.paper,
+                Colors.transparent,
+                collapsed,
+              )
+            : Colors.transparent,
+      ),
       foregroundColor: WidgetStatePropertyAll(foregroundColor),
+      shape: needsBackplate
+          ? const WidgetStatePropertyAll(CircleBorder())
+          : null,
     );
 
     if (showDrawer) {
@@ -368,9 +377,8 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                       handle: handle,
                       displayName: displayName,
                       pronouns: pronouns,
-                      businessLabel: isBusiness
-                          ? AppLocalizations.of(context).businessProfileLabel
-                          : null,
+                      isBusiness: isBusiness,
+                      customisation: customisation,
                       centered: true,
                     ),
                   ),

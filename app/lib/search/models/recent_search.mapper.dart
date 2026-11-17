@@ -338,6 +338,11 @@ class ProfileRecentSearchPayloadMapper
       MapperContainer.globals.use(
         _instance = ProfileRecentSearchPayloadMapper._(),
       );
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        ProfileCustomisationMapper(),
+      ]);
+      AccountTypeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -370,6 +375,19 @@ class ProfileRecentSearchPayloadMapper
   static List<String> _$crafts(ProfileRecentSearchPayload v) => v.crafts;
   static const Field<ProfileRecentSearchPayload, List<String>> _f$crafts =
       Field('crafts', _$crafts, opt: true, def: const []);
+  static AccountType? _$accountType(ProfileRecentSearchPayload v) =>
+      v.accountType;
+  static const Field<ProfileRecentSearchPayload, AccountType> _f$accountType =
+      Field('accountType', _$accountType, opt: true);
+  static ProfileCustomisation _$customisation(ProfileRecentSearchPayload v) =>
+      v.customisation;
+  static const Field<ProfileRecentSearchPayload, ProfileCustomisation>
+  _f$customisation = Field(
+    'customisation',
+    _$customisation,
+    opt: true,
+    def: ProfileCustomisation.defaults,
+  );
 
   @override
   final MappableFields<ProfileRecentSearchPayload> fields = const {
@@ -378,6 +396,8 @@ class ProfileRecentSearchPayloadMapper
     #displayName: _f$displayName,
     #avatar: _f$avatar,
     #crafts: _f$crafts,
+    #accountType: _f$accountType,
+    #customisation: _f$customisation,
   };
 
   static ProfileRecentSearchPayload _instantiate(DecodingData data) {
@@ -387,6 +407,8 @@ class ProfileRecentSearchPayloadMapper
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
       crafts: data.dec(_f$crafts),
+      accountType: data.dec(_f$accountType),
+      customisation: data.dec(_f$customisation),
     );
   }
 
@@ -471,6 +493,8 @@ abstract class ProfileRecentSearchPayloadCopyWith<
     String? displayName,
     String? avatar,
     List<String>? crafts,
+    AccountType? accountType,
+    ProfileCustomisation? customisation,
   });
   ProfileRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -504,6 +528,8 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? avatar = $none,
     List<String>? crafts,
+    Object? accountType = $none,
+    ProfileCustomisation? customisation,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -511,6 +537,8 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
       if (crafts != null) #crafts: crafts,
+      if (accountType != $none) #accountType: accountType,
+      if (customisation != null) #customisation: customisation,
     }),
   );
   @override
@@ -521,6 +549,8 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
         displayName: data.get(#displayName, or: $value.displayName),
         avatar: data.get(#avatar, or: $value.avatar),
         crafts: data.get(#crafts, or: $value.crafts),
+        accountType: data.get(#accountType, or: $value.accountType),
+        customisation: data.get(#customisation, or: $value.customisation),
       );
 
   @override

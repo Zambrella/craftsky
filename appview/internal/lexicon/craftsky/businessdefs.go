@@ -51,8 +51,8 @@ type BusinessDefs_Price struct {
 //
 // An external product card in authored display order.
 type BusinessDefs_Product struct {
-	// image: Optional product image for interoperable records; Craftsky writes require it.
-	Image *BusinessDefs_Image `json:"image,omitempty" cborgen:"image,omitempty"`
+	// images: Product photos in authored carousel order. Craftsky writes require one to four.
+	Images []*BusinessDefs_Image `json:"images,omitempty" cborgen:"images,omitempty"`
 	// price: Optional seller-authored display price.
 	Price *BusinessDefs_Price `json:"price,omitempty" cborgen:"price,omitempty"`
 	// title: Seller-authored product title.

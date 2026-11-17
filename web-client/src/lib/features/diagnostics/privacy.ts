@@ -92,6 +92,7 @@ const operationNames = [
 	'account.switch',
 	'account.signOut',
 	'startup.access',
+	'startup.billing.identity',
 	'startup.identity',
 	'startup.identity.refresh',
 	'startup.count.activity',

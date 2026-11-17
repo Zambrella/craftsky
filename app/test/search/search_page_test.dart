@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -19,6 +21,7 @@ import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/business_identity_icon.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -222,6 +225,54 @@ void main() {
     expect(find.text('#MeMadeMay'), findsOneWidget);
     expect(find.byType(CraftIcon), findsOneWidget);
   });
+
+  testWidgets(
+    'recent profile rows retain business identity and selected colour',
+    (tester) async {
+      await tester.pumpWidget(
+        _searchPageApp(
+          repository: FakeSearchRepository(
+            onTopHashtags: ({craftTypes, limit}) async =>
+                const TopHashtagsResponse(groups: []),
+            onListRecentSearches: () async => RecentSearchPage.fromMap({
+              'items': [
+                {
+                  'id': 'recent_profile',
+                  'type': 'profile',
+                  'displayLabel': 'Alice',
+                  'updatedAt': '2026-11-16T12:00:00Z',
+                  'payload': {
+                    'did': 'did:plc:alice',
+                    'handle': 'alice.test',
+                    'accountType': 'business',
+                    'customisation': {
+                      'colour': 'orchid',
+                      'profileBackground': 'animated-flow',
+                    },
+                  },
+                },
+              ],
+            }),
+          ),
+          home: const SearchPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final tile = tester.widget<ProfileAccountListTile>(
+        find.byType(ProfileAccountListTile),
+      );
+      expect(tile.account.accountType, AccountType.business);
+      expect(tile.account.customisation.colour, 'orchid');
+      expect(find.byType(BusinessIdentityIcon), findsOneWidget);
+      expect(
+        tester
+            .widget<ProfileAvatar>(find.byType(ProfileAvatar))
+            .customisation
+            .colour,
+        'orchid',
+      );
+    },
+  );
 
   testWidgets('SearchPage renders debounced profile and hashtag suggestions', (
     tester,

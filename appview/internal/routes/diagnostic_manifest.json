@@ -7,12 +7,6 @@
   },
   {
     "method": "DELETE",
-    "path": "/v1/billing/licenses/{licenseId}/assignment",
-    "category": "appview.billing.licenses.detail.assignment",
-    "public": false
-  },
-  {
-    "method": "DELETE",
     "path": "/v1/events/{did}/{rkey}",
     "category": "appview.events.detail",
     "public": true
@@ -387,6 +381,12 @@
     "method": "GET",
     "path": "/v1/billing/account",
     "category": "appview.billing.account",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/billing/web-prices",
+    "category": "appview.billing.web_prices",
     "public": false
   },
   {
@@ -1075,6 +1075,30 @@
   },
   {
     "method": "POST",
+    "path": "/v1/billing/web-checkout",
+    "category": "appview.billing.web_checkout",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/billing/web-checkout/cancel",
+    "category": "appview.billing.web_checkout.cancel",
+    "public": false
+  },
+  {
+    "method":"POST",
+    "path":"/v1/billing/web-paywall",
+    "category":"appview.billing.web_paywall",
+    "public":false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/billing/web-management",
+    "category": "appview.billing.web_management",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/blobs/images",
     "category": "appview.blobs.images",
     "public": false
@@ -1251,12 +1275,6 @@
     "method": "PUT",
     "path": "/v1/billing/account",
     "category": "appview.billing.account",
-    "public": false
-  },
-  {
-    "method": "PUT",
-    "path": "/v1/billing/licenses/{licenseId}/assignment",
-    "category": "appview.billing.licenses.detail.assignment",
     "public": false
   },
   {

@@ -5,7 +5,7 @@ import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_restore_controller.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,11 +26,6 @@ void main() {
 
       expect(service.restoreCalls, 1);
       expect(result.outcome, SubscriptionRestoreOutcome.completed);
-      expect(result.requiresAssignment, isTrue);
-      expect(
-        result.assignmentLicense?.id,
-        '40000000-0000-4000-8000-000000000002',
-      );
       expect(
         result.state?.licenses.first.assignedDid,
         Did.parse('did:plc:bob'),
@@ -54,7 +49,6 @@ void main() {
     final result = await _controller(api, _RestoreService()).restore();
 
     expect(result.outcome, SubscriptionRestoreOutcome.completed);
-    expect(result.assignmentLicense, isNull);
   });
 
   test('AT-009 unchanged restore completes after reconciliation', () async {
@@ -63,7 +57,6 @@ void main() {
     final result = await _controller(api, _RestoreService()).restore();
 
     expect(result.outcome, SubscriptionRestoreOutcome.completed);
-    expect(result.requiresAssignment, isFalse);
   });
 
   test('AT-014 reconciled restore anomaly requires support', () async {
@@ -105,7 +98,6 @@ void main() {
     final result = await _controller(api, _RestoreService()).restore();
 
     expect(result.outcome, SubscriptionRestoreOutcome.anomaly);
-    expect(result.assignmentLicense, isNull);
     expect(result.retry, isNull);
   });
 
@@ -135,7 +127,7 @@ void main() {
         ]),
         service,
       ).restore(),
-      throwsA(isA<BillingOwnerGuardException>()),
+      throwsA(isA<BillingAccountGuardException>()),
     );
     expect(service.restoreCalls, 0);
   });
@@ -318,7 +310,7 @@ SubscriptionRestoreController _controller(
   SessionRegistry Function()? readRegistry,
   void Function(BillingState)? onProviderConfirmed,
 }) => SubscriptionRestoreController(
-  ownerGuard: BillingOwnerGuard(readRegistry ?? _registry),
+  ownerGuard: BillingAccountGuard(readRegistry ?? _registry),
   api: api,
   revenueCat: service,
   wait: (_) async {},
@@ -334,8 +326,7 @@ SessionRegistry _registry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );
@@ -468,15 +459,8 @@ final class _ScriptedApi implements SubscriptionApi {
   }
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
   Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
 
   @override
   Future<SubscriptionAccess> getAccess() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }

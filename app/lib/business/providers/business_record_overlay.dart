@@ -300,7 +300,8 @@ bool _sameSignatures(Set<(String, int)> first, Set<(String, int)> second) =>
 Map<String, Object?> _productContent(BusinessProductView product) => {
   'title': product.title,
   if (product.uri != null) 'uri': product.uri,
-  if (product.image != null) 'image': _imageContent(product.image),
+  if (product.photos.isNotEmpty)
+    'images': [for (final image in product.photos) _imageContent(image)],
   if (product.price case final price?)
     'price': {'amount': price.amount, 'currency': price.currency},
 };

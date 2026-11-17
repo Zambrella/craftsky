@@ -41,7 +41,9 @@ func (s *Store) WithPlusAccess(ctx context.Context, did syntax.DID, effect func(
 		}
 		conn.Release()
 	}()
-	access, err := s.SelfAccess(ctx, did, time.Now())
+	// Reuse the session holding the fence. A second pool acquisition can
+	// deadlock the access check when concurrent publishers occupy the pool.
+	access, err := s.selfAccessUsing(ctx, conn, did, time.Now())
 	if err != nil {
 		return fmt.Errorf("read fenced subscription access: %w", err)
 	}

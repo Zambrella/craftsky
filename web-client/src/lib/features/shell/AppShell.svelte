@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Startup from './Startup.svelte';
+	import FeaturePaywall from './FeaturePaywall.svelte';
 	import { routeTitle } from './page-context';
 	import RailNavigation from './RailNavigation.svelte';
 	import NavigationFooter from './NavigationFooter.svelte';
@@ -23,7 +24,6 @@
 		CraftskyAPI,
 		type OnboardingStatus,
 		type EligibilityStatus,
-		type SubscriptionAccess,
 		type Profile
 	} from '#lib/api/client.ts';
 	import Icon from './Icon.svelte';
@@ -41,6 +41,12 @@
 		notificationBadgeContext
 	} from './notification-badge.svelte';
 	import { PageHistory, pageHistoryContext } from './page-history';
+	import { BillingIdentity } from './billing-identity';
+	import { subscriptionsEnabled } from './release-config';
+	import {
+		SubscriptionAccessState,
+		subscriptionAccessContext
+	} from './subscription-access.svelte';
 	import {
 		Publications,
 		publicationsContext
@@ -68,7 +74,8 @@
 			navigation.to &&
 			navigation.from &&
 			navigation.to.url.href !== navigation.from.url.href
-		)
+		) {
+			featurePaywall = null;
 			pageHistory.leave(
 				navigationDepth,
 				navigationDepth +
@@ -81,6 +88,7 @@
 						navigation.from.url.searchParams.get('q') ===
 							navigation.to.url.searchParams.get('q'))
 			);
+		}
 	});
 	let navigationDepth = 0;
 	let routeHistory: string[] = [];
@@ -217,6 +225,13 @@
 		};
 	});
 	const accountId = untrack(() => session.id);
+	const account = untrack(() => `${session.id}:${session.did}`);
+	const subscriptionAccess = new SubscriptionAccessState(
+		account,
+		untrack(() => session.did),
+		() => `${session.id}:${session.did}`
+	);
+	setContext(subscriptionAccessContext, subscriptionAccess);
 	let expired = $state(false);
 	const api = new CraftskyAPI(
 		async (input, init) => {
@@ -243,8 +258,7 @@
 		newMessages = $state(0),
 		onboarding = $state<OnboardingStatus>(),
 		eligibility = $state<EligibilityStatus>(),
-		ready = $state(false),
-		access = $state<SubscriptionAccess>();
+		ready = $state(false);
 	const activityBadge = new NotificationBadge();
 	setContext(notificationBadgeContext, () => {
 		const finish = activityBadge.beginSeen();
@@ -276,6 +290,25 @@
 	let discovery = $derived(
 		desktop && !gated && eligibility?.state === 'eligible'
 	);
+	const billingIdentityAllowed = $derived(
+		ready &&
+			!expired &&
+			eligibility?.state === 'eligible' &&
+			onboarding?.completed === true &&
+			subscriptionsEnabled()
+	);
+	const billingIdentity = new BillingIdentity(
+		account,
+		() => `${session.id}:${session.did}`,
+		api.billing,
+		subscriptionAccess,
+		() => billingIdentityAllowed,
+		(error) => reportFailure(error, 'startup.billing.identity')
+	);
+	$effect(() => {
+		if (billingIdentityAllowed)
+			untrack(() => void billingIdentity.synchronize());
+	});
 	function choosePostType(event: MouseEvent) {
 		event.preventDefault();
 		postTypeTrigger = event.currentTarget as HTMLElement;
@@ -337,7 +370,52 @@
 	let notice = $state('');
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
-	setContext('craftsky-access', () => access);
+	let featurePaywall = $state<{
+		tier: 'plus' | 'business';
+		trigger: HTMLElement | null;
+	} | null>(null);
+	let readingAccess = false;
+	let accessRefreshFailed = false;
+	async function refreshAccess(force = false) {
+		if (
+			dead ||
+			document.hidden ||
+			!billingIdentityAllowed ||
+			readingAccess ||
+			(!force && !subscriptionAccess.needsRefresh())
+		)
+			return;
+		readingAccess = true;
+		const accept = subscriptionAccess.beginRead(account);
+		try {
+			const value = await api.billing.access();
+			if (!dead && accept(value)) accessRefreshFailed = false;
+		} catch (cause) {
+			if (!dead && !accessRefreshFailed) {
+				accessRefreshFailed = true;
+				void reportFailure(cause, 'startup.access');
+			}
+		} finally {
+			readingAccess = false;
+		}
+	}
+	setContext('craftsky-feature-paywall', (tier: 'plus' | 'business') => {
+		if (dead || featurePaywall || !billingIdentityAllowed) return;
+		featurePaywall = {
+			tier,
+			trigger:
+				document.activeElement instanceof HTMLElement
+					? document.activeElement
+					: null
+		};
+	});
+	async function closeFeaturePaywall() {
+		const trigger = featurePaywall?.trigger;
+		featurePaywall = null;
+		await tick();
+		if (!dead && trigger?.isConnected) trigger.focus({ preventScroll: true });
+	}
+	setContext('craftsky-access', () => subscriptionAccess.value);
 	const nav = [
 		['home', 'Home', '/feed'],
 		['search', 'Search', '/search'],
@@ -356,6 +434,7 @@
 			if (dead) return;
 			eligibility = policy;
 			if (policy.state === 'eligible') {
+				const acceptAccess = subscriptionAccess.beginRead(account);
 				const [status, tier, , profile] = await Promise.all([
 					api.account.onboarding(),
 					api.billing.access().catch((error) => {
@@ -373,7 +452,7 @@
 				]);
 				if (dead) return;
 				onboarding = status;
-				access = tier;
+				if (tier) acceptAccess(tier);
 				identity = profile;
 			}
 			ready = true;
@@ -423,7 +502,10 @@
 		updateDesktop();
 		desktopQuery.addEventListener('change', updateDesktop);
 		void boot();
-		timer = setInterval(counts, 30000);
+		timer = setInterval(() => {
+			void counts();
+			void refreshAccess();
+		}, 30000);
 		const draftSaved = (event: Event) => {
 			const detail = (event as CustomEvent<unknown>).detail;
 			if (dead || expired || !ready || !detail || typeof detail !== 'object')
@@ -475,6 +557,8 @@
 	});
 	onDestroy(() => {
 		dead = true;
+		billingIdentity.dispose();
+		subscriptionAccess.dispose();
 		pageHistory.dispose();
 	});
 	async function changeAccount(id: string) {
@@ -606,6 +690,18 @@
 		page.url.pathname.startsWith('/settings/about');
 </script>
 
+{#if featurePaywall && !gated}
+	<FeaturePaywall
+		{api}
+		{account}
+		did={session.did}
+		tier={featurePaywall.tier}
+		onClose={() => {
+			void closeFeaturePaywall();
+		}}
+	/>
+{/if}
+
 <svelte:head
 	><link rel="manifest" href="/manifest.webmanifest" /><link
 		rel="apple-touch-icon"
@@ -615,7 +711,10 @@
 	><meta name="robots" content="noindex, nofollow" /></svelte:head
 ><svelte:document
 	onvisibilitychange={() => {
-		if (!document.hidden) void counts();
+		if (!document.hidden) {
+			void counts();
+			void refreshAccess(true);
+		}
 	}}
 />
 <BrowserPush {api} {session} />
@@ -654,10 +753,11 @@
 >
 	<RailNavigation {nav} {active} onSelect={reselect}>
 		{#snippet icon(key)}
-			{#if key === 'profile'}<Avatar author={identity || session} />{:else}<Icon
-					name={key}
-					filled={active(key)}
-				/>{/if}
+			{#if key === 'profile'}<span
+					class="nav-profile-avatar"
+					style={profileStyle(identity?.customisation)}
+					><Avatar author={identity || session} /></span
+				>{:else}<Icon name={key} filled={active(key)} />{/if}
 		{/snippet}
 		{#snippet badge(key)}
 			{#if key === 'activity' && activityBadge.count}<span class="count-badge"
@@ -719,7 +819,9 @@
 							did: account.did,
 							handle: account.handle,
 							displayName: profile?.displayName || undefined,
-							crafts: profile?.crafts || []
+							crafts: profile?.crafts || [],
+							accountType: profile?.accountType,
+							customisation: profile?.customisation
 						}}
 					/>
 				</div>
@@ -811,9 +913,11 @@
 				}
 			}}
 			onclick={(event) => reselect(event, key)}
-			>{#if key === 'profile'}<Avatar
-					author={identity || session}
-				/>{:else}<Icon name={key} filled={active(key)} />{/if}<span
+			>{#if key === 'profile'}<span
+					class="nav-profile-avatar"
+					style={profileStyle(identity?.customisation)}
+					><Avatar author={identity || session} /></span
+				>{:else}<Icon name={key} filled={active(key)} />{/if}<span
 				class="visually-hidden">{label}</span
 			>{#if key === 'activity' && activityBadge.count}<span
 					class="bottom-count"
@@ -905,6 +1009,10 @@
 </dialog>
 
 <style>
+	.nav-profile-avatar {
+		display: contents;
+	}
+
 	.account-menu:not(.anchored) {
 		top: auto;
 		bottom: 0;

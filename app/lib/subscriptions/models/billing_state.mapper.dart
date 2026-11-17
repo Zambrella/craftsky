@@ -15,6 +15,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
   static BillingSubscriptionMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = BillingSubscriptionMapper._());
+      SubscriptionTierMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -61,6 +62,10 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
     _$autoRenewalStatus,
     opt: true,
   );
+  static SubscriptionTier? _$pendingTier(BillingSubscription v) =>
+      v.pendingTier;
+  static const Field<BillingSubscription, SubscriptionTier> _f$pendingTier =
+      Field('pendingTier', _$pendingTier, opt: true);
   static DateTime? _$currentPeriodStartsAt(BillingSubscription v) =>
       v.currentPeriodStartsAt;
   static const Field<BillingSubscription, DateTime> _f$currentPeriodStartsAt =
@@ -86,6 +91,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
     #pendingPayment: _f$pendingPayment,
     #anomaly: _f$anomaly,
     #autoRenewalStatus: _f$autoRenewalStatus,
+    #pendingTier: _f$pendingTier,
     #currentPeriodStartsAt: _f$currentPeriodStartsAt,
     #currentPeriodEndsAt: _f$currentPeriodEndsAt,
     #endsAt: _f$endsAt,
@@ -103,6 +109,7 @@ class BillingSubscriptionMapper extends ClassMapperBase<BillingSubscription> {
       pendingPayment: data.dec(_f$pendingPayment),
       anomaly: data.dec(_f$anomaly),
       autoRenewalStatus: data.dec(_f$autoRenewalStatus),
+      pendingTier: data.dec(_f$pendingTier),
       currentPeriodStartsAt: data.dec(_f$currentPeriodStartsAt),
       currentPeriodEndsAt: data.dec(_f$currentPeriodEndsAt),
       endsAt: data.dec(_f$endsAt),
@@ -171,6 +178,7 @@ abstract class BillingSubscriptionCopyWith<
     bool? pendingPayment,
     String? anomaly,
     String? autoRenewalStatus,
+    SubscriptionTier? pendingTier,
     DateTime? currentPeriodStartsAt,
     DateTime? currentPeriodEndsAt,
     DateTime? endsAt,
@@ -198,6 +206,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
     bool? pendingPayment,
     String? anomaly,
     Object? autoRenewalStatus = $none,
+    Object? pendingTier = $none,
     Object? currentPeriodStartsAt = $none,
     Object? currentPeriodEndsAt = $none,
     Object? endsAt = $none,
@@ -211,6 +220,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
       if (pendingPayment != null) #pendingPayment: pendingPayment,
       if (anomaly != null) #anomaly: anomaly,
       if (autoRenewalStatus != $none) #autoRenewalStatus: autoRenewalStatus,
+      if (pendingTier != $none) #pendingTier: pendingTier,
       if (currentPeriodStartsAt != $none)
         #currentPeriodStartsAt: currentPeriodStartsAt,
       if (currentPeriodEndsAt != $none)
@@ -231,6 +241,7 @@ class _BillingSubscriptionCopyWithImpl<$R, $Out>
       #autoRenewalStatus,
       or: $value.autoRenewalStatus,
     ),
+    pendingTier: data.get(#pendingTier, or: $value.pendingTier),
     currentPeriodStartsAt: data.get(
       #currentPeriodStartsAt,
       or: $value.currentPeriodStartsAt,
@@ -426,6 +437,151 @@ class _BillingLicenseCopyWithImpl<$R, $Out>
   ) => _BillingLicenseCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
+class PromotionalGrantMapper extends ClassMapperBase<PromotionalGrant> {
+  PromotionalGrantMapper._();
+
+  static PromotionalGrantMapper? _instance;
+  static PromotionalGrantMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PromotionalGrantMapper._());
+      SubscriptionTierMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PromotionalGrant';
+
+  static String _$id(PromotionalGrant v) => v.id;
+  static const Field<PromotionalGrant, String> _f$id = Field('id', _$id);
+  static SubscriptionTier _$tier(PromotionalGrant v) => v.tier;
+  static const Field<PromotionalGrant, SubscriptionTier> _f$tier = Field(
+    'tier',
+    _$tier,
+  );
+  static bool _$givesAccess(PromotionalGrant v) => v.givesAccess;
+  static const Field<PromotionalGrant, bool> _f$givesAccess = Field(
+    'givesAccess',
+    _$givesAccess,
+  );
+  static DateTime? _$expiresAt(PromotionalGrant v) => v.expiresAt;
+  static const Field<PromotionalGrant, DateTime> _f$expiresAt = Field(
+    'expiresAt',
+    _$expiresAt,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<PromotionalGrant> fields = const {
+    #id: _f$id,
+    #tier: _f$tier,
+    #givesAccess: _f$givesAccess,
+    #expiresAt: _f$expiresAt,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static PromotionalGrant _instantiate(DecodingData data) {
+    return PromotionalGrant(
+      id: data.dec(_f$id),
+      tier: data.dec(_f$tier),
+      givesAccess: data.dec(_f$givesAccess),
+      expiresAt: data.dec(_f$expiresAt),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PromotionalGrant fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PromotionalGrant>(map);
+  }
+
+  static PromotionalGrant fromJson(String json) {
+    return ensureInitialized().decodeJson<PromotionalGrant>(json);
+  }
+}
+
+mixin PromotionalGrantMappable {
+  PromotionalGrantCopyWith<PromotionalGrant, PromotionalGrant, PromotionalGrant>
+  get copyWith =>
+      _PromotionalGrantCopyWithImpl<PromotionalGrant, PromotionalGrant>(
+        this as PromotionalGrant,
+        $identity,
+        $identity,
+      );
+  @override
+  bool operator ==(Object other) {
+    return PromotionalGrantMapper.ensureInitialized().equalsValue(
+      this as PromotionalGrant,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PromotionalGrantMapper.ensureInitialized().hashValue(
+      this as PromotionalGrant,
+    );
+  }
+}
+
+extension PromotionalGrantValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PromotionalGrant, $Out> {
+  PromotionalGrantCopyWith<$R, PromotionalGrant, $Out>
+  get $asPromotionalGrant =>
+      $base.as((v, t, t2) => _PromotionalGrantCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class PromotionalGrantCopyWith<$R, $In extends PromotionalGrant, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({
+    String? id,
+    SubscriptionTier? tier,
+    bool? givesAccess,
+    DateTime? expiresAt,
+  });
+  PromotionalGrantCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PromotionalGrantCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PromotionalGrant, $Out>
+    implements PromotionalGrantCopyWith<$R, PromotionalGrant, $Out> {
+  _PromotionalGrantCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PromotionalGrant> $mapper =
+      PromotionalGrantMapper.ensureInitialized();
+  @override
+  $R call({
+    String? id,
+    SubscriptionTier? tier,
+    bool? givesAccess,
+    Object? expiresAt = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (id != null) #id: id,
+      if (tier != null) #tier: tier,
+      if (givesAccess != null) #givesAccess: givesAccess,
+      if (expiresAt != $none) #expiresAt: expiresAt,
+    }),
+  );
+  @override
+  PromotionalGrant $make(CopyWithData data) => PromotionalGrant(
+    id: data.get(#id, or: $value.id),
+    tier: data.get(#tier, or: $value.tier),
+    givesAccess: data.get(#givesAccess, or: $value.givesAccess),
+    expiresAt: data.get(#expiresAt, or: $value.expiresAt),
+  );
+
+  @override
+  PromotionalGrantCopyWith<$R2, PromotionalGrant, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PromotionalGrantCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
 class BillingStateMapper extends ClassMapperBase<BillingState> {
   BillingStateMapper._();
 
@@ -435,6 +591,7 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
       MapperContainer.globals.use(_instance = BillingStateMapper._());
       BillingSubscriptionMapper.ensureInitialized();
       BillingLicenseMapper.ensureInitialized();
+      PromotionalGrantMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -476,6 +633,22 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
     'licenses',
     _$licenses,
   );
+  static List<PromotionalGrant> _$promotionalGrants(BillingState v) =>
+      v.promotionalGrants;
+  static const Field<BillingState, List<PromotionalGrant>>
+  _f$promotionalGrants = Field(
+    'promotionalGrants',
+    _$promotionalGrants,
+    opt: true,
+    def: const [],
+  );
+  static bool _$webCheckoutPending(BillingState v) => v.webCheckoutPending;
+  static const Field<BillingState, bool> _f$webCheckoutPending = Field(
+    'webCheckoutPending',
+    _$webCheckoutPending,
+    opt: true,
+    def: false,
+  );
   static DateTime? _$reconciliationRequestedAt(BillingState v) =>
       v.reconciliationRequestedAt;
   static const Field<BillingState, DateTime> _f$reconciliationRequestedAt =
@@ -500,6 +673,8 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
     #reconciliationStale: _f$reconciliationStale,
     #subscriptions: _f$subscriptions,
     #licenses: _f$licenses,
+    #promotionalGrants: _f$promotionalGrants,
+    #webCheckoutPending: _f$webCheckoutPending,
     #reconciliationRequestedAt: _f$reconciliationRequestedAt,
     #reconciledAt: _f$reconciledAt,
   };
@@ -515,6 +690,8 @@ class BillingStateMapper extends ClassMapperBase<BillingState> {
       reconciliationStale: data.dec(_f$reconciliationStale),
       subscriptions: data.dec(_f$subscriptions),
       licenses: data.dec(_f$licenses),
+      promotionalGrants: data.dec(_f$promotionalGrants),
+      webCheckoutPending: data.dec(_f$webCheckoutPending),
       reconciliationRequestedAt: data.dec(_f$reconciliationRequestedAt),
       reconciledAt: data.dec(_f$reconciledAt),
     );
@@ -575,6 +752,12 @@ abstract class BillingStateCopyWith<$R, $In extends BillingState, $Out>
     BillingLicenseCopyWith<$R, BillingLicense, BillingLicense>
   >
   get licenses;
+  ListCopyWith<
+    $R,
+    PromotionalGrant,
+    PromotionalGrantCopyWith<$R, PromotionalGrant, PromotionalGrant>
+  >
+  get promotionalGrants;
   $R call({
     String? billingAccountId,
     String? revenueCatAppUserId,
@@ -583,6 +766,8 @@ abstract class BillingStateCopyWith<$R, $In extends BillingState, $Out>
     bool? reconciliationStale,
     List<BillingSubscription>? subscriptions,
     List<BillingLicense>? licenses,
+    List<PromotionalGrant>? promotionalGrants,
+    bool? webCheckoutPending,
     DateTime? reconciliationRequestedAt,
     DateTime? reconciledAt,
   });
@@ -620,6 +805,17 @@ class _BillingStateCopyWithImpl<$R, $Out>
     (v) => call(licenses: v),
   );
   @override
+  ListCopyWith<
+    $R,
+    PromotionalGrant,
+    PromotionalGrantCopyWith<$R, PromotionalGrant, PromotionalGrant>
+  >
+  get promotionalGrants => ListCopyWith(
+    $value.promotionalGrants,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(promotionalGrants: v),
+  );
+  @override
   $R call({
     String? billingAccountId,
     String? revenueCatAppUserId,
@@ -628,6 +824,8 @@ class _BillingStateCopyWithImpl<$R, $Out>
     bool? reconciliationStale,
     List<BillingSubscription>? subscriptions,
     List<BillingLicense>? licenses,
+    List<PromotionalGrant>? promotionalGrants,
+    bool? webCheckoutPending,
     Object? reconciliationRequestedAt = $none,
     Object? reconciledAt = $none,
   }) => $apply(
@@ -643,6 +841,8 @@ class _BillingStateCopyWithImpl<$R, $Out>
         #reconciliationStale: reconciliationStale,
       if (subscriptions != null) #subscriptions: subscriptions,
       if (licenses != null) #licenses: licenses,
+      if (promotionalGrants != null) #promotionalGrants: promotionalGrants,
+      if (webCheckoutPending != null) #webCheckoutPending: webCheckoutPending,
       if (reconciliationRequestedAt != $none)
         #reconciliationRequestedAt: reconciliationRequestedAt,
       if (reconciledAt != $none) #reconciledAt: reconciledAt,
@@ -669,6 +869,14 @@ class _BillingStateCopyWithImpl<$R, $Out>
     ),
     subscriptions: data.get(#subscriptions, or: $value.subscriptions),
     licenses: data.get(#licenses, or: $value.licenses),
+    promotionalGrants: data.get(
+      #promotionalGrants,
+      or: $value.promotionalGrants,
+    ),
+    webCheckoutPending: data.get(
+      #webCheckoutPending,
+      or: $value.webCheckoutPending,
+    ),
     reconciliationRequestedAt: data.get(
       #reconciliationRequestedAt,
       or: $value.reconciliationRequestedAt,

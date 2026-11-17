@@ -1,3 +1,4 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -342,6 +343,7 @@ class PostAuthor with PostAuthorMappable {
     this.displayName,
     this.avatar,
     this.crafts = const [],
+    this.accountType,
     String? avatarCid,
     this.muted,
     this.blocking,
@@ -356,6 +358,9 @@ class PostAuthor with PostAuthorMappable {
   final String? displayName;
   final String? avatar;
   final List<String> crafts;
+  final AccountType? accountType;
+
+  bool get isBusiness => accountType == AccountType.business;
   final Cid? avatarCid;
   final bool? muted;
   final bool? blocking;

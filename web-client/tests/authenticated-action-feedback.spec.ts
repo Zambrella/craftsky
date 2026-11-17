@@ -72,7 +72,7 @@ test('successful actions queue one toast at a time and pause while hovered', asy
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toContainText('Business profile saved.');
 	await page.evaluate(() =>
@@ -114,7 +114,7 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toHaveAttribute('role', 'alert');
 	await page.clock.fastForward(10000);
@@ -122,7 +122,7 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 	await toast.getByRole('button', { name: 'Dismiss notification' }).click();
 	await expect(toast).toHaveCount(0);
 	await expect(
-		page.getByRole('button', { name: 'Save business profile' })
+		page.getByRole('button', { name: 'Save', exact: true })
 	).toBeDisabled();
 	failing = false;
 	await page
@@ -133,11 +133,12 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 	expect(writes[1]).toEqual(writes[0]);
 });
 
-test('action errors in a native modal are visible, interactive and not duplicated', async ({
+test('product route errors are visible, interactive and not duplicated', async ({
 	page
 }) => {
+	let failing = true;
 	await page.route('**/api/appview/v1/profiles/me/business', (route) =>
-		route.request().method() === 'PUT'
+		route.request().method() === 'PUT' && failing
 			? route.fulfill({
 					status: 503,
 					json: {
@@ -151,14 +152,14 @@ test('action errors in a native modal are visible, interactive and not duplicate
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
-	const dialog = page.locator('.product-dialog');
+	const dialog = page.locator('.product-composer');
 	await dialog.getByLabel('Title', { exact: true }).fill('Blue hand dyed wool');
 	await dialog
 		.getByRole('button', { name: 'Save product', exact: true })
 		.click();
 	await expect(page.locator('.snackbar')).toHaveCount(1);
-	await expect(dialog.locator('.snackbar')).toHaveAttribute('role', 'alert');
-	await dialog
+	await expect(page.locator('.snackbar')).toHaveAttribute('role', 'alert');
+	await page
 		.locator('.snackbar')
 		.getByRole('button', { name: 'Dismiss notification' })
 		.click();
@@ -166,6 +167,20 @@ test('action errors in a native modal are visible, interactive and not duplicate
 	await expect(
 		dialog.getByRole('button', { name: 'Check and retry action' })
 	).toBeEnabled();
+	await expect(
+		page.getByRole('button', { name: 'Close product editor', exact: true })
+	).toBeDisabled();
+	await page.goBack();
+	await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+	await expect(page).toHaveURL(/\/compose\/product\/edit\?product=0$/);
+	failing = false;
+	await dialog
+		.getByRole('button', { name: 'Check and retry action', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/settings\/products$/);
+	await expect(
+		page.getByRole('button', { name: 'Edit Blue hand dyed wool', exact: true })
+	).toBeVisible();
 });
 
 test('account switching clears queued feedback from the previous account', async ({
@@ -189,7 +204,7 @@ test('account switching clears queued feedback from the previous account', async
 	]);
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(page.locator('.snackbar')).toBeVisible();
 	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
 	await page
@@ -223,7 +238,7 @@ test('mobile toasts remain in the viewport above bottom navigation and pause on 
 	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
-	await page.getByRole('button', { name: 'Save business profile' }).click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const toast = page.locator('.snackbar');
 	await expect(toast).toBeVisible();
 	const bounds = await toast.boundingBox();

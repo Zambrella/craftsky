@@ -15,10 +15,11 @@ import (
 
 func TestOwnerRefreshUsesOnlyServerStoredBillingIdentity(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles(did) VALUES('did:plc:identity-owner'),('did:plc:identity-other');
 	`+string(migration))
@@ -48,7 +49,7 @@ func TestOwnerRefreshUsesOnlyServerStoredBillingIdentity(t *testing.T) {
 		t.Fatalf("owner refresh = %d; body=%s", response.Code, response.Body.String())
 	}
 	var generation int64
-	if err := pool.QueryRow(ctx, `SELECT requested_generation FROM billing_accounts WHERE id=$1 AND revenuecat_app_user_id=$2`, account.ID, account.RevenueCatAppUserID).Scan(&generation); err != nil || generation != 1 {
+	if err := pool.QueryRow(ctx, `SELECT requested_generation FROM billing_accounts WHERE id=$1 AND revenuecat_app_user_id=$2`, account.ID, account.RevenueCatAppUserID).Scan(&generation); err != nil || generation != account.RequestedGeneration+1 {
 		t.Fatalf("owner generation = %d, error %v", generation, err)
 	}
 	if response := request("did:plc:identity-other", ""); response.Code != http.StatusNotFound {
@@ -57,7 +58,7 @@ func TestOwnerRefreshUsesOnlyServerStoredBillingIdentity(t *testing.T) {
 	if response := request("did:plc:identity-owner", `{"revenueCatAppUserId":"20000000-0000-4000-8000-000000000099"}`); response.Code != http.StatusBadRequest {
 		t.Fatalf("client identity override = %d; body=%s", response.Code, response.Body.String())
 	}
-	if err := pool.QueryRow(ctx, `SELECT requested_generation FROM billing_accounts WHERE id=$1`, account.ID).Scan(&generation); err != nil || generation != 1 {
+	if err := pool.QueryRow(ctx, `SELECT requested_generation FROM billing_accounts WHERE id=$1`, account.ID).Scan(&generation); err != nil || generation != account.RequestedGeneration+1 {
 		t.Fatalf("rejected override generation = %d, error %v", generation, err)
 	}
 }

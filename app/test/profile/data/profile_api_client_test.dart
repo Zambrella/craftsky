@@ -285,27 +285,27 @@ void main() {
     DioAdapter(dio: dio).onPut(
       '/v1/profiles/me/customisation',
       (server) => server.reply(200, {
-        'colour': 'teal',
-        'profileBackground': 'x2',
+        'colour': 'seafoam',
+        'profileBackground': 'craft-sewing',
       }),
       data: {
-        'colour': 'teal',
-        'profileBackground': 'x2',
+        'colour': 'seafoam',
+        'profileBackground': 'craft-sewing',
       },
     );
 
     final saved = await ProfileApiClient(dio).updateMyCustomisation(
       const ProfileCustomisation(
-        colour: 'teal',
-        background: 'x2',
+        colour: 'seafoam',
+        background: 'craft-sewing',
       ),
     );
 
     expect(
       saved,
       const ProfileCustomisation(
-        colour: 'teal',
-        background: 'x2',
+        colour: 'seafoam',
+        background: 'craft-sewing',
       ),
     );
   });

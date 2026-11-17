@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ import (
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 const auditPrivateCanary = "PRIVATE_PAYLOAD_TOKEN_RECIPIENT_CANARY"
@@ -115,8 +117,15 @@ func TestPrivateAPIErrorWritersRetainOriginalCause(t *testing.T) {
 		{"billing_account", "billing.account", "store", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
 			writeBillingAccountError(w, r, err)
 		}},
-		{"subscription_assignment", "subscription.assignment", "store", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
-			writeAssignmentError(w, r, err)
+		{"subscription_access", "api.GetSubscriptionAccessHandler", "handler", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
+			GetSubscriptionAccessHandler(auditBillingFailureStore{err}, time.Now).ServeHTTP(w, r)
+		}},
+		{"subscription_checkout", "billing.account", "store", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
+			r.Body = io.NopCloser(strings.NewReader(`{"tier":"plus"}`))
+			CreateWebSubscriptionCheckoutHandler(auditBillingFailureStore{err}, time.Now).ServeHTTP(w, r)
+		}},
+		{"subscription_management", "billing.account", "store", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
+			CreateWebSubscriptionManagementHandler(auditBillingFailureStore{err}, time.Now).ServeHTTP(w, r)
 		}},
 		{"post_interaction_list", "post.interactions.likes", "store", 500, func(w http.ResponseWriter, r *http.Request, _ *slog.Logger, err error) {
 			writePostInteractionListError(w, r, err, "post.interactions.likes")
@@ -144,11 +153,32 @@ func TestPrivateAPIErrorWritersRetainOriginalCause(t *testing.T) {
 	}
 }
 
+type auditBillingFailureStore struct{ err error }
+
+func (s auditBillingFailureStore) SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error) {
+	return subscriptions.SelfAccess{}, s.err
+}
+
+func (s auditBillingFailureStore) WebCheckoutURL(context.Context, syntax.DID, subscriptions.Tier, time.Time) (string, error) {
+	return "", s.err
+}
+
+func (s auditBillingFailureStore) WebManagementURL(context.Context, syntax.DID, time.Time) (string, error) {
+	return "", s.err
+}
+
 func TestPrivateAPIExpectedFailuresDoNotCaptureIssues(t *testing.T) {
 	cases := []struct {
 		name  string
 		write func(http.ResponseWriter, *http.Request, *slog.Logger)
 	}{
+		{"billing_not_found", func(w http.ResponseWriter, r *http.Request, _ *slog.Logger) {
+			writeBillingAccountError(w, r, subscriptions.ErrBillingAccountNotFound)
+		}},
+		{"billing_checkout_pending", func(w http.ResponseWriter, r *http.Request, _ *slog.Logger) {
+			r.Body = io.NopCloser(strings.NewReader(`{"tier":"plus"}`))
+			CreateWebSubscriptionCheckoutHandler(auditBillingFailureStore{subscriptions.ErrWebCheckoutPending}, time.Now).ServeHTTP(w, r)
+		}},
 		{"import_not_found", func(w http.ResponseWriter, r *http.Request, l *slog.Logger) {
 			writeInstagramImportError(w, r, l, instagram.ErrInstagramResourceNotFound)
 		}},

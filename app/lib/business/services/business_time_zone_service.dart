@@ -45,7 +45,9 @@ class BusinessTimeZoneService {
 
   DateTime toLocal(String zone, DateTime utc) {
     final value = timezone.TZDateTime.from(utc.toUtc(), _location(zone));
-    return DateTime(
+    // A wall-clock value must not be normalized by the device's timezone.
+    // UTC here is a neutral container for the selected zone's calendar fields.
+    return DateTime.utc(
       value.year,
       value.month,
       value.day,
@@ -53,6 +55,16 @@ class BusinessTimeZoneService {
       value.minute,
       value.second,
     );
+  }
+
+  bool isRepresentable(String zone, DateTime local) {
+    final roundTrip = toLocal(zone, toUtc(zone, local));
+    return roundTrip.year == local.year &&
+        roundTrip.month == local.month &&
+        roundTrip.day == local.day &&
+        roundTrip.hour == local.hour &&
+        roundTrip.minute == local.minute &&
+        roundTrip.second == local.second;
   }
 
   timezone.Location _location(String zone) =>

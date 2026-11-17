@@ -14,6 +14,8 @@ func (e *ProviderError) Unwrap() error   { return e.cause }
 func (e *ProviderError) StatusCode() int { return e.statusCode }
 func (e *ProviderError) DiagnosticMessage() string {
 	switch e.stage {
+	case "encode":
+		return "encode RevenueCat customer failed"
 	case "create":
 		return "create RevenueCat request failed"
 	case "request":

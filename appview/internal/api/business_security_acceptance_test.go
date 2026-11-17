@@ -193,13 +193,13 @@ func businessSecurityProfileBody(t *testing.T, canaries []string, actionType, de
 		"primaryAction": map[string]any{"type": actionType, "destination": destination},
 		"products": []map[string]any{{
 			"title": canaries[3], "uri": productURI,
-			"image": map[string]any{
+			"images": []map[string]any{{
 				"image": map[string]any{
 					"$type": "blob", "ref": map[string]any{"$link": "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},
 					"mimeType": "image/webp", "size": 1024,
 				},
 				"alt": canaries[2],
-			},
+			}},
 			"price": map[string]any{"amount": canaries[4], "currency": "USD"},
 		}},
 	})

@@ -13,3 +13,15 @@ export function assertModeSpecificEnv(directory) {
 		);
 	}
 }
+
+/**
+ * Enable local billing without changing production/build defaults or explicit overrides.
+ * @param {string} command
+ * @param {string} mode
+ * @param {string | undefined} [shell]
+ * @param {string | undefined} [profile]
+ */
+export function developmentSubscriptions(command, mode, shell, profile) {
+	if (command !== 'serve' || mode !== 'development') return shell;
+	return shell ?? profile ?? 'true';
+}

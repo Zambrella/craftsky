@@ -6,18 +6,16 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
-import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
-import 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +23,54 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
-  test('consumed billing load reports its original failure once', () async {
+  testWidgets('billing refreshes at a grant expiry before paid access ends', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 16);
+    final api = _Api('did:plc:alice', SubscriptionTier.business)
+      ..promotionalGrants = [
+        PromotionalGrant(
+          id: '50000000-0000-4000-8000-000000000001',
+          tier: SubscriptionTier.plus,
+          givesAccess: true,
+          expiresAt: now.add(const Duration(seconds: 30)),
+        ),
+      ];
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(_registry()),
+        ),
+        revenueCatServiceProvider.overrideWithValue(
+          const UnavailableRevenueCatService(),
+        ),
+        subscriptionAccessClockProvider.overrideWithValue(() => now),
+        subscriptionRepositoryProvider.overrideWith((_, _) async => api),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final listener = container.listen(subscriptionPageModelProvider, (_, _) {});
+    await tester.pump();
+    final initial = await container.read(subscriptionPageModelProvider.future);
+    expect(initial.billingState?.promotionalGrants, hasLength(1));
+    expect(api.ownerReads, 1);
+
+    api.promotionalGrants = [];
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pump();
+    final refreshed = await container.read(
+      subscriptionPageModelProvider.future,
+    );
+
+    expect(api.ownerReads, 2);
+    expect(refreshed.billingState?.promotionalGrants, isEmpty);
+    expect(refreshed.access.allowsBusiness, isTrue);
+    listener.close();
+    container.dispose();
+  });
+  test('consumed price failure reports its original cause once', () async {
     final error = Exception('PRIVATE_BILLING_PAYLOAD');
     final reporter = RecordingErrorReporter();
     final container = ProviderContainer.test(
@@ -35,16 +80,18 @@ void main() {
           _Storage(_registry()),
         ),
         errorReporterProvider.overrideWithValue(reporter),
-        revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+        revenueCatServiceProvider.overrideWithValue(
+          _RevenueCat()..offeringError = error,
+        ),
         subscriptionRepositoryProvider.overrideWith(
           (_, _) async => _Api(
             'did:plc:alice',
             SubscriptionTier.plus,
-            ownerError: error,
           ),
         ),
       ],
     );
+    await container.read(sessionRegistryProvider.future);
     final subscription = container.listen(
       subscriptionPageModelProvider,
       (_, _) {},
@@ -53,7 +100,7 @@ void main() {
 
     final model = await container.read(subscriptionPageModelProvider.future);
 
-    expect(model.operationNotice, SubscriptionOperationNotice.providerFailure);
+    expect(model.tierPrices, isEmpty);
     expect(reporter.errors, [same(error)]);
     expect(
       reporter.contexts.single.workflow,
@@ -78,11 +125,12 @@ void main() {
           accessGate: phase == 'access' ? gate.future : null,
           ownerGate: phase == 'billing' ? gate.future : null,
         );
+        final revenueCat = _RevenueCat();
         final container = ProviderContainer.test(
           retry: (_, _) => null,
           overrides: [
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
-            revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
+            revenueCatServiceProvider.overrideWithValue(revenueCat),
             subscriptionRepositoryProvider.overrideWith(
               (ref, account) async => api,
             ),
@@ -98,32 +146,42 @@ void main() {
           'access' => api.accessStarted.future,
           _ => api.ownerStarted.future,
         };
-        subscription.close();
-        await container.pump();
+        final identityCalls = revenueCat.identityCalls;
+        final ownerReads = api.ownerReads;
         final cancelled = expectLater(
           pending,
           throwsA(
-            phase == 'billing'
-                ? isA<BillingOwnerGuardException>().having(
-                    (error) => error.ownerSessionChanged,
-                    'owner session ended',
-                    true,
-                  )
-                : isA<AccountOperationCancellation>(),
+            anyOf(
+              isA<AccountOperationCancellation>(),
+              isA<StateError>().having(
+                (error) => error.message,
+                'Riverpod disposed pending future',
+                contains('disposed during loading state'),
+              ),
+            ),
           ),
         );
+        subscription.close();
+        await container.pump();
         gate.complete();
         await cancelled;
+        await container.pump();
+        expect(revenueCat.identityCalls, identityCalls);
+        expect(api.ownerReads, ownerReads);
       },
     );
   }
 
   test(
-    'AT-003 switching accounts uses only each AppView self-access',
+    'each active DID loads its own customer and access across switches',
     () async {
       final registry = _registry();
       final alice = _Api('did:plc:alice', SubscriptionTier.plus);
-      final bob = _Api('did:plc:bob', SubscriptionTier.business);
+      final bob = _Api(
+        'did:plc:bob',
+        SubscriptionTier.business,
+        revenueCatAppUserId: '20000000-0000-4000-8000-000000000002',
+      );
       final revenueCat = _RevenueCat();
       final storage = _Storage(registry);
       final container = ProviderContainer.test(
@@ -131,218 +189,40 @@ void main() {
         overrides: [
           secureSessionRegistryStorageProvider.overrideWithValue(storage),
           revenueCatServiceProvider.overrideWithValue(revenueCat),
-          subscriptionRepositoryProvider.overrideWith((ref, account) async {
-            return account.did == Did.parse('did:plc:alice') ? alice : bob;
-          }),
+          subscriptionRepositoryProvider.overrideWith(
+            (ref, account) async =>
+                account.did == Did.parse('did:plc:alice') ? alice : bob,
+          ),
         ],
       );
       addTearDown(container.dispose);
-
-      final aliceModel = await container.read(
-        subscriptionPageModelProvider.future,
+      container.listen(subscriptionPageModelProvider, (_, _) {});
+      final first = await container.read(subscriptionPageModelProvider.future);
+      expect(first.access.effectiveTier, SubscriptionTier.plus);
+      expect(
+        first.billingState?.revenueCatAppUserId,
+        alice.revenueCatAppUserId,
       );
-      expect(aliceModel.role, SubscriptionPageRole.owner);
-      expect(aliceModel.access.effectiveTier, SubscriptionTier.plus);
-      final ownerIdentityCalls = revenueCat.identityCalls;
-
       await container
           .read(sessionRegistryProvider.notifier)
-          .activate(
-            registry.leaseFor(AccountKey('did:plc:bob'))!,
-          );
-      final bobModel = await container.read(
-        subscriptionPageModelProvider.future,
-      );
-
-      expect(bobModel.role, SubscriptionPageRole.beneficiary);
-      expect(bobModel.access.effectiveTier, SubscriptionTier.business);
-      expect(bob.ownerReads, 0);
-      expect(revenueCat.identityCalls, ownerIdentityCalls);
-      expect(revenueCat.identifyCalls, 0);
+          .activate(registry.leaseFor(AccountKey('did:plc:bob'))!);
+      final second = await container.read(subscriptionPageModelProvider.future);
+      expect(second.access.effectiveTier, SubscriptionTier.business);
+      expect(second.billingState?.revenueCatAppUserId, bob.revenueCatAppUserId);
+      expect(revenueCat.appUserId, bob.revenueCatAppUserId);
+      expect(storage.value.billingCustomers, hasLength(2));
+      expect(bob.ownerReads, 1);
     },
   );
-
-  test('AT-011 missing retained owner requires reauthentication', () async {
-    final registry = _registry().remove('did:plc:alice');
-    final bob = _Api('did:plc:bob', SubscriptionTier.free);
-    final revenueCat = _RevenueCat();
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _Storage(registry),
-        ),
-        revenueCatServiceProvider.overrideWithValue(revenueCat),
-        subscriptionRepositoryProvider.overrideWith((_, _) async => bob),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.role, SubscriptionPageRole.inactiveOwner);
-    expect(model.ownerRetained, isFalse);
-    expect(model.access.effectiveTier, SubscriptionTier.free);
-    expect(model.billingState, isNull);
-    expect(bob.ownerReads, 0);
-    expect(revenueCat.identityCalls, 0);
-    expect(revenueCat.identifyCalls, 0);
-  });
-
   test(
-    'IT-003 owner page locks billing but preserves access on mismatch',
+    'removing the former payer does not prevent another DID subscribing',
     () async {
-      final registry = _registry();
-      final revenueCat = _RevenueCat();
-      final container = ProviderContainer.test(
-        retry: (_, _) => null,
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _Storage(registry),
-          ),
-          revenueCatServiceProvider.overrideWithValue(revenueCat),
-          subscriptionRepositoryProvider.overrideWith(
-            (_, _) async => _Api(
-              'did:plc:alice',
-              SubscriptionTier.plus,
-              revenueCatAppUserId: '20000000-0000-4000-8000-000000000099',
-            ),
-          ),
-        ],
+      final registry = _registry().remove('did:plc:alice');
+      final bob = _Api(
+        'did:plc:bob',
+        SubscriptionTier.free,
+        revenueCatAppUserId: '20000000-0000-4000-8000-000000000002',
       );
-      addTearDown(container.dispose);
-
-      final model = await container.read(subscriptionPageModelProvider.future);
-
-      expect(model.access.effectiveTier, SubscriptionTier.plus);
-      expect(model.role, SubscriptionPageRole.owner);
-      expect(model.ownerRecoveryLocked, isTrue);
-      expect(model.billingState, isNull);
-      expect(model.operationNotice, isNull);
-      expect(revenueCat.identityCalls, 0);
-      expect(revenueCat.identifyCalls, 0);
-    },
-  );
-
-  test('IT-014 missing persisted owner account never identifies', () async {
-    final registry = _registry();
-    final revenueCat = _RevenueCat();
-    final api = _Api(
-      'did:plc:alice',
-      SubscriptionTier.plus,
-      ownerError: const ApiBadRequest(
-        'billing_account_not_found',
-        details: ApiFailureDetails(statusCode: 404),
-      ),
-    );
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _Storage(registry),
-        ),
-        revenueCatServiceProvider.overrideWithValue(revenueCat),
-        subscriptionRepositoryProvider.overrideWith((_, _) async => api),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.ownerRecoveryLocked, isTrue);
-    expect(api.ownerReads, 1);
-    expect(revenueCat.identityCalls, 0);
-    expect(revenueCat.identifyCalls, 0);
-  });
-
-  test('expired owner sign-in is not treated as a billing mismatch', () async {
-    final revenueCat = _RevenueCat();
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _Storage(_registry()),
-        ),
-        revenueCatServiceProvider.overrideWithValue(revenueCat),
-        subscriptionRepositoryProvider.overrideWith(
-          (_, _) async => _Api(
-            'did:plc:alice',
-            SubscriptionTier.plus,
-            ownerError: const ApiUnauthorized(),
-          ),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.access.effectiveTier, SubscriptionTier.plus);
-    expect(model.ownerSignInRequired, isTrue);
-    expect(model.ownerRecoveryLocked, isFalse);
-    expect(model.billingState, isNull);
-    expect(revenueCat.identityCalls, 0);
-  });
-
-  test('IT-014 mismatched RevenueCat owner never reidentifies', () async {
-    final registry = _registry();
-    final revenueCat = _RevenueCat(
-      appUserId: '20000000-0000-4000-8000-000000000099',
-    );
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _Storage(registry),
-        ),
-        revenueCatServiceProvider.overrideWithValue(revenueCat),
-        subscriptionRepositoryProvider.overrideWith(
-          (_, _) async => _Api('did:plc:alice', SubscriptionTier.plus),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.ownerRecoveryLocked, isTrue);
-    expect(model.billingState, isNull);
-    expect(revenueCat.identityCalls, 1);
-    expect(revenueCat.identifyCalls, 0);
-  });
-
-  test('IT-004 RevenueCat identity failure preserves retry state', () async {
-    final registry = _registry();
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _Storage(registry),
-        ),
-        revenueCatServiceProvider.overrideWithValue(
-          _RevenueCat(identityError: Exception('provider unavailable')),
-        ),
-        subscriptionRepositoryProvider.overrideWith(
-          (_, _) async => _Api('did:plc:alice', SubscriptionTier.plus),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.ownerRecoveryLocked, isFalse);
-    expect(model.billingState, isNull);
-    expect(
-      model.operationNotice,
-      SubscriptionOperationNotice.providerFailure,
-    );
-  });
-
-  test(
-    'IT-004 owner provider failure preserves access with retry state',
-    () async {
-      final registry = _registry();
       final container = ProviderContainer.test(
         retry: (_, _) => null,
         overrides: [
@@ -351,69 +231,21 @@ void main() {
           ),
           revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
           subscriptionRepositoryProvider.overrideWith(
-            (_, _) async => _Api(
-              'did:plc:alice',
-              SubscriptionTier.plus,
-              ownerError: const ApiServerError('server_error'),
-            ),
+            (ref, account) async => bob,
           ),
         ],
       );
       addTearDown(container.dispose);
-
+      container.listen(subscriptionPageModelProvider, (_, _) {});
       final model = await container.read(subscriptionPageModelProvider.future);
-
-      expect(model.access.effectiveTier, SubscriptionTier.plus);
-      expect(model.role, SubscriptionPageRole.owner);
-      expect(model.ownerRecoveryLocked, isFalse);
-      expect(model.billingState, isNull);
-      expect(
-        model.operationNotice,
-        SubscriptionOperationNotice.providerFailure,
-      );
+      expect(model.billingState?.revenueCatAppUserId, bob.revenueCatAppUserId);
+      expect(model.access.effectiveTier, SubscriptionTier.free);
     },
   );
-
-  test(
-    'owner model keeps prices from offerings that load successfully',
-    () async {
-      final registry = _registry();
-      final revenueCat = _RevenueCat(
-        prices: const {
-          SubscriptionTier.plus: r'$4.99',
-          SubscriptionTier.business: '£8.99',
-        },
-      );
-      final container = ProviderContainer.test(
-        retry: (_, _) => null,
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _Storage(registry),
-          ),
-          revenueCatServiceProvider.overrideWithValue(revenueCat),
-          subscriptionRepositoryProvider.overrideWith(
-            (_, _) async => _Api('did:plc:alice', SubscriptionTier.free),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      final model = await container.read(subscriptionPageModelProvider.future);
-
-      expect(model.tierPrices, {
-        SubscriptionTier.plus: r'$4.99',
-        SubscriptionTier.business: '£8.99',
-      });
-      expect(revenueCat.offeringCalls, ['plus', 'business']);
-    },
-  );
-
-  test('one failed offering does not discard another tier price', () async {
+  test('a conflicting local store does not hide AppView paid access', () async {
     final registry = _registry();
-    final revenueCat = _RevenueCat(
-      prices: const {SubscriptionTier.business: '€9.99'},
-      failedOfferings: const {'plus'},
-    );
+    final api = _Api('did:plc:alice', SubscriptionTier.plus);
+    final revenueCat = _ConflictingRevenueCat();
     final container = ProviderContainer.test(
       retry: (_, _) => null,
       overrides: [
@@ -422,46 +254,18 @@ void main() {
         ),
         revenueCatServiceProvider.overrideWithValue(revenueCat),
         subscriptionRepositoryProvider.overrideWith(
-          (_, _) async => _Api('did:plc:alice', SubscriptionTier.free),
+          (ref, account) async => api,
         ),
       ],
     );
     addTearDown(container.dispose);
-
+    container.listen(subscriptionPageModelProvider, (_, _) {});
     final model = await container.read(subscriptionPageModelProvider.future);
-
-    expect(model.tierPrices, {
-      SubscriptionTier.business: '€9.99',
-    });
-    expect(revenueCat.offeringCalls, ['plus', 'business']);
-  });
-
-  test('IT-014 account switch fences owner GET before dispatch', () async {
-    final registry = _registry();
-    final storage = _Storage(registry);
-    final alice = _Api('did:plc:alice', SubscriptionTier.plus);
-    final repository = Completer<SubscriptionApi>();
-    final container = ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(storage),
-        revenueCatServiceProvider.overrideWithValue(_RevenueCat()),
-        subscriptionRepositoryProvider.overrideWith(
-          (_, _) => repository.future,
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final pending = container.read(subscriptionPageModelProvider.future);
-    await Future<void>.delayed(Duration.zero);
-    await container
-        .read(sessionRegistryProvider.notifier)
-        .activate(registry.leaseFor(AccountKey('did:plc:bob'))!);
-    repository.complete(alice);
-
-    await expectLater(pending, throwsA(anything));
-    expect(alice.ownerReads, 0);
+    expect(model.access.allowsPlus, isTrue);
+    expect(model.billingState?.revenueCatAppUserId, api.revenueCatAppUserId);
+    expect(revenueCat.identityCalls, 0);
+    expect(revenueCat.identifyCalls, 0);
+    expect(revenueCat.offeringCalls, isEmpty);
   });
 }
 
@@ -476,8 +280,7 @@ SessionRegistry _registry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );
@@ -504,15 +307,14 @@ final class _Api implements SubscriptionApi {
     this.did,
     this.tier, {
     this.revenueCatAppUserId = '20000000-0000-4000-8000-000000000001',
-    this.ownerError,
     this.accessGate,
     this.ownerGate,
   });
   final String did;
   final SubscriptionTier tier;
   final String revenueCatAppUserId;
-  final Exception? ownerError;
   int ownerReads = 0;
+  List<PromotionalGrant> promotionalGrants = [];
   final Future<void>? accessGate;
   final Future<void>? ownerGate;
   final accessStarted = Completer<void>();
@@ -534,7 +336,6 @@ final class _Api implements SubscriptionApi {
     ownerReads++;
     if (!ownerStarted.isCompleted) ownerStarted.complete();
     if (ownerGate != null) await ownerGate;
-    if (ownerError case final error?) throw error;
     return BillingState(
       billingAccountId: '10000000-0000-4000-8000-000000000001',
       revenueCatAppUserId: revenueCatAppUserId,
@@ -543,35 +344,21 @@ final class _Api implements SubscriptionApi {
       reconciliationStale: false,
       subscriptions: [],
       licenses: [],
+      promotionalGrants: promotionalGrants,
     );
   }
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
-  Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
+  Future<BillingState> ensureBillingAccount() => getBillingAccount();
 
   @override
   Future<void> requestReconciliation() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }
 
-final class _RevenueCat implements RevenueCatService {
-  new({
-    this.appUserId = '20000000-0000-4000-8000-000000000001',
-    this.identityError,
-    this.prices = const {},
-    this.failedOfferings = const {},
-  });
-
-  final String appUserId;
-  final Exception? identityError;
-  final Map<SubscriptionTier, String> prices;
-  final Set<String> failedOfferings;
+class _RevenueCat implements RevenueCatService {
+  new();
+  String appUserId = '20000000-0000-4000-8000-000000000001';
+  Exception? offeringError;
   int identityCalls = 0;
   int identifyCalls = 0;
   final List<String> offeringCalls = [];
@@ -582,23 +369,20 @@ final class _RevenueCat implements RevenueCatService {
   @override
   Future<RevenueCatIdentity> currentIdentity() async {
     identityCalls++;
-    if (identityError case final error?) throw error;
     return RevenueCatIdentity.identified(appUserId);
   }
 
   @override
-  Future<void> identify(String appViewUuid) async => identifyCalls++;
+  Future<void> identify(String appViewUuid) async {
+    appUserId = appViewUuid;
+    identifyCalls++;
+  }
 
   @override
   Future<RevenueCatOffering?> getOffering(String identifier) async {
     offeringCalls.add(identifier);
-    if (failedOfferings.contains(identifier)) {
-      throw StateError('offering unavailable');
-    }
-    final tier = SubscriptionTier.values.firstWhere(
-      (value) => value.name == identifier,
-    );
-    return _Offering(identifier, prices[tier]);
+    if (identifier == 'plus' && offeringError != null) throw offeringError!;
+    return _Offering(identifier, null);
   }
 
   @override
@@ -612,6 +396,19 @@ final class _RevenueCat implements RevenueCatService {
 
   @override
   Future<void> restorePurchases() => throw UnimplementedError();
+}
+
+final class _ConflictingRevenueCat extends _RevenueCat
+    implements NativeStoreOwnershipService {
+  @override
+  String get store => 'app_store';
+  @override
+  bool get supportsPlanChanges => true;
+  @override
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async => throw const StoreAccountConflictException();
 }
 
 final class _Offering implements RevenueCatOffering {

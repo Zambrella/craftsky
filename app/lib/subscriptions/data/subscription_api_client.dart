@@ -8,11 +8,21 @@ abstract interface class SubscriptionApi {
   Future<BillingState> ensureBillingAccount();
   Future<BillingState> getBillingAccount();
   Future<void> requestReconciliation();
-  Future<BillingAssignment> assign(String licenseId, String targetDid);
-  Future<void> unassign(String licenseId);
 }
 
-final class SubscriptionApiClient implements SubscriptionApi {
+abstract interface class SubscriptionManagementApi {
+  Future<Uri> managementURL();
+}
+
+abstract interface class PendingCheckoutCancellationApi {
+  Future<void> cancelPendingCheckout();
+}
+
+final class SubscriptionApiClient
+    implements
+        SubscriptionApi,
+        PendingCheckoutCancellationApi,
+        SubscriptionManagementApi {
   const new(this._dio);
 
   final Dio _dio;
@@ -42,25 +52,29 @@ final class SubscriptionApiClient implements SubscriptionApi {
   });
 
   @override
+  Future<void> cancelPendingCheckout() => unwrapApi(() async {
+    await _dio.post<Map<String, dynamic>>('/v1/billing/web-checkout/cancel');
+  });
+
+  @override
+  Future<Uri> managementURL() => unwrapApi(() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/billing/web-management',
+    );
+    final raw = response.data?['url'];
+    if (raw is! String ||
+        raw.contains(RegExp(r'[\x00-\x20\x7f]')) ||
+        RegExp(
+              r'^https://billing\.stripe\.com/p/session(?:/[A-Za-z0-9_-]+(?:#[^\s]+)?|\?secret=[A-Za-z0-9._~-]+)$',
+            ).stringMatch(raw) !=
+            raw) {
+      throw const FormatException('Subscription management unavailable');
+    }
+    return Uri.parse(raw);
+  });
+
+  @override
   Future<void> requestReconciliation() => unwrapApi(() async {
     await _dio.post<Map<String, dynamic>>('/v1/billing/reconciliation');
   });
-
-  @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      unwrapApi(() async {
-        final response = await _dio.put<Map<String, dynamic>>(
-          _assignmentPath(licenseId),
-          data: {'targetDid': targetDid},
-        );
-        return BillingAssignment.fromMap(response.data!);
-      });
-
-  @override
-  Future<void> unassign(String licenseId) => unwrapApi(() async {
-    await _dio.delete<void>(_assignmentPath(licenseId));
-  });
-
-  String _assignmentPath(String licenseId) =>
-      '/v1/billing/licenses/${Uri.encodeComponent(licenseId)}/assignment';
 }

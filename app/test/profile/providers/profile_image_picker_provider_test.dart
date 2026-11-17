@@ -19,6 +19,99 @@ import 'package:image_picker/image_picker.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final limit in [1, 2, 4]) {
+    test(
+      'gallery prepares $limit ordered photos with the native remaining limit',
+      () async {
+        final files = [
+          for (var i = 0; i < limit; i++)
+            XFile.fromData(
+              Uint8List.fromList(
+                img.encodePng(img.Image(width: i + 2, height: 2)),
+              ),
+              name: 'photo-$i.png',
+              mimeType: 'image/png',
+            ),
+        ];
+        final picker = _GalleryImagePicker(files);
+        var uploads = 0;
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.example'));
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              uploads++;
+              handler.reject(DioException(requestOptions: options));
+            },
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            imagePickerProvider.overrideWithValue(picker),
+            blobApiClientProvider.overrideWithValue(BlobApiClient(dio)),
+          ],
+        );
+        addTearDown(container.dispose);
+        final result = await container
+            .read(profileImagePickerProvider)
+            .pickGalleryAndPrepare(limit: limit, isCurrent: () => true);
+        expect(result.map((image) => image.width), [
+          for (var i = 0; i < limit; i++) i + 2,
+        ]);
+        expect(picker.multiLimit, limit == 1 ? null : limit);
+        expect(picker.singleCalls, limit == 1 ? 1 : 0);
+        expect(uploads, 0);
+      },
+    );
+  }
+  test(
+    'gallery cancellation and stale selections produce no prepared photos',
+    () async {
+      final picker = _GalleryImagePicker([]);
+      final container = ProviderContainer.test(
+        overrides: [imagePickerProvider.overrideWithValue(picker)],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(profileImagePickerProvider);
+      expect(await service.pickGalleryAndPrepare(limit: 4), isEmpty);
+      var current = true;
+      picker
+        ..files = [
+          XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'invalid.png'),
+        ]
+        ..afterSelection = (() => current = false);
+
+      expect(
+        await service.pickGalleryAndPrepare(limit: 4, isCurrent: () => current),
+        isEmpty,
+      );
+    },
+  );
+  test(
+    'gallery rejects a platform over-selection before preparing photos',
+    () async {
+      final picker = _GalleryImagePicker([
+        for (var i = 0; i < 3; i++)
+          XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'invalid.png'),
+      ]);
+      final container = ProviderContainer.test(
+        overrides: [imagePickerProvider.overrideWithValue(picker)],
+      );
+      addTearDown(container.dispose);
+      await expectLater(
+        container
+            .read(profileImagePickerProvider)
+            .pickGalleryAndPrepare(limit: 2),
+        throwsA(
+          isA<ProfileImageSelectionLimitException>().having(
+            (error) => error.limit,
+            'limit',
+            2,
+          ),
+        ),
+      );
+    },
+  );
+
   for (final superseded in [false, true]) {
     test(
       'image editing UT-008/AT-006/009: accepted local avatar handoff (superseded: $superseded)',
@@ -475,4 +568,37 @@ class _OversizedImageFile extends XFile {
 
   @override
   Future<int> length() async => 100000001;
+}
+
+class _GalleryImagePicker extends ImagePicker {
+  new(this.files);
+  List<XFile> files;
+  int? multiLimit;
+  int singleCalls = 0;
+  void Function()? afterSelection;
+  @override
+  Future<List<XFile>> pickMultiImage({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    int? limit,
+    bool requestFullMetadata = true,
+  }) async {
+    multiLimit = limit;
+    afterSelection?.call();
+    return files;
+  }
+
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) async {
+    singleCalls++;
+    return files.firstOrNull;
+  }
 }

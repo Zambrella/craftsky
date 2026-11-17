@@ -179,7 +179,7 @@ class ProductsController extends _$ProductsController {
         id: product.id,
         title: product.title,
         destination: product.destination,
-        image: image,
+        images: [image, ...product.images.skip(1)],
         amount: product.amount,
         currency: product.currency,
       ),
@@ -417,7 +417,10 @@ class ProductsController extends _$ProductsController {
         BusinessProductView(
           title: product.title,
           uri: product.destination,
-          image: _acceptedImage(product.image, previousProducts),
+          images: [
+            for (final image in product.photos)
+              ?_acceptedImage(image, previousProducts),
+          ],
           price: product.amount.isEmpty
               ? null
               : BusinessPrice(
@@ -434,7 +437,20 @@ class ProductsController extends _$ProductsController {
   ) {
     if (image case ExistingBusinessImageDraft(:final cid)) {
       for (final product in previousProducts) {
-        if (product.image?.cid.toString() == cid) return product.image;
+        for (final previous in product.photos) {
+          if (previous.cid.toString() == cid) {
+            return previous.previewBytes == null
+                ? previous.copyWith(alt: image.alt)
+                : BusinessImageView.localPreview(
+                    cid: cid,
+                    mime: previous.mime,
+                    size: previous.size,
+                    alt: image.alt,
+                    previewBytes: previous.previewBytes!,
+                    aspectRatio: previous.aspectRatio,
+                  );
+          }
+        }
       }
     }
     if (image case UploadedBusinessImageDraft(

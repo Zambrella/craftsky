@@ -25,6 +25,7 @@ export const settingsGroups = [
 	{
 		title: 'Business',
 		items: [
+			['business', 'Business details'],
 			['events', 'Events'],
 			['products', 'Products']
 		]
@@ -65,12 +66,19 @@ export const notificationLabels: Record<string, string> = {
 };
 export const backgroundLabels: Record<string, string> = {
 	none: 'None',
-	bayerdark: 'Dither',
-	cubedark: 'Grid',
-	dotcrossdark: 'Cross stitch',
-	scallopdark: 'Scallops',
-	skewdark: 'Diagonal weave',
-	x2: 'Crosshatch',
+	'animated-flow': 'Aurora',
+	'animated-waves': 'Colour pools',
+	'animated-weave': 'Sunset',
+	'animated-grain': 'Pigment',
+	'animated-marble': 'Marble',
+	'animated-textile': 'Woven',
+	'animated-ribbons': 'Ribbon bands',
+	'animated-silk': 'Liquid silk',
+	'animated-bloom': 'Light bloom',
+	'animated-sunbeams': 'Sunbeams',
+	'animated-lagoon': 'Lagoon',
+	'animated-nebula': 'Nebula',
+	'animated-prism': 'Prism',
 	'craft-sewing': 'Sewing',
 	'craft-knitting': 'Knitting',
 	'craft-crochet': 'Crochet',

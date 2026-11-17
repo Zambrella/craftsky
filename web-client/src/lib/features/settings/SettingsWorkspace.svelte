@@ -20,6 +20,7 @@
 	import type { Session } from './model.ts';
 	import { visibleSettingsGroups } from './presentation.ts';
 	import SettingsIcon from './SettingsIcon.svelte';
+	import PlusTierIcon from '../shell/PlusTierIcon.svelte';
 	import Preferences from './Preferences.svelte';
 	import Connections from './Connections.svelte';
 	import Account from './Account.svelte';
@@ -27,7 +28,9 @@
 	import Instagram from './Instagram.svelte';
 	import Business from './Business.svelte';
 	import SettingsPageLayout from './SettingsPageLayout.svelte';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	let {
 		api,
 		path,
@@ -43,7 +46,12 @@
 		access = $state<SubscriptionAccess>();
 	let theme = $state('Use device setting');
 	const openAccounts = getContext<() => void>('craftsky-open-accounts');
-	let paid = $derived(!!access?.givesAccess && access.effectiveTier !== 'free');
+	let paid = $derived(
+		premium.allowed(
+			'plus',
+			!!access?.givesAccess && access.effectiveTier !== 'free'
+		)
+	);
 	function loadMenu() {
 		void menu.load(
 			async () => {
@@ -94,8 +102,10 @@
 		visibleSettingsGroups(
 			restricted,
 			subscriptionsEnabled() &&
-				!!access?.givesAccess &&
-				access.effectiveTier === 'business'
+				premium.allowed(
+					'business',
+					!!access?.givesAccess && access.effectiveTier === 'business'
+				)
 		)
 	);
 	async function signOut() {
@@ -156,7 +166,9 @@
 							did: session.did,
 							handle: session.handle,
 							displayName: profile?.displayName,
-							crafts: profile?.crafts || []
+							crafts: profile?.crafts || [],
+							accountType: profile?.accountType,
+							customisation: profile?.customisation
 						}}
 					/>
 				</div>
@@ -174,13 +186,15 @@
 								: 'Make more with CraftSky'}
 						</h2>
 						<p>
-							{paid
-								? 'Review your access and subscription details.'
-								: 'Unlock scheduling, saved folders and more with Plus or Business.'}
-						</p>
-						<span class="callout-action"
-							>{paid ? 'View subscription' : 'Explore subscriptions'}</span
-						></a
+							{#if paid}
+								Review your access and subscription details.
+							{:else}
+								Unlock scheduling, saved folders and more with <strong
+									>Plus</strong
+								>
+								or <strong>Business</strong>.
+							{/if}
+						</p></a
 					>{/if}
 				{#each shownGroups as group}<section class="settings-group">
 						<h2 class="section-label">{group.title}</h2>
@@ -196,11 +210,11 @@
 										: undefined}
 									onclick={(event) => {
 										if (
-											!subscriptionsEnabled() &&
+											!premium.allowed() &&
 											['growth', 'customisation'].includes(slug)
 										) {
 											event.preventDefault();
-											comingSoon(label);
+											void premium.require(label);
 										}
 									}}
 									href={external
@@ -216,7 +230,9 @@
 										><SettingsIcon
 											name={slug}
 										/>{#if subscriptionsEnabled() && !paid && ['growth', 'customisation'].includes(slug)}<span
-												class="plus-mark">+</span
+												class="plus-mark"
+												aria-hidden="true"
+												data-plus-badge><PlusTierIcon size={12} /></span
 											>{/if}</span
 									><span class="tile-copy"
 										><span>{label}</span>{#if slug === 'appearance'}<small

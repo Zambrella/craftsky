@@ -18,6 +18,7 @@ import 'package:craftsky_app/languages/providers/account_language_preferences_pr
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_identity_sync_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -43,6 +44,7 @@ class _ActiveAccountInitializationGateState
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(activeAccountSubscriptionIdentitySyncProvider);
     ref.listen(activeAccountInitializationProvider, (previous, next) {
       if (next case AsyncError(:final error, :final stackTrace)) {
         logActiveAccountInitializationFailure(

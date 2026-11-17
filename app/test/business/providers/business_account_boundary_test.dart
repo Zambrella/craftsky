@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -35,6 +34,7 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -44,6 +44,65 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  for (final failReload in [false, true]) {
+    test(
+      'late conflict reload ${failReload ? 'failure' : 'result'} is discarded '
+      'after account switch',
+      () async {
+        final repository = _ConflictRepository();
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(_registry()),
+            ),
+            businessRepositoryProvider.overrideWithValue(repository),
+            businessTimeZoneServiceProvider.overrideWithValue(
+              BusinessTimeZoneService.initialized(),
+            ),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final subscription = container.listen(
+          businessEventMutationControllerProvider,
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
+        final controller = container.read(
+          businessEventMutationControllerProvider.notifier,
+        );
+        expect(
+          await controller.update(
+            _event('conflict', owner: 'did:plc:alice'),
+            _eventDraft('Edit'),
+          ),
+          isFalse,
+        );
+        final reload = controller.reloadConflict();
+        await _switch(container, AccountKey('did:plc:bob'));
+
+        if (failReload) {
+          repository.reload.completeError(
+            StateError('Old account reload failed'),
+          );
+        } else {
+          repository.reload.complete(
+            _event('reloaded', owner: 'did:plc:alice'),
+          );
+        }
+
+        expect(await reload, isNull);
+        expect(
+          container.read(businessEventMutationControllerProvider).status,
+          EventMutationStatus.ready,
+        );
+        expect(
+          container.read(businessEventMutationControllerProvider).serverEvent,
+          isNull,
+        );
+      },
+    );
+  }
 
   test(
     'IT-010 late Alice profile list detail values and errors never publish '
@@ -292,7 +351,7 @@ void main() {
         id: initialProducts.products.single.id,
         title: 'Alice unsaved product',
         destination: 'https://alice.example/unsaved',
-        image: initialProducts.products.single.image,
+        images: [initialProducts.products.single.image],
       );
       final aliceEvent = _event(
         'alice-mutation',
@@ -413,7 +472,7 @@ void main() {
   testWidgets(
     'IT-010 late Alice upload cannot populate or submit the Bob editor',
     (tester) async {
-      final upload = Completer<ProfileImagePickResult?>();
+      final upload = Completer<PreparedProfileImage?>();
       final storage = _RegistryStorage(_registry());
       final container = ProviderContainer.test(
         overrides: [
@@ -440,6 +499,10 @@ void main() {
           ),
         ),
       );
+      final details = find.byKey(const Key('product-edit-images'));
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Replace image'));
       await tester.tap(find.text('Replace image'));
       await tester.pumpAndSettle();
@@ -456,7 +519,16 @@ void main() {
                 .requireValue
                 .leaseFor(AccountKey('did:plc:bob'))!,
           );
-      upload.complete(_uploadedPick('bafy-alice-upload'));
+      upload.complete(
+        PreparedProfileImage(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          mimeType: 'image/png',
+          width: 1,
+          height: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save product'));
       await tester.tap(find.text('Save product'));
@@ -668,14 +740,16 @@ Profile _profile(
             BusinessProductView(
               title: productTitle,
               uri: 'https://$account.example/product',
-              image: BusinessImageView(
-                cid: 'bafy-$account-image',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: '$account product',
-                thumb: 'https://cdn.example/$account/thumb',
-                fullsize: 'https://cdn.example/$account/full',
-              ),
+              images: [
+                BusinessImageView(
+                  cid: 'bafy-$account-image',
+                  mime: 'image/jpeg',
+                  size: 10,
+                  alt: '$account product',
+                  thumb: 'https://cdn.example/$account/thumb',
+                  fullsize: 'https://cdn.example/$account/full',
+                ),
+              ],
             ),
           ],
   ),
@@ -696,31 +770,13 @@ ProductDraft _productDraft(String title) => ProductDraft(
   id: 'alice-product',
   title: title,
   destination: 'https://alice.example/product',
-  image: const UploadedBusinessImageDraft(
-    cid: 'bafy-alice-saved-image',
-    mime: 'image/jpeg',
-    size: 10,
-  ),
-);
-
-ProfileImagePickResult _uploadedPick(String cid) => ProfileImagePickResult(
-  previewBytes: Uint8List.fromList(
-    base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC'
-      'AAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+  images: const [
+    UploadedBusinessImageDraft(
+      cid: 'bafy-alice-saved-image',
+      mime: 'image/jpeg',
+      size: 10,
     ),
-  ),
-  uploaded: UploadedImageBlob(
-    blob: UploadedBlob(
-      type: 'blob',
-      ref: UploadedBlobRef(link: cid),
-      mimeType: 'image/jpeg',
-      size: 3,
-    ),
-    cid: cid,
-    mime: 'image/jpeg',
-    size: 3,
-  ),
+  ],
 );
 
 BusinessEvent _event(String name, {String owner = 'did:plc:business'}) =>
@@ -782,4 +838,23 @@ final class _MutationBusinessRepository extends Fake
     calls.add('report:$owner:$rkey:${submission.reasonType}');
     return report.future;
   }
+}
+
+final class _ConflictRepository extends Fake implements BusinessRepository {
+  final reload = Completer<BusinessEvent>();
+
+  @override
+  Future<RecordMutationResult> updateEvent(
+    Did owner,
+    RecordKey rkey,
+    Cid expectedCid,
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async => throw const ApiBadRequest(
+    'pds_record_conflict',
+    details: ApiFailureDetails(statusCode: 409),
+  );
+
+  @override
+  Future<BusinessEvent> getEvent(Did owner, RecordKey rkey) => reload.future;
 }

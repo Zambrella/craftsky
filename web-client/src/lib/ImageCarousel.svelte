@@ -8,13 +8,17 @@
 		detail = false,
 		interactive = false,
 		initialIndex = 0,
-		onChange
+		onChange,
+		onOpen,
+		imageLink
 	}: {
 		images: Image[];
 		detail?: boolean;
 		interactive?: boolean;
 		initialIndex?: number;
 		onChange?: (index: number) => void;
+		onOpen?: (index: number) => void;
+		imageLink?: { href: string; label: string; target?: string; rel?: string };
 	} = $props();
 	const pictures = $derived(
 		images.filter((image) => !!safeURL(image.fullsize))
@@ -240,8 +244,17 @@
 			onwheel={interrupt}
 		>
 			{#each pictures as picture, index}<a
-					href={safeURL(picture.fullsize)}
-					aria-label={picture.alt || `View image ${index + 1}`}
+					href={imageLink?.href ?? safeURL(picture.fullsize)}
+					target={imageLink?.target}
+					rel={imageLink?.rel}
+					aria-label={imageLink?.label ??
+						(picture.alt || `View image ${index + 1}`)}
+					onclick={(event) => {
+						if (onOpen) {
+							event.preventDefault();
+							onOpen(images.indexOf(picture));
+						}
+					}}
 					onkeydown={(event) => {
 						if (
 							!interactive ||

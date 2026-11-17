@@ -1,17 +1,12 @@
-import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum PendingSubscriptionOperationKind {
   purchase,
   restore,
   customerCenter,
-  assignment,
-  unassignment,
 }
 
 enum PendingSubscriptionOperationPhase { nativeInFlight, reconciliationPending }
@@ -21,18 +16,20 @@ final class PendingSubscriptionOperation {
     required this.kind,
     required this.phase,
     required this.ownerDid,
+    required this.operationId,
     this.beforeProvider,
     this.tier,
-    this.licenseId,
   });
 
   const new purchaseInFlight(
     Did ownerDid,
     SubscriptionTier tier,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.purchase,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
         tier: tier,
       );
 
@@ -40,71 +37,58 @@ final class PendingSubscriptionOperation {
     Did ownerDid,
     SubscriptionTier tier,
     BillingState beforeProvider,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.purchase,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
+        operationId: operationId,
         tier: tier,
         beforeProvider: beforeProvider,
       );
 
-  const new restoreInFlight(Did ownerDid)
+  const new restoreInFlight(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.restore,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
       );
 
   const new restorePending(
     Did ownerDid,
     BillingState beforeProvider,
+    Object operationId,
   ) : this._(
         kind: PendingSubscriptionOperationKind.restore,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
+        operationId: operationId,
         beforeProvider: beforeProvider,
       );
 
-  const new customerCenterInFlight(Did ownerDid)
+  const new customerCenterInFlight(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
+        operationId: operationId,
       );
 
-  const new customerCenterPending(Did ownerDid)
+  const new customerCenterPending(Did ownerDid, Object operationId)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
-      );
-
-  const new assignmentInFlight(
-    Did ownerDid,
-    String licenseId,
-  ) : this._(
-        kind: PendingSubscriptionOperationKind.assignment,
-        phase: PendingSubscriptionOperationPhase.nativeInFlight,
-        ownerDid: ownerDid,
-        licenseId: licenseId,
-      );
-
-  const new unassignmentInFlight(
-    Did ownerDid,
-    String licenseId,
-  ) : this._(
-        kind: PendingSubscriptionOperationKind.unassignment,
-        phase: PendingSubscriptionOperationPhase.nativeInFlight,
-        ownerDid: ownerDid,
-        licenseId: licenseId,
+        operationId: operationId,
       );
 
   final PendingSubscriptionOperationKind kind;
   final PendingSubscriptionOperationPhase phase;
   final Did ownerDid;
+  final Object operationId;
   final SubscriptionTier? tier;
   final BillingState? beforeProvider;
-  final String? licenseId;
 
   bool get canReconcile =>
       phase == PendingSubscriptionOperationPhase.reconciliationPending;
@@ -123,43 +107,37 @@ final class SubscriptionPendingOperationController
 
   bool beginPurchase(Did ownerDid, SubscriptionTier tier) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.purchaseInFlight(ownerDid, tier);
+    state = PendingSubscriptionOperation.purchaseInFlight(
+      ownerDid,
+      tier,
+      Object(),
+    );
     return true;
   }
 
   bool beginRestore(Did ownerDid) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.restoreInFlight(ownerDid);
+    state = PendingSubscriptionOperation.restoreInFlight(ownerDid, Object());
     return true;
   }
 
   bool beginCustomerCenter(Did ownerDid) {
     if (state != null) return false;
-    state = PendingSubscriptionOperation.customerCenterInFlight(ownerDid);
-    return true;
-  }
-
-  bool beginAssignment(Did ownerDid, String licenseId) {
-    if (state != null) return false;
-    state = PendingSubscriptionOperation.assignmentInFlight(
+    state = PendingSubscriptionOperation.customerCenterInFlight(
       ownerDid,
-      licenseId,
+      Object(),
     );
     return true;
   }
 
-  bool beginUnassignment(Did ownerDid, String licenseId) {
-    if (state != null) return false;
-    state = PendingSubscriptionOperation.unassignmentInFlight(
-      ownerDid,
-      licenseId,
-    );
-    return true;
-  }
-
-  void recordPurchase(SubscriptionTier tier, BillingState beforeProvider) {
+  void recordPurchase(
+    Object operationId,
+    SubscriptionTier tier,
+    BillingState beforeProvider,
+  ) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.purchase ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight ||
         current.tier != tier) {
@@ -169,12 +147,14 @@ final class SubscriptionPendingOperationController
       current.ownerDid,
       tier,
       beforeProvider,
+      operationId,
     );
   }
 
-  void recordRestore(BillingState beforeProvider) {
+  void recordRestore(Object operationId, BillingState beforeProvider) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.restore ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
       return;
@@ -182,33 +162,46 @@ final class SubscriptionPendingOperationController
     state = PendingSubscriptionOperation.restorePending(
       current.ownerDid,
       beforeProvider,
+      operationId,
     );
   }
 
-  void recordCustomerCenterMutation() {
+  void recordPaywallRestore(Object operationId, BillingState beforeProvider) {
     final current = state;
     if (current == null ||
+        !identical(current.operationId, operationId) ||
+        current.kind != PendingSubscriptionOperationKind.purchase ||
+        current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
+      return;
+    }
+    state = PendingSubscriptionOperation.restorePending(
+      current.ownerDid,
+      beforeProvider,
+      operationId,
+    );
+  }
+
+  void recordCustomerCenterMutation(Object operationId) {
+    final current = state;
+    if (current == null ||
+        !identical(current.operationId, operationId) ||
         current.kind != PendingSubscriptionOperationKind.customerCenter ||
         current.phase != PendingSubscriptionOperationPhase.nativeInFlight) {
       return;
     }
     state = PendingSubscriptionOperation.customerCenterPending(
       current.ownerDid,
+      operationId,
     );
   }
 
-  void completeAssignmentMutation({
-    required PendingSubscriptionOperationKind kind,
-    AccountSessionLease? affectedTarget,
-  }) {
-    final current = state;
-    if (current == null || current.kind != kind) return;
-    state = null;
-    ref.invalidate(subscriptionPageModelProvider);
-    if (affectedTarget != null) {
-      ref.invalidate(subscriptionAccessProvider(affectedTarget));
-    }
+  void clear(Object operationId) {
+    if (identical(state?.operationId, operationId)) state = null;
   }
 
-  void clear() => state = null;
+  void clearUnconfirmed(Object operationId) {
+    if (state?.phase == PendingSubscriptionOperationPhase.nativeInFlight) {
+      clear(operationId);
+    }
+  }
 }

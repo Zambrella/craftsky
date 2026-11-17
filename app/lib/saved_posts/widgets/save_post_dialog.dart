@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
@@ -6,10 +7,13 @@ import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -70,9 +74,27 @@ class SavePostDialog extends ConsumerWidget {
       ),
     );
     final state = ref.watch(provider);
-    final folders = subscriptionsEnabled
+    final session = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final access = subscriptionsEnabled && session?.account == account
+        ? ref.watch(subscriptionAccessProvider(session!))
+        : null;
+    final hasPlus = switch (access) {
+      AsyncData(:final value, isLoading: false, hasError: false) =>
+        value.allowsPlus,
+      _ => false,
+    };
+    final folders = hasPlus
         ? ref.watch(savedPostFoldersProvider(account))
         : null;
+    if (hasPlus) {
+      ref.listen(savedPostFoldersProvider(account), (_, next) {
+        ref.read(provider.notifier).folderDeleted(next.value?.deletedFolderId);
+      });
+    }
 
     ref.listen(provider, (_, next) {
       if (next.isConfirmed && context.mounted) {
@@ -117,7 +139,7 @@ class SavePostDialog extends ConsumerWidget {
                       ],
                       onChanged: ref.read(provider.notifier).selectFolder,
                     ),
-                    if (subscriptionsEnabled)
+                    if (hasPlus)
                       switch (folders) {
                         AsyncData(:final value) => _FolderPaginationControls(
                           account: account,
@@ -137,15 +159,25 @@ class SavePostDialog extends ConsumerWidget {
                         ),
                         null => const SizedBox.shrink(),
                       },
-                    if (!subscriptionsEnabled)
+                    if (!hasPlus)
                       PlusFeatureLock(
                         feature: l10n.savedPostNewFolder,
-                        access: null,
-                        onUnlocked: () {},
+                        access: access,
+                        onUnlocked: ref
+                            .read(provider.notifier)
+                            .beginCreatingFolder,
+                        onRetry: session == null
+                            ? null
+                            : () => ref.invalidate(
+                                subscriptionAccessProvider(session),
+                              ),
                         showPlusBadge: false,
-                        child: TextButton(
+                        child: TextButton.icon(
                           onPressed: () {},
-                          child: Text(l10n.savedPostNewFolder),
+                          icon: const PlusActionIcon(
+                            icon: CraftskyIconsBold.newFolder,
+                          ),
+                          label: Text(l10n.savedPostNewFolder),
                         ),
                       )
                     else if (state.isCreatingFolder) ...[

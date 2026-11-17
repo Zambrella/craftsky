@@ -61,6 +61,41 @@ describe('AppView wire contracts', () => {
 		expect(changed).toHaveBeenCalledTimes(6);
 	});
 
+	it('prepares the matching paywall without accepting customer identity', async () => {
+		const { api, request } = setup({
+			apiKey: 'strp_sb_fixture',
+			appUserId: 'private-owner',
+			offering: 'business'
+		});
+		await api.billing.paywall('business');
+		expect(request().url).toBe('/api/appview/v1/billing/web-paywall');
+		expect(request().method).toBe('POST');
+		expect(request().json).toEqual({ tier: 'business' });
+	});
+
+	it('starts account-owned embedded checkout without customer identifiers', async () => {
+		const { api, request } = setup({
+			clientSecret: 'cs_test_fixture_secret_capability',
+			publishableKey: 'pk_test_fixture'
+		});
+		await api.billing.checkout('business');
+		expect(request().url).toBe('/api/appview/v1/billing/web-checkout');
+		expect(request().method).toBe('POST');
+		expect(request().json).toEqual({
+			tier: 'business',
+			presentation: 'embedded'
+		});
+	});
+	it('requests account-owned management without accepting a provider customer ID', async () => {
+		const { api, request } = setup({
+			url: 'https://billing.stripe.com/p/session/test_fixture'
+		});
+		await api.billing.manage();
+		expect(request().url).toBe('/api/appview/v1/billing/web-management');
+		expect(request().method).toBe('POST');
+		expect(request().body).toBeUndefined();
+	});
+
 	it('pages the extended network feed and preserves its connection attribution', async () => {
 		const item = {
 			itemKey: 'post:network-post',

@@ -212,6 +212,8 @@ func TestBusinessEventRejectsInvalidRequestsBeforeMutation(t *testing.T) {
 		{name: "invalid time", method: http.MethodPost, body: strings.Replace(validBusinessEventBody(false), "2026-09-02T18:00:00Z", "2026-09-02T09:00:00Z", 1), want: "validation_failed"},
 		{name: "duplicate links", method: http.MethodPost, body: strings.Replace(validBusinessEventBody(false), "https://tickets.example/register", "https://event.example/details", 1), want: "validation_failed"},
 		{name: "invalid image", method: http.MethodPost, body: strings.Replace(validBusinessEventBody(true), "image/webp", "image/gif", 1), want: "validation_failed"},
+		{name: "empty event name", method: http.MethodPost, body: strings.Replace(validBusinessEventBody(false), "Fiber Fair", "", 1), want: "validation_failed"},
+		{name: "blank event name", method: http.MethodPost, body: strings.Replace(validBusinessEventBody(false), "Fiber Fair", ` \t\u2003`, 1), want: "validation_failed"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

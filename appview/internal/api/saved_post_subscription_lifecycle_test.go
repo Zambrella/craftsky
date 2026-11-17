@@ -37,7 +37,7 @@ func TestSavedFolderAssociationsSurviveEffectivePlusLossAndReturnOnRestoration(t
 		t.Fatal(err)
 	}
 	accountID, subID := uuid.New(), uuid.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES($1,'did:plc:folders-payer',$2)`, accountID, uuid.New()); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES($1,'did:plc:folders-owner',$2)`, accountID, uuid.New()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES($1,$2,'project','sub','plus','app','app_store','production','active',true,'plus',1)`, subID, accountID); err != nil {
@@ -94,7 +94,7 @@ func TestFreeOrdinaryResaveHidesRetainedFolderID(t *testing.T) {
 		t.Fatal(err)
 	}
 	accountID, subID := uuid.New(), uuid.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ($1,'did:plc:resave-payer',$2)`, accountID, uuid.New()); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ($1,'did:plc:resave-owner',$2)`, accountID, uuid.New()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ($1,$2,'project','sub','plus','app','app_store','production','active',false,'plus',1)`, subID, accountID); err != nil {

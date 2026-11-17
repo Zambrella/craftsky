@@ -414,7 +414,7 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
-	const dialog = page.locator('.product-dialog');
+	const dialog = page.locator('.product-composer-form');
 	const currency = dialog.getByRole('combobox', {
 		name: 'Currency',
 		exact: true
@@ -424,14 +424,12 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 	await dialog
 		.getByRole('option', { name: 'JPY - Japanese Yen', exact: true })
 		.click();
-	await dialog.getByLabel('Price · optional', { exact: true }).fill('2500');
+	await dialog.getByLabel('Amount', { exact: true }).fill('2500');
 	await dialog.getByLabel('Title', { exact: true }).fill('🧶'.repeat(150));
 	await dialog
 		.getByRole('button', { name: 'Save product', exact: true })
 		.click();
-	await expect(
-		page.getByRole('status').filter({ hasText: 'Products saved.' })
-	).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/products$/);
 	expect(writes).toHaveLength(1);
 	expect(writes[0].headers['x-craftsky-account-id']).toBe(alice.id);
 	expect(writes[0].headers['if-match']).toBe('business-cid-0');
@@ -472,6 +470,7 @@ test('all-day event edits retain future catalog values and freeze the original d
 	await page.route(
 		`**${appview}/events/${encodeURIComponent(alice.did)}/future-event`,
 		async (route) => {
+			if (route.request().method() === 'GET') return readJSON(route, event);
 			writes.push(capture(route));
 			if (writes.length === 1)
 				return route.fulfill({
@@ -488,33 +487,35 @@ test('all-day event edits retain future catalog values and freeze the original d
 		}
 	);
 	await page.goto('/settings/events');
+	await page
+		.getByLabel('Actions for Future maker weekend', { exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
-	const dialog = page.locator('.event-dialog');
+	const dialog = page.locator('.event-composer-form');
 	await expect(
-		dialog.getByRole('combobox', { name: 'Mode', exact: true })
+		dialog.getByRole('combobox', { name: 'Attendance mode', exact: true })
 	).toHaveValue('Future mode');
 	await expect(
 		dialog.getByRole('combobox', { name: 'Status', exact: true })
 	).toHaveValue('Future status');
-	await dialog
-		.getByRole('searchbox', { name: 'Your roles', exact: true })
-		.click();
-	await expect(dialog.getByLabel('Future role', { exact: true })).toBeChecked();
-	await dialog
-		.getByRole('searchbox', { name: 'Your roles', exact: true })
-		.press('Escape');
+	await expect(
+		dialog.getByRole('button', {
+			name: 'Remove Future role from Your role',
+			exact: true
+		})
+	).toBeVisible();
 	await dialog
 		.getByRole('switch', { name: 'All-day event', exact: true })
 		.check();
-	await expect(dialog.getByLabel('Starts', { exact: true })).toHaveAttribute(
+	await expect(dialog.getByLabel('Start', { exact: true })).toHaveAttribute(
 		'type',
 		'date'
 	);
-	await dialog.getByLabel('Starts', { exact: true }).fill('2027-06-01');
-	await dialog.getByLabel('Ends', { exact: true }).fill('2027-06-02');
+	await dialog.getByLabel('Start', { exact: true }).fill('2027-06-01');
+	await dialog.getByLabel('End', { exact: true }).fill('2027-06-02');
 	await dialog.getByRole('button', { name: 'Save event', exact: true }).click();
-	await expect(dialog.getByLabel('Starts', { exact: true })).toBeDisabled();
-	await dialog
+	await expect(dialog.getByLabel('Start', { exact: true })).toBeDisabled();
+	await page
 		.getByRole('button', { name: 'Check and retry action', exact: true })
 		.click();
 	await expect(dialog).not.toBeVisible();
@@ -525,15 +526,15 @@ test('all-day event edits retain future catalog values and freeze the original d
 	expect(writes[0].body).toMatchObject({
 		isAllDay: true,
 		timeZone: 'Europe/London',
-		startsAt: '2027-05-31T23:00:00.000Z',
-		endsAt: '2027-06-01T23:00:00.000Z',
+		startsAt: '2027-05-31T23:00:00Z',
+		endsAt: '2027-06-01T23:00:00Z',
 		roles: ['future-role'],
 		mode: 'future-mode',
 		status: 'future-status'
 	});
 });
 
-test('future subscription states keep independent tier cards without exposing unsafe assignment controls', async ({
+test('future subscription states show plans without exposing assignment or checkout controls', async ({
 	page
 }) => {
 	await page.route(`**${appview}/billing/account`, (route) =>
@@ -573,17 +574,21 @@ test('future subscription states keep independent tier cards without exposing un
 		name: 'CraftSky Business',
 		exact: true
 	});
-	await expect(business).toContainText('Status unavailable');
+	await expect(
+		business.locator('[data-subscription-status="business"]')
+	).toHaveText('Active');
+	await expect(
+		business.getByRole('button', { name: 'Manage', exact: true })
+	).toBeDisabled();
 	await expect(
 		page.getByRole('button', { name: 'Assign license', exact: true })
 	).toHaveCount(0);
 	await expect(page.getByRole('link', { name: /^Manage in/ })).toHaveCount(0);
 	await expect(
-		page.getByText(
-			'Purchase or restore subscriptions in the CraftSky mobile app.',
-			{ exact: false }
-		)
-	).toBeVisible();
+		page.getByRole('button', {
+			name: /^(View (Plus|Business) details|Subscribe to (Plus|Business))$/
+		})
+	).toHaveCount(0);
 });
 
 test('Instagram keeps the native private confirmation choice and describes all revoke effects before deletion', async ({

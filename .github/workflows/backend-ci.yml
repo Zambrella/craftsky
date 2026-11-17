@@ -212,6 +212,13 @@ jobs:
         working-directory: app
         run: flutter test
 
+      - name: Test enabled subscription feature entry
+        working-directory: app
+        run: >-
+          flutter test --dart-define=SUBSCRIPTIONS_ENABLED=true
+          test/subscriptions/subscription_feature_lock_test.dart
+          test/subscriptions/pages/subscription_operation_lifecycle_test.dart
+
   status:
     name: Service status checks
     needs: changes

@@ -52,7 +52,7 @@ it('retains unexpected image decoder causes and code coordinates in the SDK enve
 	expect(bodies[0]).not.toContain(canary);
 });
 describe('diagnostic source selection and serialization', () => {
-	it('retains release, debug IDs, handled state and AppView correlation in serialized SDK output', async () => {
+	it('retains startup billing operation, release, debug IDs and AppView correlation in serialized SDK output', async () => {
 		const bodies: string[] = [];
 		const client = sdk.init(
 			diagnosticOptions(
@@ -94,12 +94,15 @@ describe('diagnostic source selection and serialization', () => {
 			{ cause: makeError() }
 		);
 		sdk.captureException(error, {
-			contexts: { diagnostic: { operation: 'workspace', recipient: canary } }
+			contexts: {
+				diagnostic: { operation: 'startup.billing.identity', recipient: canary }
+			}
 		});
 		await client.flush(1000);
 		expect(bodies).toHaveLength(1);
 		const wire = bodies[0];
 		expect(wire).not.toContain(canary);
+		expect(wire).toContain('startup.billing.identity');
 		expect(wire).toContain('craftsky-web@1.1.1+abc123');
 		expect(wire).toContain('"environment":"preview"');
 		expect(wire).toContain('"httpStatus":503');

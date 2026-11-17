@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +23,7 @@ void main() {
 
   test('UT-013 exact active identified owner reaches every dispatch', () async {
     final registry = _ownerRegistry();
-    final guard = BillingOwnerGuard(() => registry);
+    final guard = BillingAccountGuard(() => registry);
     final lease = guard.capture();
     final dispatched = <String>[];
 
@@ -40,7 +40,7 @@ void main() {
       did: 'did:plc:bob',
       handle: 'bob.test',
     );
-    final guard = BillingOwnerGuard(() => registry);
+    final guard = BillingAccountGuard(() => registry);
     var dispatches = 0;
 
     for (final operation in operations) {
@@ -49,7 +49,7 @@ void main() {
           final lease = guard.capture();
           await guard.dispatch(lease, () async => dispatches++);
         }(),
-        throwsA(isA<BillingOwnerGuardException>()),
+        throwsA(isA<BillingAccountGuardException>()),
         reason: operation,
       );
     }
@@ -59,7 +59,7 @@ void main() {
 
   test('IT-014 stale owner confirmation is fenced before dispatch', () async {
     var registry = _ownerRegistry();
-    final guard = BillingOwnerGuard(() => registry);
+    final guard = BillingAccountGuard(() => registry);
     final lease = guard.capture();
     registry = registry.upsertAndActivate(
       token: 'bob-token',
@@ -70,14 +70,14 @@ void main() {
 
     await expectLater(
       guard.dispatch(lease, () async => dispatches++),
-      throwsA(isA<BillingOwnerGuardException>()),
+      throwsA(isA<BillingAccountGuardException>()),
     );
 
     expect(dispatches, 0);
   });
 
   test('IT-014 AppView UUID mismatch fences owner state', () async {
-    const guard = BillingOwnerGuard(_ownerRegistry);
+    const guard = BillingAccountGuard(_ownerRegistry);
     final lease = guard.capture();
 
     await expectLater(
@@ -94,7 +94,7 @@ void main() {
         ),
       ),
       throwsA(
-        isA<BillingOwnerGuardException>().having(
+        isA<BillingAccountGuardException>().having(
           (error) => error.code,
           'code',
           'billing_identity_mismatch',
@@ -107,7 +107,7 @@ void main() {
     'IT-014 owner change during identity read fences native dispatch',
     () async {
       var registry = _ownerRegistry();
-      final guard = BillingOwnerGuard(() => registry);
+      final guard = BillingAccountGuard(() => registry);
       final lease = guard.capture();
       final identity = Completer<RevenueCatIdentity>();
       var dispatches = 0;
@@ -130,7 +130,7 @@ void main() {
 
       await expectLater(
         operation,
-        throwsA(isA<BillingOwnerGuardException>()),
+        throwsA(isA<BillingAccountGuardException>()),
       );
       expect(dispatches, 0);
     },
@@ -143,8 +143,7 @@ SessionRegistry _ownerRegistry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );

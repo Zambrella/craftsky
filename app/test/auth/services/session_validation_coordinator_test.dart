@@ -52,7 +52,7 @@ SessionRegistry _registryFixture() {
         cachedAvatarUrl: 'https://cdn.example/alice.jpg',
         cachedCustomisation: const ProfileCustomisation(
           colour: 'orchid',
-          background: 'x2',
+          background: 'craft-sewing',
         ),
       );
   return registry.saveRoutingBinding(

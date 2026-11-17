@@ -1,5 +1,8 @@
 import { loadEnv } from 'vite';
-import { assertModeSpecificEnv } from './env-files.mjs';
+import {
+	assertModeSpecificEnv,
+	developmentSubscriptions
+} from './env-files.mjs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -30,7 +33,15 @@ export function launchSummary(args, directory) {
 	// Vite owns dotenv expansion, file precedence and shell overrides.
 	const envDir = join(directory, 'config');
 	assertModeSpecificEnv(envDir);
-	return summarize(loadEnv(mode, envDir, ''));
+	const values = loadEnv(mode, envDir, '');
+	const flag = developmentSubscriptions(
+		'serve',
+		mode,
+		process.env.SUBSCRIPTIONS_ENABLED,
+		values.SUBSCRIPTIONS_ENABLED
+	);
+	if (flag !== undefined) values.SUBSCRIPTIONS_ENABLED = flag;
+	return summarize(values);
 }
 
 if (

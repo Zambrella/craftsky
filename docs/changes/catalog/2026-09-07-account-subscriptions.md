@@ -23,7 +23,7 @@
   ],
   "summary": "The recorded backend foundation delegates store lifecycle interpretation to RevenueCat while AppView owns private billing identities, licenses, DID assignment and access.",
   "currentDocs": [
-    "docs/adr/014-account-assigned-subscription-licenses.md",
+    "docs/adr/027-per-did-subscriptions.md",
     "docs/operations/subscription-billing-recovery.md"
   ],
   "code": [
@@ -34,7 +34,7 @@
     "docs/changes/2026-09-07-account-subscriptions/05-implementation-plan.md#ir-012-and-ir-013-final-verification",
     "docs/changes/2026-09-07-account-subscriptions/06-implementation-review.md"
   ],
-  "supersededBy": [],
+  "supersededBy": ["2026-11-13-per-did-subscriptions"],
   "followUps": [
     "Production RevenueCat/store configuration and billing recovery evidence are separate from local implementation approval."
   ]
@@ -42,6 +42,11 @@
 ---
 
 # AppView account-assigned subscription foundation
+
+ADR 027 replaces this package's separate payer/beneficiary assignment model with
+account-owned subscriptions. The provider reconciliation and private billing
+foundation remain; consult the replacement change for current ownership,
+checkout and promotional-access behavior.
 
 ## Outcome and decisions
 
@@ -55,4 +60,4 @@ Historical evidence: [05-implementation-plan.md — IR-012 And IR-013 Final Veri
 
 ## Current entry points
 
-[docs/adr/014-account-assigned-subscription-licenses.md](../../../docs/adr/014-account-assigned-subscription-licenses.md); [docs/operations/subscription-billing-recovery.md](../../../docs/operations/subscription-billing-recovery.md). Recorded follow-ups are historical evidence boundaries; recheck them against later records and current code before treating them as open defects.
+[docs/adr/027-per-did-subscriptions.md](../../../docs/adr/027-per-did-subscriptions.md); [docs/operations/subscription-billing-recovery.md](../../../docs/operations/subscription-billing-recovery.md). Recorded follow-ups are historical evidence boundaries; recheck them against later records and current code before treating them as open defects.

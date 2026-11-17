@@ -39,7 +39,7 @@ func TestCommandPutBusinessProfileUsesFixedSelfAndPreservesUnknownExtensions(t *
 	request := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/business", strings.NewReader(`{
 		"tagline":"Owner replacement",
 		"businessTypes":["teacher","dyer"],
-		"products":[{"title":"Wool","uri":"https://example.com/wool","image":{"image":{"$type":"blob","ref":{"$link":"`+businessProfileCID1+`"},"mimeType":"image/png","size":12},"alt":"Wool"}}]
+		"products":[{"title":"Wool","uri":"https://example.com/wool","images":[{"image":{"$type":"blob","ref":{"$link":"`+businessProfileCID1+`"},"mimeType":"image/png","size":12},"alt":"Wool"}]}]
 	}`))
 	request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-999999999996")
 	request.Header.Set("If-Match", businessProfileCID1)

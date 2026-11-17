@@ -1,8 +1,8 @@
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/observability/consumed_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_setup_coordinator.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_setup_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
@@ -17,12 +17,16 @@ final class SubscriptionDiagnostics {
 
   void report(Object error, StackTrace stack, {required String operation}) {
     final expected =
-        (error is BillingOwnerGuardException && error.ownerSessionChanged) ||
-        (error is BillingOwnerSetupException &&
-            error.code == 'owner_session_changed') ||
+        (error is BillingAccountGuardException && error.ownerSessionChanged) ||
+        (error is BillingAccountSetupException &&
+            error.code == 'account_session_changed') ||
         error is RevenueCatUnavailableException ||
+        error is StoreAccountConflictException ||
+        error is StoreSubscriptionExistsException ||
+        error is NativePlanChangeUnavailableException ||
         (error is RevenueCatIdentityException &&
-            error.code == 'billing_unavailable') ||
+            (error.code == 'billing_unavailable' ||
+                error.code == 'account_session_changed')) ||
         (error is RevenueCatServiceException && error.expectedFailure);
     reportConsumedFailure(
       error,

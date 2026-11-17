@@ -18,6 +18,50 @@ in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 See [ADR 024](../docs/adr/024-public-server-rendered-web-client.md) and
 [ADR 025](../docs/adr/025-browser-consumer-handoff.md).
 
+## Account subscriptions and Stripe checkout
+
+Each CraftSky DID owns a separate RevenueCat customer identified by a private
+AppView-generated UUID. The web client never accepts a customer ID from a URL or
+asks a member to choose a billing owner or assign a licence.
+
+The subscriptions page sends only the selected `plus` or `business` tier to
+`POST /v1/billing/web-paywall`. AppView checks current provider state and returns
+the account's private RevenueCat UUID, public Stripe app SDK key and offering.
+The lazily loaded Web SDK presents the same published RevenueCat paywall as
+Flutter in a large modal and handles Stripe Checkout. Managed Payments is
+preferred when available; ordinary Stripe Billing fallback is accepted.
+
+Configure `REVENUECAT_WEB_PUBLIC_API_KEY` on AppView (`strp_sb_` for sandbox,
+`strp_` for production), alongside the existing Stripe billing/catalog settings;
+see the [configuration reference](../docs/development/configuration.md). No
+provider secret belongs in the web bundle. Missing configuration hides purchase
+controls. The server and client repeat preflight before SDK purchase; account
+switches and close/disposal discard stale work, and cooperating tabs share a
+browser account lock. AppView reconciliation, never SDK success, grants access.
+
+Plus and Business are alternatives for one account. Web tier changes are deferred:
+active subscriptions, canceled paid-through periods, pending payments and
+unresolved provider states prevent a second checkout. RevenueCat owns SDK-created sessions and their retries. AppView retains pending
+operations only for older direct checkouts; these block new paywalls until
+resolved. The browser lock is not a cross-device payment fence. A member may choose another tier after the original
+subscription has ended.
+
+Apple and Google subscriptions are managed through their store pages. The
+**Manage in Stripe** button calls authenticated `POST /v1/billing/web-management`
+without a customer identifier. AppView resolves this DID's Stripe customer and
+returns a short-lived customer-specific portal session. The client permits only
+HTTPS `billing.stripe.com/p/session/…` destinations; shared email-login portal
+links are not used, because multiple DIDs can have the same payer email. If
+account-specific management is unavailable, the page directs the member to their
+Stripe receipt's management link.
+
+After returning from checkout or management, the page requests provider
+reconciliation. A success redirect or query parameter never grants paid access;
+AppView's subscription access response remains authoritative. Responses arriving
+after an account change or closing the view cannot open a billing page for the
+previous account. Checkout and portal session URLs are private capabilities and
+must not be logged or included in diagnostics.
+
 ## Local development and checks
 
 Use Node 24 (minimum 22.17) and Docker. From the repository root:
@@ -26,6 +70,14 @@ Use Node 24 (minimum 22.17) and Docker. From the repository root:
 just dev-d
 just web-run
 ```
+
+The development server enables subscriptions by default; an explicit
+`SUBSCRIPTIONS_ENABLED=false` shell/profile setting overrides this. Production
+builds and the deployed Worker retain their separate disabled default. Local web
+checkout uses the Stripe sandbox through AppView, not the native RevenueCat Test
+Store dialog. Configure the sandbox Stripe bundle in AppView's ignored files;
+the server accepts HTTP return URLs only on loopback in sandbox mode. No Stripe
+secret belongs in this frontend's environment files.
 
 Optional web settings live in `web-client/config/.env.development.local`; copy `web-client/config/.env.development.local.example` as a starting point. Vite and SvelteKit both read this directory. Production builds instead read `config/.env.production.local`; copy its matching `.example` and supply public Firebase/Sentry settings, with `PUBLIC_SENTRY_ENVIRONMENT=production`. Generic `.env` and `.env.local` files are rejected; run `just config-init` to migrate an older local profile. Worker runtime settings (`APPVIEW_ORIGIN` and `SUBSCRIPTIONS_ENABLED`) remain in `wrangler.jsonc`.
 

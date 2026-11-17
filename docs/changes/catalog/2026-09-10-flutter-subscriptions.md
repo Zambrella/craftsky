@@ -24,7 +24,7 @@
   ],
   "summary": "The recorded mobile slice adds subscription purchase/restore, reconciliation and account-assignment UI on the AppView billing foundation.",
   "currentDocs": [
-    "docs/adr/014-account-assigned-subscription-licenses.md",
+    "docs/adr/027-per-did-subscriptions.md",
     "docs/operations/subscription-billing-recovery.md",
     "app/README.md"
   ],
@@ -36,7 +36,7 @@
     "docs/changes/2026-09-10-flutter-subscriptions/05-implementation-plan.md#eighth-correction-verification",
     "docs/changes/2026-09-10-flutter-subscriptions/06-implementation-review.md"
   ],
-  "supersededBy": [],
+  "supersededBy": ["2026-11-13-per-did-subscriptions"],
   "followUps": [
     "Historical MAN-001 through MAN-005 store, sandbox, RevenueCat and device gates remain external activation prerequisites."
   ]
@@ -44,6 +44,11 @@
 ---
 
 # Flutter subscription purchase, restore and assignment
+
+The replacement account-owned subscription change removes cross-DID assignment
+and adds guarded account-activation identity, purchase recovery and promotional
+access. This card retains the historical execution evidence; ADR 027 and current
+code define the supported mobile behavior.
 
 ## Outcome and decisions
 
@@ -57,4 +62,4 @@ Historical evidence: [05-implementation-plan.md — Eighth Correction Verificati
 
 ## Current entry points
 
-[docs/adr/014-account-assigned-subscription-licenses.md](../../../docs/adr/014-account-assigned-subscription-licenses.md); [docs/operations/subscription-billing-recovery.md](../../../docs/operations/subscription-billing-recovery.md); [app/README.md](../../../app/README.md). Recorded follow-ups are historical evidence boundaries; recheck them against later records and current code before treating them as open defects.
+[docs/adr/027-per-did-subscriptions.md](../../../docs/adr/027-per-did-subscriptions.md); [docs/operations/subscription-billing-recovery.md](../../../docs/operations/subscription-billing-recovery.md); [app/README.md](../../../app/README.md). Recorded follow-ups are historical evidence boundaries; recheck them against later records and current code before treating them as open defects.

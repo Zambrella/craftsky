@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/image_pick_error_reporting.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
@@ -47,6 +48,7 @@ class EventForm extends ConsumerStatefulWidget {
     required this.onChanged,
     this.initial,
     this.pickImage,
+    this.editImage,
     this.enabled = true,
     super.key,
   });
@@ -54,6 +56,7 @@ class EventForm extends ConsumerStatefulWidget {
   final BusinessEventDraft? initial;
   final VoidCallback onChanged;
   final EventImagePicker? pickImage;
+  final BasicImageEditor? editImage;
   final bool enabled;
 
   @override
@@ -74,7 +77,7 @@ class EventFormState extends ConsumerState<EventForm> {
   late String _mode;
   late String _status;
   late String _timeZone;
-  late final bool _isAllDay;
+  late bool _isAllDay;
   DateTime? _start;
   DateTime? _end;
   late BusinessImageDraft _image;
@@ -91,8 +94,8 @@ class EventFormState extends ConsumerState<EventForm> {
     _name = TextEditingController(text: initial?.name);
     _startFocus = FocusNode();
     _endFocus = FocusNode();
-    _start = initial?.startsAt;
-    _end = initial?.endsAt;
+    _start = _civilTime(initial?.startsAt);
+    _end = _civilTime(initial?.endsAt);
     _summary = TextEditingController(text: initial?.summary);
     _venue = TextEditingController(text: initial?.venueName);
     _eventUri = TextEditingController(text: initial?.eventUri);
@@ -127,10 +130,15 @@ class EventFormState extends ConsumerState<EventForm> {
     final formValid = _formKey.currentState?.validate() ?? false;
     final draft = _buildDraft();
     final errors = draft?.validate(ref.read(businessTimeZoneServiceProvider));
+    final l10n = AppLocalizations.of(context);
     setState(() {
-      _draftError = draft == null || (errors?.isNotEmpty ?? true)
-          ? AppLocalizations.of(context).businessEventValidationError
-          : null;
+      if (errors?.contains(EventDraftError.timeDoesNotExist) ?? false) {
+        _draftError = l10n.businessEventTimeDoesNotExist;
+      } else {
+        _draftError = draft == null || (errors?.isNotEmpty ?? true)
+            ? l10n.businessEventValidationError
+            : null;
+      }
     });
     if (!formValid || draft == null || errors!.isNotEmpty || _preparingImage) {
       return null;
@@ -188,11 +196,20 @@ class EventFormState extends ConsumerState<EventForm> {
                       maxBytes: RecordTextLimits.eventName.bytes,
                       textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventNameLabel,
+                      hintText: l10n.businessEventNameHint,
                       required: true,
                       validator: (value) =>
                           value == null || value.trim().isEmpty
                           ? l10n.businessEventNameRequired
                           : null,
+                    ),
+                    SizedBox(height: spacing.sp5),
+                    SwitchListTile(
+                      key: const ValueKey('event-all-day'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.businessEventAllDay),
+                      value: _isAllDay,
+                      onChanged: widget.enabled ? _setAllDay : null,
                     ),
                     SizedBox(height: spacing.sp5),
                     _responsivePair(
@@ -214,10 +231,18 @@ class EventFormState extends ConsumerState<EventForm> {
                         onSelected: (value) => _end = value,
                       ),
                     ),
+                    if (_isAllDay) ...[
+                      SizedBox(height: spacing.sp2),
+                      Text(
+                        l10n.businessEventAllDayHint,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     SizedBox(height: spacing.sp5),
                     CraftskySingleSelectInput<String>(
                       key: const ValueKey('event-time-zone'),
                       label: l10n.businessEventTimeZoneLabel,
+                      searchHintText: l10n.businessEventTimeZoneHint,
                       clearable: false,
                       value: _timeZone,
                       enabled: widget.enabled,
@@ -238,28 +263,34 @@ class EventFormState extends ConsumerState<EventForm> {
                           : null,
                     ),
                     SizedBox(height: spacing.sp5),
-                    CraftskyFieldScaffold(
-                      label: l10n.businessEventRolesLabel,
-                      required: true,
+                    FormField<Set<String>>(
+                      initialValue: _roles,
                       enabled: widget.enabled,
-                      errorText: _roles.isEmpty
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      validator: (roles) => roles == null || roles.isEmpty
                           ? l10n.businessEventRolesRequired
                           : null,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(),
-                        child: Wrap(
-                          spacing: spacing.sp2,
-                          runSpacing: spacing.sp2,
-                          children: [
-                            for (final role in {
-                              ...businessEventRoles,
-                              ..._roles.where(
-                                (role) => !businessEventRoles.contains(role),
-                              ),
-                            })
-                              FilterChip(
-                                label: Text(
-                                  BusinessLabels.eventRole(
+                      builder: (field) =>
+                          CraftskySearchableMultiSelectInput<String>(
+                            keyPrefix: 'event-roles',
+                            label: l10n.businessEventRolesLabel,
+                            required: true,
+                            searchHintText: l10n.businessEventRolesSearchHint,
+                            enabled: widget.enabled,
+                            errorText: field.errorText,
+                            helperText: l10n.businessEventRolesHint,
+                            maxSelected: 4,
+                            maxSelectedErrorText: l10n
+                                .projectComposerMultiSelectMaxSelectedError(4),
+                            values: _roles.toList(),
+                            options: [
+                              for (final role in {
+                                ...businessEventRoles,
+                                ..._roles,
+                              })
+                                CraftskySelectOption(
+                                  value: role,
+                                  label: BusinessLabels.eventRole(
                                     BusinessOpenValue(
                                       value: role,
                                       known: businessEventRoles.contains(role),
@@ -267,19 +298,13 @@ class EventFormState extends ConsumerState<EventForm> {
                                     l10n,
                                   ),
                                 ),
-                                selected: _roles.contains(role),
-                                onSelected: widget.enabled
-                                    ? (selected) => setState(() {
-                                        selected
-                                            ? _roles.add(role)
-                                            : _roles.remove(role);
-                                        _notifyChanged();
-                                      })
-                                    : null,
-                              ),
-                          ],
-                        ),
-                      ),
+                            ],
+                            onChanged: (values) => setState(() {
+                              _roles = values.toSet();
+                              field.didChange(_roles);
+                              _notifyChanged();
+                            }),
+                          ),
                     ),
                     SizedBox(height: spacing.sp5),
                     _responsivePair(
@@ -288,6 +313,7 @@ class EventFormState extends ConsumerState<EventForm> {
                         key: const ValueKey('event-mode'),
                         value: _mode,
                         label: l10n.businessEventModeLabel,
+                        hint: l10n.businessEventModeHint,
                         values: businessEventModes,
                         itemLabel: (value) => BusinessLabels.eventMode(
                           BusinessOpenValue(
@@ -302,6 +328,7 @@ class EventFormState extends ConsumerState<EventForm> {
                         key: const ValueKey('event-status'),
                         value: _status,
                         label: l10n.businessEventStatusLabel,
+                        hint: l10n.businessEventStatusHint,
                         values: businessEventStatuses,
                         itemLabel: (value) => BusinessLabels.eventStatus(
                           BusinessOpenValue(
@@ -322,6 +349,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       maxBytes: RecordTextLimits.eventSummary.bytes,
                       maxLines: 4,
                       label: l10n.businessEventSummaryLabel,
+                      hintText: l10n.businessEventSummaryHint,
                     ),
                     SizedBox(height: spacing.sp5),
                     CraftskyTextFormField(
@@ -332,6 +360,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       maxBytes: RecordTextLimits.eventVenue.bytes,
                       textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventVenueLabel,
+                      hintText: l10n.businessEventVenueHint,
                     ),
                     SizedBox(height: spacing.sp5),
                     CraftskyTextFormField(
@@ -340,6 +369,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       enabled: widget.enabled,
                       keyboardType: TextInputType.url,
                       label: l10n.businessEventUriLabel,
+                      hintText: l10n.businessEventUriHint,
                     ),
                     SizedBox(height: spacing.sp5),
                     CraftskyTextFormField(
@@ -348,6 +378,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       enabled: widget.enabled,
                       keyboardType: TextInputType.url,
                       label: l10n.businessEventRegistrationUriLabel,
+                      hintText: l10n.businessEventRegistrationUriHint,
                     ),
                     SizedBox(height: spacing.sp5),
                     ComposerImageAttachmentSection(
@@ -356,6 +387,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       ),
                       enabled: widget.enabled && !_preparingImage,
                       maxImages: 1,
+                      useDetailsRoute: true,
                       keyPrefix: 'event',
                       imageUrlFor: (_) => _image.previewUrl,
                       onAddImages: () => _pickImage(ImageSource.gallery),
@@ -367,6 +399,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       onRemove: (_) => _removeImage(),
                       onReplace: (_, source) => _pickImage(source),
                       onReplaceUnavailable: (_, source) => _pickImage(source),
+                      onEditImage: (_) => _editImage(),
                       onReorder: (_, _) {},
                       validationErrorText: _uploadError,
                     ),
@@ -403,8 +436,14 @@ class EventFormState extends ConsumerState<EventForm> {
   }) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    final formatted = _formatDateTime(context, value);
+    final formatted = value != null && _isAllDay
+        ? MaterialLocalizations.of(context).formatMediumDate(value)
+        : _formatDateTime(context, value);
+    final hint = _isAllDay
+        ? l10n.businessEventDateHint
+        : l10n.businessEventDateTimeHint;
     return FormField<DateTime>(
+      key: ValueKey((key, _isAllDay)),
       initialValue: value,
       enabled: widget.enabled,
       validator: (selected) {
@@ -421,7 +460,7 @@ class EventFormState extends ConsumerState<EventForm> {
         required: true,
         errorText: field.errorText,
         semanticValue: formatted,
-        semanticHint: l10n.businessEventDateTimeHint,
+        semanticHint: hint,
         child: InkWell(
           key: key,
           focusNode: focusNode,
@@ -449,7 +488,7 @@ class EventFormState extends ConsumerState<EventForm> {
               children: [
                 Expanded(
                   child: Text(
-                    formatted ?? l10n.businessEventDateTimeHint,
+                    formatted ?? hint,
                     style: formatted == null
                         ? Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: Theme.of(
@@ -478,18 +517,37 @@ class EventFormState extends ConsumerState<EventForm> {
       lastDate: DateTime(initial.year + 100),
     );
     if (date == null || !mounted) return null;
+    if (_isAllDay) return DateTime.utc(date.year, date.month, date.day);
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null || !mounted) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    return DateTime.utc(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
   }
+
+  static DateTime? _civilTime(DateTime? value) => value == null
+      ? null
+      : DateTime.utc(
+          value.year,
+          value.month,
+          value.day,
+          value.hour,
+          value.minute,
+          value.second,
+        );
 
   Widget _catalogField({
     required Key key,
     required String value,
     required String label,
+    required String hint,
     required Set<String> values,
     required String Function(String value) itemLabel,
     required ValueChanged<String> onChanged,
@@ -498,6 +556,7 @@ class EventFormState extends ConsumerState<EventForm> {
     return CraftskySingleSelectInput<String>(
       key: key,
       label: label,
+      searchHintText: hint,
       clearable: false,
       value: value,
       enabled: widget.enabled,
@@ -514,6 +573,25 @@ class EventFormState extends ConsumerState<EventForm> {
             })
           : null,
     );
+  }
+
+  void _setAllDay(bool value) {
+    setState(() {
+      _isAllDay = value;
+      if (value) {
+        if (_start case final start?) {
+          _start = DateTime.utc(start.year, start.month, start.day);
+        }
+        if (_end case final end?) {
+          _end = DateTime.utc(end.year, end.month, end.day);
+        }
+        if (_start case final start?
+            when _end == null || !_end!.isAfter(start)) {
+          _end = DateTime.utc(start.year, start.month, start.day + 1);
+        }
+      }
+    });
+    _notifyChanged();
   }
 
   Widget _responsivePair(bool wide, Widget first, Widget second) {
@@ -677,6 +755,77 @@ class EventFormState extends ConsumerState<EventForm> {
           if (!_isCurrent(ownership)) _preview = null;
         });
       }
+    }
+  }
+
+  Future<void> _editImage() async {
+    final image = _pendingImage;
+    if (image == null || _preparingImage || !widget.enabled) return;
+    final ownership = _captureOwnership();
+    final reporter = ref.read(errorReporterProvider);
+    final media = ref.read(profileImageMediaServiceProvider);
+    setState(() {
+      _preparingImage = true;
+      _uploadError = null;
+    });
+    bool current() =>
+        mounted && _isCurrent(ownership) && identical(_pendingImage, image);
+    try {
+      final request = BasicImageEditRequest(
+        bytes: image.bytes,
+        mimeType: image.mimeType,
+        mode: BasicImageEditMode.composer,
+      );
+      final output =
+          await (widget.editImage?.call(request) ??
+              showBasicImageEditor(context, request, ownership: ownership));
+      if (output == null || !current()) return;
+      final prepared = await media
+          .prepareImage(
+            bytes: output.bytes,
+            fileName: output.mimeType == 'image/png'
+                ? 'edited.png'
+                : 'edited.jpg',
+            mimeType: output.mimeType,
+          )
+          .future;
+      if (!current()) return;
+      final check = media.validatePreparedUploadBytes(
+        originalBytes: output.bytes.length,
+        preparedBytes: prepared.bytes.length,
+        width: prepared.width,
+        height: prepared.height,
+      );
+      if (!check.canUpload) {
+        throw const ProfileImagePickException(expectedRejection: true);
+      }
+      setState(() {
+        _pendingImage = PreparedProfileImage(
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+        );
+        _preview = prepared.bytes;
+        _notifyChanged();
+      });
+    } on Object catch (error, stackTrace) {
+      unawaited(
+        reportImagePickFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stackTrace,
+          operation: ImagePickOperation.businessEvent,
+          accountDid: ownership?.session.account.did.value,
+        ),
+      );
+      if (current()) {
+        setState(
+          () => _uploadError = AppLocalizations.of(context).imageEditFailed,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _preparingImage = false);
     }
   }
 

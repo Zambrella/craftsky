@@ -113,6 +113,46 @@ enablement requirements; client UI flags do not replace server authorization.
 Follow the [configuration guide](development/configuration.md) and
 [logging/error-reporting rules](development/logging-error-reporting.md).
 
+Subscriptions belong to individual DIDs, each mapped to a private RevenueCat
+customer UUID. Plus and Business are alternative tiers; licences cannot be
+assigned to another DID. When the integration is enabled, eligible accounts
+that have completed onboarding start optional customer setup on sign-in,
+switching and session restoration. AppView queues initial RevenueCat customer
+registration; native clients also synchronize SDK identity through store
+ownership checks. Provider failures do not block account readiness.
+Web and native clients share RevenueCat's published Plus and Business paywalls.
+Locked paid-feature actions open the required paywall over their current screen,
+using the same purchase guards as billing settings. Unknown access remains an
+unavailable/retry state; disabled subscription builds retain Coming soon.
+The web SDK renders the paywall as a modal bottom sheet, then presents Stripe
+checkout in a larger modal using the
+authenticated account's private RevenueCat UUID and an environment-matched public
+Stripe app SDK key. Managed Payments is preferred when available; the maintainer
+accepts ordinary Stripe Billing fallback, where CraftSky retains merchant/tax
+responsibility. Server preflight and browser lifecycle guards run before SDK
+purchases. RevenueCat owns new Checkout creation; the old AppView durable
+session fence applies only to retained direct Stripe operations. AppView
+authorizes paid access from reconciled provider state, never an SDK success or
+checkout redirect. Promotional grants are stored separately from
+paid subscriptions and licences. Verified `plus` and `business` grants contribute
+to effective access until expiry or revocation, without blocking an early paid
+subscription. Clients show complimentary expiry and explain that subscribing
+starts paid billing immediately. Paid and promotional overlap grants the highest
+valid tier; only paid duplicates trigger the billing anomaly protections.
+Paid subscribers retain both full plan cards on mobile and web. The summary
+shows Standard/Plus/Business and the access expiry, while the paid plan shows
+Active/Manage and the other plan shows Upgrade or Downgrade. These actions open
+the existing provider's management flow. Native store purchases use RevenueCat
+Customer Center on mobile and store management on web. Stripe management uses
+a customer-specific AppView portal, resolving SDK purchases through a complete
+RevenueCat owner snapshot and a merchant/environment-verified Stripe subscription.
+No new web purchase is offered inside mobile to replace an existing plan.
+Shared payer email is not an account selector. Billing state exposes retained checkout
+work through `webCheckoutPending` across environments, preventing native
+repurchase before RevenueCat indexing. Unresolved checkout operations also block
+account deletion until provider terminal state is established. See
+[ADR 027](adr/027-per-did-subscriptions.md).
+
 Moderation controls CraftSky visibility and private enforcement state. It must
 not delete another user's PDS content. The explicit owner-approved permanent
 CraftSky account-deletion flow and owner removal of their referenced profile-link

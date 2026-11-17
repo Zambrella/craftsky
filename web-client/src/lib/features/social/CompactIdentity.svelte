@@ -1,7 +1,12 @@
 <script lang="ts">
+	import BusinessIdentityIcon from './BusinessIdentityIcon.svelte';
 	import type { Author } from '#lib/api/types.ts';
 	import { name } from './model';
-	import { identityCrafts, fittingIdentityCrafts } from './compact-identity';
+	import {
+		identityCrafts,
+		fittingIdentityCrafts,
+		identityCraftLabel
+	} from './compact-identity';
 	let { author }: { author: Author } = $props();
 	const crafts = $derived(identityCrafts(author.crafts));
 	let visible = $state(5);
@@ -40,28 +45,40 @@
 	}
 </script>
 
-<span class="compact-identity">
-	<span class="identity-name" use:fit={crafts}>
-		<strong>{name(author)}</strong>{#if crafts.length}<span
-				class="inline-crafts"
+<span
+	class="compact-identity"
+	class:is-business={author.accountType === 'business'}
+>
+	<span class="identity-row">
+		{#if author.accountType === 'business'}<span
+				class="business-icon"
 				role="img"
-				aria-label={'Crafts: ' + crafts.map((craft) => craft.name).join(', ')}
-				title={crafts.map((craft) => craft.name).join(', ')}
+				aria-label="Business"
+				title="Business"
+				><BusinessIdentityIcon customisation={author.customisation} /></span
+			>{/if}
+		<span class="identity-name" use:fit={crafts}>
+			<strong>{name(author)}</strong>{#if crafts.length}<span
+					class="inline-crafts"
+					role="img"
+					aria-label={identityCraftLabel(crafts)}
+					title={crafts.map((craft) => craft.name).join(', ')}
+				>
+					{#each crafts
+						.filter((craft) => craft.icon)
+						.slice(0, visible) as craft}<span
+							class="inline-craft"
+							style:--craft-icon={`url('/craft_icons/${craft.id}.svg')`}
+							aria-hidden="true"
+						></span>{/each}
+					{#if crafts.length > visible}<span
+							class="craft-count"
+							aria-hidden="true">+{crafts.length - visible}</span
+						>{/if}
+				</span>{/if}<span class="measure-count" aria-hidden="true"
+				>+{crafts.length}</span
 			>
-				{#each crafts
-					.filter((craft) => craft.icon)
-					.slice(0, visible) as craft}<span
-						class="inline-craft"
-						style:--craft-icon={`url('/craft_icons/${craft.id}.svg')`}
-						aria-hidden="true"
-					></span>{/each}
-				{#if crafts.length > visible}<span
-						class="craft-count"
-						aria-hidden="true">+{crafts.length - visible}</span
-					>{/if}
-			</span>{/if}<span class="measure-count" aria-hidden="true"
-			>+{crafts.length}</span
-		>
+		</span>
 	</span>
 	<small>@{author.handle || 'Account unavailable'}</small>
 </span>
@@ -72,7 +89,20 @@
 		min-width: 0;
 		flex: 1;
 	}
+	.identity-row {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+	}
+	.business-icon {
+		display: inline-flex;
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		margin-right: 8px;
+	}
 	.identity-name {
+		flex: 1;
 		display: flex;
 		align-items: center;
 		min-width: 0;

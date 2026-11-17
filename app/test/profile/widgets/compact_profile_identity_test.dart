@@ -1,10 +1,13 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,6 +72,93 @@ void main() {
     await tester.tap(find.text('Follow'));
     expect(profileTaps, 1);
     expect(actionTaps, 1);
+  });
+
+  testWidgets(
+    'business identity shares the craft icon row without extra text',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _wrap(
+          const CompactProfileIdentity(
+            handle: 'maker.test',
+            displayName: 'Maker',
+            crafts: ['knitting', 'sewing'],
+            isBusiness: true,
+            customisation: ProfileCustomisation(colour: 'rose'),
+          ),
+        ),
+      );
+      final business = find.byIcon(CraftskyIcons.storefront);
+      expect(business, findsOneWidget);
+      expect(find.text('Business'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Business'),
+        findsOneWidget,
+      );
+      final lastCraft = tester.getRect(find.text('Maker'));
+      final icon = tester.getRect(business);
+      expect(icon.right, lessThan(lastCraft.left));
+      expect(icon.center.dy, closeTo(lastCraft.center.dy, 1));
+      expect(tester.widget<Icon>(business).size, 16);
+      expect(
+        tester.widget<Icon>(business).color,
+        Color(
+          int.parse(
+            profileColourBundles['rose']!.base.replaceFirst('#', 'FF'),
+            radix: 16,
+          ),
+        ),
+      );
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'business identity is visible without crafts and fits narrow layouts',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const CompactProfileIdentity(
+            handle: 'maker.test',
+            displayName: 'Maker',
+            isBusiness: true,
+          ),
+        ),
+      );
+      expect(find.byIcon(CraftskyIcons.storefront), findsOneWidget);
+      await tester.pumpWidget(
+        _wrap(
+          const CompactProfileIdentity(
+            handle: 'maker.test',
+            displayName: 'A very long business name',
+            crafts: crafts,
+            isBusiness: true,
+          ),
+          width: 100,
+          scale: 2,
+        ),
+      );
+      expect(find.textContaining('+'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('expanded business storefront precedes the name', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const ProfileIdentity(
+          handle: 'maker.test',
+          displayName: 'Maker',
+          isBusiness: true,
+        ),
+      ),
+    );
+    expect(
+      tester.getRect(find.byIcon(CraftskyIcons.storefront)).right,
+      lessThan(tester.getRect(find.text('Maker')).left),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shows every craft when the name leaves enough room', (

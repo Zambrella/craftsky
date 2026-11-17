@@ -30,6 +30,7 @@ class CraftskyFormBuilderDropdownField<T>
     super.onChanged,
     super.required,
     super.requiredLabel,
+    super.clearable,
   });
 }
 

@@ -1,5 +1,5 @@
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Keeps an action recognizable while marking its icon as Plus-only.
@@ -19,7 +19,7 @@ class PlusActionIcon extends StatelessWidget {
       );
     }
     return SizedBox.square(
-      dimension: size + 6,
+      dimension: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -29,10 +29,9 @@ class PlusActionIcon extends StatelessWidget {
             child: Icon(icon, size: size),
           ),
           PositionedDirectional(
-            end: 0,
-            bottom: 0,
-            child: Icon(
-              CraftskyIcons.plusTier,
+            end: -6,
+            bottom: -6,
+            child: PlusTierIcon(
               size: 12,
               color: Theme.of(context).colorScheme.primary,
             ),

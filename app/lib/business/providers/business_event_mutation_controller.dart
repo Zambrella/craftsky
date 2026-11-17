@@ -186,17 +186,20 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
     if (event == null || state.status != EventMutationStatus.conflict) {
       return null;
     }
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const EventMutationState(status: EventMutationStatus.saving);
     try {
       final current = await ref
           .read(businessRepositoryProvider)
           .getEvent(event.did, event.rkey);
+      if (!accountOperation.isCurrent) return null;
       _conflictedEvent = null;
       _conflictRetry = null;
       state = EventMutationState(serverEvent: current);
       _invalidateReads();
       return current;
     } on Object {
+      if (!accountOperation.isCurrent) return null;
       state = const EventMutationState(status: EventMutationStatus.error);
       return null;
     }
@@ -375,9 +378,26 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
     final endsAt = DateTime.parse(range.endsAt);
     final now = DateTime.now().toUtc();
     final acceptedImage = switch (draft.image) {
-      ExistingBusinessImageDraft(:final cid)
+      ExistingBusinessImageDraft(:final cid, :final alt)
           when event?.image?.cid.toString() == cid =>
-        event?.image,
+        switch (event?.image) {
+          BusinessImageView(
+            :final mime,
+            :final size,
+            :final aspectRatio,
+            previewBytes: final bytes?,
+          ) =>
+            BusinessImageView.localPreview(
+              cid: cid,
+              mime: mime,
+              size: size,
+              alt: alt,
+              aspectRatio: aspectRatio,
+              previewBytes: bytes,
+            ),
+          final image? => image.copyWith(alt: alt),
+          _ => null,
+        },
       UploadedBusinessImageDraft(
         :final cid,
         :final mime,

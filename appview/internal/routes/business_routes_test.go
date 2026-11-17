@@ -72,10 +72,11 @@ func TestBusinessRoutesDispatchOnlyExactMethodsAndPathsUnderAuth(t *testing.T) {
 
 func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
 		CREATE TABLE craftsky_account_types (
@@ -123,10 +124,11 @@ func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
 
 func TestBusinessRouteRejectsTamperedValidCursor(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
+	pool := testdb.WithSubscriptionAccessSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
 		CREATE TABLE craftsky_account_types (

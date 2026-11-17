@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { profileStyle } from '../social/model.ts';
+import palettes from '../social/palette.json';
 import type {
 	BillingState,
 	BillingSubscription,
 	BillingLicense
 } from '#lib/api/types.ts';
-import { imageBody, productBody, type Product } from './model.ts';
+import { colours, imageBody, productBody, type Product } from './model.ts';
 import {
-	canAssignLicense,
 	characterCount,
 	currencyOptions,
 	effectiveCustomisation,
@@ -43,13 +44,9 @@ const state: BillingState = {
 };
 
 describe('native subscription state precedence', () => {
-	it('keeps independent tier cards and permits only authoritative active assignments', () => {
+	it('shows authoritative provider status for each tier', () => {
 		expect(tierState(state, 'plus')).toBe('active');
 		expect(tierState(state, 'business')).toBe('empty');
-		expect(canAssignLicense(state, license)).toBe(true);
-		expect(canAssignLicense(state, { ...license, assignable: false })).toBe(
-			false
-		);
 		expect(
 			tierState(
 				{ ...state, subscriptions: [{ ...subscription, status: 'cancelled' }] },
@@ -68,7 +65,7 @@ describe('native subscription state precedence', () => {
 			)
 		).toBe('dormant');
 	});
-	it('does not allow assignment for missing, anomalous, stale, pending or future store states', () => {
+	it('represents missing, anomalous, stale, pending and future store states', () => {
 		const cases: [BillingState, string][] = [
 			[{ ...state, subscriptions: [] }, 'anomaly'],
 			[
@@ -101,7 +98,6 @@ describe('native subscription state precedence', () => {
 		];
 		for (const [value, status] of cases) {
 			expect(tierState(value, 'plus')).toBe(status);
-			expect(canAssignLicense(value, value.licenses[0])).toBe(false);
 		}
 	});
 	it('uses native anomaly > stale > pending > unknown-status precedence', () => {
@@ -121,10 +117,6 @@ describe('native subscription state precedence', () => {
 				'plus'
 			)
 		).toBe('anomaly');
-		const anomalous = { ...license, id: 'second', subscriptionId: 'missing' };
-		expect(
-			canAssignLicense({ ...state, licenses: [license, anomalous] }, license)
-		).toBe(false);
 	});
 });
 
@@ -162,7 +154,7 @@ describe('native record text limits', () => {
 			uri: 'https://shop.example/wool',
 			amount: '',
 			currency: '',
-			image: { cid: 'bafyimage', mime: 'image/jpeg', size: 100, alt: '' }
+			images: [{ cid: 'bafyimage', mime: 'image/jpeg', size: 100, alt: '' }]
 		};
 		expect(productBody([product])[0].title).toBe(product.title);
 		expect(() =>
@@ -172,6 +164,44 @@ describe('native record text limits', () => {
 });
 
 describe('native settings catalogues and future values', () => {
+	it('keeps every selectable colour when loading preferences and rendering profiles', () => {
+		expect(Object.keys(colours)).toEqual(Object.keys(palettes));
+		for (const [colour, hex] of Object.entries(colours)) {
+			const customisation = { colour, profileBackground: 'craft-knitting' };
+			expect(effectiveCustomisation(customisation)).toEqual({
+				colour,
+				background: 'craft-knitting'
+			});
+			expect(profileStyle(customisation)).toContain(
+				`--profile-accent:${hex.toUpperCase()};`
+			);
+		}
+	});
+
+	it('retires removed choices without losing the other supported selection', () => {
+		expect(
+			effectiveCustomisation({
+				colour: 'teal',
+				profileBackground: 'craft-sewing'
+			})
+		).toEqual({ colour: 'cobalt', background: 'craft-sewing' });
+		for (const profileBackground of [
+			'animated-dust',
+			'animated-satin',
+			'animated-opal',
+			'bayerdark',
+			'cubedark',
+			'dotcrossdark',
+			'scallopdark',
+			'skewdark',
+			'x2'
+		]) {
+			expect(
+				effectiveCustomisation({ colour: 'seafoam', profileBackground })
+			).toEqual({ colour: 'seafoam', background: 'none' });
+		}
+	});
+
 	it('resolves unknown customisation values to safe native defaults', () => {
 		expect(
 			effectiveCustomisation({

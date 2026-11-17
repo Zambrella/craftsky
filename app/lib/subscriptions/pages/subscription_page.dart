@@ -1,16 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/models/account_switcher_state.dart';
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
@@ -22,14 +21,12 @@ import 'package:craftsky_app/subscriptions/models/subscription_rules.dart';
 import 'package:craftsky_app/subscriptions/providers/customer_center_coordinator.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_assignment_controller.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_pending_operation_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_purchase_controller.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_restore_controller.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_setup_coordinator.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
@@ -37,15 +34,23 @@ import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dar
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
-import 'package:craftsky_app/theme/craftsky_dialog.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
 
+final subscriptionManagementLauncherProvider =
+    Provider<Future<bool> Function(Uri)>((ref) => launchExternalLink);
+
 class SubscriptionPage extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.featureTier, super.key});
+
+  /// Feature entry reuses owner checks, purchase and reconciliation.
+  final SubscriptionTier? featureTier;
 
   @override
   ConsumerState<SubscriptionPage> createState() => _SubscriptionPageState();
@@ -54,13 +59,29 @@ class SubscriptionPage extends ConsumerStatefulWidget {
 class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     with WidgetsBindingObserver {
   bool _busy = false;
+  bool _featureStarted = false;
+  ActiveAccountLease? _featureOwner;
   bool _foreground = true;
   SubscriptionOperationNotice? _notice;
+  Did? _visibleDid;
+  String? _conflictingAccountLabel;
   Future<SubscriptionOperationNotice?> Function()? _pendingRetry;
+  late final ProviderContainer _operationContainer;
+  late final SubscriptionPendingOperationController _pendingOperations;
 
   @override
   void initState() {
     super.initState();
+    // Provider operations can outlive this route. Keep their state and cleanup
+    // independent of ConsumerState.ref, which is unusable after disposal.
+    _operationContainer = ProviderScope.containerOf(context, listen: false);
+    _pendingOperations = _operationContainer.read(
+      subscriptionPendingOperationProvider.notifier,
+    );
+    _featureOwner = _operationContainer
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
     WidgetsBinding.instance.addObserver(this);
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _foreground =
@@ -76,7 +97,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    if (_foreground && mounted) _refresh();
+    if (_foreground && mounted) unawaited(_refresh());
   }
 
   bool get _operationIsCurrent => mounted;
@@ -84,33 +105,98 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   @override
   Widget build(BuildContext context) {
+    final activeDid = ref.watch(
+      sessionRegistryProvider.select(
+        (value) => value.value?.activeLease?.session.account.did,
+      ),
+    );
+    if (_visibleDid != activeDid) {
+      _visibleDid = activeDid;
+      _notice = null;
+      _pendingRetry = null;
+      _conflictingAccountLabel = null;
+    }
+    if (widget.featureTier != null &&
+        (_featureOwner == null ||
+            !ref
+                .read(sessionRegistryProvider)
+                .requireValue
+                .isCurrent(_featureOwner))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const SizedBox.shrink();
+    }
     final model = ref.watch(subscriptionPageModelProvider);
     final pendingOperation = ref.watch(subscriptionPendingOperationProvider);
     final operationBlocked = _busy || pendingOperation != null;
+    final featureTier = widget.featureTier;
+    if (featureTier != null &&
+        !_featureStarted &&
+        model is AsyncData<SubscriptionPageModel>) {
+      _featureStarted = true;
+      final value = model.value;
+      final alreadyAllowed = featureTier == SubscriptionTier.plus
+          ? value.access.allowsPlus
+          : value.access.allowsBusiness;
+      if (alreadyAllowed) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+            Navigator.of(context).pop();
+          }
+        });
+        return _featureLoading();
+      }
+      final state = value.billingState;
+      if (!operationBlocked &&
+          value.billingAvailability == BillingAvailability.available &&
+          state != null &&
+          purchaseEligibility(
+            state,
+            featureTier,
+            store: value.nativeStore,
+            allowTierChanges: value.allowNativeTierChanges,
+          ).eligible) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              ref
+                  .read(sessionRegistryProvider)
+                  .requireValue
+                  .isCurrent(_featureOwner)) {
+            _purchase(featureTier);
+          }
+        });
+        return _featureLoading();
+      }
+    }
+    if (featureTier != null &&
+        (_busy || model is AsyncLoading<SubscriptionPageModel>)) {
+      return _featureLoading();
+    }
     return switch (model) {
       AsyncData(:final value) => SubscriptionPageView(
-        pendingOperation: pendingOperation,
+        pendingOperation: pendingOperation?.ownerDid == value.access.did
+            ? pendingOperation
+            : null,
         model: SubscriptionPageModel(
-          role: value.role,
           access: value.access,
           billingAvailability: value.billingAvailability,
-          ownerRetained: value.ownerRetained,
-          ownerRecoveryLocked: value.ownerRecoveryLocked,
-          ownerSignInRequired: value.ownerSignInRequired,
           billingState: value.billingState,
+          nativeStore: value.nativeStore,
+          allowNativeTierChanges: value.allowNativeTierChanges,
+          conflictingAccountLabel: _conflictingAccountLabel,
           operationNotice:
               _notice ??
-              (value.role == SubscriptionPageRole.owner &&
+              (pendingOperation?.ownerDid == value.access.did &&
                       pendingOperation?.canReconcile == true &&
                       !_busy
                   ? SubscriptionOperationNotice.pending
                   : value.operationNotice),
-          assignedAccountLabels: value.assignedAccountLabels,
           tierPrices: value.tierPrices,
-          onSwitchToOwner: _busy ? null : _switchToOwner,
-          onConfirmOwner: _busy ? null : _setupOwner,
-          onRetrySetup: _busy ? null : _setupOwner,
           onPurchase: operationBlocked ? null : _purchase,
+          onCancelCheckout: operationBlocked ? null : _cancelPendingCheckout,
           onRestore: operationBlocked ? null : _restore,
           onManage: operationBlocked ? null : _manage,
           onRefresh:
@@ -118,8 +204,6 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
                   (pendingOperation != null && !pendingOperation.canReconcile)
               ? null
               : _refresh,
-          onAssign: operationBlocked ? null : _assign,
-          onUnassign: operationBlocked ? null : _unassign,
         ),
       ),
       AsyncLoading() => Scaffold(
@@ -150,20 +234,38 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     };
   }
 
+  Widget _featureLoading() => Center(
+    child: Material(
+      color: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(AppLocalizations.of(context).actionCancel),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Future<void> _run(
     Future<SubscriptionOperationNotice?> Function() action,
   ) async {
     if (_busy) return;
-    final registry = ref.read(sessionRegistryProvider).value;
-    final operation = ActiveAccountOperation.fromWidget(
-      ref,
-      registry?.activeLease,
-    );
+    final started = _operationContainer
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
     final diagnostics = SubscriptionDiagnostics(
-      reporter: ref.read(errorReporterProvider),
-      accountDid: registry?.activeLease?.session.account.did.value,
+      reporter: _operationContainer.read(errorReporterProvider),
+      accountDid: started?.session.account.did.value,
     );
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _conflictingAccountLabel = null;
+    });
     try {
       SubscriptionOperationNotice? notice;
       try {
@@ -177,15 +279,61 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         diagnostics.report(error, stack, operation: 'billing.action');
         notice = SubscriptionOperationNotice.providerFailure;
       }
-      if (!operation.isCurrent) return;
+      if (!mounted ||
+          started == null ||
+          !_operationContainer
+              .read(sessionRegistryProvider)
+              .requireValue
+              .isCurrent(started)) {
+        return;
+      }
       setState(() => _notice = notice);
       ref.invalidate(subscriptionPageModelProvider);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      final session = started?.session;
+      if (session != null &&
+          _operationContainer
+                  .read(sessionRegistryProvider)
+                  .value
+                  ?.leaseFor(session.account) ==
+              session) {
+        _operationContainer.invalidate(subscriptionAccessProvider(session));
+      }
+      if (mounted) {
+        setState(() => _busy = false);
+        if (widget.featureTier != null &&
+            _notice == null &&
+            ModalRoute.of(context)?.isCurrent == true &&
+            _operationContainer
+                    .read(sessionRegistryProvider)
+                    .value
+                    ?.isCurrent(_featureOwner) ==
+                true) {
+          Navigator.of(context).pop();
+        }
+      }
     }
   }
 
-  void _refresh() {
+  void _cancelPendingCheckout() {
+    unawaited(
+      _run(() async {
+        final dependencies = await _ownerDependencies();
+        final api = dependencies.api;
+        if (api is! PendingCheckoutCancellationApi) {
+          return SubscriptionOperationNotice.actionFailed;
+        }
+        final owner = dependencies.guard.capture();
+        await dependencies.guard.dispatch(
+          owner,
+          (api as PendingCheckoutCancellationApi).cancelPendingCheckout,
+        );
+        return null;
+      }),
+    );
+  }
+
+  Future<void> _refresh() async {
     if (_busy) return;
     final pendingOperation = ref.read(subscriptionPendingOperationProvider);
     final registry = ref.read(sessionRegistryProvider).value;
@@ -193,13 +341,13 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         pendingOperation.canReconcile &&
         registry?.activeLease?.session.account.did ==
             pendingOperation.ownerDid) {
-      unawaited(_run(() => _reconcilePending(pendingOperation)));
+      await _run(() => _reconcilePending(pendingOperation));
       return;
     }
     if (pendingOperation != null) return;
     final retry = _pendingRetry;
     if (retry != null && !_busy) {
-      unawaited(_run(retry));
+      await _run(retry);
       return;
     }
     _pendingRetry = null;
@@ -207,53 +355,42 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     ref.invalidate(subscriptionPageModelProvider);
     final lease = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     if (lease != null) ref.invalidate(subscriptionAccessProvider(lease));
+    try {
+      await ref.read(subscriptionPageModelProvider.future);
+    } on Object {
+      // The observed provider owns the refresh failure and its recovery UI.
+    }
   }
 
-  void _switchToOwner() => unawaited(
-    _run(() async {
-      final registry = ref.read(sessionRegistryProvider).requireValue;
-      final owner = registry.billingOwner;
-      if (owner == null) return null;
-      final lease = registry.leaseFor(AccountKey(owner.did.value));
-      if (lease == null) return SubscriptionOperationNotice.providerFailure;
-      await ref.read(sessionRegistryProvider.notifier).activate(lease);
-      return null;
-    }),
-  );
-
-  void _setupOwner() => unawaited(
-    _run(() async {
-      final registry = ref.read(sessionRegistryProvider).requireValue;
-      final active = registry.activeLease;
-      if (active == null) return SubscriptionOperationNotice.providerFailure;
-      final api = await ref.read(
-        subscriptionRepositoryProvider(active.session.account).future,
-      );
-      final service = ref.read(revenueCatServiceProvider);
-      await BillingOwnerSetupCoordinator(
-        readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
-        reserveOwner: ref
-            .read(sessionRegistryProvider.notifier)
-            .reserveBillingOwner,
-        completeOwner: ref
-            .read(sessionRegistryProvider.notifier)
-            .completeBillingOwner,
-        api: api,
-        revenueCat: service,
-      ).setup(active);
-      return null;
-    }),
-  );
+  void _recordStoreConflict(StoreAccountConflictException conflict) {
+    if (!mounted) return;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
+    _conflictingAccountLabel = null;
+    for (final entry in registry.billingCustomers.entries) {
+      final matches =
+          entry.value == conflict.ownerAppUserId ||
+          sha256.convert(utf8.encode(entry.value)).toString() ==
+              conflict.ownerHash;
+      final session = registry.sessions[entry.key];
+      if (matches && session != null) {
+        _conflictingAccountLabel =
+            '@${session.handle.value} (${entry.key.value})';
+        break;
+      }
+    }
+  }
 
   void _purchase(SubscriptionTier tier) {
     final registry = ref.read(sessionRegistryProvider).value;
-    final ownerDid = registry?.billingOwner?.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginPurchase(ownerDid, tier)) {
+    final ownerDid = registry?.activeLease?.session.account.did;
+    if (ownerDid == null || !_pendingOperations.beginPurchase(ownerDid, tier)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
@@ -263,23 +400,32 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             dependencies.guard,
             RevenueCatIdentityGuard(dependencies.service),
             diagnostics: dependencies.diagnostics,
+            onStoreConflict: _recordStoreConflict,
+            isCurrent: () => _operationIsCurrent,
           );
           final controller = SubscriptionPurchaseController(
             ownerGuard: dependencies.guard,
             diagnostics: dependencies.diagnostics,
             api: dependencies.api,
+            nativeStore: dependencies.nativeStore,
+            allowNativeTierChanges: dependencies.allowNativeTierChanges,
             presentPaywall: paywall.present,
+            presentPlanChange: paywall.changePlan,
             wait: Future<void>.delayed,
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
-            onProviderConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordPurchase,
+            onProviderConfirmed: (tier, before) =>
+                _pendingOperations.recordPurchase(operationId, tier, before),
+            onRestoreConfirmed: (before) =>
+                _pendingOperations.recordPaywallRestore(operationId, before),
             readAccess: _readAssignedAccess,
           );
-          return await _handlePurchaseResult(await controller.purchase(tier));
+          return await _handlePurchaseResult(
+            await controller.purchase(tier),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -288,26 +434,37 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handlePurchaseResult(
     SubscriptionPurchaseResult result,
+    Object operationId,
   ) async {
     if (result.outcome != SubscriptionPurchaseOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handlePurchaseResult(await retry());
-    if (result.assignmentLicense case final license?) {
-      _pendingRetry = null;
-      return await _assignLicense(license, state: result.state);
-    }
+        : () async => await _handlePurchaseResult(await retry(), operationId);
     return switch (result.outcome) {
-      SubscriptionPurchaseOutcome.completed ||
+      SubscriptionPurchaseOutcome.completed =>
+        result.state?.subscriptions.any(
+                  (value) =>
+                      value.pendingTier != null &&
+                      value.autoRenewalStatus == 'will_change_product',
+                ) ==
+                true
+            ? SubscriptionOperationNotice.planChangeScheduled
+            : null,
       SubscriptionPurchaseOutcome.cancelled ||
       SubscriptionPurchaseOutcome.notEligible => null,
       SubscriptionPurchaseOutcome.pending =>
         SubscriptionOperationNotice.pending,
       SubscriptionPurchaseOutcome.offeringUnavailable =>
         SubscriptionOperationNotice.offeringUnavailable,
+      SubscriptionPurchaseOutcome.planChangeUnavailable =>
+        SubscriptionOperationNotice.planChangeUnavailable,
+      SubscriptionPurchaseOutcome.storeAccountConflict =>
+        SubscriptionOperationNotice.storeAccountConflict,
+      SubscriptionPurchaseOutcome.existingStoreSubscription =>
+        SubscriptionOperationNotice.existingStoreSubscription,
       SubscriptionPurchaseOutcome.providerError =>
         SubscriptionOperationNotice.providerFailure,
       SubscriptionPurchaseOutcome.anomaly =>
@@ -319,13 +476,13 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   void _restore() {
     final registry = ref.read(sessionRegistryProvider).value;
-    final ownerDid = registry?.billingOwner?.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginRestore(ownerDid)) {
+    final ownerDid = registry?.activeLease?.session.account.did;
+    if (ownerDid == null || !_pendingOperations.beginRestore(ownerDid)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
@@ -335,16 +492,19 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             diagnostics: dependencies.diagnostics,
             api: dependencies.api,
             revenueCat: dependencies.service,
+            onStoreConflict: _recordStoreConflict,
             wait: Future<void>.delayed,
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
-            onProviderConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordRestore,
+            onProviderConfirmed: (before) =>
+                _pendingOperations.recordRestore(operationId, before),
           );
-          return await _handleRestoreResult(await controller.restore());
+          return await _handleRestoreResult(
+            await controller.restore(),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -353,22 +513,21 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handleRestoreResult(
     SubscriptionRestoreResult result,
+    Object operationId,
   ) async {
     if (result.outcome != SubscriptionRestoreOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handleRestoreResult(await retry());
-    if (result.assignmentLicense case final license?) {
-      _pendingRetry = null;
-      return await _assignLicense(license, state: result.state);
-    }
+        : () async => await _handleRestoreResult(await retry(), operationId);
     return switch (result.outcome) {
       SubscriptionRestoreOutcome.completed ||
       SubscriptionRestoreOutcome.cancelled => null,
       SubscriptionRestoreOutcome.pending => SubscriptionOperationNotice.pending,
+      SubscriptionRestoreOutcome.storeAccountConflict =>
+        SubscriptionOperationNotice.storeAccountConflict,
       SubscriptionRestoreOutcome.providerError =>
         SubscriptionOperationNotice.providerFailure,
       SubscriptionRestoreOutcome.anomaly =>
@@ -388,6 +547,8 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           ownerGuard: dependencies.guard,
           diagnostics: dependencies.diagnostics,
           api: dependencies.api,
+          nativeStore: dependencies.nativeStore,
+          allowNativeTierChanges: dependencies.allowNativeTierChanges,
           presentPaywall: (_, _) => throw DiagnosticStateError(
             'Pending reconciliation cannot present checkout',
           ),
@@ -396,6 +557,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           isCurrent: () => _operationIsCurrent,
           isForeground: () => _operationIsForeground,
         ).reconcilePending(pending.tier!, pending.beforeProvider!),
+        pending.operationId,
       ),
       PendingSubscriptionOperationKind.restore => _handleRestoreResult(
         await SubscriptionRestoreController(
@@ -407,6 +569,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           isCurrent: () => _operationIsCurrent,
           isForeground: () => _operationIsForeground,
         ).reconcilePending(pending.beforeProvider!),
+        pending.operationId,
       ),
       PendingSubscriptionOperationKind.customerCenter =>
         _handleCustomerCenterResult(
@@ -419,23 +582,26 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
           ).reconcilePending(),
+          pending.operationId,
         ),
-      PendingSubscriptionOperationKind.assignment ||
-      PendingSubscriptionOperationKind.unassignment => null,
     };
   }
 
   Future<SubscriptionAccess> _readAssignedAccess(Did did) async {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     final target = registry.leaseFor(AccountKey(did.value));
     if (target == null) {
       throw DiagnosticStateError('Assigned account unavailable');
     }
-    final api = await ref.read(
+    final api = await _operationContainer.read(
       subscriptionRepositoryProvider(target.account).future,
     );
     final access = await api.getAccess();
-    final current = ref.read(sessionRegistryProvider).requireValue;
+    final current = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     if (!mounted || current.leaseFor(target.account) != target) {
       throw DiagnosticStateError('Assigned account session changed');
     }
@@ -444,17 +610,54 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   void _manage() {
     final registry = ref.read(sessionRegistryProvider).value;
-    final ownerDid = registry?.billingOwner?.did;
-    if (ownerDid == null ||
-        !ref
-            .read(subscriptionPendingOperationProvider.notifier)
-            .beginCustomerCenter(ownerDid)) {
+    final ownerDid = registry?.activeLease?.session.account.did;
+    if (ownerDid == null || !_pendingOperations.beginCustomerCenter(ownerDid)) {
       return;
     }
+    final operationId = _operationContainer
+        .read(subscriptionPendingOperationProvider)!
+        .operationId;
     unawaited(
       _run(() async {
         try {
           final dependencies = await _ownerDependencies();
+          final owner = dependencies.guard.capture();
+          final state = await dependencies.guard.dispatchBillingState(
+            owner,
+            dependencies.api.getBillingAccount,
+          );
+          final current = state.subscriptions
+              .where(
+                (sub) =>
+                    sub.givesAccess ||
+                    (sub.store == 'stripe' && sub.pendingPayment),
+              )
+              .toList();
+          if (current.length == 1 && current.single.store == 'stripe') {
+            final api = dependencies.api;
+            if (api is! SubscriptionManagementApi) {
+              throw DiagnosticStateError('Subscription management unavailable');
+            }
+            final uri = await dependencies.guard.dispatch(
+              owner,
+              (api as SubscriptionManagementApi).managementURL,
+            );
+            if (!mounted || !dependencies.guard.isCurrent(owner)) {
+              _pendingOperations.clearUnconfirmed(operationId);
+              return null;
+            }
+            final opened = await dependencies.guard.dispatch(
+              owner,
+              () => _operationContainer.read(
+                subscriptionManagementLauncherProvider,
+              )(uri),
+            );
+            _pendingOperations.clearUnconfirmed(operationId);
+            if (!opened) {
+              throw DiagnosticStateError('Subscription management unavailable');
+            }
+            return null;
+          }
           final coordinator = CustomerCenterCoordinator(
             ownerGuard: dependencies.guard,
             diagnostics: dependencies.diagnostics,
@@ -463,13 +666,16 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
             wait: Future<void>.delayed,
             isCurrent: () => _operationIsCurrent,
             isForeground: () => _operationIsForeground,
-            onProviderMutationConfirmed: ref
-                .read(subscriptionPendingOperationProvider.notifier)
-                .recordCustomerCenterMutation,
+            onStoreConflict: _recordStoreConflict,
+            onProviderMutationConfirmed: () =>
+                _pendingOperations.recordCustomerCenterMutation(operationId),
           );
-          return await _handleCustomerCenterResult(await coordinator.present());
+          return await _handleCustomerCenterResult(
+            await coordinator.present(),
+            operationId,
+          );
         } on Object {
-          ref.read(subscriptionPendingOperationProvider.notifier).clear();
+          _pendingOperations.clearUnconfirmed(operationId);
           rethrow;
         }
       }),
@@ -478,19 +684,23 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 
   Future<SubscriptionOperationNotice?> _handleCustomerCenterResult(
     CustomerCenterResult result,
+    Object operationId,
   ) async {
     if (result.outcome != CustomerCenterOutcome.pending) {
-      ref.read(subscriptionPendingOperationProvider.notifier).clear();
+      _pendingOperations.clear(operationId);
     }
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => await _handleCustomerCenterResult(await retry());
+        : () async =>
+              await _handleCustomerCenterResult(await retry(), operationId);
     return switch (result.outcome) {
       CustomerCenterOutcome.completed ||
       CustomerCenterOutcome.refreshed ||
       CustomerCenterOutcome.cancelled => null,
       CustomerCenterOutcome.pending => SubscriptionOperationNotice.pending,
+      CustomerCenterOutcome.storeAccountConflict =>
+        SubscriptionOperationNotice.storeAccountConflict,
       CustomerCenterOutcome.providerError =>
         SubscriptionOperationNotice.providerFailure,
       CustomerCenterOutcome.anomaly =>
@@ -499,225 +709,60 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     };
   }
 
-  void _assign(BillingLicense license) =>
-      unawaited(_run(() => _assignLicense(license)));
-
-  Future<SubscriptionOperationNotice?> _assignLicense(
-    BillingLicense license, {
-    BillingState? state,
-  }) async {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
-    final pageModel = ref.read(subscriptionPageModelProvider).requireValue;
-    final candidates = assignmentCandidates(
-      registry: registry,
-      retainedLeases: registry.sessions.keys
-          .map((did) => registry.leaseFor(AccountKey(did.value)))
-          .nonNulls,
-      state: state ?? pageModel.billingState!,
-    );
-    final candidateAccounts = candidates
-        .map((candidate) => candidate.account)
-        .toSet();
-    final target = await _selectTarget(
-      AccountSwitcherState.fromRegistry(
-        registry,
-      ).rows.where((row) => candidateAccounts.contains(row.lease.account)),
-    );
-    if (target == null || !mounted) {
-      return null;
-    }
-    final targetLabel = pageModel.assignedAccountLabels[target.account.did];
-    if (targetLabel == null ||
-        !await _confirmAssignment(
-          license.tier,
-          targetLabel,
-          isReassignment: license.assignedDid != null,
-        )) {
-      return null;
-    }
-    final pendingController = ref.read(
-      subscriptionPendingOperationProvider.notifier,
-    );
-    if (!pendingController.beginAssignment(
-      registry.activeLease!.session.account.did,
-      license.id,
-    )) {
-      return null;
-    }
-    try {
-      final dependencies = await _ownerDependencies();
-      final result = await SubscriptionAssignmentController(
-        ownerGuard: dependencies.guard,
-        diagnostics: dependencies.diagnostics,
-        readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
-        api: dependencies.api,
-        readTargetAccess: (lease) async {
-          final api = await ref.read(
-            subscriptionRepositoryProvider(lease.account).future,
-          );
-          return await api.getAccess();
-        },
-        isCurrent: () => _operationIsCurrent,
-      ).assign(licenseId: license.id, target: target);
-      if (result.targetAccess != null) {
-        ref.invalidate(subscriptionAccessProvider(target));
-      }
-      return _assignmentNotice(result.outcome);
-    } finally {
-      pendingController.completeAssignmentMutation(
-        kind: PendingSubscriptionOperationKind.assignment,
-        affectedTarget: target,
-      );
-    }
-  }
-
-  void _unassign(BillingLicense license) => unawaited(
-    _run(() async {
-      if (!await _confirmUnassignment()) return null;
-      final registry = ref.read(sessionRegistryProvider).requireValue;
-      final affectedTarget = license.assignedDid == null
-          ? null
-          : registry.leaseFor(AccountKey(license.assignedDid!.value));
-      final pendingController = ref.read(
-        subscriptionPendingOperationProvider.notifier,
-      );
-      if (!pendingController.beginUnassignment(
-        registry.activeLease!.session.account.did,
-        license.id,
-      )) {
-        return null;
-      }
-      try {
-        final dependencies = await _ownerDependencies();
-        final result = await SubscriptionAssignmentController(
-          ownerGuard: dependencies.guard,
-          diagnostics: dependencies.diagnostics,
-          readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
-          api: dependencies.api,
-          readTargetAccess: (_) =>
-              throw DiagnosticStateError('No target for unassignment'),
-          isCurrent: () => _operationIsCurrent,
-        ).unassign(licenseId: license.id);
-        return _assignmentNotice(result.outcome);
-      } finally {
-        pendingController.completeAssignmentMutation(
-          kind: PendingSubscriptionOperationKind.unassignment,
-          affectedTarget: affectedTarget,
-        );
-      }
-    }),
-  );
-
   Future<
     ({
-      BillingOwnerGuard guard,
+      BillingAccountGuard guard,
       SubscriptionDiagnostics diagnostics,
       RevenueCatService service,
       SubscriptionApi api,
+      String? nativeStore,
+      bool allowNativeTierChanges,
     })
   >
   _ownerDependencies() async {
-    final registry = ref.read(sessionRegistryProvider).requireValue;
+    final registry = _operationContainer
+        .read(sessionRegistryProvider)
+        .requireValue;
     final activeLease = registry.activeLease!;
     final lease = activeLease.session;
-    final operation = ActiveAccountOperation.fromWidget(ref, activeLease);
     final diagnostics = SubscriptionDiagnostics(
-      reporter: ref.read(errorReporterProvider),
+      reporter: _operationContainer.read(errorReporterProvider),
       accountDid: lease.account.did.value,
     );
-    final service = ref.read(revenueCatServiceProvider);
-    final api = await ref.read(
+    final service = _operationContainer.read(revenueCatServiceProvider);
+    final api = await _operationContainer.read(
       subscriptionRepositoryProvider(lease.account).future,
     );
-    operation.requireCurrent();
+    if (!mounted ||
+        !_operationContainer
+            .read(sessionRegistryProvider)
+            .requireValue
+            .isCurrent(activeLease)) {
+      throw const BillingAccountGuardException('owner_session_changed');
+    }
     return (
-      guard: BillingOwnerGuard(() {
-        if (!operation.isCurrent) {
-          throw const BillingOwnerGuardException('owner_session_changed');
-        }
-        return ref.read(sessionRegistryProvider).requireValue;
-      }),
+      guard: BillingAccountGuard(
+        () {
+          final current = _operationContainer
+              .read(sessionRegistryProvider)
+              .requireValue;
+          if (!current.isCurrent(activeLease)) {
+            throw const BillingAccountGuardException('owner_session_changed');
+          }
+          return current;
+        },
+      ),
       diagnostics: diagnostics,
       service: service,
+      allowNativeTierChanges:
+          service is NativeStoreOwnershipService &&
+          (service as NativeStoreOwnershipService).supportsPlanChanges,
+      nativeStore: service is NativeStoreOwnershipService
+          ? (service as NativeStoreOwnershipService).store
+          : null,
       api: api,
     );
   }
-
-  Future<AccountSessionLease?> _selectTarget(
-    Iterable<AccountSwitcherRow> candidates,
-  ) => showCraftskyModal<AccountSessionLease>(
-    context,
-    builder: (context) => CraftskyDialog(
-      title: AppLocalizations.of(context).subscriptionsAssign,
-      body: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final candidate in candidates)
-            AccountSwitcherRowTile(
-              row: candidate,
-              onTap: () => Navigator.pop(context, candidate.lease),
-            ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-        ),
-      ],
-    ),
-  );
-
-  Future<bool> _confirmAssignment(
-    SubscriptionTier tier,
-    String target, {
-    required bool isReassignment,
-  }) => _confirm(
-    AppLocalizations.of(context).subscriptionsAssignmentConfirmTitle,
-    [
-      AppLocalizations.of(context).subscriptionsAssignmentConfirmBody(
-        _tierLabel(AppLocalizations.of(context), tier),
-        target,
-      ),
-      if (isReassignment)
-        AppLocalizations.of(context).subscriptionsReassignmentCooldown,
-    ].join('\n\n'),
-    AppLocalizations.of(context).subscriptionsAssign,
-  );
-
-  Future<bool> _confirmUnassignment() => _confirm(
-    AppLocalizations.of(context).subscriptionsUnassignmentConfirmTitle,
-    AppLocalizations.of(context).subscriptionsUnassignmentConfirmBody,
-    AppLocalizations.of(context).subscriptionsUnassign,
-  );
-
-  Future<bool> _confirm(String title, String body, String action) =>
-      showCraftskyConfirmDialog(
-        context,
-        title: title,
-        message: body,
-        confirmLabel: action,
-      );
-
-  SubscriptionOperationNotice? _assignmentNotice(
-    AssignmentMutationOutcome outcome,
-  ) => switch (outcome) {
-    AssignmentMutationOutcome.success => null,
-    AssignmentMutationOutcome.conflict =>
-      SubscriptionOperationNotice.assignmentConflict,
-    AssignmentMutationOutcome.cooldown =>
-      SubscriptionOperationNotice.assignmentCooldown,
-    AssignmentMutationOutcome.licenseNotFound =>
-      SubscriptionOperationNotice.licenseNotFound,
-    AssignmentMutationOutcome.targetIneligible =>
-      SubscriptionOperationNotice.targetIneligible,
-    AssignmentMutationOutcome.unauthorized =>
-      SubscriptionOperationNotice.unauthorized,
-    AssignmentMutationOutcome.failed =>
-      SubscriptionOperationNotice.actionFailed,
-    AssignmentMutationOutcome.cancelled ||
-    AssignmentMutationOutcome.inProgress => null,
-  };
 }
 
 class SubscriptionPageView extends StatelessWidget {
@@ -740,62 +785,33 @@ class SubscriptionPageView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.subscriptionsTitle)),
-      body: SingleChildScrollView(
+      body: YarnRefreshScrollView.list(
+        onRefresh: () async => await model.onRefresh?.call(),
+        notificationPredicate: (notification) =>
+            model.onRefresh != null &&
+            defaultScrollNotificationPredicate(notification),
+        showSuccess: false,
         padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AccessCard(access: model.access),
-                const SizedBox(height: 16),
-                ..._roleContent(context),
-              ],
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AccessCard(access: model.access, state: model.billingState),
+                  const SizedBox(height: 16),
+                  ..._roleContent(context),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  List<Widget> _roleContent(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return switch (model.role) {
-      SubscriptionPageRole.neverReserved => [
-        _MessageCard(
-          title: l10n.subscriptionsChooseOwnerTitle,
-          body: l10n.subscriptionsChooseOwnerBody,
-          action: l10n.subscriptionsChooseOwnerAction,
-          onAction: model.onConfirmOwner,
-        ),
-      ],
-      SubscriptionPageRole.incompleteOwner => [
-        _MessageCard(
-          body: l10n.subscriptionsSetupIncomplete,
-          action: l10n.subscriptionsRetrySetup,
-          onAction: model.onRetrySetup,
-        ),
-      ],
-      SubscriptionPageRole.inactiveOwner => [
-        _MessageCard(
-          body: model.ownerRetained
-              ? l10n.subscriptionsOwnerInactive
-              : l10n.subscriptionsOwnerReauthenticate,
-          action: model.ownerRetained ? l10n.subscriptionsSwitchToOwner : null,
-          onAction: model.onSwitchToOwner,
-        ),
-      ],
-      SubscriptionPageRole.beneficiary => [
-        _MessageCard(
-          body: l10n.subscriptionsBeneficiaryExplanation,
-          action: model.ownerRetained ? l10n.subscriptionsSwitchToOwner : null,
-          onAction: model.onSwitchToOwner,
-        ),
-      ],
-      SubscriptionPageRole.owner => _ownerContent(context),
-    };
-  }
+  List<Widget> _roleContent(BuildContext context) => _ownerContent(context);
 
   List<Widget> _ownerContent(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -803,26 +819,44 @@ class SubscriptionPageView extends StatelessWidget {
     if (state == null) {
       return [
         _MessageCard(
-          body: model.ownerRecoveryLocked
-              ? l10n.subscriptionsOwnerRecoveryLocked
-              : model.ownerSignInRequired
-              ? l10n.subscriptionsOwnerSignInRequired
-              : l10n.subscriptionsProviderFailure,
-          isError: model.ownerRecoveryLocked || model.ownerSignInRequired,
-          action: model.ownerRecoveryLocked || model.ownerSignInRequired
-              ? null
-              : l10n.subscriptionsRefresh,
-          onAction: model.ownerRecoveryLocked || model.ownerSignInRequired
-              ? null
-              : model.onRefresh,
+          body: l10n.subscriptionsProviderFailure,
+          action: l10n.subscriptionsRefresh,
+          onAction: model.onRefresh,
         ),
       ];
     }
     return [
-      Text(l10n.subscriptionsIndependentLicenses),
-      const SizedBox(height: 16),
+      if (state.webCheckoutPending) ...[
+        _MessageCard(
+          body: l10n.subscriptionsCheckoutPendingBody,
+          action: l10n.subscriptionsCancelCheckout,
+          onAction: model.onCancelCheckout,
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (state.promotionalAccessEndsByTier.isNotEmpty) ...[
+        _ComplimentaryAccessCard(
+          state: state,
+          showPurchaseTiming:
+              model.billingAvailability == BillingAvailability.available &&
+              !state.subscriptions.any((value) => value.givesAccess) &&
+              const [SubscriptionTier.plus, SubscriptionTier.business].any(
+                (tier) => purchaseEligibility(
+                  state,
+                  tier,
+                  store: model.nativeStore,
+                  allowTierChanges: model.allowNativeTierChanges,
+                ).eligible,
+              ),
+        ),
+        const SizedBox(height: 16),
+      ],
       if (model.operationNotice case final notice?) ...[
-        _OperationNotice(notice: notice, onRefresh: model.onRefresh),
+        _OperationNotice(
+          notice: notice,
+          onRefresh: model.onRefresh,
+          accountLabel: model.conflictingAccountLabel,
+        ),
         const SizedBox(height: 16),
       ],
       for (final tier in const [
@@ -851,13 +885,6 @@ class SubscriptionPageView extends StatelessWidget {
                   _activeOperation?.kind ==
                   PendingSubscriptionOperationKind.restore,
             ),
-            _PrimaryActionButton(
-              label: l10n.subscriptionsManage,
-              onPressed: model.onManage,
-              isLoading:
-                  _activeOperation?.kind ==
-                  PendingSubscriptionOperationKind.customerCenter,
-            ),
           ],
         ),
     ];
@@ -865,14 +892,51 @@ class SubscriptionPageView extends StatelessWidget {
 }
 
 class _AccessCard extends StatelessWidget {
-  const new({required this.access});
+  const new({required this.access, required this.state});
 
   final SubscriptionAccess access;
+  final BillingState? state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    String expiry(DateTime value) {
+      final local = value.toLocal();
+      return '${DateFormat.yMMMd(locale).format(local)}, '
+          '${DateFormat.jm(locale).format(local)}';
+    }
+
+    final billing = state;
+    final candidates = billing?.subscriptions
+        .where(
+          (subscription) =>
+              subscription.givesAccess &&
+              !subscription.pendingPayment &&
+              !isBillingAnomaly(subscription.anomaly) &&
+              billing.licenses.any(
+                (license) =>
+                    license.subscriptionId == subscription.id &&
+                    license.tier == access.effectiveTier &&
+                    !isBillingAnomaly(license.anomaly),
+              ),
+        )
+        .toList();
+    final renewing =
+        billing != null &&
+        !billing.reconciliationStale &&
+        billing.requestedGeneration <= billing.reconciledGeneration &&
+        candidates?.length == 1 &&
+        const [
+          'will_renew',
+          'will_change_product',
+        ].contains(candidates!.single.autoRenewalStatus);
+    final date = renewing
+        ? candidates.single.currentPeriodEndsAt ?? access.accessEndsAt
+        : access.accessEndsAt;
     return CraftskyCard(
+      key: const ValueKey('subscription-access-card'),
+      clipBehavior: Clip.none,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -883,10 +947,63 @@ class _AccessCard extends StatelessWidget {
             ),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          if (access.assignedTier case final tier?
-              when !access.givesAccess) ...[
+          if (date case final endsAt?) ...[
             const SizedBox(height: 6),
-            Text(l10n.subscriptionsDormantAssignment(_tierLabel(l10n, tier))),
+            Text(
+              renewing
+                  ? l10n.subscriptionsRenewsOn(expiry(endsAt))
+                  : l10n.subscriptionsAccessUntil(expiry(endsAt)),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ComplimentaryAccessCard extends StatelessWidget {
+  const new({required this.state, required this.showPurchaseTiming});
+
+  final BillingState state;
+  final bool showPurchaseTiming;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final grants = state.promotionalAccessEndsByTier;
+    return CraftskyCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.subscriptionsComplimentaryAccess,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final tier in const [
+            SubscriptionTier.plus,
+            SubscriptionTier.business,
+          ])
+            if (grants.containsKey(tier)) ...[
+              const SizedBox(height: 6),
+              Text(
+                grants[tier] != null
+                    ? l10n.subscriptionsComplimentaryUntil(
+                        _tierLabel(l10n, tier),
+                        MaterialLocalizations.of(context)
+                            .formatMediumDate(grants[tier]!.toLocal()),
+                      )
+                    : l10n.subscriptionsComplimentaryNoExpiry(
+                        _tierLabel(l10n, tier),
+                      ),
+              ),
+            ],
+          if (showPurchaseTiming) ...[
+            const SizedBox(height: 10),
+            Text(l10n.subscriptionsComplimentaryPurchaseTiming),
           ],
         ],
       ),
@@ -910,7 +1027,12 @@ class _TierCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final eligibility = purchaseEligibility(state, tier);
+    final eligibility = purchaseEligibility(
+      state,
+      tier,
+      store: model.nativeStore,
+      allowTierChanges: model.allowNativeTierChanges,
+    );
     final presentation = eligibility.reason == PurchaseEligibilityReason.anomaly
         ? SubscriptionTierPresentation.anomaly
         : projectTierPresentation(state, tier: tier);
@@ -929,9 +1051,6 @@ class _TierCard extends StatelessWidget {
             )
             .firstOrNull ??
         tierLicenses.firstOrNull;
-    final secondaryLicenses = tierLicenses
-        .where((value) => value != license)
-        .toList(growable: false);
     final subscription = license == null
         ? null
         : state.subscriptions
@@ -946,35 +1065,15 @@ class _TierCard extends StatelessWidget {
       subscription,
       accessEnd,
     );
-    final action = _primaryAction(l10n, presentation);
+    final action = _primaryAction(context, l10n, presentation);
     final purchaseIsLoading =
         pendingOperation?.kind == PendingSubscriptionOperationKind.purchase &&
         pendingOperation?.tier == tier;
-    final assignmentIsLoading =
-        pendingOperation?.kind == PendingSubscriptionOperationKind.assignment &&
-        pendingOperation?.licenseId == license?.id;
-    final unassignmentIsLoading =
+    final actionIsLoading =
+        purchaseIsLoading ||
         pendingOperation?.kind ==
-            PendingSubscriptionOperationKind.unassignment &&
-        pendingOperation?.licenseId == license?.id;
-    final canAssign =
-        license != null &&
-        license.assignedDid == null &&
-        license.assignable &&
-        (presentation == SubscriptionTierPresentation.active ||
-            presentation == SubscriptionTierPresentation.canceledAccessible) &&
-        (model.onAssign != null || assignmentIsLoading);
-    final canReassign =
-        license != null &&
-        license.assignedDid != null &&
-        license.assignable &&
-        (presentation == SubscriptionTierPresentation.active ||
-            presentation == SubscriptionTierPresentation.canceledAccessible) &&
-        (model.onAssign != null || assignmentIsLoading);
-    final canUnassign =
-        license != null &&
-        license.assignedDid != null &&
-        (model.onUnassign != null || unassignmentIsLoading);
+            PendingSubscriptionOperationKind.customerCenter;
+    final onActivate = actionIsLoading ? null : action?.$2;
     final tierLabel = _tierLabel(l10n, tier);
     final theme = Theme.of(context);
     final accent = tier == SubscriptionTier.plus
@@ -983,11 +1082,17 @@ class _TierCard extends StatelessWidget {
         ? theme.colorScheme.tertiary
         : BrandColors.butterDeep;
     final tierIcon = tier == SubscriptionTier.plus
-        ? CraftskyIcons.plusTier
-        : Icons.storefront_outlined;
+        ? PlusTierIcon(color: accent)
+        : Icon(Icons.storefront_outlined, color: accent);
     final price = model.tierPrices[tier];
+    final isActive =
+        presentation == SubscriptionTierPresentation.active ||
+        presentation == SubscriptionTierPresentation.canceledAccessible;
     return Semantics(
       container: true,
+      button: action != null,
+      enabled: onActivate != null,
+      onTap: onActivate,
       label: l10n.subscriptionsActionSemantic(
         tierLabel,
         status,
@@ -995,127 +1100,137 @@ class _TierCard extends StatelessWidget {
       ),
       child: CraftskyCard(
         padding: EdgeInsets.zero,
-        child: DecoratedBox(
+        child: Ink(
           decoration: BoxDecoration(
             color: Color.alphaBlend(
               accent.withValues(alpha: 0.08),
               theme.colorScheme.surface,
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.16),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: accent, width: 1.5),
+          child: InkWell(
+            key: ValueKey('subscription-tier-${tier.name}'),
+            onTap: onActivate,
+            excludeFromSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: accent, width: 1.5),
+                        ),
+                        child: tierIcon,
                       ),
-                      child: Icon(tierIcon, color: accent),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(tierLabel, style: theme.textTheme.titleLarge),
-                          const SizedBox(height: 2),
-                          Text(
-                            price == null
-                                ? l10n.subscriptionsPriceUnavailable
-                                : l10n.subscriptionsTierPrice(price),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: accent,
-                              fontWeight: FontWeight.w700,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Text(
+                                    tierLabel,
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                  if (isActive)
+                                    Container(
+                                      key: ValueKey(
+                                        'subscription-status-${tier.name}',
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        l10n.subscriptionsStatusActive,
+                                        style: theme.textTheme.labelLarge
+                                            ?.copyWith(
+                                              color:
+                                                  theme.colorScheme.onPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              price == null
+                                  ? l10n.subscriptionsPriceUnavailable
+                                  : l10n.subscriptionsTierPrice(price),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (subscription?.pendingTier case final pendingTier?
+                      when subscription?.autoRenewalStatus ==
+                          'will_change_product') ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.subscriptionsScheduledPlan(
+                        _tierLabel(l10n, pendingTier),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                if (summary != null) Text(summary),
-                if (summary != null) const SizedBox(height: 8),
-                Text(
-                  tier == SubscriptionTier.plus
-                      ? l10n.subscriptionsPlusBenefits
-                      : l10n.subscriptionsBusinessBenefits,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                if (license?.assignedDid != null) ...[
-                  const SizedBox(height: 6),
-                  Text(_assignmentLabel(l10n, license!)),
-                ],
-                if (action != null) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      key: ValueKey('subscription-view-details-${tier.name}'),
-                      label: action.$1,
-                      onPressed: action.$2,
-                      isLoading:
-                          purchaseIsLoading ||
-                          (pendingOperation?.kind ==
-                              PendingSubscriptionOperationKind.customerCenter),
+                  ...[
+                    const SizedBox(height: 10),
+                    if (!isActive && summary != null) Text(summary),
+                    if (!isActive && summary != null) const SizedBox(height: 8),
+                    Text(
+                      tier == SubscriptionTier.plus
+                          ? l10n.subscriptionsPlusBenefits
+                          : l10n.subscriptionsBusinessBenefits,
+                      style: theme.textTheme.bodyMedium,
                     ),
-                  ),
-                ],
-                if (canAssign) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      label: l10n.subscriptionsAssign,
-                      onPressed: model.onAssign == null
-                          ? null
-                          : () => model.onAssign!(license),
-                      isLoading: assignmentIsLoading,
+                  ],
+                  if (action != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: ExcludeSemantics(
+                        child: ExcludeFocus(
+                          child: _ActionButton(
+                            key: ValueKey(
+                              'subscription-view-details-${tier.name}',
+                            ),
+                            label: action.$1,
+                            flat: true,
+                            onPressed: onActivate,
+                            isLoading: actionIsLoading,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-                if (canReassign) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _ActionButton(
-                      label: l10n.subscriptionsReassign,
-                      onPressed: model.onAssign == null
-                          ? null
-                          : () => model.onAssign!(license),
-                      isLoading: assignmentIsLoading,
-                    ),
-                  ),
-                ],
-                if (canUnassign) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _TextActionButton(
-                      label: l10n.subscriptionsUnassign,
-                      onPressed: model.onUnassign == null
-                          ? null
-                          : () => model.onUnassign!(license),
-                      isLoading: unassignmentIsLoading,
-                    ),
-                  ),
-                ],
-                for (final secondary in secondaryLicenses)
-                  ..._secondaryLicenseDetails(
-                    context,
-                    l10n,
-                    secondary,
-                    subscriptionsById[secondary.subscriptionId],
-                  ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1124,46 +1239,90 @@ class _TierCard extends StatelessWidget {
   }
 
   (String, VoidCallback?)? _primaryAction(
+    BuildContext context,
     AppLocalizations l10n,
     SubscriptionTierPresentation presentation,
   ) {
+    if (state.webCheckoutPending) {
+      return (
+        l10n.subscriptionsViewDetails,
+        () => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.subscriptionsCheckoutPendingTitle),
+            content: Text(l10n.subscriptionsCheckoutPendingBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(l10n.actionCancel),
+              ),
+              TextButton(
+                onPressed: model.onCancelCheckout == null
+                    ? null
+                    : () {
+                        Navigator.of(dialogContext).pop();
+                        model.onCancelCheckout!();
+                      },
+                child: Text(l10n.subscriptionsCancelCheckout),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (model.operationNotice == SubscriptionOperationNotice.pending) {
       return null;
+    }
+    final current = state.subscriptions
+        .where(
+          (subscription) =>
+              subscription.givesAccess ||
+              (subscription.store == 'stripe' && subscription.pendingPayment),
+        )
+        .toList();
+    if (current.length == 1) {
+      final currentLicense = state.licenses
+          .where((license) => license.subscriptionId == current.single.id)
+          .firstOrNull;
+      if (currentLicense != null) {
+        if (!current.single.givesAccess && currentLicense.tier != tier) {
+          return null;
+        }
+        return (
+          currentLicense.tier == tier
+              ? l10n.subscriptionsManage
+              : tier == SubscriptionTier.business
+              ? l10n.subscriptionsUpgrade
+              : l10n.subscriptionsDowngrade,
+          model.onManage,
+        );
+      }
     }
     if (model.billingAvailability == BillingAvailability.unavailable) {
       return null;
     }
-    return switch (presentation) {
-      SubscriptionTierPresentation.empty => (
-        l10n.subscriptionsViewDetails,
-        model.onPurchase == null ? null : () => model.onPurchase!(tier),
-      ),
-      SubscriptionTierPresentation.dormant
-          when purchaseEligibility(state, tier).eligible =>
-        (
-          l10n.subscriptionsViewDetails,
-          model.onPurchase == null ? null : () => model.onPurchase!(tier),
-        ),
-      SubscriptionTierPresentation.dormant ||
-      SubscriptionTierPresentation.stale ||
-      SubscriptionTierPresentation.pending ||
-      SubscriptionTierPresentation.statusUnavailable ||
-      SubscriptionTierPresentation.active ||
-      SubscriptionTierPresentation.canceledAccessible ||
-      SubscriptionTierPresentation.anomaly => (
-        l10n.subscriptionsViewDetails,
-        model.onManage,
-      ),
-    };
-  }
-
-  String _assignmentLabel(AppLocalizations l10n, BillingLicense license) {
-    final assignedDid = license.assignedDid;
-    if (assignedDid == null) return l10n.subscriptionsUnassigned;
-    return l10n.subscriptionsAssignedTo(
-      model.assignedAccountLabels[assignedDid] ??
-          l10n.subscriptionsStatusUnavailable,
+    final nativeSubscription = state.subscriptions.any(
+      (subscription) =>
+          subscription.givesAccess && subscription.store == model.nativeStore,
     );
+    if (purchaseEligibility(
+      state,
+      tier,
+      store: model.nativeStore,
+      allowTierChanges: model.allowNativeTierChanges,
+    ).eligible) {
+      return (
+        state.promotionalAccessEndsByTier.isNotEmpty &&
+                !state.subscriptions.any((value) => value.givesAccess)
+            ? l10n.subscriptionsSubscribeTier(_tierLabel(l10n, tier))
+            : l10n.subscriptionsViewDetails,
+        model.onPurchase == null ? null : () => model.onPurchase!(tier),
+      );
+    }
+    if (nativeSubscription) {
+      return (l10n.subscriptionsViewDetails, model.onManage);
+    }
+    return null;
   }
 
   String _formatDate(BuildContext context, DateTime value) =>
@@ -1187,90 +1346,18 @@ class _TierCard extends StatelessWidget {
       l10n.subscriptionsAccessUntil(_formatDate(context, accessEnd)),
     _ => _statusLabel(l10n, presentation),
   };
-
-  List<Widget> _secondaryLicenseDetails(
-    BuildContext context,
-    AppLocalizations l10n,
-    BillingLicense license,
-    BillingSubscription? subscription,
-  ) {
-    final presentation = projectLicensePresentation(state, license);
-    final assignmentIsLoading =
-        pendingOperation?.licenseId == license.id &&
-        pendingOperation?.kind == PendingSubscriptionOperationKind.assignment;
-    final unassignmentIsLoading =
-        pendingOperation?.licenseId == license.id &&
-        pendingOperation?.kind == PendingSubscriptionOperationKind.unassignment;
-    final periodEnd = subscription?.currentPeriodEndsAt;
-    final accessEnd = subscription?.endsAt ?? periodEnd;
-    final summary = _subscriptionSummary(
-      context,
-      l10n,
-      presentation,
-      subscription,
-      accessEnd,
-    );
-    final canAssign =
-        projectTierPresentation(state, tier: tier) !=
-            SubscriptionTierPresentation.anomaly &&
-        license.assignable &&
-        (presentation == SubscriptionTierPresentation.active ||
-            presentation == SubscriptionTierPresentation.canceledAccessible) &&
-        (model.onAssign != null || assignmentIsLoading);
-    final canUnassign =
-        license.assignedDid != null &&
-        (model.onUnassign != null || unassignmentIsLoading);
-    return [
-      const SizedBox(height: 12),
-      const Divider(),
-      if (summary != null) Text(summary),
-      if (license.assignedDid != null) Text(_assignmentLabel(l10n, license)),
-      if (canAssign) ...[
-        const SizedBox(height: 8),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: _ActionButton(
-            label: license.assignedDid == null
-                ? l10n.subscriptionsAssign
-                : l10n.subscriptionsReassign,
-            onPressed: model.onAssign == null
-                ? null
-                : () => model.onAssign!(license),
-            isLoading: assignmentIsLoading,
-          ),
-        ),
-      ],
-      if (canUnassign) ...[
-        const SizedBox(height: 8),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: _TextActionButton(
-            label: l10n.subscriptionsUnassign,
-            onPressed: model.onUnassign == null
-                ? null
-                : () => model.onUnassign!(license),
-            isLoading: unassignmentIsLoading,
-          ),
-        ),
-      ],
-    ];
-  }
 }
 
 class _MessageCard extends StatelessWidget {
   const new({
     required this.body,
-    this.title,
     this.action,
     this.onAction,
-    this.isError = false,
   });
 
-  final String? title;
   final String body;
   final String? action;
   final VoidCallback? onAction;
-  final bool isError;
 
   @override
   Widget build(BuildContext context) => CraftskyCard(
@@ -1279,16 +1366,7 @@ class _MessageCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (title case final title?) ...[
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-        ],
-        Text(
-          body,
-          style: isError
-              ? TextStyle(color: Theme.of(context).colorScheme.error)
-              : null,
-        ),
+        Text(body),
         if (action case final action?) ...[
           const SizedBox(height: 12),
           Align(
@@ -1302,10 +1380,11 @@ class _MessageCard extends StatelessWidget {
 }
 
 class _OperationNotice extends StatelessWidget {
-  const new({required this.notice, required this.onRefresh});
+  const new({required this.notice, required this.onRefresh, this.accountLabel});
 
   final SubscriptionOperationNotice notice;
-  final VoidCallback? onRefresh;
+  final String? accountLabel;
+  final FutureOr<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1313,16 +1392,18 @@ class _OperationNotice extends StatelessWidget {
     final message = switch (notice) {
       SubscriptionOperationNotice.offeringUnavailable =>
         l10n.subscriptionsOfferingUnavailable,
+      SubscriptionOperationNotice.planChangeScheduled =>
+        l10n.subscriptionsPlanChangeScheduled,
+      SubscriptionOperationNotice.planChangeUnavailable =>
+        l10n.subscriptionsPlanChangeUnavailable,
+      SubscriptionOperationNotice.storeAccountConflict =>
+        accountLabel == null
+            ? l10n.subscriptionsStoreAccountConflict
+            : l10n.subscriptionsStoreAccountConflictKnown(accountLabel!),
+      SubscriptionOperationNotice.existingStoreSubscription =>
+        l10n.subscriptionsExistingStoreSubscription,
       SubscriptionOperationNotice.providerFailure =>
         l10n.subscriptionsProviderFailure,
-      SubscriptionOperationNotice.assignmentConflict =>
-        l10n.subscriptionsAssignmentConflict,
-      SubscriptionOperationNotice.assignmentCooldown =>
-        l10n.subscriptionsAssignmentCooldown,
-      SubscriptionOperationNotice.licenseNotFound =>
-        l10n.subscriptionsLicenseNotFound,
-      SubscriptionOperationNotice.targetIneligible =>
-        l10n.subscriptionsTargetIneligible,
       SubscriptionOperationNotice.unauthorized =>
         l10n.subscriptionsUnauthorized,
       SubscriptionOperationNotice.actionFailed =>
@@ -1347,39 +1428,29 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.flat = false,
     super.key,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+  final bool flat;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: ChunkyButton(
-      onPressed: isLoading ? null : onPressed,
-      child: _ActionButtonChild(label: label, isLoading: isLoading),
-    ),
-  );
-}
-
-class _PrimaryActionButton extends StatelessWidget {
-  const new({
-    required this.label,
-    required this.onPressed,
-    this.isLoading = false,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) => FilledButton(
-    onPressed: isLoading ? null : onPressed,
-    child: _ActionButtonChild(label: label, isLoading: isLoading),
-  );
+  Widget build(BuildContext context) => flat
+      ? _TextActionButton(
+          label: label,
+          onPressed: onPressed,
+          isLoading: isLoading,
+        )
+      : Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: ChunkyButton(
+            onPressed: isLoading ? null : onPressed,
+            child: _ActionButtonChild(label: label, isLoading: isLoading),
+          ),
+        );
 }
 
 class _TextActionButton extends StatelessWidget {
@@ -1396,7 +1467,9 @@ class _TextActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextButton(
     onPressed: isLoading ? null : onPressed,
-    style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+    style: TextButton.styleFrom(
+      minimumSize: const Size(48, 48),
+    ),
     child: _ActionButtonChild(label: label, isLoading: isLoading),
   );
 }

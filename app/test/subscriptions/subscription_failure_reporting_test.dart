@@ -4,7 +4,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/reconciliation_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
 import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
@@ -96,7 +96,7 @@ void main() {
       const ApiNetworkError('PRIVATE_NETWORK'),
       const ApiCanceled(),
       const ApiUnauthorized(),
-      const BillingOwnerGuardException('owner_session_changed'),
+      const BillingAccountGuardException('owner_session_changed'),
       RevenueCatServiceException(
         'restore_failed',
         diagnosticCause: PlatformException(

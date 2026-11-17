@@ -37,6 +37,7 @@ class ProfileAccountListTile extends StatelessWidget {
       handle: account.handle.toString(),
       displayName: account.displayName,
       crafts: account.crafts,
+      isBusiness: account.isBusiness,
       beforeOpen: beforeOpen,
       avatar: ProfileAvatar(
         seed: handle.displayLabel(
@@ -51,6 +52,7 @@ class ProfileAccountListTile extends StatelessWidget {
         label: [
           title,
           if (name != null && name.isNotEmpty) name,
+          if (account.isBusiness) l10n.businessProfileLabel,
           for (final craft in account.crafts) craft.split('#').last,
         ].join(', '),
         hint: l10n.profileVisitAction,
@@ -67,6 +69,8 @@ class ProfileAccountListTile extends StatelessWidget {
             handle: account.handle.toString(),
             displayName: account.displayName,
             crafts: account.crafts,
+            isBusiness: account.isBusiness,
+            customisation: account.customisation,
           ),
           trailing: trailing,
           onTap: onTap ?? openProfile,

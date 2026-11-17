@@ -151,7 +151,7 @@ void main() {
       expect(registry.pendingAccountDeletion?.jobId, pending.jobId);
       expect(registry.pendingAccountDeletion?.confirmationDid, 'did:plc:alice');
       final encoded = jsonDecode(registry.toJson()) as Map<String, dynamic>;
-      expect(encoded['schemaVersion'], 3);
+      expect(encoded['schemaVersion'], 4);
       expect(
         registry.pendingAccountDeletion?.isCurrent(
           registry.activeLease,
@@ -238,7 +238,7 @@ void main() {
           sessionGeneration: 11,
           lastUsedOrdinal: 19,
           cachedCustomisation: const ProfileCustomisation(
-            colour: 'teal',
+            colour: 'seafoam',
           ),
         ),
       },
@@ -258,7 +258,7 @@ void main() {
     });
     expect(
       restored.sessions[AccountKey('did:plc:bob').did]?.cachedCustomisation,
-      const ProfileCustomisation(colour: 'teal'),
+      const ProfileCustomisation(colour: 'seafoam'),
     );
     final diagnostic = '$restored ${restored.sessions.values.join(' ')}';
     expect(diagnostic, isNot(contains('secret-token')));
@@ -322,73 +322,80 @@ void main() {
       restored.orderedSessions.single.cachedCustomisation,
       ProfileCustomisation.defaults,
     );
-    expect(restored.billingOwner, isNull);
+    expect(restored.billingCustomers, isEmpty);
     expect(
       (jsonDecode(restored.toJson()) as Map<String, dynamic>)['schemaVersion'],
-      3,
+      4,
     );
   });
 
-  test('UT-002 reserves one billing owner before UUID completion', () {
-    final active = SessionRegistry.empty().upsertAndActivate(
+  test('billing customers are independent per DID and round-trip securely', () {
+    var registry = SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        )
+        .setBillingCustomer(
+          'did:plc:alice',
+          '20000000-0000-4000-8000-000000000001',
+        );
+    registry = registry
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        )
+        .setBillingCustomer(
+          'did:plc:bob',
+          '20000000-0000-4000-8000-000000000002',
+        );
+    final restored = SessionRegistry.fromJson(registry.toJson());
+    expect(restored.billingCustomers, hasLength(2));
+    expect(
+      restored.billingCustomers[AccountKey('did:plc:alice').did],
+      '20000000-0000-4000-8000-000000000001',
+    );
+    expect(
+      restored.billingCustomers[AccountKey('did:plc:bob').did],
+      '20000000-0000-4000-8000-000000000002',
+    );
+    expect(
+      () => registry.setBillingCustomer(
+        'did:plc:alice',
+        '20000000-0000-4000-8000-000000000001',
+      ),
+      throwsStateError,
+    );
+    expect(
+      () => registry.setBillingCustomer(
+        'did:plc:bob',
+        '20000000-0000-4000-8000-000000000099',
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('version 3 payer identity migrates only to its original DID', () {
+    final original = SessionRegistry.empty().upsertAndActivate(
       token: 'alice-token',
       did: 'did:plc:alice',
       handle: 'alice.test',
     );
-
-    final reserved = active.reserveBillingOwner('did:plc:alice');
-
-    expect(reserved.billingOwner?.did.value, 'did:plc:alice');
-    expect(reserved.billingOwner?.revenueCatAppUserId, isNull);
+    final map = jsonDecode(original.toJson()) as Map<String, dynamic>;
+    map['schemaVersion'] = 3;
+    map.remove('billingCustomers');
+    map['billingOwner'] = {
+      'did': 'did:plc:alice',
+      'revenueCatAppUserId': '20000000-0000-4000-8000-000000000001',
+    };
+    final restored = SessionRegistry.fromJson(jsonEncode(map));
     expect(
-      () => reserved.reserveBillingOwner('did:plc:bob'),
-      throwsStateError,
+      restored.billingCustomers.keys.single,
+      AccountKey('did:plc:alice').did,
     );
-    expect(
-      SessionRegistry.fromJson(reserved.toJson()).billingOwner?.did.value,
-      'did:plc:alice',
-    );
+    expect(jsonDecode(restored.toJson()), isNot(contains('billingOwner')));
   });
-
-  test(
-    'IT-004 completes only the reserved DID and preserves it on removal',
-    () {
-      var registry = SessionRegistry.empty().upsertAndActivate(
-        token: 'alice-token',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
-      registry = registry
-          .reserveBillingOwner('did:plc:alice')
-          .completeBillingOwner(
-            'did:plc:alice',
-            '20000000-0000-4000-8000-000000000001',
-          );
-
-      expect(
-        registry.billingOwner?.revenueCatAppUserId,
-        '20000000-0000-4000-8000-000000000001',
-      );
-      expect(
-        () => registry.completeBillingOwner(
-          'did:plc:bob',
-          '20000000-0000-4000-8000-000000000002',
-        ),
-        throwsStateError,
-      );
-      expect(
-        () => registry.completeBillingOwner(
-          'did:plc:alice',
-          '20000000-0000-4000-8000-000000000002',
-        ),
-        throwsStateError,
-      );
-      expect(
-        registry.remove('did:plc:alice').billingOwner?.did.value,
-        'did:plc:alice',
-      );
-    },
-  );
 
   test('additively upserts and enforces the five-account limit', () {
     var registry = SessionRegistry.empty();
@@ -474,13 +481,13 @@ void main() {
       displayName: 'Alice',
       crafts: const ['knitting', 'crochet'],
       avatarUrl: 'https://example.test/alice.jpg',
-      customisation: const ProfileCustomisation(colour: 'teal'),
+      customisation: const ProfileCustomisation(colour: 'seafoam'),
     );
 
     expect(updated.sessions[lease.account.did]?.cachedDisplayName, 'Alice');
     expect(
       updated.sessions[lease.account.did]?.cachedCustomisation.colour,
-      'teal',
+      'seafoam',
     );
     expect(
       updated.updateCachedIdentity(

@@ -83,7 +83,7 @@ func TestWebhookHandlerRollsBackInterruptedDurableCommit(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT requested_generation FROM billing_accounts WHERE id=$1`, account.ID).Scan(&generation); err != nil {
 		t.Fatal(err)
 	}
-	if eventCount != 0 || generation != 0 {
+	if eventCount != 0 || generation != account.RequestedGeneration {
 		t.Fatalf("interrupted commit persisted event/generation %d/%d", eventCount, generation)
 	}
 	prohibitedOutput := logs.String() + response.Body.String()

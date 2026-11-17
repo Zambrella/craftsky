@@ -84,7 +84,12 @@ class BusinessProfileFields extends StatelessWidget {
           : BusinessLocation(country: country, locality: locality),
       primaryAction: actionType == null || destination == null
           ? null
-          : BusinessAction(type: actionType, destination: destination),
+          : BusinessAction(
+              type: actionType,
+              destination: actionType == 'email'
+                  ? _emailDestination(destination)
+                  : destination,
+            ),
       products: baseline.products,
     );
   }
@@ -104,9 +109,19 @@ class BusinessProfileFields extends StatelessWidget {
     BusinessProfileFieldNames.country: draft.location?.country ?? '',
     BusinessProfileFieldNames.locality: draft.location?.locality ?? '',
     BusinessProfileFieldNames.actionType: draft.primaryAction?.type ?? '',
-    BusinessProfileFieldNames.actionDestination:
-        draft.primaryAction?.destination ?? '',
+    BusinessProfileFieldNames.actionDestination: _displayDestination(
+      draft.primaryAction,
+    ),
   };
+
+  static String _emailDestination(String value) =>
+      value.startsWith('mailto:') ? value : 'mailto:$value';
+  static String _displayDestination(BusinessAction? action) {
+    final destination = action?.destination ?? '';
+    return action?.type == 'email' && destination.startsWith('mailto:')
+        ? destination.substring(7)
+        : destination;
+  }
 
   static String? _trimmedOrNull(String? value) {
     final trimmed = value?.trim();
@@ -117,6 +132,34 @@ class BusinessProfileFields extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final selectedAction =
+        FormBuilder.of(context)
+                ?.instantValue[BusinessProfileFieldNames.actionType]
+            as String? ??
+        initial.primaryAction?.type;
+    final destinationLabel = switch (selectedAction) {
+      'shop' => l10n.editProfileBusinessShopUrlLabel,
+      'browse-patterns' => l10n.editProfileBusinessPatternsUrlLabel,
+      'request-custom-order' => l10n.editProfileBusinessCustomOrderUrlLabel,
+      'book-class' ||
+      'book-appointment' => l10n.editProfileBusinessBookingUrlLabel,
+      'view-event-calendar' => l10n.editProfileBusinessCalendarUrlLabel,
+      'email' => l10n.editProfileBusinessEmailLabel,
+      'visit-website' => l10n.editProfileBusinessWebsiteUrlLabel,
+      'wholesale-enquiries' => l10n.editProfileBusinessWholesaleUrlLabel,
+      _ => l10n.editProfileBusinessActionDestinationLabel,
+    };
+    final destinationHint = switch (selectedAction) {
+      'shop' => l10n.editProfileBusinessActionUrlHint,
+      'browse-patterns' => l10n.editProfileBusinessPatternsUrlHint,
+      'request-custom-order' => l10n.editProfileBusinessCustomOrderUrlHint,
+      'book-class' ||
+      'book-appointment' => l10n.editProfileBusinessBookingUrlHint,
+      'view-event-calendar' => l10n.editProfileBusinessCalendarUrlHint,
+      'email' => l10n.editProfileBusinessActionEmailHint,
+      'wholesale-enquiries' => l10n.editProfileBusinessWholesaleUrlHint,
+      _ => l10n.editProfileBusinessWebsiteUrlHint,
+    };
     final knownTypes = initial.businessTypes
         .where((value) => value.known)
         .map((value) => value.value)
@@ -129,18 +172,11 @@ class BusinessProfileFields extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Divider(height: spacing.sp8),
-        Text(
-          l10n.editProfileBusinessHeading,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        SizedBox(height: spacing.sp1),
         Text(l10n.editProfileBusinessHelper),
         SizedBox(height: spacing.sp5),
         CraftskyFormBuilderMultiSelectField<String>(
           name: BusinessProfileFieldNames.types,
+          searchHintText: l10n.editProfileBusinessTypesHint,
           label: l10n.editProfileBusinessTypesLabel,
           helperText: l10n.editProfileBusinessTypesHelper,
           initialValue: knownTypes,
@@ -158,6 +194,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         CraftskyFormBuilderMultiSelectField<String>(
           name: BusinessProfileFieldNames.offerings,
+          searchHintText: l10n.editProfileBusinessOfferingsHint,
           label: l10n.editProfileBusinessOfferingsLabel,
           helperText: l10n.editProfileBusinessOfferingsHelper,
           initialValue: knownOfferings,
@@ -175,6 +212,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.tagline,
+          hintText: l10n.editProfileBusinessTaglineHint,
           maxLength: RecordTextLimits.businessTagline.graphemes,
           maxBytes: RecordTextLimits.businessTagline.bytes,
           label: l10n.editProfileBusinessTaglineLabel,
@@ -191,6 +229,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.hours,
+          hintText: l10n.editProfileBusinessHoursHint,
           maxLength: RecordTextLimits.businessHours.graphemes,
           maxBytes: RecordTextLimits.businessHours.bytes,
           label: l10n.editProfileBusinessHoursLabel,
@@ -207,6 +246,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.serviceArea,
+          hintText: l10n.editProfileBusinessServiceAreaHint,
           maxLength: RecordTextLimits.businessServiceArea.graphemes,
           maxBytes: RecordTextLimits.businessServiceArea.bytes,
           label: l10n.editProfileBusinessServiceAreaLabel,
@@ -223,6 +263,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.country,
+          hintText: l10n.editProfileBusinessCountryHint,
           label: l10n.editProfileBusinessCountryLabel,
           initialValue: initial.location?.country,
           textCapitalization: TextCapitalization.characters,
@@ -239,6 +280,7 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.locality,
+          hintText: l10n.editProfileBusinessLocalityHint,
           maxLength: RecordTextLimits.locality.graphemes,
           maxBytes: RecordTextLimits.locality.bytes,
           label: l10n.editProfileBusinessLocalityLabel,
@@ -255,7 +297,17 @@ class BusinessProfileFields extends StatelessWidget {
         CraftskyFormBuilderDropdownField<String>(
           name: BusinessProfileFieldNames.actionType,
           label: l10n.editProfileBusinessActionLabel,
-          initialValue: initial.primaryAction?.type,
+          helperText: l10n.editProfileBusinessActionHelper,
+          searchHintText: l10n.editProfileBusinessActionSearchHint,
+          initialValue: initial.primaryAction?.type ?? '',
+          clearable: false,
+          onChanged: (value) {
+            if (value == null || value.isEmpty) {
+              FormBuilder.of(context)
+                  ?.fields[BusinessProfileFieldNames.actionDestination]
+                  ?.didChange('');
+            }
+          },
           enabled: enabled,
           options: [
             CraftskySelectOption(
@@ -271,35 +323,42 @@ class BusinessProfileFields extends StatelessWidget {
             ]),
           ],
         ),
-        SizedBox(height: spacing.sp5),
-        _TextField(
-          name: BusinessProfileFieldNames.actionDestination,
-          label: l10n.editProfileBusinessActionDestinationLabel,
-          initialValue: initial.primaryAction?.destination,
-          keyboardType: TextInputType.url,
-          enabled: enabled,
-          validator: (value) {
-            final destination = value?.trim();
-            final actionType =
-                FormBuilder.of(
-                      context,
-                    )?.instantValue[BusinessProfileFieldNames.actionType]
-                    as String?;
-            if (actionType == null || actionType.isEmpty) {
-              return destination == null || destination.isEmpty
-                  ? null
-                  : l10n.editProfileBusinessActionDestinationInvalid;
-            }
-            if (destination == null || destination.isEmpty) {
-              return l10n.editProfileBusinessActionDestinationInvalid;
-            }
-            final valid = actionType == 'email'
-                ? _validMailto(destination)
-                : _validHttps(destination);
-            return valid
-                ? null
-                : l10n.editProfileBusinessActionDestinationInvalid;
-          },
+        Visibility(
+          visible: selectedAction != null && selectedAction.isNotEmpty,
+          maintainState: true,
+          child: Padding(
+            padding: EdgeInsets.only(top: spacing.sp5),
+            child: _TextField(
+              name: BusinessProfileFieldNames.actionDestination,
+              label: destinationLabel,
+              hintText: destinationHint,
+              initialValue: _displayDestination(initial.primaryAction),
+              keyboardType: selectedAction == 'email'
+                  ? TextInputType.emailAddress
+                  : TextInputType.url,
+              enabled: enabled,
+              validator: (value) {
+                final destination = value?.trim();
+                final actionType =
+                    FormBuilder.of(
+                          context,
+                        )?.instantValue[BusinessProfileFieldNames.actionType]
+                        as String?;
+                if (actionType == null || actionType.isEmpty) {
+                  return null;
+                }
+                if (destination == null || destination.isEmpty) {
+                  return l10n.editProfileBusinessActionDestinationInvalid;
+                }
+                final valid = actionType == 'email'
+                    ? _validMailto(_emailDestination(destination))
+                    : _validHttps(destination);
+                return valid
+                    ? null
+                    : l10n.editProfileBusinessActionDestinationInvalid;
+              },
+            ),
+          ),
         ),
       ],
     );
@@ -357,6 +416,7 @@ class _TextField extends StatelessWidget {
     required this.label,
     required this.enabled,
     this.initialValue,
+    this.hintText,
     this.validator,
     this.maxLines = 1,
     this.maxLength,
@@ -368,6 +428,7 @@ class _TextField extends StatelessWidget {
   final String name;
   final String label;
   final String? initialValue;
+  final String? hintText;
   final bool enabled;
   final FormFieldValidator<String>? validator;
   final int maxLines;
@@ -380,6 +441,7 @@ class _TextField extends StatelessWidget {
   Widget build(BuildContext context) => CraftskyFormTextField(
     name: name,
     label: label,
+    hintText: hintText,
     initialValue: initialValue ?? '',
     enabled: enabled,
     validator: validator,

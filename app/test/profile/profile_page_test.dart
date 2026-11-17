@@ -818,7 +818,7 @@ void main() {
         find.descendant(of: collapsedTitle, matching: find.text('Business')),
         findsNothing,
       );
-      expect(find.text('Business'), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.storefront), findsOneWidget);
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
@@ -1067,7 +1067,7 @@ void main() {
         displayName: 'Alice',
         banner: 'https://example.test/old-banner.jpg',
         crafts: const [],
-        customisation: const ProfileCustomisation(background: 'x2'),
+        customisation: const ProfileCustomisation(background: 'craft-sewing'),
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 

@@ -59,7 +59,10 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 	}
 	const author = page.locator('.post-card .author').first();
 	await expect(
-		author.getByRole('img', { name: 'Crafts: Knitting, Sewing', exact: true })
+		author.getByRole('img', {
+			name: 'Crafts: Knitting, Sewing',
+			exact: true
+		})
 	).toBeVisible();
 	await expect(author.locator('.author-craft-icon')).toHaveCount(2);
 	expect(
@@ -156,6 +159,7 @@ test('compact author crafts normalize lexicon IDs, retain unknown accessible lab
 							author: {
 								did: account.did,
 								handle: account.handle,
+								accountType: 'regular',
 								displayName:
 									'A very long maker display name that preserves priority over craft glyphs',
 								crafts: [

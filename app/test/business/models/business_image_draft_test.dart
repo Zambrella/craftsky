@@ -94,4 +94,21 @@ void main() {
       'alt': 'Local preview',
     });
   });
+
+  test(
+    'multilingual image descriptions use separate grapheme and byte limits',
+    () {
+      UploadedBusinessImageDraft image(String alt) =>
+          UploadedBusinessImageDraft(
+            cid: 'bafy-image',
+            mime: 'image/png',
+            size: 99,
+            alt: alt,
+          );
+
+      expect(image(List.filled(1000, '織').join()).isValid, isTrue);
+      expect(image(List.filled(1001, '織').join()).isValid, isFalse);
+      expect(image(List.filled(1000, '👩🏽‍🎨').join()).isValid, isFalse);
+    },
+  );
 }

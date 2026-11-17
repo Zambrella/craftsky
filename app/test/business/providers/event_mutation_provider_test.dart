@@ -179,8 +179,8 @@ void main() {
       final retry = repository.updated.last;
       expect(retry.expectedCid.toString(), 'bafy-authoritative');
       expect(retry.draft.name, authoritative.name);
-      expect(retry.draft.startsAt, DateTime(2026, 10, 8, 14));
-      expect(retry.draft.endsAt, DateTime(2026, 10, 8, 19));
+      expect(retry.draft.startsAt, DateTime.utc(2026, 10, 8, 14));
+      expect(retry.draft.endsAt, DateTime.utc(2026, 10, 8, 19));
       expect(retry.draft.summary, authoritative.summary);
       expect(retry.draft.venueName, authoritative.venueName);
       expect(retry.draft.eventUri, authoritative.eventUri);
@@ -338,6 +338,63 @@ void main() {
     ]);
     expect(repository.updated.last.draft.name, 'User correction');
   });
+
+  for (final localPreview in [false, true]) {
+    test(
+      'accepted event description updates retain '
+      '${localPreview ? 'local' : 'remote'} image pixels',
+      () async {
+        final repository = _Repository();
+        final container = _container(repository);
+        addTearDown(container.dispose);
+        final bytes = Uint8List.fromList([1, 2, 3]);
+        final image = localPreview
+            ? BusinessImageView.localPreview(
+                cid: 'bafy-poster',
+                mime: 'image/png',
+                size: 3,
+                alt: 'Old description',
+                previewBytes: bytes,
+              )
+            : BusinessImageView(
+                cid: 'bafy-poster',
+                mime: 'image/png',
+                size: 3,
+                alt: 'Old description',
+                thumb: 'https://cdn.example/thumb',
+                fullsize: 'https://cdn.example/full',
+              );
+
+        expect(
+          await container
+              .read(businessEventMutationControllerProvider.notifier)
+              .update(
+                _event(image: image),
+                _draft(
+                  image: ExistingBusinessImageDraft(image)
+                      .withAlt('New description'),
+                ),
+              ),
+          isTrue,
+        );
+
+        final accepted =
+            container
+                    .read(pdsRecordOperationControllerProvider)
+                    .activeOverlays
+                    .single
+                    .optimisticValue!
+                as BusinessEvent;
+        expect(accepted.image?.alt, 'New description');
+        expect(accepted.image?.cid, image.cid);
+        expect(
+          accepted.image?.previewBytes,
+          localPreview ? same(bytes) : isNull,
+        );
+        expect(accepted.image?.thumb, image.thumb);
+      },
+    );
+  }
 }
 
 ProviderContainer _container(_Repository repository) => ProviderContainer(

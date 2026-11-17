@@ -23,6 +23,65 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  testWidgets('access refreshes at its boundary and accepts provider grace', (
+    tester,
+  ) async {
+    final registry = _registry();
+    final lease = registry.activeLease!.session;
+    var now = DateTime.utc(2026, 11, 16);
+    final api = _AccessApi(
+      Future.value(
+        _access('did:plc:alice', SubscriptionTier.business).copyWith(
+          accessEndsAt: now.add(const Duration(seconds: 30)),
+        ),
+      ),
+    );
+    final container = _container(registry, api, clock: () => now);
+    final provider = subscriptionAccessProvider(lease);
+    final listener = container.listen(provider, (_, _) {});
+    await container.read(provider.future);
+
+    await tester.pump(const Duration(seconds: 29));
+    expect(api.accessCalls, 1);
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 1));
+    final grace = await container.read(provider.future);
+    expect(api.accessCalls, 2);
+    expect(grace.allowsBusiness, isTrue);
+
+    // An old paid period boundary must not create an immediate retry loop.
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.accessCalls, 2);
+    now = now.add(subscriptionAccessMaximumAge);
+    await tester.pump(subscriptionAccessMaximumAge);
+    expect((await container.read(provider.future)).allowsBusiness, isTrue);
+    expect(api.accessCalls, 3);
+    listener.close();
+    container.dispose();
+  });
+
+  testWidgets('cached access is replaced by refreshed server revocation', (
+    tester,
+  ) async {
+    final registry = _registry();
+    final lease = registry.activeLease!.session;
+    final api = _AccessApi(
+      Future.value(_access('did:plc:alice', SubscriptionTier.plus)),
+    );
+    final container = _container(registry, api);
+    final provider = subscriptionAccessProvider(lease);
+    final listener = container.listen(provider, (_, _) {});
+    expect((await container.read(provider.future)).allowsPlus, isTrue);
+
+    api.result = Future.value(_access('did:plc:alice', SubscriptionTier.free));
+    await tester.pump(subscriptionAccessMaximumAge);
+
+    expect((await container.read(provider.future)).allowsPlus, isFalse);
+    expect(api.accessCalls, 2);
+    listener.close();
+    container.dispose();
+  });
+
   test('profile cache changes do not reload subscription access', () async {
     final registry = _registry();
     final lease = registry.activeLease!.session;
@@ -41,7 +100,7 @@ void main() {
           lease,
           displayName: 'Updated name',
           avatarUrl: 'new.jpg',
-          customisation: const ProfileCustomisation(colour: 'teal'),
+          customisation: const ProfileCustomisation(colour: 'seafoam'),
         );
     await container.pump();
     expect(api.accessCalls, 1);
@@ -160,18 +219,22 @@ void main() {
   });
 }
 
-ProviderContainer _container(SessionRegistry registry, _AccessApi api) =>
-    ProviderContainer.test(
-      retry: (_, _) => null,
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _RegistryStorage(registry),
-        ),
-        subscriptionRepositoryProvider.overrideWith(
-          (ref, account) async => api,
-        ),
-      ],
-    );
+ProviderContainer _container(
+  SessionRegistry registry,
+  _AccessApi api, {
+  DateTime Function()? clock,
+}) => ProviderContainer.test(
+  retry: (_, _) => null,
+  overrides: [
+    if (clock != null) subscriptionAccessClockProvider.overrideWithValue(clock),
+    secureSessionRegistryStorageProvider.overrideWithValue(
+      _RegistryStorage(registry),
+    ),
+    subscriptionRepositoryProvider.overrideWith(
+      (ref, account) async => api,
+    ),
+  ],
+);
 
 SessionRegistry _registry() => SessionRegistry.empty()
     .upsertAndActivate(
@@ -206,7 +269,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 
 final class _AccessApi implements SubscriptionApi {
   new(this.result);
-  final Future<SubscriptionAccess> result;
+  Future<SubscriptionAccess> result;
   int accessCalls = 0;
   int ownerCalls = 0;
 
@@ -223,15 +286,8 @@ final class _AccessApi implements SubscriptionApi {
   }
 
   @override
-  Future<BillingAssignment> assign(String licenseId, String targetDid) =>
-      throw UnimplementedError();
-
-  @override
   Future<BillingState> ensureBillingAccount() => throw UnimplementedError();
 
   @override
   Future<void> requestReconciliation() => throw UnimplementedError();
-
-  @override
-  Future<void> unassign(String licenseId) => throw UnimplementedError();
 }

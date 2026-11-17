@@ -391,7 +391,7 @@ func readConsoleAccount(ctx context.Context, db consolePreviewReader, did syntax
 				result.Business = BuildBusinessProfileResponse(did, &view)
 				result.BusinessState = "available"
 				for _, product := range result.Business.Products {
-					if product.Image != nil {
+					if len(product.Images) > 0 {
 						result.MediaAvailable = true
 					}
 				}

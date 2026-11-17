@@ -708,6 +708,10 @@ export class CraftskyAPI {
 			)
 	};
 	readonly billing = {
+		prices: () =>
+			this.transport.get<{ items: T.WebSubscriptionPrice[] }>(
+				'/v1/billing/web-prices'
+			),
 		access: () =>
 			this.transport.get<T.SubscriptionAccess>('/v1/subscriptions/access'),
 		get: () => this.transport.get<T.BillingState>('/v1/billing/account'),
@@ -718,17 +722,27 @@ export class CraftskyAPI {
 				'POST',
 				'/v1/billing/reconciliation'
 			),
-		assign: (licenseId: string, targetDid: string) =>
-			this.transport.request<T.BillingAssignment>(
-				'PUT',
-				`/v1/billing/licenses/${segment(licenseId)}/assignment`,
-				{ body: { targetDid } }
+		checkout: (tier: 'plus' | 'business') =>
+			this.transport.request<{ clientSecret: string; publishableKey: string }>(
+				'POST',
+				'/v1/billing/web-checkout',
+				{ body: { tier, presentation: 'embedded' } }
 			),
-		unassign: (licenseId: string) =>
-			this.transport.request<void>(
-				'DELETE',
-				`/v1/billing/licenses/${segment(licenseId)}/assignment`,
-				{ response: 'empty' }
+		paywall: (tier: 'plus' | 'business') =>
+			this.transport.request<{
+				apiKey: string;
+				appUserId: string;
+				offering: 'plus' | 'business';
+			}>('POST', '/v1/billing/web-paywall', { body: { tier } }),
+		cancelCheckout: () =>
+			this.transport.request<{ status: string }>(
+				'POST',
+				'/v1/billing/web-checkout/cancel'
+			),
+		manage: () =>
+			this.transport.request<{ url: string }>(
+				'POST',
+				'/v1/billing/web-management'
 			)
 	};
 	readonly chat = {

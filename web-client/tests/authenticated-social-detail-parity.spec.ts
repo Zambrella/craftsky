@@ -1,3 +1,5 @@
+import palettes from '../src/lib/features/social/palette.json' with { type: 'json' };
+import { nativeIconPaths } from '../src/lib/features/shell/native-icons';
 import { test, expect, type Page } from '@playwright/test';
 
 const account = {
@@ -2204,3 +2206,77 @@ for (const example of [
 		).toHaveCount(0);
 	});
 }
+
+for (const width of [390, 1280])
+	test(`business identity sits with craft icons without a separate account label at ${width}px`, async ({
+		page
+	}, testInfo) => {
+		await page.setViewportSize({ width, height: 900 });
+		await timeline(
+			page,
+			post('business-identity', {
+				author: {
+					...maker,
+					accountType: 'business',
+					customisation: { colour: 'rose', profileBackground: 'none' },
+					crafts: ['knitting', 'sewing']
+				}
+			})
+		);
+		await page.goto('/feed');
+		const author = page.locator('.post-card .author').first();
+		const business = author.locator('.business-icon');
+		await expect(business).toBeVisible();
+		await expect(
+			author.getByRole('img', {
+				name: 'Crafts: Knitting, Sewing',
+				exact: true
+			})
+		).toBeVisible();
+		await expect(
+			author.getByText('Business account', { exact: true })
+		).toHaveCount(0);
+		await expect(business).toHaveCSS('width', '16px');
+		await expect(business.locator('svg')).toHaveAttribute('width', '16');
+		await expect(business.locator('svg')).toHaveCSS(
+			'color',
+			`rgb(${[1, 3, 5].map((i) => parseInt(palettes.rose.base.slice(i, i + 2), 16)).join(', ')})`
+		);
+		await expect(business.locator('path')).toHaveAttribute(
+			'd',
+			nativeIconPaths.storefront.regular
+		);
+		const craft = await author.locator('[data-craft="knitting"]').boundingBox(),
+			badge = await business.boundingBox();
+		expect(badge!.x + badge!.width).toBeLessThan(craft!.x);
+		const nameBox = await author.locator('strong').boundingBox();
+		expect(badge!.x + badge!.width).toBeLessThan(nameBox!.x);
+		const ink = await business.locator('path').boundingBox();
+		expect(Math.abs(ink!.width - craft!.width)).toBeLessThan(1.5);
+		expect(Math.abs(ink!.height - craft!.height)).toBeLessThan(1.5);
+		expect(badge!.y + badge!.height / 2).toBeCloseTo(
+			craft!.y + craft!.height / 2,
+			0
+		);
+		await author.screenshot({
+			path: testInfo.outputPath(`business-author-${width}.png`)
+		});
+		await page.goto('/settings');
+		const compact = page.locator('.settings-identity .compact-identity');
+		await expect(compact.locator('.business-icon')).toBeVisible();
+		await expect(
+			page
+				.getByRole('link', { name: 'Business details', exact: true })
+				.locator('svg')
+				.first()
+				.locator('path')
+		).toHaveAttribute('d', nativeIconPaths.identificationBadge.regular);
+		await page.goto('/profiles/did%3Aplc%3Aalice');
+		await expect(
+			page.locator('.profile-identity h1 .business-icon')
+		).toBeVisible();
+
+		await expect(page.locator('.profile-identity .business-label')).toHaveCount(
+			0
+		);
+	});

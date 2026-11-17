@@ -61,6 +61,7 @@ void main() {
         l10n.subscriptionsUnauthorized,
         l10n.subscriptionsActionFailed,
         l10n.subscriptionsPendingRefresh,
+        l10n.subscriptionsExistingStoreSubscription,
         l10n.subscriptionsActionSemantic('Plus', 'Active', 'Assign'),
         l10n.subscriptionsAssignmentConfirmTitle,
         l10n.subscriptionsAssignmentConfirmBody('Plus', '@alice.test'),

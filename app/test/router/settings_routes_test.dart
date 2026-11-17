@@ -476,7 +476,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(500, 1400);
+    tester.view.physicalSize = const Size(500, 2000);
     final container = _container();
     addTearDown(container.dispose);
     final subscription = container.listen(
@@ -522,7 +522,7 @@ void main() {
       'Discovery',
       'Find people from Instagram',
       'General',
-      if (subscriptionsEnabled) 'View subscription',
+      if (subscriptionsEnabled) 'Your CraftSky subscription',
       'Account standing',
       'Account',
       'About',
@@ -770,7 +770,7 @@ final _routeCases = <_SettingsRouteCase>[
     matchesPage: (widget) => widget is NotificationSettingsPage,
   ),
   _SettingsRouteCase(
-    label: 'View subscription',
+    label: 'Your CraftSky subscription',
     location: '/settings/subscriptions',
     matchesPage: (widget) => widget is SubscriptionPage,
   ),

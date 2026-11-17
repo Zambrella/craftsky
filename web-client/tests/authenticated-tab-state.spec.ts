@@ -306,9 +306,7 @@ test('extended network retains refreshed pages after muting from a card', async 
 		.getByRole('link', { name: 'Followed by Bob Maker' })
 		.first()
 		.click();
-	await expect(
-		page.getByRole('heading', { name: 'Bob Maker', exact: true })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Bob Maker');
 	await page.goBack();
 	await expect(page.locator('.member-post')).toHaveCount(24);
 	expect(requests).toBe(3);

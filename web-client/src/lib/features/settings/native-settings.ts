@@ -6,7 +6,7 @@ import {
 	text,
 	type GrowthPoint
 } from './model.ts';
-import type { BillingState, BillingLicense } from '#lib/api/types.ts';
+import type { BillingState } from '#lib/api/types.ts';
 
 export { characterCount, requireRecordText } from './text-limits.ts';
 
@@ -37,7 +37,7 @@ export type TierState =
 	| 'pending'
 	| 'anomaly'
 	| 'unavailable';
-/** Keep native presentation precedence: unresolved state must not advertise assignments. */
+/** Keep native presentation precedence for unresolved provider state. */
 export function tierState(
 	state: BillingState,
 	tier: 'plus' | 'business'
@@ -85,17 +85,8 @@ export function tierState(
 		? 'active'
 		: 'dormant';
 }
-export function canAssignLicense(state: BillingState, license: BillingLicense) {
-	return (
-		license.assignable &&
-		tierState(state, license.tier) !== 'anomaly' &&
-		['active', 'cancelled'].includes(
-			tierState({ ...state, licenses: [license] }, license.tier)
-		)
-	);
-}
 export const tierStateLabel: Record<TierState, string> = {
-	empty: 'Available in the mobile app',
+	empty: 'No current subscription',
 	active: 'Active',
 	cancelled: 'Canceled; access continues until the current period ends',
 	dormant: 'Not currently providing access',

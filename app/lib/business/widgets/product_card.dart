@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/widgets/business_image.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -30,13 +31,31 @@ class ProductCard extends StatelessWidget {
     final destination = hydratedExternalActionUri(product.uri);
     final price = BusinessFormatters.money(product.price, l10n.localeName);
 
-    return Semantics(
-      button: destination != null,
-      label: destination == null
-          ? product.title
-          : l10n.businessProductOpen(product.title),
-      child: CraftskyCard(
+    final images = [
+      for (final image in product.images)
+        PostImage(
+          cid: image.cid.toString(),
+          mime: image.mime,
+          size: image.size,
+          alt: image.alt,
+          thumb: image.thumb.isEmpty ? null : image.thumb,
+          fullsize: image.fullsize.isEmpty ? null : image.fullsize,
+          aspectRatio: image.aspectRatio == null
+              ? null
+              : PostImageAspectRatio(
+                  width: image.aspectRatio!.width,
+                  height: image.aspectRatio!.height,
+                ),
+        ),
+    ];
+    return CraftskyCard(
+      child: Semantics(
+        button: destination != null,
+        label: destination == null
+            ? product.title
+            : l10n.businessProductOpen(product.title),
         child: InkWell(
+          key: const Key('product-open-link'),
           onTap: destination == null
               ? null
               : () => unawaited(
@@ -47,42 +66,42 @@ class ProductCard extends StatelessWidget {
                     confirmOpenLink: confirmExternal,
                   ),
                 ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (product.image case final image?)
-                Semantics(
-                  image: true,
-                  label: image.alt,
-                  child: SizedBox.square(
-                    dimension: 112,
-                    child: BusinessImage(
-                      image: image,
-                      networkUrl: image.thumb,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+              if (images.isNotEmpty)
+                PostImageCarousel(
+                  images: images,
+                  previewBytesFor: (index) =>
+                      product.images[index].previewBytes,
+                  showOutline: false,
                 ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.all(spacing.sp3),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(product.title, style: theme.textTheme.titleMedium),
-                      if (price != null) ...[
-                        SizedBox(height: spacing.sp1),
-                        Text(price, style: theme.textTheme.bodyMedium),
-                      ],
+              Padding(
+                padding: EdgeInsets.all(spacing.sp4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product.title,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          if (price != null) ...[
+                            SizedBox(height: spacing.sp1),
+                            Text(price, style: theme.textTheme.bodyMedium),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (destination != null) ...[
+                      SizedBox(width: spacing.sp3),
+                      const Icon(CraftskyIconsBold.externalLink),
                     ],
-                  ),
+                  ],
                 ),
               ),
-              if (destination != null)
-                Padding(
-                  padding: EdgeInsets.all(spacing.sp2),
-                  child: const Icon(CraftskyIconsBold.externalLink),
-                ),
             ],
           ),
         ),

@@ -1,29 +1,33 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:ui' show Tristate;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/event_editor_dialog.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
+import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../test_support/deterministic_pump.dart';
+import '../../test_support/session_registry_storage.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
@@ -146,10 +150,11 @@ void main() {
       expect(find.widgetWithText(ChunkyButton, 'Create event'), findsOneWidget);
       expect(
         tester
-            .getSemantics(find.widgetWithText(FilterChip, 'Vendor'))
-            .flagsCollection
-            .isSelected,
-        Tristate.isTrue,
+            .widget<CraftskySearchableMultiSelectInput<String>>(
+              find.byType(CraftskySearchableMultiSelectInput<String>),
+            )
+            .values,
+        contains('vendor'),
       );
       await expectKeyboardFocus(tester);
       await tester.scrollUntilVisible(
@@ -185,6 +190,20 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_app(const EventEditorDialog()));
+    expect(find.text('Choose at least one role.'), findsNothing);
+    expect(find.text('Autumn yarn fair'), findsOneWidget);
+    final roleInput = find.byKey(const Key('event-roles-search-input'));
+    await tester.ensureVisible(roleInput);
+    await tester.tap(roleInput);
+    await tester.pumpAndSettle();
+    final role = find.byKey(const Key('event-roles-option-organizer'));
+    await tester.ensureVisible(role);
+    await tester.tap(role);
+    await tester.pump();
+    expect(find.text('Choose at least one role.'), findsNothing);
+    await tester.tap(find.byKey(const Key('event-roles-remove-organizer')));
+    await tester.pump();
+    expect(find.text('Choose at least one role.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await pumpUntilFound(
@@ -233,7 +252,7 @@ void main() {
       tester.getSemantics(find.byKey(const ValueKey('event-end'))).label,
       contains('End'),
     );
-    expect(find.text('All-day event'), findsNothing);
+    expect(find.text('All-day event'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('event-start')));
     await tester.pumpAndSettle();
@@ -259,29 +278,102 @@ void main() {
     );
   });
 
-  testWidgets('hidden all-day value is preserved when saving', (tester) async {
-    BusinessEventDraft? submitted;
+  testWidgets(
+    'all-day date picker and exclusive end are preserved when saving',
+    (tester) async {
+      BusinessEventDraft? submitted;
+      await tester.pumpWidget(
+        _app(
+          EventEditorDialog(
+            initialDraft: _draft(
+              startsAt: DateTime(2026, 9, 5),
+              endsAt: DateTime(2026, 9, 6),
+              isAllDay: true,
+            ),
+            onSubmit: (draft) async {
+              submitted = draft;
+              return true;
+            },
+          ),
+        ),
+      );
+
+      expect(find.text('All-day event'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('event-start')));
+      await tester.tap(find.byKey(const ValueKey('event-start')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TimePickerDialog), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('event-submit')));
+      await tester.pumpAndSettle();
+
+      expect(submitted?.isAllDay, isTrue);
+      expect(submitted?.startsAt, DateTime.utc(2026, 9, 5));
+      expect(submitted?.endsAt, DateTime.utc(2026, 9, 6));
+    },
+  );
+
+  testWidgets(
+    'switching to all-day rounds boundaries and advances a same-day end',
+    (tester) async {
+      BusinessEventDraft? submitted;
+      await tester.pumpWidget(
+        _app(
+          EventEditorDialog(
+            initialDraft: _draft(
+              startsAt: DateTime(2026, 9, 5, 10),
+              endsAt: DateTime(2026, 9, 5, 12),
+            ),
+            onSubmit: (draft) async {
+              submitted = draft;
+              return true;
+            },
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('event-all-day')));
+      await tester.tap(find.byKey(const ValueKey('event-all-day')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('event-submit')));
+      await tester.pumpAndSettle();
+      expect(submitted?.isAllDay, isTrue);
+      expect(submitted?.startsAt, DateTime.utc(2026, 9, 5));
+      expect(submitted?.endsAt, DateTime.utc(2026, 9, 6));
+    },
+  );
+
+  testWidgets('DST gaps show a correction message without submitting', (
+    tester,
+  ) async {
+    var submissions = 0;
     await tester.pumpWidget(
       _app(
         EventEditorDialog(
           initialDraft: _draft(
-            startsAt: DateTime(2026, 9, 5),
-            endsAt: DateTime(2026, 9, 6),
-            isAllDay: true,
+            startsAt: DateTime.utc(2026, 3, 29, 1, 30),
+            endsAt: DateTime.utc(2026, 3, 29, 3),
           ),
-          onSubmit: (draft) async {
-            submitted = draft;
+          onSubmit: (_) async {
+            submissions++;
             return true;
           },
         ),
       ),
     );
 
-    expect(find.text('All-day event'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
 
-    expect(submitted?.isAllDay, isTrue);
+    expect(submissions, 0);
+    expect(
+      find.text(
+        'This time does not exist in the selected time zone. '
+        'Choose another time.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -342,6 +434,10 @@ void main() {
       ),
     );
 
+    final summary = find.byKey(const Key('event-edit-images'));
+    await tester.ensureVisible(summary);
+    await tester.tap(summary);
+    await tester.pumpAndSettle();
     final preview = find.byKey(const Key('event-preview-image'));
     await tester.scrollUntilVisible(
       preview,
@@ -363,10 +459,15 @@ void main() {
       find.byKey(const Key('event-alt-image')),
       'Updated event description',
     );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
     expect(submitted?.image.alt, 'Updated event description');
 
+    await tester.ensureVisible(summary);
+    await tester.tap(summary);
+    await tester.pumpAndSettle();
     final remove = find.byKey(const Key('event-remove-image'));
     await tester.scrollUntilVisible(
       remove,
@@ -375,6 +476,8 @@ void main() {
     );
     await tester.tap(remove);
     await tester.pump(const Duration(milliseconds: 300));
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
     expect(submitted?.image, isA<RemovedBusinessImageDraft>());
@@ -420,6 +523,10 @@ void main() {
     expect(selectedSource, ImageSource.camera);
     expect(find.byKey(const Key('event-preview-image')), findsOneWidget);
 
+    if (find.byKey(const Key('event-photo-details')).evaluate().isNotEmpty) {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
 
@@ -429,6 +536,111 @@ void main() {
     expect(submittedImage.aspectRatio?.width, 1);
     expect(submittedImage.aspectRatio?.height, 1);
   });
+
+  for (final outcome in ['apply', 'cancel', 'fail']) {
+    testWidgets(
+      'event photo details editor $outcome preserves the draft '
+      'and defers upload',
+      (tester) async {
+        final prepared = _preparedImage();
+        final reporter = _ImageReporter();
+        final failure = StateError('PRIVATE_EVENT_EDIT_FAILURE');
+        var edits = 0;
+        var uploads = 0;
+        BusinessEventDraft? submitted;
+        await tester.pumpWidget(
+          _app(
+            EventEditorDialog(
+              initialDraft: _draft(),
+              pickImage: (_, _) async => prepared,
+              editImage: (request) async {
+                edits++;
+                expect(request.mode, BasicImageEditMode.composer);
+                expect(identical(request.bytes, prepared.bytes), isTrue);
+                if (outcome == 'cancel') return null;
+                if (outcome == 'fail') {
+                  throw failure;
+                }
+                return BasicImageEditOutput(
+                  bytes: Uint8List.fromList(
+                    img.encodePng(
+                      img.Image(width: 20, height: 10, numChannels: 4),
+                    ),
+                  ),
+                  mimeType: 'image/png',
+                );
+              },
+              uploadImage: (image) async {
+                uploads++;
+                if (outcome == 'apply') {
+                  expect(image.width, 20);
+                  expect(image.height, 10);
+                } else {
+                  expect(identical(image, prepared), isTrue);
+                }
+                return _uploadedImage('event-edited-photo');
+              },
+              onSubmit: (draft) async {
+                submitted = draft;
+                return false;
+              },
+            ),
+            reporter: reporter,
+          ),
+        );
+        final add = find.byKey(const Key('event-add-image'));
+        await tester.ensureVisible(add);
+        await tester.tap(add);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('event-choose-photos')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('event-photo-details')), findsOneWidget);
+        expect(find.byKey(const Key('event-add-image')), findsNothing);
+        expect(find.byKey(const Key('event-move-up-image')), findsNothing);
+        expect(find.byKey(const Key('event-move-down-image')), findsNothing);
+        expect(find.text('One photo'), findsOneWidget);
+        final alt = find.byKey(const Key('event-alt-image'));
+        await tester.ensureVisible(alt);
+        await tester.enterText(alt, 'A craft fair poster');
+        tester.testTextInput.hide();
+        final edit = find.byKey(const Key('event-edit-image-image'));
+        await tester.ensureVisible(edit);
+        expect(edit, findsOneWidget);
+        // The host codec uses a real isolate; await the same edit callback
+        // outside the widget clock so preparation can finish deterministically.
+        final attachment = tester.widget<ComposerImageAttachmentSection>(
+          find.byType(ComposerImageAttachmentSection, skipOffstage: false),
+        );
+        await tester.runAsync(() => attachment.onEditImage!('image'));
+        await tester.pumpAndSettle();
+        await pumpUntilFound(
+          tester,
+          edit,
+          description: 'the image editor finishing',
+        );
+        expect(edits, 1);
+        expect(uploads, 0);
+        expect(find.textContaining('PRIVATE_EVENT_EDIT'), findsNothing);
+        expect(reporter.errors, outcome == 'fail' ? [same(failure)] : isEmpty);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('event-edit-images')), findsOneWidget);
+        await tester.ensureVisible(find.byKey(const Key('event-edit-images')));
+        await tester.tap(find.byKey(const Key('event-edit-images')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<BrandTextField>(alt).controller!.text,
+          'A craft fair poster',
+        );
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('event-submit')));
+        await tester.pumpAndSettle();
+        expect(uploads, 1);
+        expect(submitted?.image.alt, 'A craft fair poster');
+      },
+    );
+  }
 
   testWidgets('failed submit upload keeps the prepared event image for retry', (
     tester,
@@ -460,14 +672,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('event-choose-photos')));
     await tester.pumpAndSettle();
+    if (find.byKey(const Key('event-photo-details')).evaluate().isNotEmpty) {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
 
     expect(uploadCount, 1);
     expect(submitCount, 0);
-    expect(find.byKey(const Key('event-preview-image')), findsOneWidget);
+    expect(find.byKey(const Key('event-thumbnail-image')), findsOneWidget);
     expect(find.text('The image could not be uploaded. Try again.'), findsOne);
 
+    if (find.byKey(const Key('event-photo-details')).evaluate().isNotEmpty) {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
 
@@ -505,11 +725,19 @@ void main() {
     await tester.tap(find.byKey(const Key('event-choose-photos')));
     await tester.pumpAndSettle();
 
+    if (find.byKey(const Key('event-photo-details')).evaluate().isNotEmpty) {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
     expect(uploadCount, 1);
     expect(submitCount, 1);
 
+    if (find.byKey(const Key('event-photo-details')).evaluate().isNotEmpty) {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
     expect(uploadCount, 1);
@@ -654,19 +882,16 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Other: Independent role'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Other: Independent role'),
-      250,
-      scrollable: find.byType(Scrollable).last,
+    final input = find.byKey(const Key('event-roles-search-input'));
+    await Scrollable.ensureVisible(tester.element(input), alignment: 0.5);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('event-roles-remove-independent-role')),
     );
-    await tester.tap(find.text('Other: Independent role'));
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('Vendor'),
-      250,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.tap(find.text('Vendor'));
+    await tester.pumpAndSettle();
+    await tester.enterText(input, 'Vendor');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('event-roles-option-vendor')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
@@ -720,6 +945,11 @@ BusinessEvent _event({
 
 Widget _app(Widget child, {ErrorReporter? reporter}) => ProviderScope(
   overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+    secureSessionRegistryStorageProvider.overrideWithValue(
+      InMemorySessionRegistryStorage(),
+    ),
     if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
     businessTimeZoneServiceProvider.overrideWithValue(
       BusinessTimeZoneService.initialized(),
@@ -735,10 +965,7 @@ Widget _app(Widget child, {ErrorReporter? reporter}) => ProviderScope(
 
 PreparedProfileImage _preparedImage() {
   final bytes = Uint8List.fromList(
-    base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC'
-      'AAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
-    ),
+    img.encodePng(img.Image(width: 1, height: 1, numChannels: 4)),
   );
   return PreparedProfileImage(
     bytes: bytes,

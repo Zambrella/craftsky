@@ -51,7 +51,7 @@ void main() {
 
       final notifier = container.read(
         profileCustomisationEditorProvider.notifier,
-      )..selectColour('teal');
+      )..selectColour('seafoam');
       await notifier.save();
 
       expect(invalidations, 1);

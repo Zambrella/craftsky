@@ -47,8 +47,8 @@ void main() {
             cachedDisplayName: 'Needle Friend',
             cachedAvatarUrl: 'https://cdn.example/member.jpg',
             cachedCustomisation: const ProfileCustomisation(
-              colour: 'teal',
-              background: 'cubedark',
+              colour: 'seafoam',
+              background: 'craft-quilting',
             ),
           );
       initial = initial.saveRoutingBinding(

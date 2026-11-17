@@ -71,3 +71,65 @@ func TestClientPreservesNativeFailureWithoutFormattingPrivateData(t *testing.T) 
 		})
 	}
 }
+
+func TestClientRetainsNativeProductAndExpiryDecodeCauses(t *testing.T) {
+	for _, field := range []string{"product_id", "current_period_ends_at", "ends_at"} {
+		t.Run(field, func(t *testing.T) {
+			item := promoResource()
+			item[field] = map[string]any{"private": "PRIVATE_PROVIDER_CANARY"}
+			client, _ := promoClient(t, 3, func(*http.Request, int) (int, any) {
+				return http.StatusOK, map[string]any{"items": []any{item}}
+			})
+			snapshot, err := client.ListCustomerSubscriptions(t.Context(), uuid.New())
+			var failure *ProviderError
+			var cause *json.UnmarshalTypeError
+			if snapshot.Complete || !errors.As(err, &failure) || !errors.As(err, &cause) || failure.StatusCode() != http.StatusOK {
+				t.Fatalf("field %s lost native decode cause: %T", field, err)
+			}
+			if strings.Contains(err.Error(), "PRIVATE_PROVIDER_CANARY") {
+				t.Fatal("ordinary decode error exposed private response data")
+			}
+		})
+	}
+}
+
+func TestClientRetainsCauseDuringCustomerCreationAndNestedEntitlementPagination(t *testing.T) {
+	for _, operation := range []string{"customer_creation", "promotional_pagination"} {
+		t.Run(operation, func(t *testing.T) {
+			original := errors.New("PRIVATE_TRANSPORT_CANARY")
+			requests := 0
+			client, err := NewClient(ClientConfig{BaseURL: "https://provider.invalid/v2", APIKey: "private-token", ProjectID: "project"}, &http.Client{Transport: diagnosticRoundTrip(func(request *http.Request) (*http.Response, error) {
+				requests++
+				if requests == 2 {
+					if operation == "customer_creation" && request.Method != http.MethodPost {
+						t.Fatal("missing exact-customer registration attempt")
+					}
+					if operation == "promotional_pagination" && request.URL.Path != "/v2/projects/project/subscriptions/sub-promo/entitlements" {
+						t.Fatal("missing nested entitlement page request")
+					}
+					return nil, original
+				}
+				status := http.StatusNotFound
+				body := []byte(`{}`)
+				if operation == "promotional_pagination" {
+					status = http.StatusOK
+					item := promoResource()
+					item["entitlements"].(map[string]any)["next_page"] = "/v2/projects/project/subscriptions/sub-promo/entitlements?starting_after=ent-plus"
+					body, _ = json.Marshal(map[string]any{"items": []any{item}})
+				}
+				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: request}, nil
+			})})
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := client.ListCustomerSubscriptions(t.Context(), uuid.New())
+			var failure *ProviderError
+			if requests != 2 || snapshot.Complete || !errors.Is(err, original) || !errors.As(err, &failure) || failure.stage != "request" {
+				t.Fatalf("lost %s failure: requests=%d type=%T", operation, requests, err)
+			}
+			if strings.Contains(err.Error(), "PRIVATE_TRANSPORT_CANARY") || strings.Contains(err.Error(), "provider.invalid") {
+				t.Fatal("ordinary provider error exposed transport or customer routing")
+			}
+		})
+	}
+}

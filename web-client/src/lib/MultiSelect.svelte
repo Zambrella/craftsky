@@ -8,6 +8,7 @@
 		values,
 		options,
 		disabled = false,
+		required = false,
 		maximum = 10,
 		placeholder = '',
 		onchange
@@ -17,6 +18,7 @@
 		values: string[];
 		options: { id: string; label: string; description?: string }[];
 		disabled?: boolean;
+		required?: boolean;
 		maximum?: number;
 		placeholder?: string;
 		onchange: (values: string[]) => boolean | void;
@@ -117,7 +119,11 @@
 	bind:this={root}
 	use:outside
 >
-	<label for={uid}>{label}</label>
+	<label for={uid}
+		>{label}{#if required}<small class="required-note" aria-hidden="true"
+				>required</small
+			>{/if}</label
+	>
 	<div class="selection-field">
 		{#if selected.length}<div class="selection-values">
 				{#each selected as value (value.id)}<button
@@ -134,6 +140,9 @@
 				bind:this={input}
 				id={uid}
 				type="search"
+				aria-label={label}
+				aria-required={required}
+				data-value={required ? values.join(',') : undefined}
 				autocomplete="off"
 				{placeholder}
 				{disabled}
@@ -213,6 +222,18 @@
 </div>
 
 <style>
+	.native-multi-select > label {
+		display: flex;
+		flex-direction: row;
+		align-items: baseline;
+		gap: 8px;
+	}
+	.required-note {
+		font-size: 12px;
+		font-weight: 600;
+		letter-spacing: 1.68px;
+		color: var(--ink-2);
+	}
 	.field-helper {
 		margin: 8px 0 0;
 		font-size: 14px;

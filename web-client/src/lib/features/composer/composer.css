@@ -1,5 +1,6 @@
 .composer {
-	max-width: 760px;
+	width: 100%;
+	max-width: none;
 	margin: auto;
 	background: var(--paper);
 	height: 100dvh;
@@ -9,22 +10,10 @@
 	overflow: hidden;
 }
 .composer-heading {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	min-height: 64px;
-	padding: 8px 16px;
-	background: var(--paper);
-	border-bottom: 1.5px solid var(--ink);
-	z-index: 3;
-	flex: none;
+	justify-content: flex-start;
 }
 .composer h1 {
 	flex: 1;
-	font-family: inherit;
-	font-size: 20px;
-	font-weight: 700;
-	line-height: 1.3;
 	min-width: 0;
 	white-space: nowrap;
 	overflow: hidden;
@@ -539,10 +528,6 @@
 @media (max-width: 650px) {
 	.composer {
 		gap: 12px;
-	}
-	.composer-heading {
-		min-height: 56px;
-		padding-block: 4px;
 	}
 	.composer .fields {
 		grid-template-columns: 1fr;

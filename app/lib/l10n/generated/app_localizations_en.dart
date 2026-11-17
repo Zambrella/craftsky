@@ -15,6 +15,64 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get subscriptionsComplimentaryAccess => 'Complimentary access';
+
+  @override
+  String subscriptionsComplimentaryUntil(String tier, String date) {
+    return '$tier until $date';
+  }
+
+  @override
+  String subscriptionsComplimentaryNoExpiry(String tier) {
+    return '$tier with no expiry date';
+  }
+
+  @override
+  String get subscriptionsComplimentaryPurchaseTiming =>
+      'Subscribing starts paid billing immediately. Remaining complimentary time is not added to your paid subscription.';
+
+  @override
+  String subscriptionsSubscribeTier(String tier) {
+    return 'Subscribe to $tier';
+  }
+
+  @override
+  String get subscriptionsPlanChangeScheduled =>
+      'Your plan change is scheduled. Your current benefits continue until renewal.';
+
+  @override
+  String subscriptionsScheduledPlan(String tier) {
+    return 'Your plan will change to $tier at the next renewal.';
+  }
+
+  @override
+  String get subscriptionsPlanChangeUnavailable =>
+      'This plan change is not available yet. Your existing subscription stays active.';
+
+  @override
+  String get subscriptionsCheckoutPendingTitle => 'Purchase pending';
+
+  @override
+  String get subscriptionsCheckoutPendingBody =>
+      'A purchase is still pending for this account. Finish or cancel it before choosing a plan. Canceling an unpaid checkout does not cancel an active subscription.';
+
+  @override
+  String get subscriptionsCancelCheckout => 'Cancel pending purchase';
+
+  @override
+  String subscriptionsStoreAccountConflictKnown(String account) {
+    return 'This store purchase is linked to $account. Switch to that CraftSky account to manage or restore it.';
+  }
+
+  @override
+  String get subscriptionsStoreAccountConflict =>
+      'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.';
+
+  @override
+  String get subscriptionsExistingStoreSubscription =>
+      'This store already has a subscription for this CraftSky account. Refresh status or restore purchases before changing plans.';
+
+  @override
   String get discoveryYourCrafts => 'Your crafts';
 
   @override
@@ -1447,8 +1505,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String postComposeChoosePhotosHelper(int maxImages) {
+    return 'Choose up to $maxImages photos';
+  }
+
+  @override
   String postComposePhotosLimitHelper(int maxImages) {
-    return 'Up to $maxImages photos';
+    String _temp0 = intl.Intl.pluralLogic(
+      maxImages,
+      locale: localeName,
+      other: 'Up to $maxImages photos',
+      one: 'One photo',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -2076,6 +2145,87 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileBusinessHeading => 'Business details';
 
   @override
+  String get editProfileBusinessTypesHint => 'Select Business types';
+
+  @override
+  String get editProfileBusinessOfferingsHint => 'Select Offerings';
+
+  @override
+  String get editProfileBusinessTaglineHint =>
+      'Hand-dyed yarn inspired by nature';
+
+  @override
+  String get editProfileBusinessHoursHint => 'Mon–Fri, 9am–5pm; Sat, 10am–2pm';
+
+  @override
+  String get editProfileBusinessServiceAreaHint =>
+      'UK-wide shipping and local workshops';
+
+  @override
+  String get editProfileBusinessCountryHint => 'GB or US';
+
+  @override
+  String get editProfileBusinessLocalityHint => 'Bristol';
+
+  @override
+  String get editProfileBusinessActionHelper =>
+      'Choose what visitors can do on your profile.';
+
+  @override
+  String get editProfileBusinessActionSearchHint => 'Select Primary action';
+
+  @override
+  String get editProfileBusinessShopUrlLabel => 'Shop URL';
+
+  @override
+  String get editProfileBusinessPatternsUrlLabel => 'Patterns URL';
+
+  @override
+  String get editProfileBusinessCustomOrderUrlLabel => 'Custom order URL';
+
+  @override
+  String get editProfileBusinessBookingUrlLabel => 'Booking URL';
+
+  @override
+  String get editProfileBusinessCalendarUrlLabel => 'Event calendar URL';
+
+  @override
+  String get editProfileBusinessEmailLabel => 'Email address';
+
+  @override
+  String get editProfileBusinessWebsiteUrlLabel => 'Website URL';
+
+  @override
+  String get editProfileBusinessWholesaleUrlLabel => 'Wholesale enquiries URL';
+
+  @override
+  String get editProfileBusinessPatternsUrlHint =>
+      'https://example.com/patterns';
+
+  @override
+  String get editProfileBusinessCustomOrderUrlHint =>
+      'https://example.com/custom-orders';
+
+  @override
+  String get editProfileBusinessBookingUrlHint => 'https://example.com/book';
+
+  @override
+  String get editProfileBusinessCalendarUrlHint => 'https://example.com/events';
+
+  @override
+  String get editProfileBusinessWebsiteUrlHint => 'https://example.com';
+
+  @override
+  String get editProfileBusinessWholesaleUrlHint =>
+      'https://example.com/wholesale';
+
+  @override
+  String get editProfileBusinessActionUrlHint => 'https://example.com/shop';
+
+  @override
+  String get editProfileBusinessActionEmailHint => 'hello@example.com';
+
+  @override
   String get editProfileBusinessHelper =>
       'These details appear on your public business profile.';
 
@@ -2141,7 +2291,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileBusinessActionNone => 'No primary action';
 
   @override
-  String get editProfileBusinessActionDestinationLabel => 'Action destination';
+  String get editProfileBusinessActionDestinationLabel => 'Action URL';
 
   @override
   String get editProfileBusinessActionDestinationInvalid =>
@@ -2215,28 +2365,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColourGreen => 'Green';
 
   @override
-  String get profileCustomisationColourTeal => 'Teal';
-
-  @override
   String get profileCustomisationColourInk => 'Ink';
 
   @override
-  String get profileCustomisationBackgroundDither => 'Dither';
+  String get profileCustomisationColourTerracotta => 'Terracotta';
 
   @override
-  String get profileCustomisationBackgroundGrid => 'Grid';
+  String get profileCustomisationColourDenim => 'Denim';
 
   @override
-  String get profileCustomisationBackgroundCrossStitch => 'Cross stitch';
+  String get profileCustomisationColourForest => 'Forest';
 
   @override
-  String get profileCustomisationBackgroundScallops => 'Scallops';
+  String get profileCustomisationColourPlum => 'Plum';
 
   @override
-  String get profileCustomisationBackgroundDiagonalWeave => 'Diagonal weave';
+  String get profileCustomisationColourSeafoam => 'Seafoam';
 
   @override
-  String get profileCustomisationBackgroundCrosshatch => 'Crosshatch';
+  String get profileCustomisationColourDustyPink => 'Dusty pink';
+
+  @override
+  String get profileCustomisationColourChocolate => 'Chocolate';
+
+  @override
+  String get profileCustomisationBackgroundFlow => 'Aurora';
+
+  @override
+  String get profileCustomisationBackgroundWaves => 'Colour pools';
+
+  @override
+  String get profileCustomisationBackgroundWeave => 'Sunset';
+
+  @override
+  String get profileCustomisationBackgroundGrain => 'Pigment';
+
+  @override
+  String get profileCustomisationBackgroundMarble => 'Marble';
+
+  @override
+  String get profileCustomisationBackgroundTextile => 'Woven';
+
+  @override
+  String get profileCustomisationBackgroundRibbons => 'Ribbon bands';
+
+  @override
+  String get profileCustomisationBackgroundSilk => 'Liquid silk';
+
+  @override
+  String get profileCustomisationBackgroundBloom => 'Light bloom';
+
+  @override
+  String get profileCustomisationBackgroundSunbeams => 'Sunbeams';
+
+  @override
+  String get profileCustomisationBackgroundLagoon => 'Lagoon';
+
+  @override
+  String get profileCustomisationBackgroundNebula => 'Nebula';
+
+  @override
+  String get profileCustomisationBackgroundPrism => 'Prism';
 
   @override
   String get craftSewing => 'Sewing';
@@ -3931,7 +4120,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get businessEventTimeZoneLabel => 'Timezone';
 
   @override
-  String get businessEventVenueLabel => 'Venue (optional)';
+  String get businessEventVenueLabel => 'Venue';
 
   @override
   String get businessEventPublishedLabel => 'Published';
@@ -4099,6 +4288,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String get businessEventSave => 'Save event';
 
   @override
+  String get businessEventNameHint => 'Autumn yarn fair';
+
+  @override
+  String get businessEventSummaryHint =>
+      'Meet local makers, browse handmade goods and join a workshop.';
+
+  @override
+  String get businessEventVenueHint => 'Bristol Craft Hall';
+
+  @override
+  String get businessEventUriHint =>
+      'https://your-business.com/events/autumn-fair';
+
+  @override
+  String get businessEventRegistrationUriHint =>
+      'https://your-business.com/events/autumn-fair/book';
+
+  @override
+  String get businessEventTimeZoneHint => 'Select Timezone';
+
+  @override
+  String get businessEventModeHint => 'Select Attendance mode';
+
+  @override
+  String get businessEventStatusHint => 'Select Status';
+
+  @override
+  String get businessEventRolesSearchHint => 'Select roles';
+
+  @override
+  String get businessEventRolesHint => 'Choose up to 4 roles.';
+
+  @override
+  String get businessEventDateHint => 'Select date';
+
+  @override
+  String get businessEventAllDayHint =>
+      'End is the first date after the event, in the selected timezone.';
+
+  @override
   String get businessEventNameLabel => 'Event name';
 
   @override
@@ -4129,14 +4358,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get businessEventRolesRequired => 'Choose at least one role.';
 
   @override
-  String get businessEventSummaryLabel => 'Summary (optional)';
+  String get businessEventSummaryLabel => 'Summary';
 
   @override
-  String get businessEventUriLabel => 'Event link (optional)';
+  String get businessEventUriLabel => 'Event link';
 
   @override
-  String get businessEventRegistrationUriLabel =>
-      'Registration link (optional)';
+  String get businessEventRegistrationUriLabel => 'Registration link';
 
   @override
   String get businessEventImageDescriptionLabel => 'Image description';
@@ -4157,6 +4385,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get businessEventValidationError =>
       'Check the event details and try again.';
+
+  @override
+  String get businessEventTimeDoesNotExist =>
+      'This time does not exist in the selected time zone. Choose another time.';
+
+  @override
+  String get businessEventCreatorProfileAction => 'View creator profile';
+
+  @override
+  String get businessEventCreatorRolesLabel => 'Creator\'s roles';
+
+  @override
+  String get businessEventActionError =>
+      'The action could not be completed. Try again.';
 
   @override
   String get businessEventSaveError =>
@@ -4300,7 +4542,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This post was not published because Plus access ended. Edit it to schedule again after subscribing.';
 
   @override
-  String get subscriptionsTierFree => 'Free';
+  String get subscriptionsTierFree => 'Standard';
 
   @override
   String get subscriptionsTierPlus => 'Plus';
@@ -4318,11 +4560,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionsPlusBenefits =>
-      'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.';
+      'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.';
 
   @override
   String get subscriptionsBusinessBenefits =>
-      'Everything in Plus, plus featured products, a profile action button, business details and events.';
+      'Everything in Plus, Featured products, Profile action button, Business details and events.';
 
   @override
   String get subscriptionsViewDetails => 'View details';
@@ -4340,7 +4582,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String subscriptionsDormantAssignment(String tier) {
-    return '$tier is assigned to this account but is not currently providing access.';
+    return 'Your $tier subscription is currently inactive.';
   }
 
   @override
@@ -4477,13 +4719,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get subscriptionsAssign => 'Assign license';
 
   @override
+  String get subscriptionsNoAssignmentTargets =>
+      'There’s no other account available to assign this licence to. Add another account using the account switcher, then try again.';
+
+  @override
   String get subscriptionsUnassign => 'Remove assignment';
 
   @override
   String get subscriptionsRestore => 'Restore purchases';
 
   @override
-  String get subscriptionsManage => 'Manage subscription';
+  String get subscriptionsManage => 'Manage';
 
   @override
   String get subscriptionsRefresh => 'Refresh status';
@@ -4846,6 +5092,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposePhotoDetailsTitle => 'Photo details';
+
+  @override
+  String get postComposeEditSinglePhotoHelper =>
+      'Edit photo, remove it or add alt text';
 
   @override
   String get postComposeEditPhotosHelper =>
@@ -5367,4 +5617,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountProviderAvailabilityGeneric =>
       'Available settings vary by provider. You may need to sign in again.';
+
+  @override
+  String get subscriptionsUpgrade => 'Upgrade';
+
+  @override
+  String get subscriptionsDowngrade => 'Downgrade';
 }

@@ -1,7 +1,7 @@
 import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
 import { FieldValidationError } from '#lib/field-validation.ts';
 import { MutationOutcomeUnknownError } from '#lib/api/client.ts';
-import type { JsonObject } from '#lib/api/types.ts';
+import type { BusinessEvent, JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
 import { requireRecordText } from './text-limits.ts';
@@ -66,22 +66,35 @@ export const colours: Record<string, string> = {
 	rose: '#d61535',
 	amber: '#766200',
 	lime: '#23770f',
-	teal: '#007663',
-	ink: '#161210'
+	ink: '#161210',
+	terracotta: '#9a442d',
+	denim: '#365b80',
+	forest: '#286044',
+	plum: '#744369',
+	seafoam: '#246b60',
+	'dusty-pink': '#975165',
+	chocolate: '#694634'
 };
 export const backgrounds = [
 	'none',
-	'bayerdark',
-	'cubedark',
-	'dotcrossdark',
-	'scallopdark',
-	'skewdark',
-	'x2',
 	'craft-sewing',
 	'craft-knitting',
 	'craft-crochet',
 	'craft-quilting',
-	'craft-embroidery'
+	'craft-embroidery',
+	'animated-flow',
+	'animated-waves',
+	'animated-weave',
+	'animated-grain',
+	'animated-marble',
+	'animated-textile',
+	'animated-ribbons',
+	'animated-silk',
+	'animated-bloom',
+	'animated-sunbeams',
+	'animated-lagoon',
+	'animated-nebula',
+	'animated-prism'
 ];
 export const businessTypes = [
 	'dyer',
@@ -282,7 +295,7 @@ export function imageBody(image: BusinessImage): JsonObject {
 export interface Product {
 	title: string;
 	uri: string;
-	image?: BusinessImage;
+	images: BusinessImage[];
 	amount: string;
 	currency: string;
 }
@@ -291,36 +304,37 @@ export function productBody(products: Product[]): JsonObject[] {
 		throw new InputError('You can feature up to four products.');
 	const destinations = new Set<string>();
 	return products.map((p) => {
+		const uri = p.uri.trim();
 		requireRecordText(p.title, 'Product title', 150, 1500);
 		if (!p.title.trim())
 			throw new FieldValidationError(
 				'Title',
 				'Each product needs a title of up to 150 characters.'
 			);
-		if (!https(p.uri))
+		if (!https(uri))
 			throw new FieldValidationError(
-				'Destination link',
+				'Destination',
 				'Each product needs a secure HTTPS destination.'
 			);
-		if (destinations.has(p.uri))
+		if (destinations.has(uri))
 			throw new FieldValidationError(
-				'Destination link',
+				'Destination',
 				'Each product needs a different destination.'
 			);
-		destinations.add(p.uri);
-		if (!p.image)
+		destinations.add(uri);
+		if (!p.images.length || p.images.length > 4)
 			throw new FieldValidationError(
-				'Product image',
-				'Add an image to each product.'
+				'Photos',
+				'Add one to four photos to each product.'
 			);
 		const amount = p.amount
 			.trim()
 			.replace(/(\.\d*?)0+$/, '$1')
 			.replace(/\.$/, '');
 		const currency = p.currency.trim().toUpperCase();
-		if (!!amount !== !!currency)
+		if (amount && !currency)
 			throw new FieldValidationError(
-				'Price',
+				'Currency',
 				'Enter both the price and currency, or leave both blank.'
 			);
 		if (
@@ -331,13 +345,13 @@ export function productBody(products: Product[]): JsonObject[] {
 					(currencyScales[currency as keyof typeof currencyScales] ?? 0))
 		)
 			throw new FieldValidationError(
-				'Price',
+				'Amount',
 				'Use a valid decimal price and three-letter currency code.'
 			);
 		return {
-			title: p.title,
-			uri: p.uri,
-			image: imageBody(p.image),
+			title: p.title.trim(),
+			uri,
+			images: p.images.map(imageBody),
 			...(amount ? { price: { amount, currency } } : {})
 		};
 	});
@@ -391,7 +405,8 @@ export function zonedTimestamp(value: string, zone: string): string {
 		throw new InputError(
 			'This time does not exist in the selected time zone. Choose another time.'
 		);
-	return new Date(candidate).toISOString();
+	// Event instants use canonical UTC seconds, matching AppView validation.
+	return new Date(candidate).toISOString().replace(/\.000Z$/, 'Z');
 }
 export function wallTime(value: unknown, zone: string): string {
 	if (typeof value !== 'string' || !Number.isFinite(Date.parse(value)))
@@ -410,4 +425,35 @@ export function wallTime(value: unknown, zone: string): string {
 			.map((p) => [p.type, p.value])
 	);
 	return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/** Status changes replace the record, retaining its public fields and photo. */
+export function eventStatusBody(
+	event: BusinessEvent,
+	status: 'cancelled' | 'postponed'
+): JsonObject {
+	let photo: JsonObject | undefined;
+	if (event.image) {
+		const { cid, mime, size, alt, aspectRatio } = event.image;
+		if (!cid || !mime || size === undefined)
+			throw new InputError('Reload this event before changing its status.');
+		photo = imageBody({ cid, mime, size, alt, aspectRatio });
+	}
+	return {
+		name: event.name,
+		startsAt: event.startsAt.replace(/\.000Z$/, 'Z'),
+		endsAt: event.endsAt.replace(/\.000Z$/, 'Z'),
+		roles: event.roles.map((role) => role.value),
+		mode: event.mode?.value || 'in-person',
+		status,
+		timeZone: event.timeZone || 'UTC',
+		isAllDay: event.isAllDay,
+		...(event.summary !== undefined ? { summary: event.summary } : {}),
+		...(event.venueName !== undefined ? { venueName: event.venueName } : {}),
+		...(event.eventUri !== undefined ? { eventUri: event.eventUri } : {}),
+		...(event.registrationUri !== undefined
+			? { registrationUri: event.registrationUri }
+			: {}),
+		...(photo ? { image: photo } : {})
+	};
 }

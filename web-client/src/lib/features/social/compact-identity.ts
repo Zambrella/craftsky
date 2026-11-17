@@ -8,7 +8,15 @@ const branded = new Set([
 	'embroidery'
 ]);
 
-export function identityCrafts(crafts?: readonly string[] | null) {
+export interface IdentityCraft {
+	id: string;
+	name: string;
+	icon: boolean;
+}
+
+export function identityCrafts(
+	crafts?: readonly string[] | null
+): IdentityCraft[] {
 	const entries = new Map<string, string>();
 	for (const craft of crafts ?? []) {
 		const id = craft.split('#').at(-1)?.trim().toLowerCase() || '';
@@ -45,4 +53,8 @@ export function fittingIdentityCrafts(
 		visible--;
 	}
 	return visible;
+}
+
+export function identityCraftLabel(entries: readonly IdentityCraft[]) {
+	return 'Crafts: ' + entries.map((entry) => entry.name).join(', ');
 }

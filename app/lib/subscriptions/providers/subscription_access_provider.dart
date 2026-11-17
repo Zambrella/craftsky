@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -8,6 +10,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'subscription_access_provider.g.dart';
+
+final subscriptionAccessClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+const subscriptionAccessMaximumAge = Duration(minutes: 5);
+
+Duration subscriptionRefreshDelay(
+  DateTime now,
+  Iterable<DateTime?> boundaries,
+) {
+  var delay = subscriptionAccessMaximumAge;
+  for (final boundary in boundaries.nonNulls) {
+    final remaining = boundary.difference(now);
+    if (remaining > Duration.zero && remaining < delay) delay = remaining;
+  }
+  return delay;
+}
 
 @riverpod
 Future<SubscriptionAccess> subscriptionAccess(
@@ -24,6 +44,12 @@ Future<SubscriptionAccess> subscriptionAccess(
   if (access.did != lease.account.did) {
     throw DiagnosticStateError('Account session unavailable');
   }
+  final now = ref.read(subscriptionAccessClockProvider)();
+  final refreshAfter = subscriptionRefreshDelay(now, [access.accessEndsAt]);
+  // Period end is a refresh boundary, not a local access decision: a paid
+  // subscription can remain authorized during grace or provider delays.
+  final refresh = Timer(refreshAfter, ref.invalidateSelf);
+  ref.onDispose(refresh.cancel);
   return access;
 }
 

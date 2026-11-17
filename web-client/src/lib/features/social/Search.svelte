@@ -349,6 +349,7 @@
 						</div>
 						{#each suggestions.profiles.items as author}<a
 								class="suggestion-profile account-row"
+								style={profileStyle(author.customisation)}
 								href={'/profiles/' + encodeURIComponent(author.did)}
 								onclick={() => remember(author)}
 								><Avatar author={authorValue(author)} /><CompactIdentity
@@ -424,7 +425,9 @@
 					{/snippet}
 					{#if author}
 						<div class="recent-row">
-							<a href={recentDestination(item)}
+							<a
+								href={recentDestination(item)}
+								style={profileStyle(author.customisation)}
 								><Avatar author={authorValue(author)} /><CompactIdentity
 									{author}
 								/></a

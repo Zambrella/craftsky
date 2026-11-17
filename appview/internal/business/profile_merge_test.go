@@ -159,7 +159,7 @@ func TestHydrateProfileOmitsOnlyUnsafeProductImages(t *testing.T) {
 	products := make([]map[string]any, len(images))
 	for index, image := range images {
 		products[index] = map[string]any{
-			"title": "Product", "uri": "https://example.com/product", "image": image,
+			"title": "Product", "uri": "https://example.com/product", "images": []any{image},
 		}
 	}
 	raw, err := json.Marshal(map[string]any{"products": products})
@@ -174,15 +174,15 @@ func TestHydrateProfileOmitsOnlyUnsafeProductImages(t *testing.T) {
 	if len(view.Products) != len(products) {
 		t.Fatalf("products = %d, want %d", len(view.Products), len(products))
 	}
-	if view.Products[0].Image == nil {
+	if len(view.Products[0].Images) == 0 {
 		t.Fatal("safe product image was omitted")
 	}
-	if image := view.Products[0].Image; image.CID != syntax.CID(blobCID) || image.MIME != "image/png" || image.Size != 12 || image.Alt != "Safe" {
+	if image := view.Products[0].Images[0]; image.CID != syntax.CID(blobCID) || image.MIME != "image/png" || image.Size != 12 || image.Alt != "Safe" {
 		t.Errorf("safe product image = %#v, want validated source metadata", image)
 	}
 	for index := 1; index < len(view.Products); index++ {
-		if view.Products[index].Image != nil {
-			t.Errorf("unsafe product image %d was exposed: %#v", index, view.Products[index].Image)
+		if len(view.Products[index].Images) != 0 {
+			t.Errorf("unsafe product image %d was exposed: %#v", index, view.Products[index].Images)
 		}
 	}
 }
@@ -201,7 +201,7 @@ func TestHydrateProfileDistinguishesAbsentAndMalformedImageAlt(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			raw := json.RawMessage(`{"products":[{"title":"Product","uri":"https://example.com/product","image":{"image":` + blob + test.alt + `}}]}`)
+			raw := json.RawMessage(`{"products":[{"title":"Product","uri":"https://example.com/product","images":[{"image":` + blob + test.alt + `}]}]}`)
 			view, err := HydrateProfile(raw)
 			if err != nil {
 				t.Fatalf("HydrateProfile: %v", err)
@@ -209,7 +209,10 @@ func TestHydrateProfileDistinguishesAbsentAndMalformedImageAlt(t *testing.T) {
 			if len(view.Products) != 1 {
 				t.Fatalf("products = %d, want 1", len(view.Products))
 			}
-			image := view.Products[0].Image
+			var image *HydratedImage
+			if len(view.Products[0].Images) > 0 {
+				image = view.Products[0].Images[0]
+			}
 			if test.wantImage {
 				if image == nil || image.Alt != "" {
 					t.Fatalf("absent alt image = %#v, want valid empty alt", image)
@@ -220,5 +223,22 @@ func TestHydrateProfileDistinguishesAbsentAndMalformedImageAlt(t *testing.T) {
 				t.Fatalf("malformed present alt image = %#v, want omitted", image)
 			}
 		})
+	}
+}
+
+func TestHydrateProductPhotoOrderAndDescriptions(t *testing.T) {
+	images := make([]any, 4)
+	for i := range images {
+		images[i] = map[string]any{"image": map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"}, "mimeType": "image/png", "size": 12}, "alt": strings.Repeat("photo", i+1)}
+	}
+	raw, _ := json.Marshal(map[string]any{"products": []any{map[string]any{"title": "Wool", "uri": "https://shop.example/wool", "images": images}}})
+	view, err := HydrateProfile(raw)
+	if err != nil || len(view.Products) != 1 || len(view.Products[0].Images) != 4 {
+		t.Fatalf("view = %#v, %v", view, err)
+	}
+	for i, image := range view.Products[0].Images {
+		if image.Alt != strings.Repeat("photo", i+1) {
+			t.Fatal("image order/alt lost")
+		}
 	}
 }

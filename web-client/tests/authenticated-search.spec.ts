@@ -311,3 +311,52 @@ test('Cancel clears autocomplete on the current search URL and Enter submits', a
 	await expect(page).toHaveURL('/search?q=%40bob&tab=profiles');
 	await expect(page.locator('.suggestions')).toHaveCount(0);
 });
+
+test('recent profile searches and autocomplete retain the hydrated business icon and accent', async ({
+	page
+}) => {
+	const author = {
+		...maker(['knitting']),
+		accountType: 'business',
+		customisation: { colour: 'orchid', profileBackground: 'animated-flow' }
+	};
+	await page.route('**/api/appview/v1/search/recent', (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					{
+						id: 'profile',
+						type: 'profile',
+						displayLabel: 'Bob',
+						payload: author
+					}
+				]
+			}
+		})
+	);
+	await page.route('**/api/appview/v1/search/suggestions*', (route) =>
+		route.fulfill({ json: grouped([author]) })
+	);
+	await page.goto('/search');
+	const recent = page.locator('.recent-row');
+	await expect(
+		recent.getByRole('img', { name: 'Business', exact: true })
+	).toBeVisible();
+	await expect(recent.locator('.avatar')).toHaveCSS(
+		'border-top-color',
+		'rgb(182, 21, 214)'
+	);
+	await expect(recent.getByRole('link')).toHaveAttribute(
+		'href',
+		'/profiles/did%3Aplc%3Abob'
+	);
+	await page.getByRole('searchbox', { name: 'Search CraftSky' }).fill('bob');
+	const suggestion = page.locator('.suggestion-profile');
+	await expect(
+		suggestion.getByRole('img', { name: 'Business', exact: true })
+	).toBeVisible();
+	await expect(suggestion.locator('.avatar')).toHaveCSS(
+		'border-top-color',
+		'rgb(182, 21, 214)'
+	);
+});

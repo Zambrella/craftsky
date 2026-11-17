@@ -21,7 +21,7 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/plus_tier_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,9 +97,13 @@ void main() {
       expect(access, isA<AsyncData<SubscriptionAccess>>());
       expect(access.value?.allowsBusiness, isTrue);
       await tester.pump();
+      expect(
+        find.widgetWithText(SettingsRowTile, 'Business details'),
+        findsNothing,
+      );
       expect(find.widgetWithText(SettingsRowTile, 'Events'), findsNothing);
       expect(find.widgetWithText(SettingsRowTile, 'Products'), findsNothing);
-      expect(find.text('Explore subscriptions'), findsOneWidget);
+      expect(find.text('Explore subscriptions'), findsNothing);
       pending.complete(
         SubscriptionAccess(
           did: lease.account.did,
@@ -110,7 +114,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.widgetWithText(SettingsRowTile, 'Products'), findsOneWidget);
-      expect(find.text('View subscription'), findsOneWidget);
+      expect(find.text('Your CraftSky subscription'), findsOneWidget);
     },
     skip: !subscriptionsEnabled,
   );
@@ -149,7 +153,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      find.byIcon(CraftskyIcons.plusTier),
+      find.byType(PlusTierIcon),
       subscriptionsEnabled ? findsWidgets : findsNothing,
     );
     await tester.tap(
@@ -334,7 +338,7 @@ void main() {
         find.widgetWithText(SettingsRowTile, 'Subscriptions'),
         findsNothing,
       );
-      expect(find.text('Explore subscriptions'), findsOneWidget);
+      expect(find.text('Explore subscriptions'), findsNothing);
 
       await tester.tap(find.text('Make more with CraftSky'));
       await tester.pumpAndSettle();
@@ -373,7 +377,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Explore subscriptions'), findsOneWidget);
+      expect(find.text('Explore subscriptions'), findsNothing);
     },
     skip: !subscriptionsEnabled,
   );

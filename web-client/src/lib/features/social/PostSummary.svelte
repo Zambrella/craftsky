@@ -8,8 +8,15 @@
 	import Icon from '../shell/Icon.svelte';
 	import VideoThumbnail from './VideoThumbnail.svelte';
 	import ExternalCard from './ExternalCard.svelte';
-	let { post, href }: { post: QuotePreviewPost | Post; href: string } =
-		$props();
+	let {
+		post,
+		href,
+		saved = false
+	}: {
+		post: QuotePreviewPost | Post;
+		href: string;
+		saved?: boolean;
+	} = $props();
 	const image = $derived(post.images?.[0]);
 	const ratio = $derived(
 		image?.aspectRatio &&
@@ -24,17 +31,17 @@
 	<header style={profileStyle(post.author.customisation)}>
 		<a
 			class="summary-author"
-			href={'/profiles/' + encodeURIComponent(post.author.did)}
-			aria-label={'View profile of ' + name(post.author)}
+			href={saved ? href : '/profiles/' + encodeURIComponent(post.author.did)}
+			aria-label={saved
+				? 'View saved post by ' + name(post.author)
+				: 'View profile of ' + name(post.author)}
 			><Avatar author={post.author} /><CompactIdentity
 				author={post.author}
 			/></a
 		>
-		<time datetime={post.createdAt} title={fullTimestamp(post.createdAt)}
-			>{#if post.editedAt}<Icon name="edit" size={13} />{/if}{compactDate(
-				post.createdAt
-			)}</time
-		>
+		{#if saved}<a class="summary-time" {href}>
+				{@render timestamp()}
+			</a>{:else}{@render timestamp()}{/if}
 	</header>
 	<a class="summary-content" {href}>
 		{#if post.externalImport?.source === 'instagram'}<small class="import-label"
@@ -43,7 +50,7 @@
 		{#if post.sponsored}<SponsoredLabel />{/if}
 		{#if post.project?.common.title}<h3>{post.project.common.title}</h3>{/if}
 		{#if post.text}<p class="summary-text">{post.text}</p>{/if}
-		{#if post.video}<VideoThumbnail
+		{#if post.video && (!saved || !image)}<VideoThumbnail
 				video={post.video}
 			/>{:else if image && safeLink(image.thumb || image.fullsize || '')}<div
 				class="summary-image"
@@ -64,6 +71,14 @@
 	{/if}
 </div>
 
+{#snippet timestamp()}
+	<time datetime={post.createdAt} title={fullTimestamp(post.createdAt)}
+		>{#if post.editedAt}<Icon name="edit" size={13} />{/if}{compactDate(
+			post.createdAt
+		)}</time
+	>
+{/snippet}
+
 <style>
 	.post-summary {
 		display: block;
@@ -82,7 +97,8 @@
 		flex-shrink: 0;
 	}
 	.summary-author,
-	.summary-content {
+	.summary-content,
+	.summary-time {
 		color: inherit;
 		text-decoration: none;
 	}
@@ -101,7 +117,7 @@
 		align-items: center;
 		gap: 4px;
 		flex-shrink: 0;
-		min-width: 36px;
+		min-width: 48px;
 		justify-content: flex-end;
 		font-size: 12px;
 		line-height: 1.45;

@@ -29,10 +29,11 @@ func (provider *retryProvider) ListCustomerSubscriptions(context.Context, uuid.U
 
 func TestReconciliationProcessorRetriesAndRejectsSupersededLeases(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	store := NewStore(pool)
 	account, _, err := store.EnsureAccount(context.Background(), syntax.DID("did:plc:worker-owner"))
 	if err != nil {

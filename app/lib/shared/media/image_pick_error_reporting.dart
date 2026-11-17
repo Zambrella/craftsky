@@ -108,6 +108,8 @@ String imagePickFailureMessage(
   AppLocalizations l10n, {
   required String fallback,
 }) => switch (error) {
+  ProfileImageSelectionLimitException(:final limit) =>
+    l10n.postComposeImageLimitError(limit),
   ProfileImagePickException(reason: ProfileImageFailure.tooManyPixels) =>
     l10n.profilePhotoTooManyPixels,
   ProfileImagePickException(reason: ProfileImageFailure.fileTooLarge) ||

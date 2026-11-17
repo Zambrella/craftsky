@@ -148,7 +148,6 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
-    expect(find.widgetWithText(ChunkyButton, 'Save'), findsOneWidget);
     final cobaltChip = tester.widget<ChoiceChip>(
       find.widgetWithText(ChoiceChip, 'Cobalt'),
     );
@@ -156,7 +155,9 @@ void main() {
       cobaltChip.color?.resolve({WidgetState.selected}),
       profileColour(profileColourBundles['cobalt']!.base),
     );
-    await _tapChoice(tester, 'Ink');
+    final preview = find.byKey(const Key('profile-header-background'));
+    final previewRect = tester.getRect(preview);
+    await _tapChoice(tester, 'Terracotta');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
       find.widgetWithText(ChoiceChip, 'Crochet'),
@@ -166,17 +167,15 @@ void main() {
     await tester.drag(scrollable, const Offset(0, -120));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, 'Crochet'));
-    await tester.drag(
-      scrollable,
-      const Offset(0, 1000),
-    );
     await tester.pumpAndSettle();
+    expect(tester.getRect(preview), previewRect);
+    expect(find.byType(ProfileAvatar).hitTestable(), findsOneWidget);
 
     final avatar = tester.widget<Container>(
       find.byKey(const Key('profile-avatar-border')),
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
-    expect(border.top.color, const Color(0xFF161210));
+    expect(border.top.color, const Color(0xFF9A442D));
     expect(border.top.width, 5);
     expect(
       find.byKey(const Key('profile-header-background-texture')),
@@ -188,13 +187,14 @@ void main() {
       300,
       scrollable: scrollable,
     );
+    expect(tester.getRect(preview), previewRect);
     await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(
       submitted,
       const ProfileCustomisation(
-        colour: 'ink',
+        colour: 'terracotta',
         background: 'craft-crochet',
       ),
     );
@@ -325,7 +325,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await _tapChoice(tester, 'Teal');
+    await _tapChoice(tester, 'Seafoam');
     await tester.scrollUntilVisible(
       find.widgetWithText(ChunkyButton, 'Save'),
       300,
@@ -337,7 +337,7 @@ void main() {
 
     expect(calls, 1);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    save.complete(const ProfileCustomisation(colour: 'teal'));
+    save.complete(const ProfileCustomisation(colour: 'seafoam'));
     await tester.pumpAndSettle();
   });
 
@@ -398,28 +398,11 @@ void main() {
     expect(
       tester
           .widgetList<FocusTraversalOrder>(find.byType(FocusTraversalOrder))
-          .map((widget) => (widget.order as NumericFocusOrder).order),
+          .map((widget) => (widget.order as NumericFocusOrder).order)
+          .where((order) => order < 80),
       orderedEquals(<double>[
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        40,
+        ...List.generate(13, (index) => 10.0 + index),
+        ...List.generate(19, (index) => 30.0 + index),
       ]),
     );
     await tester.scrollUntilVisible(
@@ -433,7 +416,7 @@ void main() {
         matching: find.byType(FocusTraversalOrder),
       ),
     );
-    expect((saveOrder.order as NumericFocusOrder).order, 40);
+    expect((saveOrder.order as NumericFocusOrder).order, 80);
     semantics.dispose();
   });
 

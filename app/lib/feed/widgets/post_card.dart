@@ -26,6 +26,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
@@ -478,6 +479,7 @@ class PostCard extends ConsumerWidget {
                       handle: post.author.handle.toString(),
                       displayName: post.author.displayName,
                       crafts: post.author.crafts,
+                      isBusiness: post.author.isBusiness,
                       avatar: ProfileAvatar(
                         seed: displayName,
                         avatarUrl: post.author.avatar,
@@ -498,6 +500,8 @@ class PostCard extends ConsumerWidget {
                                 displayName: displayName,
                                 handle: post.author.handle.toString(),
                                 crafts: post.author.crafts,
+                                isBusiness: post.author.isBusiness,
+                                customisation: post.author.customisation,
                                 onTap: openAuthorProfile,
                               ),
                             ),
@@ -1187,12 +1191,16 @@ class _PostCardHeader extends StatelessWidget {
     required this.displayName,
     required this.handle,
     required this.crafts,
+    required this.isBusiness,
+    required this.customisation,
     required this.onTap,
   });
 
   final String displayName;
   final String handle;
   final List<String> crafts;
+  final bool isBusiness;
+  final ProfileCustomisation customisation;
   final VoidCallback onTap;
 
   @override
@@ -1202,6 +1210,8 @@ class _PostCardHeader extends StatelessWidget {
       handle: handle,
       displayName: displayName,
       crafts: crafts,
+      isBusiness: isBusiness,
+      customisation: customisation,
     ),
   );
 }

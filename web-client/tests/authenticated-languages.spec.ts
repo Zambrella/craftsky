@@ -152,7 +152,8 @@ test('keeps existing saved language choices when browser languages differ', asyn
 	expect(
 		(await calls()).filter(
 			(call) =>
-				call.path.endsWith('/preferences/initialize') || call.method === 'PUT'
+				call.path.startsWith('/v1/languages/') &&
+				(call.path.endsWith('/preferences/initialize') || call.method === 'PUT')
 		)
 	).toHaveLength(0);
 });

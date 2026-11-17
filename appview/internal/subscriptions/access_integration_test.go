@@ -13,10 +13,11 @@ import (
 
 func TestSelfAccessReadsLatestProviderTruthLocally(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	migration = append(migration, []byte(`ALTER TABLE provider_subscriptions ADD COLUMN pending_mapped_tier TEXT;`)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(migration))
 	ctx := context.Background()
 	store := NewStore(pool)
 	beneficiary := syntax.DID("did:plc:access-beneficiary")
@@ -25,7 +26,7 @@ func TestSelfAccessReadsLatestProviderTruthLocally(t *testing.T) {
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id,requested_generation,reconciled_generation,reconciliation_requested_at,reconciled_at)
-		VALUES('10000000-0000-4000-8000-000000000001','did:plc:access-owner','20000000-0000-4000-8000-000000000001',2,1,$1,$2)
+		VALUES('10000000-0000-4000-8000-000000000001','did:plc:access-beneficiary','20000000-0000-4000-8000-000000000001',2,1,$1,$2)
 	`, now.Add(-2*time.Hour), periodEnd); err != nil {
 		t.Fatal(err)
 	}

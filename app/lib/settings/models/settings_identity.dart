@@ -13,9 +13,11 @@ final class SettingsIdentity {
     this.secondaryLabel,
     this.avatarUrl,
     this.crafts = const [],
+    this.isBusiness = false,
   });
 
   final List<String> crafts;
+  final bool isBusiness;
   final String primaryLabel;
   final String? secondaryLabel;
   final String handleLabel;
@@ -44,6 +46,7 @@ SettingsIdentity projectSettingsIdentity({
 
   return SettingsIdentity(
     crafts: profile?.crafts ?? session.cachedCrafts,
+    isBusiness: profile?.isBusiness ?? false,
     primaryLabel: hasDisplayName ? displayName : handleLabel,
     secondaryLabel: hasDisplayName ? handleLabel : null,
     handleLabel: handleLabel,
