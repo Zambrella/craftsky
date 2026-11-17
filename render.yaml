@@ -346,24 +346,34 @@ projects:
                 sync: false
               - key: INSTAGRAM_META_DM_URL
                 sync: false
+              # Backend billing is active independently of the clients'
+              # SUBSCRIPTIONS_ENABLED flags, which remain disabled for release.
               - key: REVENUECAT_ENABLED
-                sync: false
+                value: "true"
               - key: REVENUECAT_ENVIRONMENT
-                sync: false
+                value: production
               - key: REVENUECAT_API_KEY
                 sync: false
               - key: REVENUECAT_PROJECT_ID
-                sync: false
+                value: proj9446d6b1
               - key: REVENUECAT_WEBHOOK_AUTHORIZATION
                 sync: false
               - key: REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE
-                sync: false
+                value: "true"
               - key: REVENUECAT_WEBHOOK_SIGNING_SECRET
                 sync: false
               - key: REVENUECAT_APP_IDS
-                sync: false
+                value: app118e6a032e,appb0f4f0db7e,app4a59f652fd
+              # Current Plus/Business products for App Store, Play Store and
+              # live Stripe. Excludes legacy Apple Business and sandbox stores.
               - key: REVENUECAT_PRODUCT_MAPPINGS
-                sync: false
+                value: >-
+                  {"prod0db95aa400":{"appId":"app118e6a032e","tier":"plus"},
+                  "prod21eeb1c1b6":{"appId":"app118e6a032e","tier":"business"},
+                  "prodd4066b7037":{"appId":"appb0f4f0db7e","tier":"plus"},
+                  "prod5c81704246":{"appId":"appb0f4f0db7e","tier":"business"},
+                  "prod5a9ce539e5":{"appId":"app4a59f652fd","tier":"plus"},
+                  "prod5ed642d29f":{"appId":"app4a59f652fd","tier":"business"}}
               - key: SAFETY_EVIDENCE_S3_ENDPOINT
                 sync: false
               - key: SAFETY_EVIDENCE_S3_REGION
