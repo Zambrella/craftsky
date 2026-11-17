@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { graphemeCount } from '#lib/text.ts';
+	import { clearFieldError, fieldError } from '#lib/field-validation.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { tick, untrack } from 'svelte';
@@ -32,8 +33,7 @@
 		onchange: (project: JsonObject) => void;
 	} = $props();
 	let activeDetail = $state<'pattern' | 'materials' | 'craft'>();
-	let materialText = $state(''),
-		materialError = $state('');
+	let materialText = $state('');
 	let editingMaterial = $state<JsonObject>();
 	let materialEntry = $state<HTMLDivElement>();
 	$effect(() => {
@@ -41,7 +41,7 @@
 		untrack(() => {
 			activeDetail = undefined;
 			materialText = '';
-			materialError = '';
+			clearMaterialError();
 			editingMaterial = undefined;
 		});
 	});
@@ -177,6 +177,10 @@
 		);
 		return true;
 	}
+	function clearMaterialError() {
+		const input = materialEntry?.querySelector('textarea');
+		if (input) clearFieldError(input);
+	}
 	function addMaterial() {
 		if (disabled) return;
 		const text = materialText.trim();
@@ -185,12 +189,16 @@
 			graphemeCount(text) > 100 ||
 			new TextEncoder().encode(text).length > 1000
 		) {
-			materialError = 'Materials must be 100 characters or fewer.';
+			fieldError(
+				'Materials',
+				'Materials must be 100 characters or fewer.',
+				materialEntry
+			);
 			return;
 		}
 		const index = editingMaterial ? materialItems.indexOf(editingMaterial) : -1;
 		if (index < 0 && materialItems.length >= 10) {
-			materialError = 'Choose up to ten materials.';
+			fieldError('Materials', 'Choose up to ten materials.', materialEntry);
 			return;
 		}
 		const material: JsonObject = {
@@ -203,7 +211,7 @@
 		else next[index] = material;
 		updateCommon('materials', next);
 		materialText = '';
-		materialError = '';
+		clearMaterialError();
 		editingMaterial = undefined;
 		focusMaterial();
 	}
@@ -220,7 +228,7 @@
 		if (disabled || materialText) return;
 		editingMaterial = material;
 		materialText = str(material.text);
-		materialError = '';
+		clearMaterialError();
 		focusMaterial();
 	}
 	function removeMaterial(material: JsonObject) {
@@ -233,7 +241,7 @@
 			editingMaterial = undefined;
 			materialText = '';
 		}
-		materialError = '';
+		clearMaterialError();
 	}
 	function moveMaterial(material: JsonObject, direction: number) {
 		if (disabled) return;
@@ -260,7 +268,7 @@
 			return false;
 		materialText = '';
 		editingMaterial = undefined;
-		materialError = '';
+		clearMaterialError();
 		return true;
 	}
 
@@ -481,9 +489,6 @@
 						onclick={addMaterial}>Add</button
 					>
 				</div>
-				{#if materialError}<p class="material-error" role="alert">
-						{materialError}
-					</p>{/if}
 			</section>
 			<MultiSelect
 				label="Colours"
@@ -809,10 +814,5 @@
 		background: transparent;
 		border: 0;
 		box-shadow: none;
-	}
-	.material-error {
-		font-size: 14px;
-		color: var(--red-ink);
-		margin: 0;
 	}
 </style>

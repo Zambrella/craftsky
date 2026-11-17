@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
+import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -19,12 +21,14 @@ class CraftskyDialog extends StatelessWidget {
     required this.title,
     required this.body,
     required this.actions,
+    this.primaryAction,
     super.key,
   });
 
   final String title;
   final Widget body;
   final List<Widget> actions;
+  final CraftskyDialogPrimaryAction? primaryAction;
 
   /// Maximum width on wide screens. Below this, the dialog tracks the
   /// available width minus [_horizontalInset] on each side.
@@ -49,72 +53,104 @@ class CraftskyDialog extends StatelessWidget {
 
     // Unlike Material's Dialog, this custom surface must reserve keyboard
     // insets itself. Constrain the existing scroll view to the visible area.
-    return AnimatedPadding(
-      padding: MediaQuery.viewInsetsOf(context),
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 100),
-      curve: Curves.decelerate,
-      child: MediaQuery.removeViewInsets(
-        context: context,
-        removeLeft: true,
-        removeTop: true,
-        removeRight: true,
-        removeBottom: true,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _horizontalInset,
-              vertical: _horizontalInset,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _maxWidth),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Transform.translate(
-                      offset: shadowOffset,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: shadowColor,
-                          borderRadius: radius,
+    return FormKeyboardScope(
+      child: AnimatedPadding(
+        padding: MediaQuery.viewInsetsOf(context),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 100),
+        curve: Curves.decelerate,
+        child: MediaQuery.removeViewInsets(
+          context: context,
+          removeLeft: true,
+          removeTop: true,
+          removeRight: true,
+          removeBottom: true,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: _horizontalInset,
+                vertical: _horizontalInset,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _maxWidth),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Transform.translate(
+                        offset: shadowOffset,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: shadowColor,
+                            borderRadius: radius,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Material(
-                    color: Colors.transparent,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: swatches.paper3,
-                        borderRadius: radius,
-                        border: Border.all(color: colors.onSurface, width: 1.5),
-                      ),
-                      padding: EdgeInsets.all(spacing.sp5),
-                      child: SingleChildScrollView(
+                    Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: swatches.paper3,
+                          borderRadius: radius,
+                          border: Border.all(
+                            color: colors.onSurface,
+                            width: 1.5,
+                          ),
+                        ),
+                        padding: EdgeInsets.all(spacing.sp5),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(title, style: theme.textTheme.titleLarge),
-                            SizedBox(height: spacing.sp4),
-                            DefaultTextStyle.merge(
-                              style: theme.textTheme.bodyMedium,
-                              child: body,
+                            Flexible(
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: theme.textTheme.titleLarge,
+                                    ),
+                                    SizedBox(height: spacing.sp4),
+                                    DefaultTextStyle.merge(
+                                      style: theme.textTheme.bodyMedium,
+                                      child: body,
+                                    ),
+                                    SizedBox(height: spacing.sp5),
+                                    Wrap(
+                                      alignment: WrapAlignment.end,
+                                      spacing: spacing.sp2,
+                                      runSpacing: spacing.sp2,
+                                      children: actions,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            SizedBox(height: spacing.sp5),
-                            Wrap(
-                              alignment: WrapAlignment.end,
-                              spacing: spacing.sp2,
-                              runSpacing: spacing.sp2,
-                              children: actions,
-                            ),
+                            if (primaryAction case final action?) ...[
+                              SizedBox(height: spacing.sp3),
+                              ComposerBottomAction(
+                                keyboardVisible:
+                                    MediaQuery.viewInsetsOf(context).bottom > 0,
+                                doneKey: const Key('dialog-keyboard-done'),
+                                actionKey:
+                                    action.key ??
+                                    const Key('dialog-primary-action'),
+                                label: action.label,
+                                onPressed: action.onPressed,
+                                style: action.style,
+                                child: action.child,
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -122,6 +158,23 @@ class CraftskyDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A form dialog's submission action, sharing the mobile Done transformation.
+class CraftskyDialogPrimaryAction {
+  const new({
+    required this.label,
+    required this.onPressed,
+    this.key,
+    this.child,
+    this.style,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final Key? key;
+  final Widget? child;
+  final ButtonStyle? style;
 }
 
 /// Configuration for a single button on a [CraftskyDialog]. Used by the

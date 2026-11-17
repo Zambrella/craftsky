@@ -160,8 +160,8 @@ void main() {
           tester.getSemantics(find.text('Spam')).label,
           contains('Spam'),
         );
-        final submit = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Submit'),
+        final submit = tester.widget<ChunkyButton>(
+          find.widgetWithText(ChunkyButton, 'Submit'),
         );
         expect(submit.onPressed, isNotNull);
         await expectKeyboardFocus(tester);
@@ -247,7 +247,7 @@ void main() {
     expect(find.text('Spam'), findsOneWidget);
     await tester.tap(find.text('Spam'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
     await tester.pumpAndSettle();
 
     expect(repository.reportRequests, [
@@ -293,7 +293,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Spam'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(find.text('Event unavailable'), findsOneWidget);
@@ -404,10 +404,14 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Spam'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
     await tester.pump();
 
-    expect(find.widgetWithText(TextButton, 'Submit'), findsNothing);
+    final pendingSubmit = find.descendant(
+      of: find.byKey(const Key('report-submit')),
+      matching: find.byType(ChunkyButton),
+    );
+    expect(tester.widget<ChunkyButton>(pendingSubmit).onPressed, isNull);
     report.completeError(
       const ApiBadRequest(
         'invalid_report_request',

@@ -5,6 +5,8 @@ import 'package:craftsky_app/feed/widgets/local_video_preview_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
+import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -13,15 +15,18 @@ Future<void> showComposerVideoDetails(
   required LocalVideoSelection selection,
   required ValueChanged<String> onAltTextChanged,
   Widget Function(BuildContext, LocalVideoSelection)? previewBuilder,
-}) => Navigator.of(context).push<void>(
-  MaterialPageRoute<void>(
-    builder: (context) => ComposerVideoDetailsPage(
-      selection: selection,
-      onAltTextChanged: onAltTextChanged,
-      previewBuilder: previewBuilder,
+}) {
+  FocusManager.instance.primaryFocus?.unfocus();
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (context) => ComposerVideoDetailsPage(
+        selection: selection,
+        onAltTextChanged: onAltTextChanged,
+        previewBuilder: previewBuilder,
+      ),
     ),
-  ),
-);
+  );
+}
 
 class ComposerVideoDetailsPage extends StatelessWidget {
   const new({
@@ -36,34 +41,42 @@ class ComposerVideoDetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      key: const Key('composer-video-details'),
-      appBar: AppBar(title: Text(l10n.postComposeVideoDetailsTitle)),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              previewBuilder?.call(context, selection) ??
-                  _LocalPreview(selection: selection),
-              const SizedBox(height: 16),
-              BrandTextField(
-                textFieldKey: const Key('composer-video-alt-text'),
-                label: l10n.postComposeAltTextLabel,
-                initialValue: selection.altText,
-                maxLength: RecordTextLimits.videoAlt.graphemes,
-                maxBytes: RecordTextLimits.videoAlt.bytes,
-                maxLines: 3,
-                minLines: 3,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
-                textCapitalization: TextCapitalization.sentences,
-                hintText: l10n.postComposeVideoAltHint,
-                onChanged: onAltTextChanged,
+    return FormKeyboardScope(
+      child: Scaffold(
+        key: const Key('composer-video-details'),
+        appBar: AppBar(title: Text(l10n.postComposeVideoDetailsTitle)),
+        body: FormActionLayout(
+          keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+          label: AppLocalizations.of(context).postComposeDone,
+          actionKey: const Key('composer-details-done'),
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  previewBuilder?.call(context, selection) ??
+                      _LocalPreview(selection: selection),
+                  const SizedBox(height: 16),
+                  BrandTextField(
+                    textFieldKey: const Key('composer-video-alt-text'),
+                    label: l10n.postComposeAltTextLabel,
+                    initialValue: selection.altText,
+                    maxLength: RecordTextLimits.videoAlt.graphemes,
+                    maxBytes: RecordTextLimits.videoAlt.bytes,
+                    maxLines: 3,
+                    minLines: 3,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    textCapitalization: TextCapitalization.sentences,
+                    hintText: l10n.postComposeVideoAltHint,
+                    onChanged: onAltTextChanged,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

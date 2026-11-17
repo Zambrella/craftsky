@@ -6,9 +6,9 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
-import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
-import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum ReportSubmissionState { confirmed, failed, uncertain }
@@ -60,6 +60,7 @@ class _ReportPageState extends State<ReportPage> {
       setState(() => _invalid = true);
       return;
     }
+    _explanationFocus.unfocus();
     setState(() {
       _invalid = false;
       _submitting = true;
@@ -122,132 +123,137 @@ class _ReportPageState extends State<ReportPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(
-              right: Theme.of(context).extension<SpacingTheme>()!.sp3,
-            ),
-            child: TextButton(
-              onPressed: _submitted || _reasonType == null ? null : _submit,
-              style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              child: ActionProgress(
-                isLoading: _submitting && _result == null,
-                child: Text(l10n.reportSubmit),
-              ),
-            ),
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  widget.isConversation
-                      ? l10n.chatConversationReportDisclosure
-                      : l10n.chatReportDisclosure,
-                ),
-                const SizedBox(height: 24),
-                CraftskySingleSelectInput<String>(
-                  label: l10n.chatReportReasonLabel,
-                  keyPrefix: 'chat-report-reason',
-                  value: _reasonType,
-                  options: [
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonSpam',
-                      label: l10n.chatReportReasonSpam,
-                    ),
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonViolation',
-                      label: l10n.chatReportReasonViolation,
-                    ),
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonMisleading',
-                      label: l10n.chatReportReasonMisleading,
-                    ),
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonSexual',
-                      label: l10n.chatReportReasonSexual,
-                    ),
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonRude',
-                      label: l10n.chatReportReasonRude,
-                    ),
-                    CraftskySelectOption(
-                      value: 'com.atproto.moderation.defs#reasonOther',
-                      label: l10n.chatReportReasonOther,
-                    ),
-                  ],
-                  onChanged: _submitted
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => _reasonType = value);
-                          }
-                        },
-                ),
-                const SizedBox(height: 16),
-                CraftskyFieldScaffold(
-                  label: l10n.chatReportExplanationLabel,
-                  focusNode: _explanationFocus,
-                  errorText: _invalid
-                      ? l10n.chatReportInvalidExplanation
-                      : null,
-                  child: TextField(
-                    key: const Key('chat-report-explanation'),
+      body: FormActionLayout(
+        keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+        label: l10n.reportSubmit,
+        actionKey: const Key('chat-report-submit'),
+        onPressed: _submitted || _reasonType == null ? null : _submit,
+        actionChild: ActionProgress(
+          isLoading: _submitting && _result == null,
+          child: Text(l10n.reportSubmit),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    widget.isConversation
+                        ? l10n.chatConversationReportDisclosure
+                        : l10n.chatReportDisclosure,
+                  ),
+                  const SizedBox(height: 24),
+                  CraftskySingleSelectInput<String>(
+                    enabled: !_submitted,
+                    label: l10n.chatReportReasonLabel,
+                    keyPrefix: 'chat-report-reason',
+                    value: _reasonType,
+                    options: [
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonSpam',
+                        label: l10n.chatReportReasonSpam,
+                      ),
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonViolation',
+                        label: l10n.chatReportReasonViolation,
+                      ),
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonMisleading',
+                        label: l10n.chatReportReasonMisleading,
+                      ),
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonSexual',
+                        label: l10n.chatReportReasonSexual,
+                      ),
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonRude',
+                        label: l10n.chatReportReasonRude,
+                      ),
+                      CraftskySelectOption(
+                        value: 'com.atproto.moderation.defs#reasonOther',
+                        label: l10n.chatReportReasonOther,
+                      ),
+                    ],
+                    onChanged: _submitted
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _reasonType = value);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 16),
+                  BrandTextField(
+                    label: l10n.chatReportExplanationLabel,
+                    textFieldKey: const Key('chat-report-explanation'),
                     controller: _explanation,
                     focusNode: _explanationFocus,
+                    errorText: _invalid
+                        ? l10n.chatReportInvalidExplanation
+                        : null,
                     minLines: 3,
                     maxLines: 6,
-                    readOnly:
-                        _submitting ||
-                        _result == ReportSubmissionState.confirmed,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    enabled:
+                        !_submitting &&
+                        _result != ReportSubmissionState.confirmed,
+                    onChanged: (_) {
+                      if (_invalid) {
+                        setState(
+                          () => _invalid =
+                              validateReportInput(
+                                _reasonType!,
+                                _explanation.text,
+                              ) !=
+                              null,
+                        );
+                      }
+                    },
                   ),
-                ),
-                const SizedBox(height: 24),
-                if (_result == ReportSubmissionState.uncertain &&
-                    widget.onCheckStatus != null)
-                  TextButton(
-                    onPressed: _submitting
-                        ? null
-                        : () => unawaited(_checkStatus()),
-                    child: ActionProgress(
-                      isLoading: _submitting,
-                      child: Text(l10n.chatCheckStatus),
+                  const SizedBox(height: 24),
+                  if (_result == ReportSubmissionState.uncertain &&
+                      widget.onCheckStatus != null)
+                    TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => unawaited(_checkStatus()),
+                      child: ActionProgress(
+                        isLoading: _submitting,
+                        child: Text(l10n.chatCheckStatus),
+                      ),
                     ),
-                  ),
-                if (_result case final result?) ...[
-                  const SizedBox(height: 16),
-                  ChatMessageEffect(
-                    severity: switch (result) {
-                      ReportSubmissionState.confirmed => MessageSeverity.info,
-                      ReportSubmissionState.failed => MessageSeverity.error,
-                      ReportSubmissionState.uncertain =>
-                        MessageSeverity.warning,
-                    },
-                    message: switch (result) {
-                      ReportSubmissionState.confirmed =>
-                        l10n.chatReportConfirmed,
-                      ReportSubmissionState.failed => l10n.chatReportFailed,
-                      ReportSubmissionState.uncertain =>
-                        l10n.chatReportUncertain,
-                    },
-                    child: Text(switch (result) {
-                      ReportSubmissionState.confirmed =>
-                        l10n.chatReportConfirmed,
-                      ReportSubmissionState.failed => l10n.chatReportFailed,
-                      ReportSubmissionState.uncertain =>
-                        l10n.chatReportUncertain,
-                    }),
-                  ),
+                  if (_result case final result?) ...[
+                    const SizedBox(height: 16),
+                    ChatMessageEffect(
+                      severity: switch (result) {
+                        ReportSubmissionState.confirmed => MessageSeverity.info,
+                        ReportSubmissionState.failed => MessageSeverity.error,
+                        ReportSubmissionState.uncertain =>
+                          MessageSeverity.warning,
+                      },
+                      message: switch (result) {
+                        ReportSubmissionState.confirmed =>
+                          l10n.chatReportConfirmed,
+                        ReportSubmissionState.failed => l10n.chatReportFailed,
+                        ReportSubmissionState.uncertain =>
+                          l10n.chatReportUncertain,
+                      },
+                      child: Text(switch (result) {
+                        ReportSubmissionState.confirmed =>
+                          l10n.chatReportConfirmed,
+                        ReportSubmissionState.failed => l10n.chatReportFailed,
+                        ReportSubmissionState.uncertain =>
+                          l10n.chatReportUncertain,
+                      }),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

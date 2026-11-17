@@ -249,7 +249,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(manualDescription, findsOneWidget);
     expect(jsonDescription, findsNothing);
-    expect(find.widgetWithText(FilledButton, 'Import handles'), findsOneWidget);
+    expect(find.byKey(const Key('instagram-manual-import')), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Import handles'), findsNothing);
     await tester.enterText(find.byType(TextField), '@Alice\nALICE\nbad name');
     expect(find.text('Preview normalized handles'), findsNothing);

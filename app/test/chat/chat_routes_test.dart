@@ -33,6 +33,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -254,7 +255,7 @@ void main() {
         );
         expect(
           tester
-              .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+              .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
               .onPressed,
           isNull,
         );
@@ -284,6 +285,10 @@ void main() {
           hasLength(1),
         );
         expect(repository.effects, isNot(contains('leave')));
+        expect(
+          find.byKey(const Key('chat-report-reason-options-panel')),
+          findsNothing,
+        );
         await tester.tap(find.byType(CloseButton));
         await tester.pumpAndSettle();
         expect(
@@ -320,12 +325,25 @@ void main() {
           find.byKey(const Key('chat-report-explanation')),
           'Unsubmitted report details',
         );
-        await tester.ensureVisible(find.text('Submit'));
+        final keyboardDone = find.byKey(const Key('form-keyboard-done'));
+        expect(keyboardDone.hitTestable(), findsOneWidget);
+        expect(find.byKey(const Key('chat-report-submit')), findsNothing);
+        await tester.tap(keyboardDone);
         await tester.pumpAndSettle();
-        expect(find.text('Submit').hitTestable(), findsOneWidget);
-        expect(tester.takeException(), isNull);
+        expect(tester.testTextInput.isVisible, isFalse);
         tester.view.resetViewInsets();
         await tester.pumpAndSettle();
+        expect(find.text('Submit').hitTestable(), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(const Key('chat-report-explanation')),
+              )
+              .controller!
+              .text,
+          'Unsubmitted report details',
+        );
+        expect(tester.takeException(), isNull);
 
         await tester.tap(find.byType(CloseButton));
         await tester.pumpAndSettle();

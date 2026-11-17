@@ -334,7 +334,10 @@
 	</div>{/if}
 <svelte:window onscroll={updateHeader} />
 {#if profile && headerCollapsed}<div class="profile-compact-header">
-		<div class="compact-profile-identity">
+		<div
+			class="compact-profile-identity"
+			class:own-profile={profile.did === session?.did}
+		>
 			{#if avatarURL}<button
 					class="avatar-trigger"
 					aria-label="View profile picture"
@@ -483,16 +486,18 @@
 						}}
 					></button>
 					<div class="menu-items">
-						<button
-							data-public-action
-							onclick={(event) => {
-								shareReturnFocus =
-									event.currentTarget
-										.closest('details')
-										?.querySelector('summary') ?? undefined;
-								shareCard = profile;
-							}}><Icon name="shareCard" />Share card</button
-						>
+						{#if profile.did === session?.did}
+							<button
+								data-public-action
+								onclick={(event) => {
+									shareReturnFocus =
+										event.currentTarget
+											.closest('details')
+											?.querySelector('summary') ?? undefined;
+									shareCard = profile;
+								}}><Icon name="shareCard" />Share card</button
+							>
+						{/if}
 
 						<button
 							data-public-action
@@ -570,7 +575,7 @@
 								onclick={() => {
 									reportLink = undefined;
 									reportOpen = true;
-								}}><Icon name="report" />Report profile</button
+								}}><Icon name="flag" />Report profile</button
 							>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
 										disabled={work.busy ||
 											followWork.busy ||
@@ -580,7 +585,7 @@
 											reportLink = link.uri.split('/').pop();
 											reportOpen = true;
 										}}
-										><Icon name="report" />Report link {link.title ||
+										><Icon name="flag" />Report link {link.title ||
 											link.url}</button
 									>{/if}{/each}{/if}
 					</div>
@@ -784,6 +789,12 @@
 		height: 56px;
 		background: var(--paper);
 		border-bottom: 1.5px solid var(--ink);
+	}
+
+	@media (min-width: 901px) {
+		.compact-profile-identity.own-profile {
+			padding-left: 16px;
+		}
 	}
 
 	.profile-navigation {

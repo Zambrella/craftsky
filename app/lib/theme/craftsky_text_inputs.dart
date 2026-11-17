@@ -175,16 +175,9 @@ class CraftskyTextFormField extends StatelessWidget {
     return FormField<String>(
       initialValue: controller?.text ?? initialValue ?? '',
       enabled: enabled,
-      validator: (value) {
-        final error = validator?.call(value);
-        if (error != null) return error;
-        if ((maxLength != null &&
-                (value ?? '').characters.length > maxLength!) ||
-            (maxBytes != null && utf8.encode(value ?? '').length > maxBytes!)) {
-          return AppLocalizations.of(context).textInputTooLong;
-        }
-        return null;
-      },
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: (value) =>
+          _validateText(context, value, validator, maxLength, maxBytes),
       builder: (field) => CraftskyTextInput(
         label: label,
         controller: controller,
@@ -442,16 +435,9 @@ class CraftskyFormTextField extends StatelessWidget {
       initialValue: initialValue ?? controller?.text,
       enabled: enabled,
       focusNode: focusNode,
-      validator: (value) {
-        final error = validator?.call(value);
-        if (error != null) return error;
-        if ((maxLength != null &&
-                (value ?? '').characters.length > maxLength!) ||
-            (maxBytes != null && utf8.encode(value ?? '').length > maxBytes!)) {
-          return AppLocalizations.of(context).textInputTooLong;
-        }
-        return null;
-      },
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: (value) =>
+          _validateText(context, value, validator, maxLength, maxBytes),
       builder: (field) {
         return _CraftskyFormTextAdapter(
           field: field,
@@ -652,6 +638,7 @@ class CraftskyFormNumberField extends StatelessWidget {
       initialValue: initialValue ?? _parse(controller?.text),
       enabled: enabled,
       focusNode: focusNode,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return _CraftskyFormNumberAdapter(
@@ -758,4 +745,23 @@ class _CraftskyFormNumberAdapterState
       },
     );
   }
+}
+
+// Both Form and FormBuilder fields enforce the same record limits, after the
+// field's specific constraints, and clear resolved errors during editing.
+String? _validateText(
+  BuildContext context,
+  String? value,
+  FormFieldValidator<String>? validator,
+  int? maxLength,
+  int? maxBytes,
+) {
+  final error = validator?.call(value);
+  if (error != null) return error;
+  final text = value ?? '';
+  if ((maxLength != null && text.characters.length > maxLength) ||
+      (maxBytes != null && utf8.encode(text).length > maxBytes)) {
+    return AppLocalizations.of(context).textInputTooLong;
+  }
+  return null;
 }

@@ -35,7 +35,7 @@
 		<p>{label}</p>
 		{#if video}<progress max="100" value={fraction} aria-label="Video progress"
 			></progress>{/if}
-		<button type="button" onclick={onstop}>Stop waiting</button>
+		<button type="button" onclick={onstop}>Cancel</button>
 	</div>
 </dialog>
 

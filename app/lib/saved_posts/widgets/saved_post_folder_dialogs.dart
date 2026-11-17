@@ -138,23 +138,22 @@ class _FolderNameDialogState extends ConsumerState<_FolderNameDialog> {
             if (_hasError) setState(() => _hasError = false);
           },
         ),
+        primaryAction: CraftskyDialogPrimaryAction(
+          label: widget.folder == null
+              ? l10n.savedPostCreateFolderAction
+              : l10n.savedPostRenameFolder,
+          onPressed: _pending ? null : _submit,
+          child: _pending
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+        ),
         actions: [
           TextButton(
             onPressed: _pending ? null : () => Navigator.of(context).pop(),
             child: Text(l10n.actionCancel),
-          ),
-          ChunkyButton(
-            onPressed: _pending ? null : _submit,
-            child: _pending
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    widget.folder == null
-                        ? l10n.savedPostCreateFolderAction
-                        : l10n.savedPostRenameFolder,
-                  ),
           ),
         ],
       ),

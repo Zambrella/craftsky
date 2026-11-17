@@ -228,3 +228,97 @@ test('event server time validation is shown at Start instead of a generic failur
 		page.getByText("That didn't work. Please try again.", { exact: true })
 	).toHaveCount(0);
 });
+
+test('publication field errors stay inline while uncertain writes retain recovery', async ({
+	page
+}) => {
+	let uncertain = false;
+	await page.route('**/api/appview/v1/posts', (route) =>
+		route.fulfill({
+			status: uncertain ? 503 : 422,
+			json: uncertain
+				? { error: 'unavailable', message: 'Temporarily unavailable' }
+				: {
+						error: 'validation_error',
+						message: 'Invalid post',
+						fields: { text: 'Update the post text before publishing.' }
+					}
+		})
+	);
+	await page.goto('/compose');
+	const input = page.getByRole('textbox', {
+		name: 'What would you like to share?',
+		exact: true
+	});
+	await input.fill('A post ready to publish');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(input).toBeFocused();
+	await expect(page.locator('.field-error')).toHaveText(
+		'Update the post text before publishing.'
+	);
+	await expect(page.locator('.snackbar')).toHaveCount(0);
+	await expect(input).toBeEnabled();
+
+	uncertain = true;
+	await input.fill('A corrected post ready to publish');
+	await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Check the same action', exact: true })
+	).toBeVisible();
+	await expect(input).toBeDisabled();
+	await expect(
+		page
+			.getByRole('alert')
+			.filter({ hasText: 'This action is still being confirmed.' })
+	).toBeVisible();
+});
+
+test('material validation uses shared field errors and clears after correction', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	await page
+		.getByRole('button', { name: 'Materials and style', exact: true })
+		.click();
+	const detail = page.getByRole('region', {
+		name: 'Materials and style',
+		exact: true
+	});
+	const input = detail.getByRole('textbox', { name: 'Materials', exact: true });
+	await input.fill('a'.repeat(101));
+	await detail.getByRole('button', { name: 'Add', exact: true }).click();
+	await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(input).toBeFocused();
+	const error = detail.locator('.field-error');
+	await expect(error).toHaveText('Materials must be 100 characters or fewer.');
+	expect(await input.getAttribute('aria-describedby')).toContain(
+		await error.getAttribute('id')
+	);
+	await input.fill('Cotton yarn');
+	await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+	await expect(error).toHaveCount(0);
+	await detail.getByRole('button', { name: 'Add', exact: true }).click();
+	await expect(input).toHaveValue('');
+	await expect(
+		detail.locator('.material-chip').getByText('Cotton yarn', { exact: true })
+	).toBeVisible();
+});
+
+test('multiple profile validation errors focus the first invalid input', async ({
+	page
+}) => {
+	await page.goto('/profile/edit');
+	const name = page.getByRole('textbox', { name: 'Display name', exact: true });
+	const pronouns = page.getByRole('textbox', { name: 'Pronouns', exact: true });
+	const bio = page.getByRole('textbox', { name: 'Bio', exact: true });
+	await name.fill('a'.repeat(65));
+	await pronouns.fill('b'.repeat(21));
+	await bio.fill('c'.repeat(257));
+	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+	for (const input of [name, pronouns, bio])
+		await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(page.locator('.field-error')).toHaveCount(3);
+	await expect(name).toBeFocused();
+});

@@ -452,7 +452,6 @@
 		{#if inboxActionsVisible || (contentReady && !settingsGate)}<nav
 				aria-label="Messaging actions"
 			>
-				<a href="/safety">Safety and support</a>
 				{#if inboxActionsVisible}<a
 						class="icon-link"
 						href="/messages/requests"
@@ -953,7 +952,8 @@
 											>{:else if viewState.status?.capabilities.canReport}<a
 												href={conversationURL(viewState.id) +
 													'/report/' +
-													encodeURIComponent(message.id)}>Report message</a
+													encodeURIComponent(message.id)}
+												><Icon name="flag" />Report message</a
 											>{/if}<button
 											onclick={() => copyMessage(message.text || '')}
 											>Copy text</button

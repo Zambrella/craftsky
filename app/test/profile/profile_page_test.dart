@@ -139,6 +139,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().last,
         );
         await tester.pumpAndSettle();
+        expect(find.text('Share card'), findsNothing);
         await tester.ensureVisible(find.text('Report profile'));
         await tester.tap(find.text('Report profile'));
         await tester.pumpAndSettle();
@@ -1760,7 +1761,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Spam'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(submittedTarget, 'did:plc:other');
@@ -2164,7 +2165,7 @@ void main() {
         tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
       final profile = Profile(
-        did: 'did:plc:other',
+        did: 'did:plc:alice',
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: [],
@@ -2176,7 +2177,9 @@ void main() {
         ProviderScope(
           overrides: [
             testMemberBrowsingOverride,
-            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            authSessionProvider.overrideWith(
+              () => SignedInAuthSession(did: 'did:plc:alice'),
+            ),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],

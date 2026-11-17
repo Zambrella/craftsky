@@ -848,7 +848,7 @@
 										? 'Unblock account'
 										: 'Block account'}</button
 								><button data-public-action onclick={() => (reportOpen = true)}
-									><Icon name="report" />Report {post.reply
+									><Icon name="flag" />Report {post.reply
 										? post.reply.parent.uri === post.reply.root.uri
 											? 'comment'
 											: 'reply'

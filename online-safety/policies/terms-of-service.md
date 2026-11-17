@@ -7,7 +7,7 @@
 | Version | 1.1 |
 | Status | Draft |
 | Proposed effective date | To be set before publication |
-| Last reviewed | 12 November 2026 |
+| Last reviewed | 17 November 2026 |
 | Next review | Before full public launch, then at least annually |
 | Publication | Public-policy draft; version 1.0 remains the published terms |
 
@@ -240,96 +240,133 @@ must be disclosed clearly using CraftSky's tools where available.
 CraftSky does not sell advertising or paid reach. Business status or payment for
 a paid plan does not give content preferential feed or search distribution.
 
-## 13. Subscriptions, Billing Ownership, and Licence Assignment
+## 13. Paid Services
 
 ### Plans and payment
 
 CraftSky offers a complete free social experience and optional monthly Plus and
-Business subscriptions. Paid plans add organisation, personalisation, and
-business tools. They do not increase distribution in feeds or search or place
-public content behind a paywall.
+Business subscriptions where purchasing is available. Plus and Business are
+alternative plans: Business includes Plus benefits. Paid plans add organisation,
+personalisation, and business tools. They do not increase distribution in feeds
+or search or place public content behind a paywall.
 
 Plus includes scheduled posts, saved folders, profile customisation, pinned
-posts, and follower-growth information. Business includes Plus features and adds
-featured products, a profile action button, business details, and events. The
-purchase screen shows the current features, limits, price, currency, and billing
-period before you confirm a purchase.
+posts, and follower-growth information. Business adds featured products, a
+profile action button, business details, and events. The purchase screen shows
+the current features, limits, price, currency, applicable taxes, billing period,
+and any offer conditions before you confirm a purchase.
 
-Purchases made through the iOS or Android app are billed through the relevant
-Apple App Store or Google Play account. Subscriptions renew automatically each
-month until cancelled through that store. There is no launch free trial.
-Apple and Google handle payments, renewal, price changes, cancellation, and
-refund processing under their terms. Store refund processes and your mandatory
-legal rights apply; CraftSky does not promise an additional refund right.
+Purchases in the iOS or Android app are billed through the relevant Apple App
+Store or Google Play account. Purchases on the CraftSky web app use Stripe. For
+web purchases, the checkout and receipt identify the seller: eligible purchases
+are sold through Stripe's Managed Payments service ("Sold through Link"); for
+other purchases, CRAFTSKY LTD is the seller and Stripe processes the payment.
+RevenueCat helps CraftSky manage subscriptions across these providers.
 
-### Your billing owner and the account receiving benefits
+Subscriptions renew automatically each month until cancelled with the provider
+that bills you. There is no standard free trial; any specific introductory offer
+and its later renewal price will be shown before purchase. Price changes and
+changes affecting an active subscription follow applicable law and the billing
+provider's notice and consent processes. CraftSky may change or discontinue an
+unpurchased plan.
 
-Your **store account** pays for the subscription. Your **billing owner** is the
-CraftSky account you select to manage purchases, restore purchases, and assign
-licences. The **assigned account** is the CraftSky account that receives a
-licence's paid features. These accounts do not have to be the same: for example,
-your personal CraftSky account may manage a Business licence assigned to your
-shop account.
+### The CraftSky account receiving benefits
 
-Choose your billing owner carefully. Once selected, the app keeps that billing
-owner even when you switch or sign out of CraftSky accounts. CraftSky does not
-currently provide a way to transfer billing ownership to another CraftSky
-account. Changing a licence assignment does not change the billing owner or the
-store account paying for it. You must be signed in to the billing owner to manage
-its purchases and assignments. Keep access to that account; contact
-`support@craftsky.social` if you cannot recover it.
+A subscription belongs to the CraftSky account (DID) signed in when you purchase
+it. Check that account before confirming payment. Its benefits follow that same
+account across devices; switching accounts, changing a handle, or using the same
+payment details does not give another CraftSky account paid access. Subscriptions
+cannot be assigned or transferred to another CraftSky account.
 
-### Licences and assignments
+Each CraftSky account has its own subscription. If you want paid features on
+several CraftSky accounts, each needs its own subscription or complimentary
+access. Apple and Google impose their own purchase and subscription-group
+limits; switching CraftSky accounts does not create a separate store account or
+transfer an existing store purchase. An existing native-store purchase may
+prevent another account from purchasing through that store. The web app offers
+independent subscriptions for additional CraftSky accounts. Store family sharing
+does not provide additional CraftSky subscriptions.
 
-A billing account may hold one native-store Plus subscription and one
-native-store Business subscription. Each subscription provides one independently
-assignable account licence. Plus and Business are separate subscriptions: buying
-Business does not automatically cancel, replace, or credit a Plus subscription,
-and both may renew unless you cancel the one you no longer want.
+Use the existing subscription's management flow to change plans. The provider
+shows any available change, its effective date, and any charge or credit before
+you confirm it. Availability and timing depend on the provider; a web plan
+change may require the current subscription to expire before a new purchase.
+Do not buy a second subscription to replace an existing one.
 
-After a purchase is verified, you explicitly choose the CraftSky account that
-receives the licence. A licence is not automatically assigned to the account
-currently open in the app or to the billing owner. In the mobile app, the target
-must be an eligible account signed in on the same installation. One licence can
-serve only one account at a time. Business already includes Plus features, so
-CraftSky prevents assigning both paid licences to the same account. Shared
-app-store family access does not create additional CraftSky licences.
+### Complimentary access
 
-The billing owner can use **Change assignment** to move a licence to another
-eligible account. Reassignment is subject to a seven-day waiting period; the app
-explains the restriction before you confirm the change. When a licence moves,
-the previous account loses the features provided by that licence and the new
-account receives them. **Remove assignment** leaves the licence unassigned and
-removes the features it provided to the previous account. Neither action cancels
-the store subscription or stops its renewal.
+CraftSky may grant complimentary Plus or Business access for a stated period.
+This does not create a recurring charge. The account receives the highest valid
+paid or complimentary tier, and losing one source of access does not remove
+access still provided by another. Complimentary access ends at its stated expiry
+or if the grant is revoked.
+
+You may subscribe while complimentary access is active. Paid billing starts
+immediately when you confirm the purchase; unused complimentary time is not
+added to the paid subscription or credited against its price.
 
 ### Cancellation and continued access
 
-Use **Manage subscription** in CraftSky or your
+Use **Manage** in CraftSky's subscription settings to open the relevant store or
+web billing management flow. You can also use your
 [Apple subscription settings](https://support.apple.com/en-us/118428) or
 [Google Play subscription settings](https://support.google.com/googleplay/answer/7018481)
-to manage or cancel the subscription through the store where you bought it.
-Signing out, switching accounts, removing an assignment, or uninstalling CraftSky
-does not cancel the subscription.
+for purchases made through those stores. Purchases marked "Sold through Link"
+can also be managed through your Link account. Cancel before the provider's next
+renewal deadline to prevent another charge. Signing out, switching accounts, or
+uninstalling CraftSky does not cancel a subscription.
 
-Cancellation normally leaves access in place until the end of the paid period.
-Paid features remain available during a billing retry or grace period only while
-the verified store status grants access. Refunds or other store changes may end
-access earlier, subject to your legal rights.
+Cancellation normally stops future renewal and leaves access in place until the
+end of the paid period. It does not by itself request a refund. Paid features
+remain available during a billing retry or grace period only while the verified
+provider status grants access. A refund, payment reversal, or other provider
+change may end access earlier, subject to your legal rights.
+
+### Refund policy
+
+Refund eligibility depends on the seller, billing provider, circumstances, and
+applicable law. Except where required by law or provided by the seller's or
+billing provider's policy, CraftSky does not offer an automatic refund or
+proportionate refund for an unused subscription period simply because you cancel,
+stop using the service, or change your mind. This does not affect refunds or
+other remedies for an incorrect or unauthorised charge, a paid service that is
+faulty or not as described, or any statutory cooling-off or cancellation right.
+Starting to use paid features does not by itself waive those rights.
+
+- **Apple App Store:** request a refund through
+  [Apple's refund process](https://support.apple.com/en-gb/118223). Apple decides
+  eligibility and processes refunds for purchases it bills.
+- **Google Play:** use
+  [Google Play's refund process](https://support.google.com/googleplay/answer/2479637).
+  You can also contact `support@craftsky.social` for purchase problems or refund
+  requests that Google directs to the developer. Google Play's policies and
+  applicable law govern eligibility.
+- **Web purchases sold through Link:** use
+  [Link's refund support](https://support.link.com/questions/requesting-a-refund-for-a-sold-through-link-payment)
+  or contact `support@craftsky.social`. Link's refund policy applies to these
+  purchases, including any rights it provides beyond CraftSky's policy.
+- **Other web purchases:** contact `support@craftsky.social` with the CraftSky
+  account handle, transaction date, receipt or order reference, and reason for
+  the request. CraftSky reviews billing mistakes and problems with the paid
+  service and provides refunds or other remedies where required by law or
+  appropriate to resolve the issue. Do not send passwords or full payment-card
+  details.
+
+Approved refunds return through the original billing provider, normally to the
+original payment method; processing times depend on that provider and your
+financial institution. Check that future renewal is cancelled if you also want
+to stop future charges: requesting a refund does not necessarily cancel renewal.
+Nothing in this policy limits mandatory consumer rights where you live.
 
 ### New devices and restoring purchases
 
-On a new installation, sign in with the original CraftSky billing-owner account
-and select it to reconnect subscription management. Existing valid assignments
-follow the assigned CraftSky account across devices. Switching the active
-CraftSky account does not switch purchase ownership or give every account on the
-device paid access. **Restore purchases** checks purchases belonging to the
-connected billing identity; it does not transfer ownership to another CraftSky
-account or automatically choose a new account to receive a licence.
-
-CraftSky may change or discontinue an unpurchased plan. Changes affecting an
-active subscription will follow applicable consumer law and the app-store
-process.
+On a new device, sign in with the same CraftSky account to recover its verified
+paid access. **Restore purchases** on mobile checks purchases associated with
+the original CraftSky account and the relevant store account. It does not move
+a subscription to the CraftSky account currently open if that account is not its
+owner. If the app reports that a purchase is linked to another account, sign in
+to that original account or contact `support@craftsky.social` for help. CraftSky
+must verify the provider's subscription status before granting paid access.
 
 ## 14. Account Deletion and Leaving CraftSky
 
@@ -356,12 +393,13 @@ confirmation. CraftSky may retain narrowly limited information where law require
 it, including specified safety evidence, but must not use a legal hold as a reason
 for indefinite general retention.
 
-If the deleted account receives a paid licence owned by another billing account,
-the licence is unassigned and returns to its payer; the store subscription is not
-automatically cancelled. A billing-account owner must cancel active subscriptions
-before deleting that CraftSky account. CraftSky must verify that renewal and
-any pending payment have been resolved. Billing-ownership transfers are not
-currently supported.
+Cancel paid subscription renewal through the billing provider before deleting
+that CraftSky account. Account deletion does not cancel the provider's
+subscription or automatically refund payments. CraftSky must verify that renewal
+has stopped and any pending payment or checkout has been resolved before
+completing deletion. Complimentary access does not block deletion and ends when
+the account is deleted. A subscription cannot be transferred to another CraftSky
+account as part of deletion.
 
 ## 15. Service Changes and Availability
 
@@ -431,3 +469,4 @@ Postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, Unit
 | 0.5 | 9 November 2026 | Aligns child-harm content rules with the owner-approved all-user boundary and context safeguards. Full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |
 | 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |
 | 1.1 | 12 November 2026 | Draft: explains Plus and Business billing ownership, independent licences, assignment, seven-day reassignment restriction, cancellation and restoration; corrects the former Pro name, obsolete benefit list, 30-day restriction and unsupported ownership-transfer wording. | Prepared at Douglas Todd’s request; publication approval pending |
+| 1.1 | 17 November 2026 | Revises the draft Paid Services section for account-owned Plus/Business subscriptions, native and Stripe web billing, complimentary access, plan management, restoration and provider-specific refunds; aligns account-deletion wording with subscription ownership. | Prepared at Douglas Todd’s request; publication approval pending |

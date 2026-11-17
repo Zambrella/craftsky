@@ -12,6 +12,8 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
+import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -345,6 +347,7 @@ class _ComposerImageAttachmentSectionState
         widget.imagesState.hasImageEditsInFlight) {
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     _detailsOpen = true;
     _details.value = widget;
     final container = widget.imagesProvider == null
@@ -393,33 +396,41 @@ class _ComposerImageAttachmentSectionState
   ) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    return Scaffold(
-      key: keys.composerImages.page(section.keyPrefix),
-      backgroundColor: theme.extension<BrandSwatchTheme>()!.paper,
-      appBar: AppBar(
-        title: Text(
-          AppLocalizations.of(context).postComposePhotoDetailsTitle,
-          style: theme.textTheme.titleLarge,
+    return FormKeyboardScope(
+      child: Scaffold(
+        key: keys.composerImages.page(section.keyPrefix),
+        backgroundColor: theme.extension<BrandSwatchTheme>()!.paper,
+        appBar: AppBar(
+          title: Text(
+            AppLocalizations.of(context).postComposePhotoDetailsTitle,
+            style: theme.textTheme.titleLarge,
+          ),
         ),
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4 + MediaQuery.paddingOf(context).bottom,
-            ),
-            child: section._buildDetails(
-              context,
-              altTextControllerFor: _altTextControllerFor,
-              allowVideo: false,
-              currentImagesState: imagesState,
+        body: FormActionLayout(
+          keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+          label: AppLocalizations.of(context).postComposeDone,
+          actionKey: const Key('composer-details-done'),
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: SafeArea(
+              top: false,
+              bottom: false,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.sp4,
+                  spacing.sp4,
+                  spacing.sp4,
+                  spacing.sp4 + MediaQuery.paddingOf(context).bottom,
+                ),
+                child: section._buildDetails(
+                  context,
+                  altTextControllerFor: _altTextControllerFor,
+                  allowVideo: false,
+                  currentImagesState: imagesState,
+                ),
+              ),
             ),
           ),
         ),

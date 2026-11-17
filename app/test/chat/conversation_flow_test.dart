@@ -30,7 +30,6 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart' as ui;
@@ -178,15 +177,7 @@ void main() {
       'Unsent draft',
     );
     expect(
-      tester
-          .widget<ChunkyIconButton>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is ChunkyIconButton &&
-                  widget.tooltip == 'Send message',
-            ),
-          )
-          .onPressed,
+      _sendButton(tester).onPressed,
       isNull,
     );
     expect(tester.takeException(), isNull);
@@ -731,11 +722,7 @@ void main() {
         same(editor),
       );
       expect(
-        tester
-            .widget<ChunkyIconButton>(
-              find.byType(ChunkyIconButton),
-            )
-            .onPressed,
+        _sendButton(tester).onPressed,
         isNull,
       );
       repository.connectionState = 'ready';
@@ -816,10 +803,10 @@ void main() {
       );
       expect(
         tester.getCenter(find.byType(TextField)).dy,
-        closeTo(tester.getCenter(find.byType(ChunkyIconButton)).dy, 4),
+        closeTo(tester.getCenter(find.byKey(const Key('chat-send'))).dy, 4),
       );
       final sendButton = find.descendant(
-        of: find.byType(ChunkyIconButton),
+        of: find.byKey(const Key('chat-send')),
         matching: find.byType(ChunkyButton),
       );
       expect(tester.widget<ChunkyButton>(sendButton).onPressed, isNull);
@@ -1006,7 +993,7 @@ void main() {
       final view = await _pumpRequest(tester, repository, onClose: () {});
       await tester.enterText(find.byType(TextField), 'Outgoing attempt');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send message'));
+      await tester.tap(_sendAction);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ui.SimpleTextMessage), findsOneWidget);
@@ -1105,7 +1092,7 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'private-original');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send message'));
+      await tester.tap(_sendAction);
       await tester.pump();
       expect(repository.sentText, 'private-original');
       expect(
@@ -1163,13 +1150,12 @@ void main() {
   );
 }
 
-ChunkyIconButton _sendButton(WidgetTester tester) =>
-    tester.widget<ChunkyIconButton>(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is ChunkyIconButton && widget.tooltip == 'Send message',
-      ),
-    );
+Finder get _sendAction => find.descendant(
+  of: find.byKey(const Key('chat-send')),
+  matching: find.byType(ChunkyButton),
+);
+ChunkyButton _sendButton(WidgetTester tester) =>
+    tester.widget<ChunkyButton>(_sendAction);
 
 Future<({ChatConversationController controller, RecordingMessenger messenger})>
 _pumpRequest(

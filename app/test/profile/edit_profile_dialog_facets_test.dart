@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,7 +86,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove link'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
       expect(repo.lastUpdatedLinks!.single.title, 'My website');
       expect(repo.lastRemovedLinks!.single.uri, second.uri);
@@ -136,7 +137,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Alice'), findsNothing);
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
 
         expect(capturedDisplayName, 'Test User');
