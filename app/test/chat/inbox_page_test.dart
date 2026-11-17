@@ -84,6 +84,7 @@ void main() {
         expect(find.byType(AccountRowSkeleton), findsWidgets);
         expect(find.byType(StitchProgressIndicator), findsNothing);
         repository.pendingConversations = null;
+        expect(find.byTooltip('Safety and support'), findsNothing);
         initialLoad.complete(firstPage);
         await tester.pumpAndSettle();
         final peer = bucket == ChatBucket.accepted

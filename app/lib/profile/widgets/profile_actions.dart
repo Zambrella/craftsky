@@ -51,7 +51,6 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onBlockToggle,
     this.onCopyLink,
     this.onSendViaChat,
-    this.onShareCard,
     this.onViewFollowers,
     this.onViewFollowing,
     this.isFollowingBusy = false,
@@ -71,7 +70,6 @@ final class VisitorProfileActionSet extends ProfileActionSet {
   final bool isBlockingBusy;
   final VoidCallback onFollowToggle;
   final FutureOr<void> Function() onShare;
-  final FutureOr<void> Function()? onShareCard;
   final FutureOr<void> Function()? onCopyLink;
   final FutureOr<void> Function()? onSendViaChat;
   final VoidCallback onReport;
@@ -281,12 +279,6 @@ class ProfileMoreActionsButton extends StatelessWidget {
                 text: l10n.chatSendViaChat,
                 icon: CraftskyIcons.send,
                 onPressed: actions.onSendViaChat,
-              ),
-            if (actions.onShareCard != null)
-              CraftskyContextMenuItem(
-                text: l10n.profileShareCardAction,
-                icon: CraftskyIcons.shareCard,
-                onPressed: actions.onShareCard,
               ),
           ],
         ),

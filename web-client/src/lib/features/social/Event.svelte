@@ -193,7 +193,7 @@
 				{/if}
 				{#if viewerDid && viewerDid !== did}<button
 						onclick={() => (reporting = !reporting)}
-						><Icon name="shield" />Report event</button
+						><Icon name="flag" />Report event</button
 					>{/if}
 			</div>
 		</details>{/if}

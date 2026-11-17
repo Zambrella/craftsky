@@ -11,7 +11,6 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -194,20 +193,6 @@ class SavePostDialog extends ConsumerWidget {
                             ? null
                             : l10n.savedPostCreateFolderError,
                       ),
-                      const SizedBox(height: 8),
-                      ChunkyButton(
-                        onPressed: state.isCreatePending
-                            ? null
-                            : ref.read(provider.notifier).createFolder,
-                        child: state.isCreatePending
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(l10n.savedPostCreateFolderAction),
-                      ),
                     ] else
                       TextButton(
                         onPressed: state.isConfirming
@@ -226,6 +211,28 @@ class SavePostDialog extends ConsumerWidget {
               ),
           ],
         ),
+        primaryAction: CraftskyDialogPrimaryAction(
+          label: state.isCreatingFolder
+              ? l10n.savedPostCreateFolderAction
+              : savedItem == null
+              ? l10n.savedPostSaveAction
+              : l10n.savedPostMoveAction,
+          onPressed: state.isCreatingFolder
+              ? state.isCreatePending
+                    ? null
+                    : ref.read(provider.notifier).createFolder
+              : state.canConfirm
+              ? () => savedItem == null
+                    ? ref.read(provider.notifier).confirmSave(post)
+                    : ref.read(provider.notifier).confirmMove(savedItem!)
+              : null,
+          child: state.isConfirming || state.isCreatePending
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+        ),
         actions: [
           TextButton(
             onPressed: state.isConfirming
@@ -235,23 +242,6 @@ class SavePostDialog extends ConsumerWidget {
                     Navigator.of(context).pop(false);
                   },
             child: Text(l10n.actionCancel),
-          ),
-          ChunkyButton(
-            onPressed: state.canConfirm
-                ? () => savedItem == null
-                      ? ref.read(provider.notifier).confirmSave(post)
-                      : ref.read(provider.notifier).confirmMove(savedItem!)
-                : null,
-            child: state.isConfirming
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    savedItem == null
-                        ? l10n.savedPostSaveAction
-                        : l10n.savedPostMoveAction,
-                  ),
           ),
         ],
       ),

@@ -21,12 +21,16 @@ class HandleTypeaheadField extends ConsumerStatefulWidget {
     super.key,
     this.hintText = 'alice.bsky.social',
     this.enabled = true,
+    this.errorText,
+    this.onChanged,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onSubmitted;
   final String hintText;
   final bool enabled;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
 
   @override
   ConsumerState<HandleTypeaheadField> createState() =>
@@ -321,6 +325,8 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
           controller: widget.controller,
           focusNode: _focusNode,
           enabled: widget.enabled,
+          errorText: widget.errorText,
+          onChanged: widget.onChanged,
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.done,
           autofillHints: const [AutofillHints.username],

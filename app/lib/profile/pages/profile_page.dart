@@ -371,8 +371,6 @@ class _ProfileBody extends ConsumerWidget {
               onFollowToggle: () => unawaited(showGuestSignIn(context, ref)),
               onShare: () =>
                   shareRecordLink(context, RecordLinks.profile(profile.did)),
-              onShareCard: () =>
-                  unawaited(showProfileShareCard(context, profile)),
               onReport: () =>
                   unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
@@ -544,7 +542,6 @@ class _ProfileBody extends ConsumerWidget {
         );
       },
       onShare: () => shareRecordLink(context, RecordLinks.profile(profile.did)),
-      onShareCard: () => unawaited(showProfileShareCard(context, profile)),
       onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(

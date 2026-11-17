@@ -1140,7 +1140,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Spam'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
     await tester.pumpAndSettle();
 
     expect(submittedTarget, 'did:plc:bob/other');

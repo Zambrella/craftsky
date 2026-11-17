@@ -23,6 +23,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -62,7 +63,20 @@ class InstagramMigrationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final registry = ref.watch(sessionRegistryProvider);
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
+      floatingActionButton: keyboardVisible
+          ? SizedBox(
+              width: 120,
+              child: ComposerBottomAction(
+                keyboardVisible: true,
+                label: l10n.postComposeDone,
+                doneKey: const Key('instagram-manual-keyboard-done'),
+                actionKey: const Key('instagram-keyboard-action'),
+                onPressed: null,
+              ),
+            )
+          : null,
       appBar: AppBar(title: Text(l10n.instagramMigrationTitle)),
       body: registry.when(
         loading: () => const Center(child: StitchProgressIndicator()),
@@ -74,7 +88,10 @@ class InstagramMigrationPage extends ConsumerWidget {
           }
           return KeyedSubtree(
             key: ValueKey(lease),
-            child: _InstagramMigrationBody(lease: lease),
+            child: _InstagramMigrationBody(
+              lease: lease,
+              keyboardVisible: keyboardVisible,
+            ),
           );
         },
       ),
@@ -83,9 +100,10 @@ class InstagramMigrationPage extends ConsumerWidget {
 }
 
 class _InstagramMigrationBody extends ConsumerWidget {
-  const new({required this.lease});
+  const new({required this.lease, required this.keyboardVisible});
 
   final ActiveAccountLease lease;
+  final bool keyboardVisible;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -165,7 +183,10 @@ class _InstagramMigrationBody extends ConsumerWidget {
                               ),
                             ),
                             SizedBox(height: spacing.sp2),
-                            _ImportComposerCard(lease: lease),
+                            _ImportComposerCard(
+                              lease: lease,
+                              keyboardVisible: keyboardVisible,
+                            ),
                             SizedBox(height: spacing.sp4),
                             _ImportsCard(lease: lease),
                             SizedBox(height: spacing.sp4),
@@ -622,9 +643,10 @@ class _RevokeInstagramVerificationButton extends ConsumerWidget {
 enum _ImportInputKind { manual, json }
 
 class _ImportComposerCard extends ConsumerStatefulWidget {
-  const new({required this.lease});
+  const new({required this.lease, required this.keyboardVisible});
 
   final ActiveAccountLease lease;
+  final bool keyboardVisible;
 
   @override
   ConsumerState<_ImportComposerCard> createState() =>
@@ -708,15 +730,26 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               hintText: l10n.instagramImportHandlesHint,
               textCapitalization: TextCapitalization.none,
               enabled: ready && !_busy,
+              errorText: _parseError == null
+                  ? null
+                  : _parseErrorMessage(l10n, _parseError!),
+              onChanged: (_) {
+                if (_parseError != null) setState(() => _parseError = null);
+              },
             ),
             SizedBox(height: spacing.sp2),
-            FilledButton(
-              onPressed: ready && !_busy ? _importManual : null,
-              child: ActionProgress(
-                isLoading: _busy,
-                child: Text(l10n.instagramImportManualAction),
+            if (!widget.keyboardVisible)
+              ComposerBottomAction(
+                keyboardVisible: false,
+                actionKey: const Key('instagram-manual-import'),
+                doneKey: const Key('instagram-manual-keyboard-done'),
+                label: l10n.instagramImportManualAction,
+                onPressed: ready && !_busy ? _importManual : null,
+                child: ActionProgress(
+                  isLoading: _busy,
+                  child: Text(l10n.instagramImportManualAction),
+                ),
               ),
-            ),
           ] else
             FilledButton.icon(
               onPressed: ready && !_busy ? _pickExport : null,
@@ -737,7 +770,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               child: Text(l10n.instagramRetry),
             ),
           ],
-          if (_parseError != null) ...[
+          if (_kind != _ImportInputKind.manual && _parseError != null) ...[
             const SizedBox(height: 8),
             Text(_parseErrorMessage(l10n, _parseError!)),
           ],

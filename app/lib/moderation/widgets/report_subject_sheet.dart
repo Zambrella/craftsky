@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_reason.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -79,161 +80,164 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
       backgroundColor: swatches.paper,
       appBar: AppBar(
         title: Text(title),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: spacing.sp3),
-            child: _ReportSubmitAction(
-              isSubmitting: widget.isSubmitting,
-              onPressed: _canSubmit ? _submit : null,
-            ),
-          ),
-        ],
       ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: SingleChildScrollView(
-          key: const ValueKey('reportSubjectRouteScrollView'),
-          padding: EdgeInsets.fromLTRB(
-            spacing.sp4,
-            spacing.sp4,
-            spacing.sp4,
-            spacing.sp6 + MediaQuery.paddingOf(context).bottom,
-          ),
-          child: FormBuilder(
-            key: _formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _group == null
-                      ? l10n.reportGroupTitle
-                      : l10n.reportReasonTitle,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: spacing.sp2),
-                if (_group == null)
-                  FormBuilderRadioGroup<ReportGroup>(
-                    name: _groupField,
-                    enabled: !widget.isSubmitting,
-                    onChanged: (group) {
-                      if (group == null) return;
-                      setState(() {
-                        _group = group;
-                        _reason = group == ReportGroup.intellectualProperty
-                            ? ReportReason.intellectualProperty
-                            : null;
-                      });
-                      widget.onChanged?.call();
-                    },
-                    decoration: _radioDecoration,
-                    options: [
-                      for (final group in ReportGroup.values)
-                        FormBuilderFieldOption<ReportGroup>(
-                          value: group,
-                          child: Text(group.label(l10n)),
-                        ),
-                    ],
-                    orientation: OptionsOrientation.vertical,
-                    validator: FormBuilderValidators.required(),
-                  )
-                else ...[
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton(
-                      onPressed: widget.isSubmitting
-                          ? null
-                          : () {
-                              setState(() {
-                                _group = null;
-                                _reason = null;
-                              });
-                              widget.onChanged?.call();
-                            },
-                      child: Text(l10n.reportChangeCategory),
+      body: FormActionLayout(
+        keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+        label: l10n.reportSubmit,
+        actionKey: const Key('report-submit'),
+        onPressed: _canSubmit ? _submit : null,
+        actionChild: widget.isSubmitting
+            ? const StitchProgressIndicator(size: 18)
+            : null,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: SingleChildScrollView(
+            key: const ValueKey('reportSubjectRouteScrollView'),
+            padding: EdgeInsets.fromLTRB(
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp6 + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: FormBuilder(
+              key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _group == null
+                        ? l10n.reportGroupTitle
+                        : l10n.reportReasonTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (_group != ReportGroup.intellectualProperty)
-                    FormBuilderRadioGroup<ReportReason>(
-                      name: _reasonField,
+                  SizedBox(height: spacing.sp2),
+                  if (_group == null)
+                    FormBuilderRadioGroup<ReportGroup>(
+                      name: _groupField,
                       enabled: !widget.isSubmitting,
-                      onChanged: (reason) {
-                        setState(() => _reason = reason);
+                      onChanged: (group) {
+                        if (group == null) return;
+                        setState(() {
+                          _group = group;
+                          _reason = group == ReportGroup.intellectualProperty
+                              ? ReportReason.intellectualProperty
+                              : null;
+                        });
                         widget.onChanged?.call();
                       },
                       decoration: _radioDecoration,
                       options: [
-                        for (final reason in _group!.reasons)
-                          FormBuilderFieldOption<ReportReason>(
-                            value: reason,
-                            child: Text(reason.label(l10n)),
+                        for (final group in ReportGroup.values)
+                          FormBuilderFieldOption<ReportGroup>(
+                            value: group,
+                            child: Text(group.label(l10n)),
                           ),
                       ],
                       orientation: OptionsOrientation.vertical,
                       validator: FormBuilderValidators.required(),
+                    )
+                  else ...[
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton(
+                        onPressed: widget.isSubmitting
+                            ? null
+                            : () {
+                                setState(() {
+                                  _group = null;
+                                  _reason = null;
+                                });
+                                widget.onChanged?.call();
+                              },
+                        child: Text(l10n.reportChangeCategory),
+                      ),
                     ),
-                  if (_guidance(l10n) case final guidance?) ...[
-                    SizedBox(height: spacing.sp2),
-                    Text(guidance, key: const ValueKey('reportSafetyGuidance')),
-                  ],
-                  if (_group != ReportGroup.intellectualProperty) ...[
-                    SizedBox(height: spacing.sp3),
-                    BrandTextField(
-                      label: l10n.reportDetailsLabel,
-                      controller: _detailsController,
-                      focusNode: _detailsFocusNode,
-                      helperText: '${_details.length}/$_detailsMaxLength',
-                      helperAlignment: AlignmentDirectional.centerEnd,
-                      minLines: 4,
-                      maxLines: 4,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      textCapitalization: TextCapitalization.sentences,
-                      enabled: !widget.isSubmitting,
-                      onChanged: (value) {
-                        setState(() => _details = value);
-                        widget.onChanged?.call();
-                      },
-                      errorText: _detailsTooLong
-                          ? l10n.reportDetailsTooLong
-                          : null,
-                    ),
-                    if (widget.showContactEmail) ...[
-                      SizedBox(height: spacing.sp3),
-                      BrandTextField(
-                        label: l10n.reportContactEmailLabel,
-                        controller: _contactEmailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.email],
-                        autocorrect: false,
+                    if (_group != ReportGroup.intellectualProperty)
+                      FormBuilderRadioGroup<ReportReason>(
+                        name: _reasonField,
                         enabled: !widget.isSubmitting,
-                        helperText: l10n.reportContactEmailHelp,
-                        errorText: _contactEmailInvalid
-                            ? l10n.reportContactEmailInvalid
-                            : null,
-                        onChanged: (_) {
-                          setState(() => _contactEmailInvalid = false);
+                        onChanged: (reason) {
+                          setState(() => _reason = reason);
                           widget.onChanged?.call();
                         },
+                        decoration: _radioDecoration,
+                        options: [
+                          for (final reason in _group!.reasons)
+                            FormBuilderFieldOption<ReportReason>(
+                              value: reason,
+                              child: Text(reason.label(l10n)),
+                            ),
+                        ],
+                        orientation: OptionsOrientation.vertical,
+                        validator: FormBuilderValidators.required(),
+                      ),
+                    if (_guidance(l10n) case final guidance?) ...[
+                      SizedBox(height: spacing.sp2),
+                      Text(
+                        guidance,
+                        key: const ValueKey('reportSafetyGuidance'),
                       ),
                     ],
+                    if (_group != ReportGroup.intellectualProperty) ...[
+                      SizedBox(height: spacing.sp3),
+                      BrandTextField(
+                        label: l10n.reportDetailsLabel,
+                        controller: _detailsController,
+                        focusNode: _detailsFocusNode,
+                        helperText: '${_details.length}/$_detailsMaxLength',
+                        helperAlignment: AlignmentDirectional.centerEnd,
+                        minLines: 4,
+                        maxLines: 4,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        textCapitalization: TextCapitalization.sentences,
+                        enabled: !widget.isSubmitting,
+                        onChanged: (value) {
+                          setState(() => _details = value);
+                          widget.onChanged?.call();
+                        },
+                        errorText: _detailsTooLong
+                            ? l10n.reportDetailsTooLong
+                            : null,
+                      ),
+                      if (widget.showContactEmail) ...[
+                        SizedBox(height: spacing.sp3),
+                        BrandTextField(
+                          label: l10n.reportContactEmailLabel,
+                          controller: _contactEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.email],
+                          autocorrect: false,
+                          enabled: !widget.isSubmitting,
+                          helperText: l10n.reportContactEmailHelp,
+                          errorText: _contactEmailInvalid
+                              ? l10n.reportContactEmailInvalid
+                              : null,
+                          onChanged: (_) {
+                            setState(() => _contactEmailInvalid = false);
+                            widget.onChanged?.call();
+                          },
+                        ),
+                      ],
+                    ],
+                  ],
+                  if (widget.submitError case final error?) ...[
+                    SizedBox(height: spacing.sp2),
+                    Text(
+                      error,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
                   ],
                 ],
-                if (widget.submitError case final error?) ...[
-                  SizedBox(height: spacing.sp2),
-                  Text(
-                    error,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -292,29 +296,5 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
       return l10n.reportImmediateDangerGuidance;
     }
     return null;
-  }
-}
-
-class _ReportSubmitAction extends StatelessWidget {
-  const new({
-    required this.isSubmitting,
-    required this.onPressed,
-  });
-
-  final bool isSubmitting;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-      ),
-      child: isSubmitting
-          ? const StitchProgressIndicator(size: 18)
-          : Text(l10n.reportSubmit),
-    );
   }
 }

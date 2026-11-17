@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -27,6 +28,10 @@ class FullscreenModalPage<T> extends Page<T> {
 /// horizontal, so use the same bottom-up modal presentation on both platforms.
 class FullscreenModalRoute<T> extends MaterialPageRoute<T> {
   new({required super.builder, super.settings}) : super(fullscreenDialog: true);
+
+  @override
+  Widget buildContent(BuildContext context) =>
+      FormKeyboardScope(child: super.buildContent(context));
 
   @override
   Widget buildTransitions(

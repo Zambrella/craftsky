@@ -6,6 +6,7 @@ import {
 	type TestInfo
 } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { nativeIconPaths } from '../src/lib/features/shell/native-icons';
 import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -430,6 +431,21 @@ test('profile header collapses to a readable identity and retains Back navigatio
 	await capture(page, testInfo, 'profile-collapsed');
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await expect(page.locator('.profile-compact-header')).toHaveCount(0);
+
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await settleAccountView(page, '/profiles/alice.test?tab=posts');
+	await page.evaluate(() => window.scrollTo(0, 500));
+	const identity = page.locator('.compact-profile-identity');
+	await expect(identity).toBeVisible();
+	await expect(identity).toHaveCSS('padding-left', '16px');
+	await expect(
+		page.getByRole('button', { name: 'Open navigation', exact: true })
+	).not.toBeVisible();
+	await page.setViewportSize({ width: 402, height: 874 });
+	await expect(identity).toHaveCSS('padding-left', '64px');
+	await expect(
+		page.getByRole('button', { name: 'Open navigation', exact: true })
+	).toBeVisible();
 });
 
 test('project detail page has the native compact app bar and accessible fields', async ({
@@ -587,6 +603,11 @@ test('visitor event details link to the creator, show roles and share through a 
 	await expect(
 		page.getByRole('button', { name: 'Report event', exact: true })
 	).toBeVisible();
+	await expect(
+		page
+			.getByRole('button', { name: 'Report event', exact: true })
+			.locator('svg path')
+	).toHaveAttribute('d', nativeIconPaths.flag.regular);
 	await page.getByRole('link', { name: 'Send via chat', exact: true }).click();
 	await expect(
 		page.getByText(

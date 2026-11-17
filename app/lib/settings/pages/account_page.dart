@@ -14,7 +14,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -195,32 +195,32 @@ class _DidConfirmationDialogState extends State<_DidConfirmationDialog> {
             l10n.deleteAccountDidConfirmationPrompt(widget.confirmationDid),
           ),
           const SizedBox(height: 16),
-          TextField(
+          BrandTextField(
+            label: l10n.deleteAccountTypeDidLabel,
             controller: _controller,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: l10n.deleteAccountTypeDidLabel,
-            ),
             onChanged: (_) => setState(() {}),
           ),
         ],
+      ),
+      primaryAction: CraftskyDialogPrimaryAction(
+        label: l10n.deleteAccountAction,
+        style: const ButtonStyle(
+          backgroundColor: WidgetStatePropertyAll(BrandColors.red),
+        ),
+        onPressed:
+            matchesDeletionConfirmationDid(
+              confirmationDid: widget.confirmationDid,
+              input: _controller.text,
+            )
+            ? () => Navigator.pop(context, true)
+            : null,
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(l10n.actionCancel),
-        ),
-        ChunkyButton(
-          backgroundColor: BrandColors.red,
-          onPressed:
-              matchesDeletionConfirmationDid(
-                confirmationDid: widget.confirmationDid,
-                input: _controller.text,
-              )
-              ? () => Navigator.pop(context, true)
-              : null,
-          child: Text(l10n.deleteAccountAction),
         ),
       ],
     );

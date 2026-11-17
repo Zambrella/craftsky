@@ -21,7 +21,7 @@
 		focusField,
 		presentFieldErrors
 	} from '#lib/field-validation.ts';
-	import { getContext, onDestroy, onMount, untrack } from 'svelte';
+	import { getContext, onDestroy, onMount, tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
 	import {
@@ -1176,6 +1176,10 @@
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
 				await lifecycle?.rejected();
+				// Field errors belong to the editor, outside the modal progress dialog.
+				publishing = false;
+				await tick();
+				if (seq !== generation || destroyed) return;
 				if (e instanceof APIError && e.status === 409)
 					error =
 						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
@@ -1184,7 +1188,7 @@
 						(draft.videoRecovery || 0) < 2
 							? 'The video could not be retrieved. Try publishing again to upload a fresh copy.'
 							: 'The video could not be restored. Remove it and choose the file again.';
-				else error = message(e, 'composer.perform');
+				else if (!presentFieldErrors(e)) error = message(e, 'composer.perform');
 			}
 		}
 	}

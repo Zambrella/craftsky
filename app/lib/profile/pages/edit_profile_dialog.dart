@@ -38,6 +38,7 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -621,196 +622,200 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                 ? l10n.editProfileBusinessHeading
                 : l10n.editProfileTitle,
           ),
-          actions: [
-            Padding(
-              padding: EdgeInsets.only(right: spacing.sp3),
-              child: _SaveAction(
-                onPressed: canSave ? () => unawaited(_save()) : null,
-                isSaving: isSaving,
-              ),
-            ),
-          ],
         ),
-        body: FormBuilder(
-          key: _formKey,
-          // Re-render on any field change so the save button picks up
-          // the dirty/valid state without us hand-rolling listeners
-          // per controller.
-          onChanged: () {
-            if (mounted) setState(() {});
-          },
-          // Validate as the user types so length errors surface
-          // beneath the field they refer to, not only on save.
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (widget.businessDetails && !widget.businessAccessConfirmed)
-                  MaterialBanner(
-                    content: Text(
-                      l10n.plusFeatureAccessUnavailable(
-                        l10n.editProfileBusinessHeading,
+        body: FormActionLayout(
+          keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+          label: l10n.editProfileSave,
+          actionKey: const Key('profile-save'),
+          onPressed: canSave ? () => unawaited(_save()) : null,
+          actionChild: isSaving
+              ? const StitchProgressIndicator(size: 18)
+              : null,
+          child: FormBuilder(
+            key: _formKey,
+            // Re-render on any field change so the save button picks up
+            // the dirty/valid state without us hand-rolling listeners
+            // per controller.
+            onChanged: () {
+              if (mounted) setState(() {});
+            },
+            // Validate as the user types so length errors surface
+            // beneath the field they refer to, not only on save.
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.businessDetails && !widget.businessAccessConfirmed)
+                    MaterialBanner(
+                      content: Text(
+                        l10n.plusFeatureAccessUnavailable(
+                          l10n.editProfileBusinessHeading,
+                        ),
                       ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: widget.retryBusinessAccess,
-                        child: Text(l10n.subscriptionsRefresh),
-                      ),
-                    ],
-                  ),
-                if (!widget.businessDetails)
-                  EditProfileBannerAvatar(
-                    profile: widget.profile,
-                    avatarPreviewBytes: _avatarDraft.previewBytes,
-                    avatarUploading: _avatarDraft.isUploading,
-                    onPickAvatar: isSaving
-                        ? null
-                        : () => unawaited(_chooseProfileImageSource()),
-                  ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    spacing.sp4,
-                    spacing.sp4,
-                    spacing.sp4,
-                    spacing.sp6 + MediaQuery.paddingOf(context).bottom,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!widget.businessDetails) ...[
-                        FormBuilderField<String>(
-                          name: _fieldDisplayName,
-                          // Shared node — see _displayNameFocusNode docstring
-                          // for why this matters.
-                          focusNode: _displayNameFocusNode,
-                          initialValue: widget.profile.displayName ?? '',
-                          validator: (value) =>
-                              RecordTextLimits.displayName.accepts(value ?? '')
-                              ? null
-                              : l10n.editProfileDisplayNameTooLong,
-                          builder: (field) => BrandTextField(
-                            label: l10n.editProfileDisplayNameLabel,
-                            controller: _displayNameController,
-                            maxLength: RecordTextLimits.displayName.graphemes,
-                            maxBytes: RecordTextLimits.displayName.bytes,
-                            focusNode: _displayNameFocusNode,
-                            hintText: l10n.editProfileDisplayNameHint,
-                            textInputAction: TextInputAction.next,
-                            textCapitalization: TextCapitalization.words,
-                            enabled: !isSaving,
-                            onChanged: field.didChange,
-                            errorText: field.errorText,
-                          ),
-                        ),
-                        SizedBox(height: spacing.sp5),
-                        FormBuilderField<String>(
-                          name: _fieldPronouns,
-                          focusNode: _pronounsFocusNode,
-                          initialValue: widget.profile.pronouns ?? '',
-                          validator: (value) =>
-                              !RecordTextLimits.pronouns.accepts(value ?? '')
-                              ? l10n.editProfilePronounsTooLong
-                              : null,
-                          builder: (field) => BrandTextField(
-                            label: l10n.editProfilePronounsLabel,
-                            controller: _pronounsController,
-                            focusNode: _pronounsFocusNode,
-                            hintText: l10n.editProfilePronounsHint,
-                            maxLength: profilePronounsMaxLength,
-                            maxBytes: RecordTextLimits.pronouns.bytes,
-                            textInputAction: TextInputAction.next,
-                            enabled: !isSaving,
-                            onChanged: field.didChange,
-                            errorText: field.errorText,
-                          ),
-                        ),
-                        SizedBox(height: spacing.sp5),
-                        FormBuilderField<String>(
-                          name: _fieldBio,
-                          focusNode: _bioFocusNode,
-                          initialValue: widget.profile.description ?? '',
-                          validator: (value) =>
-                              RecordTextLimits.bio.accepts(value ?? '')
-                              ? null
-                              : l10n.editProfileBioTooLong,
-                          builder: (field) => BrandTextField(
-                            label: l10n.editProfileBioLabel,
-                            controller: _bioController,
-                            maxLength: RecordTextLimits.bio.graphemes,
-                            maxBytes: RecordTextLimits.bio.bytes,
-                            focusNode: _bioFocusNode,
-                            hintText: l10n.editProfileBioHint,
-                            minLines: 3,
-                            maxLines: 6,
-                            keyboardType: TextInputType.multiline,
-                            textInputAction: TextInputAction.newline,
-                            textCapitalization: TextCapitalization.sentences,
-                            enabled: !isSaving,
-                            onChanged: field.didChange,
-                            errorText: field.errorText,
-                          ),
-                        ),
-                        SizedBox(height: spacing.sp5),
-                        ProfileLinksEditor(
-                          links: _links,
-                          enabled: !isSaving,
-                          onChanged: (links) => setState(() => _links = links),
-                        ),
-                        SizedBox(height: spacing.sp5),
-                        Text(
-                          l10n.editProfileCraftsLabel,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: spacing.sp1),
-                        Text(
-                          l10n.editProfileCraftsHelper,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        SizedBox(height: spacing.sp3),
-                        FormBuilderField<Set<Craft>>(
-                          name: _fieldCrafts,
-                          initialValue: _initialSelectedCrafts.toSet(),
-                          builder: (field) {
-                            final selected = field.value ?? const <Craft>{};
-                            return EditProfileCraftsPicker(
-                              selected: selected,
-                              enabled: !isSaving,
-                              onReorder: (crafts) =>
-                                  field.didChange(crafts.toSet()),
-                              onToggle: isSaving
-                                  ? (_) {}
-                                  : (craft) {
-                                      final next = selected.toSet();
-                                      if (next.contains(craft)) {
-                                        next.remove(craft);
-                                      } else {
-                                        next.add(craft);
-                                      }
-                                      field.didChange(next);
-                                    },
-                              onRequestMore: isSaving
-                                  ? null
-                                  : () => unawaited(_openSupport()),
-                            );
-                          },
+                      actions: [
+                        TextButton(
+                          onPressed: widget.retryBusinessAccess,
+                          child: Text(l10n.subscriptionsRefresh),
                         ),
                       ],
-                      if (widget.businessDetails &&
-                          widget.profile.accountType == AccountType.business)
-                        BusinessProfileFields(
-                          initial: _businessBaseline,
-                          enabled: !isSaving && widget.businessAccessConfirmed,
-                        ),
-                    ],
+                    ),
+                  if (!widget.businessDetails)
+                    EditProfileBannerAvatar(
+                      profile: widget.profile,
+                      avatarPreviewBytes: _avatarDraft.previewBytes,
+                      avatarUploading: _avatarDraft.isUploading,
+                      onPickAvatar: isSaving
+                          ? null
+                          : () => unawaited(_chooseProfileImageSource()),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp4,
+                      spacing.sp4,
+                      spacing.sp6 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!widget.businessDetails) ...[
+                          FormBuilderField<String>(
+                            name: _fieldDisplayName,
+                            // Shared node — see _displayNameFocusNode docstring
+                            // for why this matters.
+                            focusNode: _displayNameFocusNode,
+                            initialValue: widget.profile.displayName ?? '',
+                            validator: (value) =>
+                                RecordTextLimits.displayName.accepts(
+                                  value ?? '',
+                                )
+                                ? null
+                                : l10n.editProfileDisplayNameTooLong,
+                            builder: (field) => BrandTextField(
+                              label: l10n.editProfileDisplayNameLabel,
+                              controller: _displayNameController,
+                              maxLength: RecordTextLimits.displayName.graphemes,
+                              maxBytes: RecordTextLimits.displayName.bytes,
+                              focusNode: _displayNameFocusNode,
+                              hintText: l10n.editProfileDisplayNameHint,
+                              textInputAction: TextInputAction.next,
+                              textCapitalization: TextCapitalization.words,
+                              enabled: !isSaving,
+                              onChanged: field.didChange,
+                              errorText: field.errorText,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          FormBuilderField<String>(
+                            name: _fieldPronouns,
+                            focusNode: _pronounsFocusNode,
+                            initialValue: widget.profile.pronouns ?? '',
+                            validator: (value) =>
+                                !RecordTextLimits.pronouns.accepts(value ?? '')
+                                ? l10n.editProfilePronounsTooLong
+                                : null,
+                            builder: (field) => BrandTextField(
+                              label: l10n.editProfilePronounsLabel,
+                              controller: _pronounsController,
+                              focusNode: _pronounsFocusNode,
+                              hintText: l10n.editProfilePronounsHint,
+                              maxLength: profilePronounsMaxLength,
+                              maxBytes: RecordTextLimits.pronouns.bytes,
+                              textInputAction: TextInputAction.next,
+                              enabled: !isSaving,
+                              onChanged: field.didChange,
+                              errorText: field.errorText,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          FormBuilderField<String>(
+                            name: _fieldBio,
+                            focusNode: _bioFocusNode,
+                            initialValue: widget.profile.description ?? '',
+                            validator: (value) =>
+                                RecordTextLimits.bio.accepts(value ?? '')
+                                ? null
+                                : l10n.editProfileBioTooLong,
+                            builder: (field) => BrandTextField(
+                              label: l10n.editProfileBioLabel,
+                              controller: _bioController,
+                              maxLength: RecordTextLimits.bio.graphemes,
+                              maxBytes: RecordTextLimits.bio.bytes,
+                              focusNode: _bioFocusNode,
+                              hintText: l10n.editProfileBioHint,
+                              minLines: 3,
+                              maxLines: 6,
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.newline,
+                              textCapitalization: TextCapitalization.sentences,
+                              enabled: !isSaving,
+                              onChanged: field.didChange,
+                              errorText: field.errorText,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          ProfileLinksEditor(
+                            links: _links,
+                            enabled: !isSaving,
+                            onChanged: (links) =>
+                                setState(() => _links = links),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          Text(
+                            l10n.editProfileCraftsLabel,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp1),
+                          Text(
+                            l10n.editProfileCraftsHelper,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp3),
+                          FormBuilderField<Set<Craft>>(
+                            name: _fieldCrafts,
+                            initialValue: _initialSelectedCrafts.toSet(),
+                            builder: (field) {
+                              final selected = field.value ?? const <Craft>{};
+                              return EditProfileCraftsPicker(
+                                selected: selected,
+                                enabled: !isSaving,
+                                onReorder: (crafts) =>
+                                    field.didChange(crafts.toSet()),
+                                onToggle: isSaving
+                                    ? (_) {}
+                                    : (craft) {
+                                        final next = selected.toSet();
+                                        if (next.contains(craft)) {
+                                          next.remove(craft);
+                                        } else {
+                                          next.add(craft);
+                                        }
+                                        field.didChange(next);
+                                      },
+                                onRequestMore: isSaving
+                                    ? null
+                                    : () => unawaited(_openSupport()),
+                              );
+                            },
+                          ),
+                        ],
+                        if (widget.businessDetails &&
+                            widget.profile.accountType == AccountType.business)
+                          BusinessProfileFields(
+                            initial: _businessBaseline,
+                            enabled:
+                                !isSaving && widget.businessAccessConfirmed,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -951,41 +956,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           : l10n.editProfileBusinessSaveError;
     }
     return l10n.editProfileSaveError;
-  }
-}
-
-/// Save button shown in the app-bar trailing slot. Plain `TextButton` —
-/// flat, no chunky styling, just a bold text label that picks up
-/// `colorScheme.primary` for the accent colour. Disabled (`null`
-/// callback) when the form is clean / invalid / a save is in flight;
-/// the in-flight state replaces the label with a small spinner so the
-/// user has feedback during the network round trip.
-///
-/// Styling is delivered via `TextButton.styleFrom(textStyle: ...)`
-/// rather than an explicit style on the inner [Text] so the
-/// `WidgetStateProperty<Color>` foreground resolver gets to choose
-/// between enabled and disabled colours unimpeded — passing a baked-in
-/// colour on the child Text overrides the resolver and the disabled
-/// state ends up looking identical to the enabled one.
-class _SaveAction extends StatelessWidget {
-  const new({required this.onPressed, required this.isSaving});
-
-  final VoidCallback? onPressed;
-  final bool isSaving;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-      ),
-      child: isSaving
-          ? const StitchProgressIndicator(size: 18)
-          : Text(l10n.editProfileSave),
-    );
   }
 }
 

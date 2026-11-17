@@ -43,6 +43,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(opened, isTrue);
     });
+    testWidgets('visitor menu shares links without offering a profile card', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: VisitorProfileActionSet(
+            isFollowing: false,
+            isBusy: false,
+            onFollowToggle: () {},
+            onShare: () {},
+            onReport: () {},
+            onMuteToggle: () {},
+            onBlockToggle: () {},
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      expect(find.text('Share card'), findsNothing);
+      expect(find.text('Share'), findsOneWidget);
+    });
+
     for (final label in ['Followers', 'Following']) {
       testWidgets('visitor menu opens $label', (tester) async {
         String? opened;

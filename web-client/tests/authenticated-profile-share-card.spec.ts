@@ -7,7 +7,7 @@ const account = {
 	handle: 'alice.test',
 	token: Buffer.alloc(32, 1).toString('base64url')
 };
-async function openCard(page: Page, path = '/profiles/bob.test') {
+async function openCard(page: Page, path = '/profiles/alice.test') {
 	await page.goto(path);
 	await page.getByLabel('More profile actions', { exact: true }).click();
 	await page.getByRole('button', { name: 'Share card', exact: true }).click();
@@ -61,7 +61,23 @@ test.beforeEach(async ({ context, page }) => {
 	]);
 });
 
-test('visitor and own profile export a fixed PNG, restore focus and preserve image across themes and widths', async ({
+test('another account profile keeps link sharing without a share card', async ({
+	page
+}) => {
+	await page.goto('/profiles/bob.test');
+	await page.getByLabel('More profile actions', { exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Share card', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Share', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Copy link', exact: true })
+	).toBeVisible();
+});
+
+test('own profile exports a fixed PNG, restores focus and preserves image across themes and widths', async ({
 	page
 }, testInfo) => {
 	await page.addInitScript(() =>
@@ -246,7 +262,7 @@ test('a render failure can be retried without an unhandled error', async ({
 	await page.route('**/profile-share-mark.png', (route) => route.abort());
 	const errors: string[] = [];
 	page.on('pageerror', (error) => errors.push(error.name));
-	await page.goto('/profiles/bob.test');
+	await page.goto('/profiles/alice.test');
 	await page.getByLabel('More profile actions', { exact: true }).click();
 	await page.getByRole('button', { name: 'Share card', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Your share card' });

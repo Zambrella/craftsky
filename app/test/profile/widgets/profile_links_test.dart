@@ -61,18 +61,12 @@ void main() {
       expect(tester.getRect(surface).top, lessThan(originalRect.top));
       expect(tester.takeException(), isNull);
 
-      // Short viewports must allow the remaining fields and actions to scroll
-      // into the visible area above the keyboard.
-      final scrollable = find
-          .descendant(
-            of: find.byType(CraftskyDialog),
-            matching: find.byType(Scrollable),
-          )
-          .first;
-      final save = find.byKey(const Key('profile-link-save'));
-      await tester.scrollUntilVisible(save, 80, scrollable: scrollable);
+      // Done remains fixed above the keyboard while long body content scrolls.
+      final done = find.byKey(const Key('dialog-keyboard-done'));
+      expect(tester.getRect(done).bottom, lessThanOrEqualTo(keyboardTop));
+      await tester.tap(done);
       await tester.pumpAndSettle();
-      expect(tester.getRect(save).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(tester.testTextInput.isVisible, isFalse);
 
       tester.view.viewInsets = FakeViewPadding.zero;
       await tester.pumpAndSettle();

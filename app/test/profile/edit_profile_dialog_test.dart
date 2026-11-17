@@ -35,6 +35,7 @@ import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:dio/dio.dart';
@@ -235,7 +236,7 @@ void main() {
       TextField,
       'My unsaved Business details',
     );
-    final save = find.widgetWithText(TextButton, 'Save');
+    final save = find.widgetWithText(ChunkyButton, 'Save');
     final container = ProviderScope.containerOf(tester.element(edited));
     final lease = container
         .read(sessionRegistryProvider)
@@ -248,26 +249,26 @@ void main() {
     await tester.pump();
     expect(edited, findsOneWidget);
     expect(tester.widget<TextField>(edited).enabled, isFalse);
-    expect(tester.widget<TextButton>(save).onPressed, isNull);
+    expect(tester.widget<ChunkyButton>(save).onPressed, isNull);
 
     pending.completeError(StateError('Access could not be refreshed'));
     await tester.pumpAndSettle();
     expect(edited, findsOneWidget);
-    expect(tester.widget<TextButton>(save).onPressed, isNull);
+    expect(tester.widget<ChunkyButton>(save).onPressed, isNull);
     next = Future.value(access(SubscriptionTier.business));
     await tester.ensureVisible(find.text('Refresh status'));
     await tester.tap(find.text('Refresh status'));
     await tester.pumpAndSettle();
     expect(edited, findsOneWidget);
     expect(tester.widget<TextField>(edited).enabled, isTrue);
-    expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+    expect(tester.widget<ChunkyButton>(save).onPressed, isNotNull);
 
     next = Future.value(access(SubscriptionTier.free));
     container.invalidate(subscriptionAccessProvider(lease));
     await tester.pumpAndSettle();
     expect(edited, findsOneWidget);
     expect(tester.widget<TextField>(edited).enabled, isFalse);
-    expect(tester.widget<TextButton>(save).onPressed, isNull);
+    expect(tester.widget<ChunkyButton>(save).onPressed, isNull);
     expect(repository.putCalls, 0);
   });
   group('EditProfileDialog', () {
@@ -374,7 +375,7 @@ void main() {
         await _chooseAvatar(tester);
         await tester.pumpAndSettle();
         expect(picker.calls, 3);
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(saves, 1);
         expect(savedAvatar!.ref.link, 'accepted-avatar');
@@ -395,11 +396,11 @@ void main() {
           'Unsaved name',
         );
         await tester.pump();
-        final save = find.widgetWithText(TextButton, 'Save');
-        expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+        final save = find.widgetWithText(ChunkyButton, 'Save');
+        expect(tester.widget<ChunkyButton>(save).onPressed, isNotNull);
         await _chooseAvatar(tester);
         expect(picker.calls, 1);
-        expect(tester.widget<TextButton>(save).onPressed, isNull);
+        expect(tester.widget<ChunkyButton>(save).onPressed, isNull);
         final container = ProviderScope.containerOf(
           tester.element(find.byType(EditProfileDialog)),
         );
@@ -421,7 +422,7 @@ void main() {
         picker.pending.complete(null);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+        expect(tester.widget<ChunkyButton>(save).onPressed, isNotNull);
         await _chooseAvatar(tester);
         expect(picker.calls, 2);
         expect(find.text('Unsaved name'), findsOneWidget);
@@ -560,8 +561,8 @@ void main() {
             'Updated classes',
           );
           await tester.pump();
-          final save = find.widgetWithText(TextButton, 'Save');
-          expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+          final save = find.widgetWithText(ChunkyButton, 'Save');
+          expect(tester.widget<ChunkyButton>(save).onPressed, isNotNull);
           expect(save.hitTestable(), findsOneWidget);
 
           await tester.tap(find.byType(CloseButton));
@@ -611,8 +612,8 @@ void main() {
 
         await tester.enterText(tagline, 'Updated classes');
         await tester.pump();
-        final save = find.widgetWithText(TextButton, 'Save');
-        expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+        final save = find.widgetWithText(ChunkyButton, 'Save');
+        expect(tester.widget<ChunkyButton>(save).onPressed, isNotNull);
         final saveLabel = find.text('Save');
         requestKeyboardFocus(tester, saveLabel);
         await tester.pump();
@@ -678,7 +679,7 @@ void main() {
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Save'))
             .onPressed,
         isNull,
       );
@@ -704,7 +705,7 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Save'))
             .onPressed,
         isNull,
       );
@@ -738,7 +739,7 @@ void main() {
         expect(email, findsOneWidget);
         await tester.enterText(email, 'hello@example.com');
         await tester.pump();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(repository.bodies.single['primaryAction'], {
           'type': 'email',
@@ -772,7 +773,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('Booking URL'), findsNothing);
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(repository.putCalls, 1);
         expect(repository.bodies.single, isNot(contains('primaryAction')));
@@ -819,7 +820,7 @@ void main() {
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Save'))
             .onPressed,
         isNull,
       );
@@ -831,8 +832,8 @@ void main() {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
       await _pumpEditDialog(tester, repo: repo);
 
-      final saveButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final saveButton = tester.widget<ChunkyButton>(
+        find.widgetWithText(ChunkyButton, 'Save'),
       );
       expect(saveButton.onPressed, isNull);
 
@@ -842,8 +843,8 @@ void main() {
       );
       await tester.pump();
 
-      final updated = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Save'),
+      final updated = tester.widget<ChunkyButton>(
+        find.widgetWithText(ChunkyButton, 'Save'),
       );
       expect(updated.onPressed, isNotNull);
     });
@@ -888,7 +889,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       expect(updateCallCount, 1);
@@ -930,7 +931,7 @@ void main() {
         '   ',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       expect(capturedPronouns, isNull);
@@ -970,7 +971,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       expect(updateCallCount, 1);
@@ -1014,7 +1015,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       expect(capturedCrafts, ['sewing', 'weaving', 'future-craft']);
@@ -1052,7 +1053,7 @@ void main() {
         expect(find.text('Edit profile'), findsOneWidget);
         expect(
           tester
-              .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+              .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Save'))
               .onPressed,
           isNull,
         );
@@ -1098,7 +1099,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(knitting);
         await tester.pump();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(find.byType(EditProfileDialog), findsNothing);
         expect(find.text('Open'), findsOneWidget);
@@ -1156,7 +1157,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       // Dialog popped — host's Open button is back on screen.
@@ -1212,7 +1213,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       // A leased account refreshes the profile and applies the shared overlay.
@@ -1246,7 +1247,7 @@ void main() {
         'Renamed',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
       // Snackbar text comes from the editProfileSaveError ARB key.
@@ -1289,7 +1290,7 @@ void main() {
           'Renamed',
         );
         await tester.pump();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(ordinaryCalls, 1);
         expect(business.putCalls, 0);
@@ -1330,7 +1331,7 @@ void main() {
             hoursNote: 'New hours elsewhere',
           ),
         );
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(
           find.widgetWithText(TextField, 'My edited tagline'),
@@ -1349,7 +1350,9 @@ void main() {
           findsOneWidget,
         );
         expect(business.putCalls, 1);
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.byTooltip('Dismiss'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(business.expectedCids, [
           _businessDeclaration.cid,
@@ -1387,7 +1390,7 @@ void main() {
         'Edited tagline',
       );
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
       expect(find.text('Tagline: is invalid'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'Edited tagline'), findsOneWidget);
@@ -1433,7 +1436,7 @@ void main() {
           'Updated classes',
         );
         await tester.pump();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(
           find.text("Couldn't save your business details."),
@@ -1441,7 +1444,9 @@ void main() {
         );
         expect(ordinaryCalls, 0);
         expect(business.putCalls, 1);
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.byTooltip('Dismiss'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pumpAndSettle();
         expect(ordinaryCalls, 0);
         expect(business.putCalls, 2);
@@ -1473,8 +1478,8 @@ void main() {
 
         // Form is dirty (was 'Test User', now '') and valid → save
         // is enabled.
-        final saveButton = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Save'),
+        final saveButton = tester.widget<ChunkyButton>(
+          find.widgetWithText(ChunkyButton, 'Save'),
         );
         expect(saveButton.onPressed, isNotNull);
       },
@@ -1537,7 +1542,7 @@ void main() {
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Save'))
             .onPressed,
         isNotNull,
       );
@@ -1604,12 +1609,12 @@ void main() {
 
         // Save remains available so pressing it can run validation and direct
         // the user to any invalid fields.
-        final saveButton = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Save'),
+        final saveButton = tester.widget<ChunkyButton>(
+          find.widgetWithText(ChunkyButton, 'Save'),
         );
         expect(saveButton.onPressed, isNotNull);
 
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
         await tester.pump();
         expect(
           find.text('Display name must be 64 characters or fewer'),
@@ -1647,7 +1652,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Move up'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
       expect(savedCrafts, ['quilting', 'sewing']);
       await tester.tap(find.text('Open'));

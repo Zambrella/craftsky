@@ -201,6 +201,9 @@ test('onboarding keeps one editor across steps, uses fixed actions and retains u
 	await page.screenshot({
 		path: test.info().outputPath('onboarding-guidelines.png')
 	});
+	await expect(
+		page.getByRole('link', { name: /Safety and support/ })
+	).toHaveCount(0);
 	await page.getByRole('button', { name: 'Previous onboarding step' }).click();
 	await page.getByRole('checkbox', { name: 'Crochet', exact: true }).check();
 	await page.getByRole('button', { name: 'Previous onboarding step' }).click();

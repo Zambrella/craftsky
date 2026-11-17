@@ -1401,6 +1401,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openPatternDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -1428,6 +1429,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openCommonDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -1453,6 +1455,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openCraftDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     final title = _craftDetailsTitle(l10n);
     if (title == null) return;

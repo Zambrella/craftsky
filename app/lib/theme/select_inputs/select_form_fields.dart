@@ -40,6 +40,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskySingleSelectInput<T>(
@@ -103,6 +104,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskySearchableMultiSelectInput<T>(
@@ -165,6 +167,7 @@ class CraftskyFormTokenField extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskyTokenInput(

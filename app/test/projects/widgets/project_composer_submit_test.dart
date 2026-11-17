@@ -222,9 +222,12 @@ void main() {
       find.byKey(const Key('pattern-url-input')),
       'https://patterns.example/garden-dress',
     );
-    await tester.tap(
-      find.byKey(const Key('project-composer-self-drafted-switch')),
+    final selfDrafted = find.byKey(
+      const Key('project-composer-self-drafted-switch'),
     );
+    await tester.ensureVisible(selfDrafted);
+    await tester.pumpAndSettle();
+    await tester.tap(selfDrafted);
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     await _openDetail(

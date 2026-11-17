@@ -2,6 +2,7 @@ import 'package:craftsky_app/chat/pages/report_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -79,8 +80,8 @@ void main() {
         ),
       );
       expect(calls, 0);
-      final submit = find.widgetWithText(TextButton, 'Submit');
-      expect(tester.widget<TextButton>(submit).onPressed, isNull);
+      final submit = find.widgetWithText(ChunkyButton, 'Submit');
+      expect(tester.widget<ChunkyButton>(submit).onPressed, isNull);
       expect(find.text('Other'), findsNothing);
       expect(
         tester
@@ -92,7 +93,10 @@ void main() {
         'Select Reason',
       );
       expect(
-        find.descendant(of: find.byType(AppBar), matching: find.text('Submit')),
+        find.descendant(
+          of: find.byType(Scaffold),
+          matching: find.text('Submit'),
+        ),
         findsOneWidget,
       );
       expect(find.textContaining('Bluesky only'), findsOneWidget);
@@ -103,10 +107,10 @@ void main() {
         find.byKey(const Key('chat-report-explanation')),
         'My explanation',
       );
-      expect(tester.widget<TextButton>(submit).onPressed, isNull);
+      expect(tester.widget<ChunkyButton>(submit).onPressed, isNull);
       await _selectReason(tester, 'Other');
       expect(calls, 0);
-      expect(tester.widget<TextButton>(submit).onPressed, isNotNull);
+      expect(tester.widget<ChunkyButton>(submit).onPressed, isNotNull);
       await tester.tap(submit);
       await tester.pumpAndSettle();
       expect(calls, 1);

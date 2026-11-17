@@ -140,6 +140,8 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Market');
     expect(controller.text, 'Marke');
+    await tester.pump();
+    expect(find.text('Add an event name.'), findsNothing);
     expect(formKey.currentState!.validate(), isTrue);
     await tester.pump();
     expect(find.text('5/5'), findsOneWidget);
