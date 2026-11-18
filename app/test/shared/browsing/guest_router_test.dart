@@ -90,7 +90,9 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp.router(
-              theme: AppTheme.lightThemeData,
+              theme: AppTheme.lightThemeData.copyWith(
+                platform: TargetPlatform.android,
+              ),
               localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               routerConfig: router,
@@ -164,7 +166,7 @@ void main() {
           expect(find.byType(NavigationBar), findsNothing);
           expect(find.text('Terms'), findsOneWidget);
           expect(find.text('Privacy'), findsOneWidget);
-          expect(find.text('Feedback'), findsOneWidget);
+          expect(find.text('Feedback'), findsNothing);
         } else {
           expect(
             tester
@@ -176,7 +178,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Terms'), findsOneWidget);
           expect(find.text('Privacy'), findsOneWidget);
-          expect(find.text('Feedback'), findsOneWidget);
+          expect(find.text('Feedback'), findsNothing);
           expect(find.widgetWithText(ListTile, 'Messages'), findsNothing);
           await tester.tap(find.widgetWithText(ListTile, 'Home'));
           await tester.pumpAndSettle();
