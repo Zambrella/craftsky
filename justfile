@@ -257,11 +257,11 @@ web-whoami:
 web-build:
     npm run --prefix web build
 
-# Check deployment tooling and consent behavior of the built website.
+# Check deployment tooling and browser behavior of the built website.
 web-check: web-build
     python3 -m unittest discover -s scripts -p 'test_web_deploy.py'
     python3 -m unittest discover -s scripts -p 'test_cloudflare_pages_build.py'
-    WEB_TEST_ROOT=dist npm run --prefix web test:consent
+    WEB_TEST_ROOT=dist npm test --prefix web
 
 # Upload a Worker version for preview without changing live traffic.
 web-preview:

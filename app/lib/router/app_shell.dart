@@ -115,6 +115,7 @@ bool _hasRoomForNavigationFooter(
   double availableHeight, {
   required bool rail,
   required bool hasVersion,
+  required bool showFeedback,
   int? destinationCount,
   bool hasCompose = true,
 }) {
@@ -126,7 +127,7 @@ bool _hasRoomForNavigationFooter(
       spacing.sp4;
   final footerHeight =
       2 * _utilityLinkHeight +
-      56 +
+      (showFeedback ? 56 : 0) +
       (hasVersion ? spacing.sp5 * (textScale > 1 ? textScale : 1) : 0) +
       (rail ? spacing.sp3 + spacing.sp2 : spacing.sp4);
   final composeHeight = rail && hasCompose ? spacing.sp8 : 0;
@@ -953,6 +954,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
     final l10n = AppLocalizations.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
+    final showFeedback = theme.platform != TargetPlatform.android;
     return Drawer(
       backgroundColor: swatches.paper3,
       surfaceTintColor: Colors.transparent,
@@ -966,6 +968,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
               constraints.maxHeight,
               rail: false,
               hasVersion: buildVersionLabel != null,
+              showFeedback: showFeedback,
               destinationCount: widget.guest ? 2 : null,
               hasCompose: !widget.guest,
             );
@@ -1077,16 +1080,17 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: () => _openExternalLink(
-                            context,
-                            onOpenFeedback,
+                        if (showFeedback)
+                          OutlinedButton.icon(
+                            onPressed: () => _openExternalLink(
+                              context,
+                              onOpenFeedback,
+                            ),
+                            icon: const Icon(CraftskyIconsBold.comment),
+                            label: Text(l10n.navigationFeedback),
                           ),
-                          icon: const Icon(CraftskyIconsBold.comment),
-                          label: Text(l10n.navigationFeedback),
-                        ),
                         if (buildVersionLabel case final label?) ...[
-                          SizedBox(height: spacing.sp1),
+                          if (showFeedback) SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],
@@ -1253,6 +1257,7 @@ class _ShellNavigationRail extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final showFeedback = theme.platform != TargetPlatform.android;
     return Material(
       color: theme.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
@@ -1265,6 +1270,7 @@ class _ShellNavigationRail extends StatelessWidget {
             constraints.maxHeight,
             rail: true,
             hasVersion: buildVersionLabel != null,
+            showFeedback: showFeedback,
             destinationCount: guest ? 2 : null,
             hasCompose: !guest,
           );
@@ -1380,13 +1386,14 @@ class _ShellNavigationRail extends StatelessWidget {
                           onPressed: () => unawaited(onOpenPrivacy()),
                           child: Text(l10n.navigationPrivacy),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () => unawaited(onOpenFeedback()),
-                          icon: const Icon(CraftskyIconsBold.comment),
-                          label: Text(l10n.navigationFeedback),
-                        ),
+                        if (showFeedback)
+                          OutlinedButton.icon(
+                            onPressed: () => unawaited(onOpenFeedback()),
+                            icon: const Icon(CraftskyIconsBold.comment),
+                            label: Text(l10n.navigationFeedback),
+                          ),
                         if (buildVersionLabel case final label?) ...[
-                          SizedBox(height: spacing.sp1),
+                          if (showFeedback) SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],

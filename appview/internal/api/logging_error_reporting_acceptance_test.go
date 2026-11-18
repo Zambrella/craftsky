@@ -18,6 +18,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 )
@@ -253,5 +254,91 @@ func TestCommandFailureRetainsUnderlyingCause(t *testing.T) {
 	}
 	if response.Code != 503 || strings.Contains(local.String()+string(encoded)+response.Body.String(), "private command intent canary") {
 		t.Fatal("command contract or privacy changed")
+	}
+}
+
+func TestProfilePutRejectionDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, code, stage, reason string
+		status                          int
+	}{
+		{
+			name: "invalid and duplicate links",
+			body: `{"links":[
+				{"url":"https://example.com/private-url-canary","title":"private-title-canary","rkey":"private-rkey-canary","createdAt":"2026-11-17T17:32:00Z"},
+				{"url":"https://example.com/private-url-canary","rkey":"3m5abc2345672","createdAt":"2026-11-17T17:32:00Z"},
+				{"url":"http://example.com/private-url-canary","rkey":"3m5abc2345673","createdAt":"2026-11-17T17:32:00Z"}
+			]}`,
+			status: http.StatusUnprocessableEntity, code: "validation_failed", stage: "validation",
+			reason: "links[0].rkey,links[1].url.duplicate,links[2].url.invalid",
+		},
+		{
+			name: "malformed links",
+			body: `{"links":"private-url-canary"}`, status: http.StatusBadRequest,
+			code: "malformed_body", stage: "decode", reason: "links",
+		},
+		{
+			name: "unknown input key",
+			body: `{"private-key-canary":"private-value-canary"}`, status: http.StatusBadRequest,
+			code: "unexpected_field", stage: "decode",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const owner = "did:plc:profileowner"
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+			observer := observability.New(observability.Config{
+				Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1",
+				SentryTransport: transport, LogsEnabled: true,
+			})
+			commands := &fakeCompoundProfileCommands{}
+			handler := middleware.Logging(logger)(middleware.HTTPMetrics(observer)(
+				api.PutMeProfileHandler(nil, nil, nil, api.DefaultMediaLimits(), logger, commands),
+			))
+			request := authedReq(http.MethodPut, "/v1/profiles/me", tc.body, owner)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			rejection := decodeResponseJSON[envelope.Error](t, response)
+			if response.Code != tc.status || rejection.Error != tc.code || rejection.RequestID == "" ||
+				response.Header().Get("X-Request-ID") != rejection.RequestID || commands.request.Owner != "" {
+				t.Fatalf("unexpected response or command dispatch: %d %s", response.Code, response.Body)
+			}
+
+			if !observer.Flush(time.Second) {
+				t.Fatal("flush failed")
+			}
+			var logs []sentry.Log
+			for _, event := range transport.Events() {
+				if len(event.Exception) != 0 {
+					t.Fatal("expected rejection created a Sentry issue")
+				}
+				for _, log := range event.Logs {
+					if log.Attributes["operation"].AsString() == "profile.update" {
+						logs = append(logs, log)
+					}
+				}
+			}
+			if len(logs) != 1 {
+				t.Fatalf("exported profile rejection logs = %d, want 1", len(logs))
+			}
+			remote, err := json.Marshal(logs[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, output := range []string{local.String(), string(remote)} {
+				for _, expected := range []string{rejection.RequestID, owner, "operation_account_did", tc.stage, tc.code, fmt.Sprint(tc.status)} {
+					if !strings.Contains(output, expected) {
+						t.Errorf("missing %q in %s", expected, output)
+					}
+				}
+				if tc.reason != "" && !strings.Contains(output, tc.reason) {
+					t.Errorf("missing field reasons %q in %s", tc.reason, output)
+				}
+				if strings.Contains(output, "canary") || (tc.reason == "" && strings.Contains(output, "failure_reason")) {
+					t.Errorf("unselected input reached log: %s", output)
+				}
+			}
+		})
 	}
 }

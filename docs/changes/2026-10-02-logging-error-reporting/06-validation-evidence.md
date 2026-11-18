@@ -564,6 +564,19 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
   post-release hosted collection of the new diagnostics remains unverified.
   Flutter and web code were unchanged by this backend pass.
 
+### Profile save rejection diagnostics
+
+AppView emits an expected warning for profile saves rejected during decoding
+or validation. Search for `operation=profile.update` with the request UUID or
+initiating account DID. The warning records the HTTP status, API error code,
+stage and up to eight field paths. Link URL rejections distinguish duplicate
+URLs from invalid URLs. Submitted values and arbitrary input keys are excluded.
+
+The handler fixture passed for local logs and serialized Sentry Logs with
+private-value canaries. The full AppView race and integration suite, 16 Flutter
+profile tests, and Dart analysis passed. Hosted collection remains unverified
+until release.
+
 ## Android video selection diagnostics (18 November 2026)
 
 - The shared Flutter selection controller reports unexpected failures for both

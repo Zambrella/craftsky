@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from cloudflare_pages_build import PUBLIC_FILES, build_site
+from cloudflare_pages_build import PROJECT_SCHEMA_PAGE, PUBLIC_FILES, ROOT, ROUTING_FILES, build_site
 
 
 class CloudflarePagesBuildTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class CloudflarePagesBuildTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.web = Path(self.temp.name)
-        for filename in PUBLIC_FILES:
+        for filename in (*PUBLIC_FILES, *ROUTING_FILES):
             (self.web / filename).write_text(f"public {filename}\n")
         (self.web / "assets").mkdir()
         (self.web / "assets" / "logo.svg").write_text("<svg/>")
@@ -31,12 +31,23 @@ class CloudflarePagesBuildTests(unittest.TestCase):
         (self.web / "dist" / "stale.html").write_text("old")
         output = build_site(self.web, "abc123", True)
         actual = {path.relative_to(output).as_posix() for path in output.rglob("*") if path.is_file()}
-        self.assertEqual(actual, {*PUBLIC_FILES, "assets/logo.svg", "site-release.json"})
+        self.assertEqual(actual, {*PUBLIC_FILES, *ROUTING_FILES, PROJECT_SCHEMA_PAGE,
+                                  "assets/logo.svg", "site-release.json"})
         manifest = json.loads((output / "site-release.json").read_text())
         self.assertEqual(manifest["commit"], "abc123")
         self.assertTrue(manifest["dirty"])
         for name, digest in manifest["files"].items():
             self.assertEqual(digest, hashlib.sha256((output / name).read_bytes()).hexdigest())
+
+    def test_project_schema_is_generated_from_current_lexicons(self):
+        (self.web / PROJECT_SCHEMA_PAGE).write_text("stale diagram")
+        output = build_site(self.web, "abc123", False)
+        html = (output / PROJECT_SCHEMA_PAGE).read_text(encoding="utf-8")
+        data = json.loads(html.split('id="lexicon-data">', 1)[1].split("</script>", 1)[0])
+        source = ROOT / "lexicon/social/craftsky/project/defs.json"
+        expected = json.loads(source.read_text(encoding="utf-8"))["defs"]["projectCommon"]
+        self.assertEqual(data["definitions"]["social.craftsky.project.defs#projectCommon"]["definition"],
+                         expected)
 
     # REG-004 / FR-001, FR-012 / AC-001, AC-015.
     def test_status_is_excluded_across_website_build_and_rollback(self):
@@ -89,7 +100,7 @@ class RepositoryWebsiteSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             web = Path(temporary) / "web"
             web.mkdir()
-            for name in PUBLIC_FILES:
+            for name in (*PUBLIC_FILES, *ROUTING_FILES):
                 shutil.copy2(source / name, web / name)
             shutil.copytree(source / "assets", web / "assets")
             output = build_site(web, "fixture", False)
