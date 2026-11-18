@@ -1,5 +1,9 @@
 # App Changelog
 
+## 1.13.1+20 - 2026-11-18
+
+- fix(navigation): hide feedback links on Android
+
 ## 1.13.0+19 - 2026-11-17
 
 - feat(social): link plain text profile bios
