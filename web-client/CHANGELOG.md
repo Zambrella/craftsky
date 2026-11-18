@@ -1,5 +1,9 @@
 # Web Client Changelog
 
+## 1.13.2 - 2026-11-18
+
+- fix(web-client): reject stale notification badge polls
+
 ## 1.13.1 - 2026-11-18
 
 - test(web-client): unmount profile page before resizing
