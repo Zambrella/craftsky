@@ -1,5 +1,9 @@
 # Web Client Changelog
 
+## 1.13.1 - 2026-11-18
+
+- test(web-client): unmount profile page before resizing
+
 ## 1.13.0 - 2026-11-17
 
 - fix(release): verify guest landing redirects
