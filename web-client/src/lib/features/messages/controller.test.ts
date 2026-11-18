@@ -7,7 +7,6 @@ import {
 	type ChatConversation,
 	type ChatStatus
 } from '#lib/api/client.ts';
-import { MessageDraftStore } from './model';
 import { MessagesController } from './controller';
 class MemoryStorage {
 	values = new Map<string, string>();
@@ -122,7 +121,7 @@ describe('account-owned messaging operations', () => {
 		const send = vi.spyOn(api.chat, 'send');
 		await controller.send();
 		expect(send).not.toHaveBeenCalled();
-		expect(controller.state.draftSaved).toBe(false);
+		expect(controller.state.error).not.toBe('');
 		expect(controller.state.draft.text).toBe('My message');
 	});
 	it('retries an ambiguous request with the same ID and frozen text while keeping newer edits', async () => {
@@ -310,39 +309,22 @@ describe('account-owned messaging operations', () => {
 
 describe('account-owned shared-link recipient selection', () => {
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/post';
-	it('keeps a shared link in memory until an explicit save and never sends', async () => {
+	it('prefills a shared link once without persisting or sending it', async () => {
 		const { api, controller, storage } = setup();
-		const store = new MessageDraftStore(storage, 'account-a');
-		await store.save('existing', { text: 'My draft' });
 		vi.spyOn(api.chat, 'availability').mockResolvedValue({
 			canChat: true,
 			conversationId: 'existing'
 		});
-		const send = vi.spyOn(api.chat, 'send'),
-			start = vi.spyOn(api.chat, 'start');
+		const send = vi.spyOn(api.chat, 'send');
+		const start = vi.spyOn(api.chat, 'start');
 		expect(await controller.start('did:plc:peer', link)).toBe('existing');
-		expect(store.load('existing').text).toBe('My draft');
-		expect(
-			new MessageDraftStore(storage, 'account-b').load('existing')
-		).toEqual({ text: '' });
+		await controller.navigate(['existing']);
+		expect(controller.state.draft.text).toBe(link);
+		expect(storage.values.size).toBe(0);
 		expect(send).not.toHaveBeenCalled();
 		expect(start).not.toHaveBeenCalled();
-	});
-	it('does not require persistence to choose a recipient and retains the saved draft', async () => {
-		const { api, controller, storage } = setup();
-		const store = new MessageDraftStore(storage, 'account-a');
-		await store.save('existing', { text: 'Keep' });
-		vi.spyOn(api.chat, 'availability').mockResolvedValue({
-			canChat: true,
-			conversationId: 'existing'
-		});
-		vi.spyOn(storage, 'setItem').mockImplementation(() => {
-			throw new Error('quota');
-		});
-		expect(await controller.start('did:plc:peer', link)).toBe('existing');
-		expect(store.load('existing').text).toBe('Keep');
-		expect(controller.state.error).toBe('');
-		expect(controller.state.busy).toBe(false);
+		await controller.navigate(['existing'], true);
+		expect(controller.state.draft.text).toBe('');
 	});
 	it('discards a recipient result after the active controller is disposed', async () => {
 		const { api, controller, storage } = setup();

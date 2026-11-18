@@ -1280,14 +1280,16 @@ class ChatSettingsRoute extends GoRouteData with $ChatSettingsRoute {
 }
 
 class ChatConversationRoute extends GoRouteData with $ChatConversationRoute {
-  const new({required this.conversationId});
+  const new({required this.conversationId, this.$extra});
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
   final String conversationId;
+  final ChatLinkPrefill? $extra;
   @override
   Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
     destination: MessagingDestination.conversation,
     conversationId: conversationId,
+    linkPrefill: $extra,
   );
 }
 

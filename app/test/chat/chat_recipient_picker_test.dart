@@ -10,7 +10,6 @@ import 'package:craftsky_app/chat/data/chat_draft_store.dart';
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_conversation_details.dart';
-import 'package:craftsky_app/chat/models/chat_draft.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
@@ -78,13 +77,6 @@ void main() {
         }
         final store = ChatDraftStore(const FlutterSecureStorage());
         await store.initialize({account});
-        for (final id in ['existing', 'new-convo']) {
-          await store.save(
-            store.lease(account),
-            ChatConversationId.parse(id),
-            const ChatDraft.empty().edit('Keep existing draft'),
-          );
-        }
         final search = _Search();
         final messenger = RecordingMessenger();
         final reporter = RecordingErrorReporter();
@@ -303,9 +295,7 @@ void main() {
           expect(opened?.value, searching ? 'new-convo' : 'existing');
           expect(
             (await store.load(store.lease(account), opened!)).composerText,
-            sharing
-                ? 'Keep existing draft\n\nhttps://example.test/exact?x=1'
-                : 'Keep existing draft',
+            isEmpty,
           );
         }
         expect(repository.sends, 0);

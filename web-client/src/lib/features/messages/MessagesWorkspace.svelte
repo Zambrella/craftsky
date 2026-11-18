@@ -3,7 +3,6 @@
 	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
 	let inboxNode = $state<HTMLElement>();
 
-	import { confirmNavigation } from '../social/navigation-prompt';
 	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import SingleSelect from '#lib/SingleSelect.svelte';
@@ -45,20 +44,6 @@
 	} = $props();
 	let controller = $state<MessagesController>();
 	let viewState = $state<MessagesState>();
-	confirmNavigation(
-		() =>
-			!!viewState &&
-			!viewState.draftSaved &&
-			!!viewState.draft.text &&
-			viewState.draft.text !== viewState.draft.pending?.text,
-		{
-			title: 'Discard unsaved message?',
-			detail:
-				'Choose Save draft before leaving to keep your text on this device.',
-			confirmLabel: 'Discard',
-			danger: true
-		}
-	);
 	const settingsGate = $derived(
 		viewState?.view === 'settings' ||
 			['disabled', 'authorizationNeeded'].includes(
@@ -732,7 +717,7 @@
 				class:error={!sharedLink}
 			>
 				{sharedLink
-					? 'Choose someone to send this link to. It will be added to your draft for review.'
+					? 'Choose someone to send this link to. You can review the link before sending.'
 					: 'Open the original CraftSky content to share this link.'}
 			</p>{/if}
 		<form
@@ -972,7 +957,7 @@
 							{viewState.draft.pending.state === 'pending'
 								? 'Sending…'
 								: viewState.draft.pending.state === 'failed'
-									? 'This message was not sent. Your draft is kept.'
+									? 'This message was not sent.'
 									: 'Delivery has not been confirmed. Your text is kept.'}
 						</p>
 						{#if viewState.draft.pending.state === 'uncertain'}<div
@@ -988,8 +973,7 @@
 								>
 							</div>{:else if viewState.draft.pending.state === 'failed'}<button
 								disabled={viewState.busy}
-								onclick={() => controller?.dismissFailed()}
-								>Keep draft and edit</button
+								onclick={() => controller?.dismissFailed()}>Edit message</button
 							>{/if}
 					</article>{/if}
 			</div>
@@ -1013,16 +997,6 @@
 					</div>
 				</div>{/if}
 
-			{#if !viewState.draftSaved}<div class="feedback error" role="alert">
-					<p>
-						Your changes are not saved. Choose Save draft to keep them on this
-						device.
-					</p>
-					<button
-						disabled={viewState.busy || !!viewState.draft.pending}
-						onclick={() => controller?.saveDraft()}>Save draft</button
-					>
-				</div>{/if}
 			{#if !viewState.peerBlocked && viewState.conversation.canSend && viewState.status.capabilities.canSend}<form
 					class="message-composer"
 					onsubmit={(event) => {
@@ -1265,10 +1239,6 @@
 		flex: none;
 		font-size: 14px;
 		line-height: 1.5;
-	}
-	.feedback.error {
-		background: var(--red-soft);
-		color: var(--red-ink);
 	}
 	.empty {
 		display: flex;
@@ -1823,8 +1793,7 @@
 	.pending-message .action-row {
 		flex-wrap: wrap;
 	}
-	.action-row button,
-	.feedback button {
+	.action-row button {
 		font: inherit;
 		font-size: 14px;
 		padding: 10px 12px;

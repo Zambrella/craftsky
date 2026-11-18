@@ -70,7 +70,6 @@ final class ChatConversationController extends ChangeNotifier {
   bool _disposed = false;
   bool _draftLoaded = false;
   int _contentEpoch = 0;
-  Timer? _saveTimer;
   bool _foreground = false;
   bool _reading = false;
   ChatMessage? _lastRead;
@@ -455,11 +454,6 @@ final class ChatConversationController extends ChangeNotifier {
     // Treat input as an edit of the visible composer, including typing the
     // same text as the pending message into the newly cleared input.
     _publish(() => draft = draft.edit(draft.composerText).edit(text));
-    _saveTimer?.cancel();
-    _saveTimer = Timer(
-      const Duration(milliseconds: 250),
-      () => unawaited(flush()),
-    );
   }
 
   Future<bool> _persist(ChatDraft snapshot, {bool reportFailure = true}) async {
@@ -476,24 +470,32 @@ final class ChatConversationController extends ChangeNotifier {
     }
   }
 
-  Future<void> flush() async {
-    _saveTimer?.cancel();
-    if (!_draftLoaded) return;
-    await _persist(draft);
-  }
-
-  Future<bool> prefillLink(String url) async {
+  bool prefillLink(String url) {
     if (!_current || loading || left || conversation == null) return false;
     final text = draft.composerText;
     edit(text.isEmpty ? url : '$text\n\n$url');
-    await flush();
-    return _current && !saveFailed;
+    return true;
   }
 
-  Future<void> discardDraft() async {
-    if (!_current || busy || !_draftLoaded) return;
-    _publish(() => draft = draft.discard());
-    await flush();
+  void clearComposer() {
+    if (!_current) return;
+    draft = draft.withoutUnsentText();
+  }
+
+  Future<void> discardMessage() async {
+    final attempt = draft.pending;
+    if (!_current || busy || attempt == null) return;
+    _publish(() => busy = true);
+    try {
+      if (await _persist(const ChatDraft.empty())) {
+        _publish(() {
+          final text = draft.revision == attempt.revision ? '' : draft.text;
+          draft = draft.releaseAttempt().edit(text);
+        });
+      }
+    } finally {
+      _publish(() => busy = false);
+    }
   }
 
   void _resolveReceipt(ChatReceipt receipt) {
@@ -652,9 +654,6 @@ final class ChatConversationController extends ChangeNotifier {
   @override
   void dispose() {
     if (_disposed) return;
-    _saveTimer?.cancel();
-    // Keep local text on navigation. Logout invalidates this storage lease.
-    if (_draftLoaded) unawaited(_persist(draft));
     _disposed = true;
     history = const ChatHistory.empty();
     conversation = null;

@@ -119,7 +119,7 @@ These are package-specific historical limits and questions. Check later evidence
 
 | Change | Implementation | Archive | Other topics | Summary |
 | --- | --- | --- | --- | --- |
-| [Private Bluesky messaging and foreground synchronization](catalog/2026-10-18-direct-messaging.md) | implemented | archived | privacy, synchronization | This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. |
+| [Private Bluesky messaging and foreground synchronization](catalog/2026-10-18-direct-messaging.md) | implemented | archived | privacy, synchronization | This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Both composers keep unsent text in memory while open. Only submitted attempts use device-local delivery recovery. |
 
 ## comments
 

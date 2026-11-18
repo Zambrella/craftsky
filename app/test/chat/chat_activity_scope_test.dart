@@ -62,7 +62,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Messages may be out of date. Your loaded messages and draft are kept.',
+        'Messages may be out of date. '
+        'Your loaded messages and current text are kept.',
       ),
       findsNothing,
     );
@@ -87,7 +88,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Messages may be out of date. Your loaded messages and draft are kept.',
+        'Messages may be out of date. '
+        'Your loaded messages and current text are kept.',
       ),
       findsNothing,
     );

@@ -49,7 +49,6 @@ export interface MessagesState {
 	messages: ChatMessage[];
 	historyCursor?: string | null;
 	draft: MessageDraft;
-	draftSaved: boolean;
 	recipients: Author[];
 	recipientCursor?: string | null;
 	policy?: ChatIncomingSetting;
@@ -69,7 +68,6 @@ const initial = (): MessagesState => ({
 	peerBlocked: false,
 	messages: [],
 	draft: { text: '' },
-	draftSaved: true,
 	recipients: []
 });
 const accessDenied = (error: unknown): boolean =>
@@ -88,7 +86,7 @@ const errorMessage = (error: unknown): string =>
 		? 'This person cannot receive a new message from you right now.'
 		: userErrorMessage(error);
 
-/** One immutable account activation owns all async results, drafts and polling. */
+/** One immutable account activation owns all async results, composition and polling. */
 export class MessagesController {
 	state = initial();
 	private epoch = 0;
@@ -193,24 +191,21 @@ export class MessagesController {
 					if (details.conversation.id !== id)
 						throw new Error('Invalid conversation response');
 					let draft: MessageDraft = { text: '' };
-					let draftSaved = true;
 					try {
 						draft = this.store.load(id);
-						const link = takeSharedLink(this.account, id);
-						if (link) {
-							draft = prefillSharedLink(draft, link);
-							draftSaved = false;
-						}
 					} catch (error) {
 						void reportFailure(error, 'messages.draft.load');
-						draftSaved = false;
 					}
+					const link =
+						view === 'conversation'
+							? takeSharedLink(this.account, id)
+							: undefined;
+					if (link) draft = prefillSharedLink(draft, link);
 					this.update({
 						conversation: details.conversation,
 						messages: mergeMessages([], details.messages.items),
 						historyCursor: details.messages.cursor,
-						draft,
-						draftSaved
+						draft
 					});
 					if (view === 'report')
 						this.update({ report: this.store.loadReport(id, parts[2]) });
@@ -372,29 +367,7 @@ export class MessagesController {
 	}
 	edit(text: string): void {
 		if (!this.state.id) return;
-		this.update({ draft: { ...this.state.draft, text }, draftSaved: false });
-	}
-	async saveDraft(): Promise<boolean> {
-		const { id, draft } = this.state,
-			epoch = this.epoch;
-		if (!id || this.state.busy || draft.pending) return false;
-		this.update({ busy: true });
-		try {
-			await this.store.save(id, draft);
-			if (this.current(epoch))
-				this.update({
-					draftSaved: this.state.draft.text === draft.text,
-					notice: 'Draft saved on this device.'
-				});
-			return true;
-		} catch (error) {
-			void reportFailure(error, 'messages.draft.save');
-			if (this.current(epoch))
-				this.update({ error: userErrorMessage(error), draftSaved: false });
-			return false;
-		} finally {
-			if (this.current(epoch)) this.update({ busy: false });
-		}
+		this.update({ draft: { ...this.state.draft, text } });
 	}
 	private async setDraft(draft: MessageDraft): Promise<boolean> {
 		const epoch = this.epoch,
@@ -402,21 +375,11 @@ export class MessagesController {
 			textBefore = this.state.draft.text;
 		if (!id) return false;
 		try {
-			// Recovery stores only the submitted text; subsequent typing remains unsaved.
-			await this.store.save(
-				id,
-				draft.pending
-					? { text: draft.pending.text, pending: draft.pending }
-					: { text: '' }
-			);
+			await this.store.save(id, draft);
 			if (!this.current(epoch)) return false;
 			if (this.state.draft.text !== textBefore)
 				draft = { ...draft, text: this.state.draft.text };
-			this.update({
-				draft,
-				draftSaved:
-					!draft.text || (!!draft.pending && draft.text === draft.pending.text)
-			});
+			this.update({ draft });
 			return true;
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error, 'messages.draft.save');
@@ -509,14 +472,6 @@ export class MessagesController {
 			await this.setDraft({
 				text: this.state.draft.text || this.state.draft.pending.text
 			});
-	}
-	async discardDraft(): Promise<void> {
-		if (
-			this.state.draft.pending?.state === 'uncertain' ||
-			this.state.draft.pending?.state === 'pending'
-		)
-			return;
-		await this.setDraft({ text: '' });
 	}
 	private async refreshContent(epoch: number): Promise<void> {
 		const { id } = this.state;
