@@ -287,7 +287,7 @@
 				{api}
 				{session}
 			/>
-		{:else if section === 'instagram'}<Instagram {api} />
+		{:else if section === 'instagram'}<Instagram {api} {session} />
 		{:else if ['business', 'products', 'events'].includes(section)}<Business
 				{api}
 				{session}

@@ -52,6 +52,10 @@
 		publicationsContext
 	} from '../social/publications.svelte';
 	import { reportFailure } from '../diagnostics/client.ts';
+	import {
+		clearInstagramPostSession,
+		useInstagramPostSession
+	} from '../settings/instagram-post-session';
 	import { expectedFailure } from '../diagnostics/privacy.ts';
 	import { APITransport } from '#lib/api/transport.ts';
 	let {
@@ -66,6 +70,12 @@
 	const publications = new Publications(untrack(() => session.did));
 	setContext(publicationsContext, publications);
 	onDestroy(() => publications.dispose());
+	onDestroy(clearInstagramPostSession);
+	$effect(() => {
+		// Only an account/session change releases the ZIP. SvelteKit may replace
+		// the session object with the same values when navigating to a composer.
+		useInstagramPostSession(`${session.id}:${session.did}`);
+	});
 	setContext('craftsky-open-accounts', () => openAccounts());
 	const pageHistory = new PageHistory();
 	setContext(pageHistoryContext, pageHistory);

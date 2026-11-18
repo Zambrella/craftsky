@@ -1,8 +1,34 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { assertOwner, drafts, newDraft } from './store.ts';
+import { assertOwner, decodeDraft, drafts, newDraft } from './store.ts';
 
 describe('private draft storage', () => {
+	it('recovers import source identity with its frozen request and rejects damaged import metadata', async () => {
+		const draft = newDraft(`did:plc:${crypto.randomUUID()}`);
+		draft.instagramImport = {
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		};
+		draft.pending = {
+			key: crypto.randomUUID(),
+			kind: 'create',
+			body: { instagramImport: { ...draft.instagramImport } }
+		};
+		await drafts.save(draft.owner, draft);
+		const recovered = await drafts.get(draft.owner, draft.id);
+		expect(recovered?.instagramImport).toEqual(draft.instagramImport);
+		expect(recovered?.pending).toEqual(draft.pending);
+		for (const instagramImport of [
+			null,
+			{},
+			{ sourceKey: 'bad', createdAt: draft.instagramImport.createdAt },
+			{ sourceKey: draft.instagramImport.sourceKey, createdAt: 'bad' }
+		]) {
+			expect(() =>
+				decodeDraft({ ...draft, instagramImport }, draft.owner)
+			).toThrow('saved Instagram import');
+		}
+	});
 	it('atomically clears only the deleted account, retaining other owners and rolling back an aborted cleanup', async () => {
 		const owner = `did:plc:${crypto.randomUUID()}`,
 			other = `did:plc:${crypto.randomUUID()}`;

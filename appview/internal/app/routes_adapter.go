@@ -125,6 +125,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		InstagramSuggestions:        deps.InstagramSuggestions,
 		InstagramAccount:            deps.InstagramAccount,
 		InstagramImports:            deps.InstagramImports,
+		InstagramPostImports:        deps.InstagramPostImports,
 		ProfileStore:                deps.ProfileStore,
 		FollowerGrowth:              deps.FollowerGrowthStore,
 		ProfileCustomisationStore:   deps.ProfileCustomisationStore,

@@ -22,6 +22,7 @@ type instagramStorageDependencies struct {
 	moderationRestoration *instagram.ModerationRestorationRelay
 	moderationStore       *api.ModerationStore
 	privateSuggestions    *instagram.PrivateSuggestionStore
+	postImports           *instagram.PostImportStore
 }
 
 func newInstagramStorageDependencies(
@@ -76,5 +77,6 @@ func newInstagramStorageDependencies(
 		rateLimiter: rateLimiter, privateData: privateData,
 		restoration: restoration, moderationRestoration: moderationRestoration,
 		moderationStore: moderationStore, privateSuggestions: privateSuggestions,
+		postImports: instagram.NewPostImportStore(pool),
 	}, nil
 }

@@ -42,6 +42,8 @@ export interface Draft {
 	text: string;
 	langs: string[];
 	sponsored: boolean;
+	/** Local import handoff and durable recovery; never a public source identifier. */
+	instagramImport?: { sourceKey: string; createdAt: string };
 	project?: JsonObject;
 	images: DraftMedia[];
 	video?: DraftMedia;
@@ -274,6 +276,14 @@ export function decodeDraft(value: unknown, owner: string): Draft {
 		(draft.revision !== undefined && typeof draft.revision !== 'string')
 	)
 		throw new UserFacingError('This saved draft could not be read.');
+	if (
+		draft.instagramImport !== undefined &&
+		(!object(draft.instagramImport) ||
+			!/^[0-9a-f]{32}$/.test(draft.instagramImport.sourceKey) ||
+			typeof draft.instagramImport.createdAt !== 'string' ||
+			!Number.isFinite(Date.parse(draft.instagramImport.createdAt)))
+	)
+		throw new UserFacingError('This saved Instagram import could not be read.');
 	if (draft.pending) {
 		const p = draft.pending;
 		if (

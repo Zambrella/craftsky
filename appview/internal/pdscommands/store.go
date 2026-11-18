@@ -184,13 +184,22 @@ func (store *Store) PrepareOrReplayWithSelection(
 	if selectIdentity == nil {
 		return PreparedCommand{}, errors.New("command identity selector is unavailable")
 	}
+	return store.prepareOrReplay(ctx, request, func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error) { return selectIdentity() })
+}
+
+// PrepareOrReplayWithTransactionalSelection also permits a domain-specific
+// create identity to be reserved atomically with first command preparation.
+func (store *Store) PrepareOrReplayWithTransactionalSelection(ctx context.Context, request PrepareRequest, selectIdentity func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error)) (PreparedCommand, error) {
+	if selectIdentity == nil {
+		return PreparedCommand{}, errors.New("command identity selector is unavailable")
+	}
 	return store.prepareOrReplay(ctx, request, selectIdentity)
 }
 
 func (store *Store) prepareOrReplay(
 	ctx context.Context,
 	request PrepareRequest,
-	selectIdentity func() (syntax.ATURI, syntax.RecordKey, error),
+	selectIdentity func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error),
 ) (PreparedCommand, error) {
 	if request.Owner == "" || request.OwnerGeneration < 1 || request.OperationKind == "" ||
 		request.OperationKey == uuid.Nil || request.FingerprintVersion < 1 || !json.Valid(request.ImmutableRequest) {
@@ -231,7 +240,7 @@ func (store *Store) prepareOrReplay(
 					return fmt.Errorf("check existing PDS command: %w", err)
 				}
 				if !exists {
-					selectedURI, selectedRkey, err := selectIdentity()
+					selectedURI, selectedRkey, err := selectIdentity(operationCtx, tx)
 					if err != nil {
 						return err
 					}

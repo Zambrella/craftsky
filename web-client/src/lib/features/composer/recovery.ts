@@ -50,6 +50,7 @@ export class ComposerRecovery {
 			sponsored: value.sponsored,
 			kind: value.kind,
 			project: value.project,
+			instagramImport: value.instagramImport,
 			images: value.images.map(media),
 			video: media(value.video),
 			external: value.external,

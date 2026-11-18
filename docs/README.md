@@ -16,7 +16,7 @@ Start with the [repository README](../README.md) for the product and quick start
 | Guide | Covers |
 | --- | --- |
 | [Flutter client](../app/README.md) | SDK, local configuration, devices, and OAuth links |
-| [SvelteKit client](../web-client/README.md) | Guest and signed-in browser UI, Worker sessions, local fixture gates and live smoke tests |
+| [SvelteKit client](../web-client/README.md) | Guest and signed-in browser UI, Worker sessions, local Instagram post imports, fixture gates and live smoke tests |
 | [AppView](../appview/README.md) | Compose, backend ownership, tests, and OAuth debugging |
 | [Website](../web/README.md) | Local serving, browser checks, and static build |
 | [Statistics website](../stats/README.md) | Local API proxy, aggregate rendering and browser fixture checks |

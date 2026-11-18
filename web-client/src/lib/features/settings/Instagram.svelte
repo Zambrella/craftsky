@@ -24,7 +24,10 @@
 	import SettingsIcon from './SettingsIcon.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
-	let { api }: { api: CraftskyAPI } = $props();
+	import InstagramPosts from './InstagramPosts.svelte';
+	import { clearInstagramPostSession } from './instagram-post-session';
+	import type { Session } from './model';
+	let { api, session }: { api: CraftskyAPI; session: Session } = $props();
 	const work = new Work('settings.Instagram.action');
 	let loaded = $state(false);
 	let loadingImports = $state(false),
@@ -100,6 +103,12 @@
 		loaded = true;
 		available = data.account.integrationAvailable;
 		account = data.account.account;
+		if (
+			account?.state !== 'active' ||
+			account.conflictPending ||
+			account.reactivationRequired
+		)
+			clearInstagramPostSession();
 		const previous = verification;
 		verification = data.verification.verification;
 		if (
@@ -283,7 +292,7 @@
 	});
 </script>
 
-<h1 class="workspace-heading">Find people from Instagram</h1>
+<h1 class="workspace-heading">Instagram</h1>
 <Feedback {work} reload={load} />
 {#if !work.loading && loaded}
 	{#if !available}<p class="notice">
@@ -431,6 +440,16 @@
 					onclick={verify}>Create verification challenge</button
 				>{/if}{/if}
 	</section>
+	{#if account?.state === 'active' && !account.conflictPending && !account.reactivationRequired}
+		<InstagramPosts
+			{api}
+			owner={session.did}
+			sessionId={session.id || session.did}
+		/>
+	{:else}<p class="muted">
+			Complete Instagram verification and resolve any account conflict to import
+			posts and projects.
+		</p>{/if}
 	{#if !account}<p class="muted">
 			Complete verification to import the accounts you follow.
 		</p>{:else}
