@@ -77,7 +77,7 @@ These are package-specific historical limits and questions. Check later evidence
 - [Account hosting and provider-management settings](catalog/2026-11-12-account-provider-settings.md) (implemented, archived): The single-file record contains no complete validation/deployment transcript; consult current checks before release assertions.
 - [Account-owned subscriptions, Stripe checkout and promotional access](catalog/2026-11-13-per-did-subscriptions.md) (implemented, active): Production deployment and integration activation remain separate release steps.; Real-device native purchases, cross-provider ownership and live application checkout require separate acceptance evidence.
 - [Business parity and subscription lifecycle review](catalog/2026-11-16-business-subscription-review.md) (implemented, active): Physical store purchase/restore validation and Android device UI remain release checks; this review does not deploy or verify production webhook delivery.
-- [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) (proposed, active): Design acceptance tests for the reviewed requirements and both release phases.; Verify scalar-size publishing and editing with legacy mobile and web builds before enabling plural-list writes.
+- [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) (proposed, active): Use the revised acceptance test specification for coding planning once the maintainer requests it.; Verify scalar-size publishing and editing with legacy mobile and web builds before enabling plural-list writes.
 
 ## account-isolation
 

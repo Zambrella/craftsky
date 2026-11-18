@@ -14,10 +14,14 @@
     "docs/development/search-fields.md"
   ],
   "code": ["appview/internal/projectcatalog", "lexicon/social/craftsky/project"],
-  "evidence": ["docs/changes/2026-11-20-project-craft-schema/01-requirements.md"],
+  "evidence": [
+    "docs/changes/2026-11-20-project-craft-schema/01-requirements.md",
+    "docs/changes/2026-11-20-project-craft-schema/02-acceptance-tests.md",
+    "docs/changes/2026-11-20-project-craft-schema/03-document-review.md"
+  ],
   "supersededBy": [],
   "followUps": [
-    "Design acceptance tests for the reviewed requirements and both release phases.",
+    "Use the revised acceptance test specification for coding planning once the maintainer requests it.",
     "Verify scalar-size publishing and editing with legacy mobile and web builds before enabling plural-list writes."
   ]
 }
@@ -27,4 +31,6 @@
 
 Phase 1 retains shared design tags, adds craft-specific suggestions and techniques, and defines additive string lists for needle and hook sizes with scalar-size compatibility. Phase 2 adds six primary crafts and extends the editors, profile interests, onboarding and discovery across AppView, Flutter and Svelte.
 
-The [requirements](../2026-11-20-project-craft-schema/01-requirements.md) record the maintainer's decisions, starter vocabulary and remaining rollout checks. Scheduling covers the current authoring and publication flow. The scalar-size compatibility requirement applies to public posts and saved local drafts.
+The [requirements](../2026-11-20-project-craft-schema/01-requirements.md) record the maintainer's decisions, starter vocabulary and remaining rollout checks. Scheduling covers the current authoring and publication flow. The scalar-size compatibility requirement applies to public posts and saved local drafts. The [acceptance test specification](../2026-11-20-project-craft-schema/02-acceptance-tests.md) maps those decisions to client scenarios, AppView integration coverage and rollout checks.
+
+The [document review](../2026-11-20-project-craft-schema/03-document-review.md) identified five gaps. The revised acceptance test specification adds the assertions and maps each finding to its updated test.
