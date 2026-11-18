@@ -945,6 +945,28 @@ void main() {
     );
   });
 
+  for (final wide in [false, true]) {
+    testWidgets('Android hides Feedback in the ${wide ? 'rail' : 'drawer'}', (
+      tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        wide ? const Size(1200, 720) : const Size(500, 670),
+        platform: TargetPlatform.android,
+      );
+      if (!wide) {
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.byType(wide ? NavigationRail : Drawer), findsOneWidget);
+      expect(find.text('Feedback'), findsNothing);
+      expect(find.text('Terms'), findsOneWidget);
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.text('1.0.0 (1)'), findsOneWidget);
+    });
+  }
+
   testWidgets('UIP-008 build version appears below Feedback', (tester) async {
     await _pumpShell(tester, const Size(500, 800));
     await tester.tap(find.byTooltip('Open navigation menu'));
@@ -1314,6 +1336,7 @@ Future<GoRouter> _pumpShell(
   TextScaler? textScaler,
   RecordingMessenger? messenger,
   ThemeMode themeMode = ThemeMode.light,
+  TargetPlatform platform = TargetPlatform.iOS,
   bool wrapInAuthenticatedShell = false,
   VoidCallback? onFeedLoad,
   ChatRepository? chatRepository,
@@ -1449,8 +1472,8 @@ Future<GoRouter> _pumpShell(
       ],
       child: MaterialApp.router(
         routerConfig: router,
-        theme: AppTheme.lightThemeData,
-        darkTheme: AppTheme.darkThemeData,
+        theme: AppTheme.lightThemeData.copyWith(platform: platform),
+        darkTheme: AppTheme.darkThemeData.copyWith(platform: platform),
         themeMode: themeMode,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
