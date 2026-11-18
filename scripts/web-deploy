@@ -16,7 +16,7 @@ from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from cloudflare_pages_build import ROOT, ROUTES, git
+from cloudflare_pages_build import PROJECT_SCHEMA_PAGE, ROOT, ROUTES, ROUTING_FILES, git
 
 
 def require_production_checkout(branch: str) -> None:
@@ -45,15 +45,18 @@ def output_record(path: Path, kind: str) -> dict:
 
 def verify_once(origin: str, output: Path) -> None:
     manifest = json.loads((output / "site-release.json").read_text())
-    # Verify the marker and every deployed file, using clean URLs for HTML pages.
+    # Cloudflare consumes routing files at upload. Verify their effect via the public routes.
     paths = {"/site-release.json": "site-release.json", **ROUTES}
-    paths.update({"/" + name: name for name in manifest["files"] if name not in ROUTES.values()})
+    paths.update({"/" + name: name for name in manifest["files"]
+                  if name not in ROUTES.values() and name not in ROUTING_FILES})
     for route, filename in paths.items():
         request = Request(origin.rstrip("/") + route, headers={
             "Cache-Control": "no-cache",
             "User-Agent": "CraftSky-Website-Deploy/1.0",
         })
         with urlopen(request, timeout=15) as response:
+            if filename == PROJECT_SCHEMA_PAGE and response.geturl() != request.full_url:
+                raise ValueError(f"unexpected redirect at {request.full_url}")
             actual = response.read()
         if hashlib.sha256(actual).digest() != hashlib.sha256((output / filename).read_bytes()).digest():
             raise ValueError(f"deployed content differs at {origin}{route}")

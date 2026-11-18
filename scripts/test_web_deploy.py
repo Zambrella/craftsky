@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from cloudflare_pages_build import PUBLIC_FILES, ROUTES, build_site
+from cloudflare_pages_build import PROJECT_SCHEMA_PAGE, PUBLIC_FILES, ROUTES, ROUTING_FILES, build_site
 
 loader = importlib.machinery.SourceFileLoader("web_deploy", str(Path(__file__).with_name("web-deploy")))
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -38,23 +38,33 @@ class WebDeployTests(unittest.TestCase):
     def test_verification_checks_clean_policy_routes_and_rejects_stale_content(self):
         with tempfile.TemporaryDirectory() as temporary:
             web = Path(temporary)
-            for name in PUBLIC_FILES:
+            for name in (*PUBLIC_FILES, *ROUTING_FILES):
                 (web / name).write_text(name)
             output = build_site(web, "commit", False)
             requested = []
+
+            redirect_schema = False
 
             def respond(request, timeout):
                 self.assertEqual(request.get_header("User-agent"), "CraftSky-Website-Deploy/1.0")
                 route = request.full_url.removeprefix("https://test.workers.dev")
                 requested.append(route)
                 name = ROUTES.get(route, route.lstrip("/"))
-                return io.BytesIO((output / name).read_bytes())
+                response = io.BytesIO((output / name).read_bytes())
+                response.geturl = lambda: request.full_url.removesuffix(".html") if redirect_schema else request.full_url
+                return response
 
             with mock.patch.object(deploy, "urlopen", side_effect=respond):
                 deploy.verify_once("https://test.workers.dev", output)
             self.assertIn("/privacy", requested)
             self.assertIn("/terms", requested)
             self.assertIn("/styles.css", requested)
+            self.assertIn(f"/{PROJECT_SCHEMA_PAGE}", requested)
+            self.assertNotIn("/_redirects", requested)
+            redirect_schema = True
+            with mock.patch.object(deploy, "urlopen", side_effect=respond):
+                with self.assertRaisesRegex(ValueError, f"unexpected redirect.*{PROJECT_SCHEMA_PAGE}"):
+                    deploy.verify_once("https://test.workers.dev", output)
             with mock.patch.object(deploy, "urlopen", return_value=io.BytesIO(b"stale deployment")):
                 with self.assertRaisesRegex(ValueError, "content differs"):
                     deploy.verify_once("https://test.workers.dev", output)
@@ -76,7 +86,7 @@ class WebDeployTests(unittest.TestCase):
             root = Path(temporary)
             web = root / "web"
             web.mkdir()
-            for name in PUBLIC_FILES:
+            for name in (*PUBLIC_FILES, *ROUTING_FILES):
                 (web / name).write_text(name)
             (web / "deploy.json").write_text(json.dumps({
                 "productionBranch": "main",
@@ -86,13 +96,12 @@ class WebDeployTests(unittest.TestCase):
             wrangler = web / "node_modules" / ".bin" / "wrangler"
             wrangler.parent.mkdir(parents=True)
             wrangler.touch()
+            build_site(web, "commit", dirty)
             calls = []
 
             def run(command, **kwargs):
                 calls.append(command)
-                if command == ["just", "web-check"]:
-                    build_site(web, "commit", dirty)
-                elif "upload" in command:
+                if "upload" in command:
                     self.assertEqual(kwargs["env"]["CLOUDFLARE_ACCOUNT_ID"], "test-account")
                     Path(kwargs["env"]["WRANGLER_OUTPUT_FILE_PATH"]).write_text(json.dumps({
                         "type": "version-upload", "worker_name": "craftsky-landing",
@@ -128,6 +137,7 @@ class WebDeployTests(unittest.TestCase):
                 else:
                     self.assertEqual(deploy.main(), 0)
             upload = next(command for command in calls if "upload" in command)
+            self.assertLess(calls.index(["just", "web-check"]), calls.index(upload))
             self.assertEqual(upload[upload.index("--name") + 1], "craftsky-landing")
             self.assertEqual(upload[upload.index("--preview-alias") + 1], "preview-feature")
             self.assertIn("commit-dirty" if dirty else "commit", upload)
@@ -153,7 +163,7 @@ class WebDeployTests(unittest.TestCase):
     def test_modified_or_extra_artifact_files_prevent_upload(self):
         with tempfile.TemporaryDirectory() as temporary:
             web = Path(temporary)
-            for name in PUBLIC_FILES:
+            for name in (*PUBLIC_FILES, *ROUTING_FILES):
                 (web / name).write_text(name)
             output = build_site(web, "commit", False)
             manifest = json.loads((output / "site-release.json").read_text())

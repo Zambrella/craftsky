@@ -83,7 +83,7 @@ jobs:
                 ;;
             esac
             case "$path" in
-              web/*|scripts/cloudflare_pages_build.py|scripts/test_cloudflare_pages_build.py|scripts/web-deploy|scripts/test_web_deploy.py|justfile|.github/workflows/*)
+              web/*|lexicon/*|scripts/project-schema-diagram.py|scripts/project-schema/*|scripts/cloudflare_pages_build.py|scripts/test_cloudflare_pages_build.py|scripts/web-deploy|scripts/test_web_deploy.py|justfile|.github/workflows/*)
                 website=true
                 ;;
             esac
