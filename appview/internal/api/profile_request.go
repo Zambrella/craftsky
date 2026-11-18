@@ -179,6 +179,8 @@ func ValidateProfilePut(req ProfilePutRequest) error {
 	return ValidateProfilePutWithLimits(req, DefaultMediaLimits())
 }
 
+const duplicateProfileLink = "duplicate link"
+
 func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) error {
 	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
@@ -197,7 +199,7 @@ func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) err
 				fields[prefix+".url"] = "must be a normalized HTTPS URL without a URL shortener"
 			}
 			if seen[normalized] {
-				fields[prefix+".url"] = "duplicate link"
+				fields[prefix+".url"] = duplicateProfileLink
 			}
 			seen[normalized] = true
 			if len(link.Title) > 320 || uniseg.GraphemeClusterCount(link.Title) > 40 {
