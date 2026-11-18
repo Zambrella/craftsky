@@ -432,6 +432,9 @@ test('profile header collapses to a readable identity and retains Back navigatio
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await expect(page.locator('.profile-compact-header')).toHaveCount(0);
 
+	// Unmount the mobile page before resizing: mounting its desktop sidebar
+	// here can start a request just as the next navigation replaces the document.
+	await page.goto('about:blank');
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await settleAccountView(page, '/profiles/alice.test?tab=posts');
 	await page.evaluate(() => window.scrollTo(0, 500));
