@@ -141,10 +141,12 @@ final class FileLocalPostDraftRepository
       final retainedVideoFiles = {
         ?nextVideo?.sourceStorageFileName,
         ?nextVideo?.posterStorageFileName,
+        ?nextVideo?.thumbnailStorageFileName,
       };
       for (final fileName in {
         ?current?.video?.sourceStorageFileName,
         ?current?.video?.posterStorageFileName,
+        ?current?.video?.thumbnailStorageFileName,
       }.difference(retainedVideoFiles)) {
         try {
           await _files.deleteFile(
@@ -318,6 +320,14 @@ final class FileLocalPostDraftRepository
   }
 
   @override
+  Future<Uint8List?> readVideoThumbnail(String draftId) async {
+    final descriptor = (await get(draftId)).video;
+    final name = descriptor?.thumbnailStorageFileName;
+    if (name == null) return null;
+    return await _files.readBytes(await _verifiedMediaPath(draftId, name));
+  }
+
+  @override
   Future<Uint8List> readVideoPoster(String draftId) async {
     try {
       final draft = await get(draftId);
@@ -412,7 +422,17 @@ final class FileLocalPostDraftRepository
         video.posterByteLength,
         video.posterSha256,
       );
-      final available = sourceAvailable && posterAvailable;
+      final thumbnail = video.thumbnailStorageFileName;
+      final thumbnailAvailable =
+          thumbnail == null ||
+          await _matchesFile(
+            draft.id,
+            thumbnail,
+            video.thumbnailByteLength!,
+            video.thumbnailSha256!,
+          );
+      final available =
+          sourceAvailable && posterAvailable && thumbnailAvailable;
       if (!available) draftAvailable = false;
       verifiedVideo = video.withAvailability(
         available
@@ -442,6 +462,7 @@ final class FileLocalPostDraftRepository
       for (final descriptor in draft.media) descriptor.storageFileName,
       ?draft.video?.sourceStorageFileName,
       ?draft.video?.posterStorageFileName,
+      ?draft.video?.thumbnailStorageFileName,
     };
     for (final filePath in await _files.listChildFiles(mediaDirectory)) {
       if (!_isDirectChild(mediaDirectory, filePath)) continue;
@@ -522,6 +543,12 @@ final class FileLocalPostDraftRepository
             DraftRepositoryFailureReason.invalidRequest,
           );
         }
+        final thumbnail = await _writeVideoThumbnail(
+          request.id,
+          write.thumbnail,
+          newlyWritten,
+          stored,
+        );
         return VideoDraftDescriptor(
           storageRevision: stored.storageRevision,
           sourceStorageFileName: stored.sourceStorageFileName,
@@ -532,12 +559,16 @@ final class FileLocalPostDraftRepository
           sourceSha256: stored.sourceSha256,
           posterByteLength: stored.posterByteLength,
           posterSha256: stored.posterSha256,
+          thumbnailFrame: write.thumbnailFrame,
+          thumbnailStorageFileName: thumbnail?.name,
+          thumbnailByteLength: thumbnail?.length,
+          thumbnailSha256: thumbnail?.digest,
           posterMimeType: stored.posterMimeType,
           width: stored.width,
           height: stored.height,
           duration: stored.duration,
           altText: write.altText,
-        );
+        )..validate();
       case PreparedDraftVideo():
         await _checkVideoQuota(
           replacingSourceBytes: current?.video?.sourceByteLength ?? 0,
@@ -577,6 +608,12 @@ final class FileLocalPostDraftRepository
         }
         await _files.writeBytesFlushed(posterPath, write.posterBytes);
         newlyWritten.add(posterPath);
+        final thumbnail = await _writeVideoThumbnail(
+          request.id,
+          write.thumbnail,
+          newlyWritten,
+          null,
+        );
         final descriptor = VideoDraftDescriptor(
           storageRevision: revision,
           sourceStorageFileName: sourceName,
@@ -587,6 +624,10 @@ final class FileLocalPostDraftRepository
           sourceSha256: sourceResult.sha256,
           posterByteLength: write.posterBytes.length,
           posterSha256: sha256.convert(write.posterBytes).toString(),
+          thumbnailFrame: write.thumbnailFrame,
+          thumbnailStorageFileName: thumbnail?.name,
+          thumbnailByteLength: thumbnail?.length,
+          thumbnailSha256: thumbnail?.digest,
           posterMimeType: write.posterMimeType,
           width: write.width,
           height: write.height,
@@ -605,6 +646,31 @@ final class FileLocalPostDraftRepository
         }
         return descriptor;
     }
+  }
+
+  Future<({String name, int length, String digest})?> _writeVideoThumbnail(
+    String draftId,
+    Uint8List? bytes,
+    List<String> newlyWritten,
+    VideoDraftDescriptor? stored,
+  ) async {
+    if (bytes == null) return null;
+    if (bytes.isEmpty || bytes.length > 1000000) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    final digest = sha256.convert(bytes).toString();
+    final previous = stored?.thumbnailStorageFileName;
+    if (previous != null && stored?.thumbnailSha256 == digest) {
+      return (name: previous, length: bytes.length, digest: digest);
+    }
+    final name = 'video-thumbnail-${_nextId()}.jpg';
+    final path = _paths.mediaFilePath(draftId, name);
+    await _rejectSymbolicLinks([path]);
+    newlyWritten.add(path);
+    await _files.writeBytesFlushed(path, bytes);
+    return (name: name, length: bytes.length, digest: digest);
   }
 
   Future<void> _checkVideoQuota({

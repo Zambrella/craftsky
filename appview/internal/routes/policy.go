@@ -383,7 +383,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/billing/web-paywall", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/web-management", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/reconciliation", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
-		{Method: "POST", PathPattern: "/v1/blobs/videos/authorization", RateClass: RateClassUpload, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/blobs/videos/authorization", RateClass: RateClassUpload, BodyKind: BodyUpload, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/{jobId}/cancel", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/{jobId}/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/blobs/videos/limits", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -20,6 +21,21 @@ import '../../fakes/image_cache_fakes.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 void main() {
+  testWidgets('rebuilding a video view keeps the same texture controller', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const SizedBox());
+    final context = tester.element(find.byType(SizedBox));
+    final adapter = MediaKitNativeVideoAdapter(player: _UninitializedPlayer());
+
+    Video buildView() {
+      final view = adapter.buildView(aspectRatio: 16 / 9) as Builder;
+      return view.builder(context) as Video;
+    }
+
+    expect(buildView().controller, same(buildView().controller));
+  });
+
   testWidgets(
     'local inspection opens the selected file with sound and disposes playback',
     (tester) async {
@@ -459,4 +475,13 @@ final class _FakeCaptionResource implements CaptionUriResource {
 
   @override
   Future<void> dispose() async => disposed = true;
+}
+
+final class _UninitializedPlayer extends Fake implements Player {
+  @override
+  PlatformPlayer? get platform => null;
+
+  // The test only needs controller identity, so skip texture setup.
+  @override
+  Future<int> get handle => Completer<int>().future;
 }

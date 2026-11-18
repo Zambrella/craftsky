@@ -78,16 +78,21 @@ const metadata = (options?: RequestInit) =>
 afterEach(() => vi.useRealTimers());
 
 describe('Bunny upload and AppView publication', () => {
-	it.each(['video/mp4', 'video/quicktime'])(
+	it.each([
+		['video/mp4', undefined, '4500'],
+		['video/quicktime', 0, '0']
+	] as const)(
 		'uploads %s and polls AppView with no vendor capability',
-		async (mime) => {
+		async (mime, thumbnailFramePercent, thumbnailTime) => {
 			vi.useFakeTimers();
 			const fetcher = tus();
 			const videoStatus = vi.fn(async () => ({ jobStatus: completed() }));
+			const videoAuthorization = vi.fn(async () => authorization());
+			const thumbnail = new Blob(['thumbnail'], { type: 'image/jpeg' });
 			const api = {
 				media: {
-					videoLimits: async () => ({ canUpload: true }),
-					videoAuthorization: async () => authorization(),
+					videoLimits: async () => ({ canUpload: true, customThumbnail: true }),
+					videoAuthorization,
 					videoStatus
 				}
 			} as unknown as CraftskyAPI;
@@ -95,7 +100,7 @@ describe('Bunny upload and AppView publication', () => {
 			const upload = uploadVideo(
 				api,
 				'did:plc:maker',
-				media(mime),
+				{ ...media(mime), durationMs: 9000, thumbnail, thumbnailFramePercent },
 				activeSignal,
 				() => {},
 				fetcher,
@@ -112,10 +117,12 @@ describe('Bunny upload and AppView publication', () => {
 			await vi.runAllTimersAsync();
 			await result;
 			expect(videoStatus).toHaveBeenCalledWith(jobId, expect.any(AbortSignal));
+			expect(videoAuthorization).toHaveBeenCalledWith(thumbnail);
 			expect(metadata(fetcher.mock.calls[0][1])).toEqual({
 				filetype: mime,
 				title: authorization().title,
-				collection: authorization().collectionId
+				collection: authorization().collectionId,
+				thumbnailTime
 			});
 			expect(
 				new Uint8Array(

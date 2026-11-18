@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
+import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_details_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -13,6 +17,9 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
     required this.onAltTextChanged,
     required this.onRemove,
     this.previewBuilder,
+    this.onThumbnailChanged,
+    this.onThumbnailFrameChanged,
+    this.checkLimits,
     super.key,
   }) : _publishedAltText = null;
 
@@ -23,6 +30,9 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
     required this.onRemove,
     super.key,
   }) : previewBuilder = null,
+       onThumbnailChanged = null,
+       onThumbnailFrameChanged = null,
+       checkLimits = null,
        selection = null,
        _publishedAltText = altText;
 
@@ -32,6 +42,9 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String> onAltTextChanged;
   final VoidCallback onRemove;
+  final ValueChanged<Uint8List?>? onThumbnailChanged;
+  final ValueChanged<VideoThumbnailFrame>? onThumbnailFrameChanged;
+  final Future<VideoUploadLimits?> Function()? checkLimits;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +125,9 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
                         context,
                         selection: selection!,
                         onAltTextChanged: onAltTextChanged,
+                        onThumbnailChanged: onThumbnailChanged,
+                        onThumbnailFrameChanged: onThumbnailFrameChanged,
+                        checkLimits: checkLimits,
                         previewBuilder: previewBuilder,
                       )
                     : null,

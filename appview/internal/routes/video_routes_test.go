@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -62,6 +63,10 @@ func TestDisabledVideoRoutesNeverCallLaunchServices(t *testing.T) {
 			next.ServeHTTP(w, r.WithContext(appmiddleware.WithDID(r.Context(), syntax.DID("did:plc:test"))))
 		})
 	}
+	admission, err := appmiddleware.NewUploadBodyAdmission(1, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mux := http.NewServeMux()
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux,
@@ -71,6 +76,7 @@ func TestDisabledVideoRoutesNeverCallLaunchServices(t *testing.T) {
 			member:            identity,
 			rateLimit:         map[RateClass]func(http.Handler) http.Handler{},
 			observer:          observability.New(observability.Config{Env: "test"}),
+			uploadAdmission:   admission,
 			suspension:        unsuspendedReader{},
 			eligibility:       unrestrictedEligibilityReader{},
 		},

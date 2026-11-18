@@ -460,6 +460,8 @@ final class MediaKitNativeVideoAdapter
     : _player = player ?? Player();
 
   final Player _player;
+  // Keep the texture attached when the video view rebuilds.
+  late final _videoController = VideoController(_player);
   final ErrorReporter _reporter;
   Orientation? _orientationBeforeFullscreen;
   bool _fullscreen = false;
@@ -481,7 +483,7 @@ final class MediaKitNativeVideoAdapter
   @override
   Widget buildView({required double aspectRatio}) => Builder(
     builder: (context) => Video(
-      controller: VideoController(_player),
+      controller: _videoController,
       aspectRatio: aspectRatio,
       controls: nativeVideoControls,
       onEnterFullscreen: () => enterFullscreen(

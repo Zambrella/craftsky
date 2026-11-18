@@ -689,6 +689,7 @@ export interface ChatIncomingSetting {
 	persisted: boolean;
 }
 export interface VideoUploadLimits {
+	customThumbnail?: boolean;
 	canUpload: boolean;
 	message?: string;
 	error?: string;

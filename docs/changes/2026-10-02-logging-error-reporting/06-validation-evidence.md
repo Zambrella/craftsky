@@ -563,3 +563,13 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
   Docker release-image/Tap acceptance gate (`just appview-check`) was not run;
   post-release hosted collection of the new diagnostics remains unverified.
   Flutter and web code were unchanged by this backend pass.
+
+## Android video selection diagnostics (18 November 2026)
+
+- The shared Flutter selection controller reports unexpected failures for both
+  composers. A local serialized-envelope test confirms one issue with the
+  Android platform, picker code and caught stack, and checks that the local
+  log and Sentry event exclude the selected file's name and URI.
+- The original Android preview-build failure was not reproduced. Delivery
+  from a rebuilt Android preview, hosted Sentry collection and release
+  symbolication remain unverified.

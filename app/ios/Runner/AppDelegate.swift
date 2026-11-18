@@ -137,7 +137,7 @@ import StoreKit
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     channel.setMethodCallHandler { call, result in
-      guard call.method == "probe" else {
+      guard call.method == "probe" || call.method == "midpointFrame" else {
         result(FlutterMethodNotImplemented)
         return
       }
@@ -148,8 +148,18 @@ import StoreKit
       }
       Task {
         do {
-          let metadata = try await LocalVideoProbe.probe(path: path)
-          await MainActor.run { result(metadata) }
+          if call.method == "midpointFrame" {
+            guard let timeUs = arguments["timeUs"] as? NSNumber,
+                  timeUs.int64Value >= 0 else {
+              await MainActor.run { result(nil) }
+              return
+            }
+            let bytes = try await LocalVideoProbe.midpointFrame(path: path, timeUs: timeUs.int64Value)
+            await MainActor.run { result(bytes) }
+          } else {
+            let metadata = try await LocalVideoProbe.probe(path: path)
+            await MainActor.run { result(metadata) }
+          }
         } catch {
           let cause = error as NSError
           await MainActor.run {
@@ -167,10 +177,14 @@ import StoreKit
 
 // Metadata and a bounded, correctly oriented poster; no player or GPU texture.
 private enum LocalVideoProbe {
-  static func probe(path: String) async throws -> [String: Any] {
+  private static func asset(path: String) -> AVURLAsset {
     let url = URL(string: path).flatMap { $0.isFileURL ? $0 : nil }
       ?? URL(fileURLWithPath: path)
-    let asset = AVURLAsset(url: url)
+    return AVURLAsset(url: url)
+  }
+
+  static func probe(path: String) async throws -> [String: Any] {
+    let asset = asset(path: path)
     guard let track = try await asset.loadTracks(withMediaType: .video).first else {
       throw NSError(domain: "CraftSky.LocalVideo", code: 1)
     }
@@ -183,11 +197,37 @@ private enum LocalVideoProbe {
     }
     let duration = try await asset.load(.duration)
     let seconds = CMTimeGetSeconds(duration)
+    let poster = try await frame(asset: asset, at: .zero, maxSize: 1280)
+    var metadata: [String: Any] = [
+      "width": Int(width), "height": Int(height),
+      "posterBytes": poster
+    ]
+    if seconds.isFinite, seconds > 0, seconds * 1000 < Double(Int64.max) {
+      metadata["durationMs"] = Int64((seconds * 1000).rounded())
+    }
+    return metadata
+  }
+
+  static func midpointFrame(path: String, timeUs: Int64) async throws -> FlutterStandardTypedData {
+    try await frame(
+      asset: asset(path: path), at: CMTime(value: timeUs, timescale: 1_000_000),
+      maxSize: 640, precise: true
+    )
+  }
+
+  private static func frame(
+    asset: AVURLAsset, at time: CMTime, maxSize: CGFloat, precise: Bool = false
+  ) async throws -> FlutterStandardTypedData {
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
-    generator.maximumSize = CGSize(width: 1280, height: 1280)
+    generator.maximumSize = CGSize(width: maxSize, height: maxSize)
+    if precise {
+      let tolerance = CMTime(value: 1, timescale: 30)
+      generator.requestedTimeToleranceBefore = tolerance
+      generator.requestedTimeToleranceAfter = tolerance
+    }
     let image: CGImage = try await withCheckedThrowingContinuation { continuation in
-      generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) {
+      generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) {
         _, image, _, status, error in
         if status == .succeeded, let image = image {
           continuation.resume(returning: image)
@@ -199,13 +239,6 @@ private enum LocalVideoProbe {
     guard let poster = UIImage(cgImage: image).jpegData(compressionQuality: 0.85) else {
       throw NSError(domain: "CraftSky.LocalVideo", code: 4)
     }
-    var metadata: [String: Any] = [
-      "width": Int(width), "height": Int(height),
-      "posterBytes": FlutterStandardTypedData(bytes: poster)
-    ]
-    if seconds.isFinite, seconds > 0, seconds * 1000 < Double(Int64.max) {
-      metadata["durationMs"] = Int64((seconds * 1000).rounded())
-    }
-    return metadata
+    return FlutterStandardTypedData(bytes: poster)
   }
 }

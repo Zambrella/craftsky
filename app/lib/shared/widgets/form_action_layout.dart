@@ -7,7 +7,7 @@ import 'package:material_ui/material_ui.dart';
 /// Read [keyboardVisible] above the Scaffold, before it consumes view insets.
 class FormActionLayout extends StatelessWidget {
   const new({
-    required this.child,
+    required this.contentBuilder,
     required this.keyboardVisible,
     required this.label,
     required this.onPressed,
@@ -18,7 +18,9 @@ class FormActionLayout extends StatelessWidget {
     super.key,
   });
 
-  final Widget child;
+  /// Apply the supplied clearance at the end of the scrollable content.
+  final Widget Function(BuildContext context, double actionClearance)
+  contentBuilder;
   final bool keyboardVisible;
   final String label;
   final VoidCallback? onPressed;
@@ -34,11 +36,9 @@ class FormActionLayout extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: spacing.sp9 + MediaQuery.paddingOf(context).bottom,
-            ),
-            child: child,
+          contentBuilder(
+            context,
+            spacing.sp9 + MediaQuery.paddingOf(context).bottom,
           ),
           PositionedDirectional(
             start: spacing.sp4,

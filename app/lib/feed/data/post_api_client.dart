@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
@@ -50,6 +51,17 @@ class PostApiClient {
         );
         return VideoUploadAuthorization.fromMap(response.data!);
       });
+
+  Future<VideoUploadAuthorization> authorizeVideoUploadWithThumbnail(
+    Uint8List thumbnail,
+  ) => unwrapApi(() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/blobs/videos/authorization',
+      data: thumbnail,
+      options: Options(contentType: 'image/jpeg'),
+    );
+    return VideoUploadAuthorization.fromMap(response.data!);
+  });
 
   Future<void> cancelBunnyVideo(String jobId) => unwrapApi(() async {
     if (!RegExp(r'^[0-9a-f-]{36}$').hasMatch(jobId)) {

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"social.craftsky/appview/internal/auth"
@@ -18,6 +19,10 @@ import (
 
 type VideoUploadAuthorizationIssuer interface {
 	IssueUpload(context.Context, syntax.DID, string) (video.UploadAuthorization, error)
+}
+
+type videoThumbnailAuthorizationIssuer interface {
+	IssueUploadWithThumbnail(context.Context, syntax.DID, string, []byte) (video.UploadAuthorization, error)
 }
 
 type videoUploadAuthorizationResponse struct {
@@ -66,8 +71,37 @@ func VideoUploadAuthorizationHandler(issuer VideoUploadAuthorizationIssuer, _ *s
 				"video_service_unavailable", "could not authorize video upload", runID, nil)
 			return
 		}
-		authorization, err := issuer.IssueUpload(r.Context(), owner, sessionID)
+		var thumbnail []byte
+		if r.Body != nil && r.Body != http.NoBody {
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, video.MaxThumbnailBytes))
+			if err != nil {
+				result, reason = "rejected", "invalid_request"
+				if !middleware.WriteBodyReadError(w, r, err) {
+					envelope.WriteError(w, 400, "invalid_video_thumbnail", "could not read video thumbnail", runID, nil)
+				}
+				return
+			}
+			thumbnail = body
+		}
+		var authorization video.UploadAuthorization
+		var err error
+		if len(thumbnail) == 0 {
+			authorization, err = issuer.IssueUpload(r.Context(), owner, sessionID)
+		} else {
+			thumbnailIssuer, supported := issuer.(videoThumbnailAuthorizationIssuer)
+			if !supported {
+				result, reason = "rejected", "invalid_request"
+				envelope.WriteError(w, 400, "video_thumbnail_unsupported", "custom video thumbnails are unavailable", runID, nil)
+				return
+			}
+			authorization, err = thumbnailIssuer.IssueUploadWithThumbnail(r.Context(), owner, sessionID, thumbnail)
+		}
 		if err != nil {
+			if errors.Is(err, video.ErrInvalidThumbnail) {
+				result, reason = "rejected", "invalid_request"
+				envelope.WriteError(w, 400, "invalid_video_thumbnail", "choose another thumbnail image", runID, nil)
+				return
+			}
 			if errors.Is(err, video.ErrVideoQuota) {
 				envelope.WriteError(w, http.StatusTooManyRequests, "quota_exhausted", "video upload quota exhausted", runID, nil)
 				return

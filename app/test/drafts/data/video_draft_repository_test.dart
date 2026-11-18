@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -107,6 +108,8 @@ void main() {
             altText: 'Spinning yarn',
             posterMimeType: 'image/jpeg',
             posterBytes: Uint8List.fromList([7, 8]),
+            thumbnail: Uint8List.fromList([10, 11]),
+            thumbnailFrame: VideoThumbnailFrame.quarter,
           ),
         ),
       );
@@ -125,10 +128,38 @@ void main() {
       final restored = await restarted.get(saved.id);
 
       expect(restored.video!.altText, 'Spinning yarn');
+      expect(restored.video!.thumbnailFrame, VideoThumbnailFrame.quarter);
       expect(restored.video!.duration, const Duration(seconds: 12));
       expect(await restarted.openVideoSource(saved.id).toList(), [
         [1, 2, 3, 4, 5, 6],
       ]);
+      expect(await restarted.readVideoPoster(saved.id), [7, 8]);
+      expect(await restarted.readVideoThumbnail(saved.id), [10, 11]);
+
+      final cleared = await restarted.save(
+        DraftWriteRequest(
+          id: saved.id,
+          expectedRevision: restored.revision,
+          owner: owner,
+          kind: LocalPostDraftKind.standard,
+          content: restored.content,
+          schedule: const DraftScheduleIntent.now(),
+          orderedMedia: const [],
+          video: ExistingStoredVideo(
+            storageRevision: restored.video!.storageRevision,
+            expectedSourceSha256: restored.video!.sourceSha256,
+            expectedPosterSha256: restored.video!.posterSha256,
+            altText: restored.video!.altText,
+            thumbnailFrame: VideoThumbnailFrame.threeQuarters,
+          ),
+        ),
+      );
+      expect(cleared.video!.storageRevision, restored.video!.storageRevision);
+      expect(
+        (await restarted.get(saved.id)).video!.thumbnailFrame,
+        VideoThumbnailFrame.threeQuarters,
+      );
+      expect(await restarted.readVideoThumbnail(saved.id), isNull);
       expect(await restarted.readVideoPoster(saved.id), [7, 8]);
 
       await expectLater(

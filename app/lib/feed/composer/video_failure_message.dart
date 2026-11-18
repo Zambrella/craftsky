@@ -54,6 +54,8 @@ String _failureMessage(
   (VideoServiceOutcome.validationFailed, _) => l10n.postVideoValidationFailed,
   (VideoServiceOutcome.providerSizeLimit, _) => l10n.postVideoProviderSizeLimit,
   (VideoServiceOutcome.uploadTimedOut, _) => l10n.postVideoUploadTimedOut,
+  (VideoServiceOutcome.thumbnailFailed, _) =>
+    l10n.postVideoThumbnailUploadFailed,
   (VideoServiceOutcome.processingFailed, _) => l10n.postVideoProcessingFailed,
   _ => l10n.postVideoRetryableFailure,
 };

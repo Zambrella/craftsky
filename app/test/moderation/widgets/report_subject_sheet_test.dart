@@ -6,6 +6,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -456,17 +457,19 @@ void main() {
         ),
       );
 
-      final scrollView = tester
-          .widgetList<SingleChildScrollView>(
-            find.byKey(const ValueKey('reportSubjectRouteScrollView')),
-          )
-          .single;
-      final padding = scrollView.padding! as EdgeInsets;
+      final scrollView = find.byKey(
+        const ValueKey('reportSubjectRouteScrollView'),
+      );
+      final context = tester.element(scrollView);
+      final spacing = Theme.of(context).extension<SpacingTheme>()!;
+      final padding =
+          tester.widget<SingleChildScrollView>(scrollView).padding!
+              as EdgeInsets;
 
       expect(padding.left, 16);
       expect(padding.top, 16);
       expect(padding.right, 16);
-      expect(padding.bottom, 32);
+      expect(padding.bottom, 32 + spacing.sp9);
     });
   });
 }
