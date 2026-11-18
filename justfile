@@ -1,5 +1,27 @@
 set dotenv-load := false
 
+# Initialize development credentials, inheriting missing values from the primary checkout.
+config-init:
+    ./scripts/config init
+
+config-check:
+    ./scripts/config check
+
+config-status:
+    ./scripts/config status
+
+config-reference:
+    ./scripts/config reference
+
+# Regenerate the change archive's human index and machine-readable catalogue.
+docs-index:
+    ./scripts/docs update
+
+# Validate every change card/reference and bounded discovery behavior.
+docs-check:
+    python3 -m unittest discover -s scripts -p 'test_docs_catalog.py'
+    ./scripts/docs check
+
 default:
     @just --list
 
@@ -336,11 +358,13 @@ lexgen-check:
 app-env-init:
     #!/usr/bin/env bash
     set -euo pipefail
-    for name in local local-android; do
-      target="app/config/${name}.env"
-      example="app/config/${name}.env.example"
+    ./scripts/config migrate
+    for name in development development-android; do
+      target="app/config/.env.${name}.local"
+      example="$target.example"
       if [[ ! -f "$target" ]]; then
         cp "$example" "$target"
+        chmod 600 "$target"
         echo "Created $target"
       fi
     done
@@ -349,7 +373,12 @@ app-env-init:
 app-run *ARGS: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
-    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    python3 ./scripts/app-config-summary --dart-define-from-file=config/.env.development.local \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" {{ARGS}}
+    if ! APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080) || [[ -z "$APPVIEW_ADDRESS" ]]; then
+      echo "AppView is unavailable. Check just config-check and just logs; start it with just dev-d." >&2
+      exit 1
+    fi
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     # Android's loopback belongs to the device. Prepare connected Android
     # devices before Flutter's picker so localhost works on every target.
@@ -361,7 +390,7 @@ app-run *ARGS: app-env-init
       done < <(adb devices)
     fi
     cd app
-    flutter run --dart-define-from-file=config/local.env \
+    flutter run --dart-define-from-file=config/.env.development.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -372,7 +401,7 @@ app-run-ios: app-env-init
     APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     cd app
-    flutter run -d ios --dart-define-from-file=config/local.env \
+    flutter run -d ios --dart-define-from-file=config/.env.development.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
 app-run-android *ARGS: app-env-init
@@ -385,7 +414,7 @@ app-run-android *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     adb reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
     cd app
-    flutter run --dart-define-from-file=config/local-android.env \
+    flutter run --dart-define-from-file=config/.env.development-android.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -404,7 +433,7 @@ app-run-device DEVICE *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     adb -s "$device" reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
     cd app
-    flutter run -d "$device" --dart-define-from-file=config/local-android.env \
+    flutter run -d "$device" --dart-define-from-file=config/.env.development-android.local \
       --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
       --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
       {{ARGS}}
@@ -413,7 +442,7 @@ app-run-device DEVICE *ARGS: app-env-init
 app-run-production *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/production.env"
+    config="config/.env.production.local"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
     flutter run --dart-define-from-file="$config" {{ARGS}}
@@ -425,7 +454,7 @@ app-run-production-android:
     just app-run-production -- -d emulator
 
 app-analyze:
-    cd app && flutter analyze
+    cd app && dart analyze --fatal-infos
 
 app-test *ARGS:
     # Refresh checkout-local libraries even when the pub cache has a setup marker.
@@ -460,7 +489,11 @@ _app-build-mobile TARGET ENV:
     set -euo pipefail
     target={{ quote(TARGET) }}
     environment={{ quote(ENV) }}
-    config="config/${environment}.env"
+    case "$environment" in
+      local) environment=development ;;
+      local-android) environment=development-android ;;
+    esac
+    config="config/.env.${environment}.local"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     if [[ "$environment" == "production" && "$target" != "ios" ]]; then
         ./scripts/app-release-preflight "$target" "app/$config"

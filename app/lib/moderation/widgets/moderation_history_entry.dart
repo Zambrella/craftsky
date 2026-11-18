@@ -197,6 +197,9 @@ String _reasonLabel(AppLocalizations l10n, ModerationReason reason) =>
       ModerationReason.intellectualProperty =>
         l10n.moderationReasonIntellectualProperty,
       ModerationReason.other => l10n.moderationReasonOther,
+      ModerationReason.illegalContent => l10n.moderationReasonIllegalContent,
+      ModerationReason.fraudOrScam => l10n.moderationReasonFraudOrScam,
+      ModerationReason.selfHarm => l10n.moderationReasonSelfHarm,
       ModerationReason.unknown => l10n.moderationReasonPolicy,
     };
 

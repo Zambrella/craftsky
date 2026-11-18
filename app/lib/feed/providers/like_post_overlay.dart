@@ -1,12 +1,15 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderFamily;
 
 PdsMutationScope likePostMutationScope(Ref ref, Post post) {
   return likePostMutationScopeForLease(
@@ -120,6 +123,24 @@ bool? _interactionValue(
   final accepted = overlay.optimisticValue;
   return accepted is bool ? accepted : null;
 }
+
+/// Cached sections remain subject to confirmed deletions even if refreshing a
+/// paginated or expanded branch fails and the last server snapshot is retained.
+final ProviderFamily<PostCommentSection, PostCommentSection>
+postCommentSectionPresentationProvider = Provider.autoDispose
+    .family<PostCommentSection, PostCommentSection>((ref, section) {
+      ref
+        ..watch(deletePostProvider)
+        ..watch(
+          sessionRegistryProvider.select((state) => state.value?.activeLease),
+        );
+      listenForPostEdits(ref, ref.invalidateSelf);
+      return applyPostCommentSectionInteractionOverlays(
+        ref,
+        section,
+        reconcile: false,
+      );
+    });
 
 PostCommentSection applyPostCommentSectionInteractionOverlays(
   Ref ref,

@@ -12,6 +12,8 @@ class CraftskyCard extends StatelessWidget {
     super.key,
   });
 
+  static const _borderWidth = 1.5;
+
   final Widget child;
   final EdgeInsetsGeometry? margin;
   final EdgeInsetsGeometry? padding;
@@ -30,14 +32,21 @@ class CraftskyCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: swatches.paper3,
         borderRadius: BorderRadius.circular(radii.r3),
-        border: Border.all(color: theme.colorScheme.onSurface, width: 1.5),
+        border: Border.all(
+          color: theme.colorScheme.onSurface,
+          width: _borderWidth,
+        ),
         boxShadow: shadows.dropSm,
       ),
       clipBehavior: clipBehavior,
       child: Material(
         type: MaterialType.transparency,
         clipBehavior: clipBehavior,
-        borderRadius: BorderRadius.circular(radii.r3),
+        // Container insets its child by the border width. Match that inner
+        // curve so edge-to-edge images meet the border without a paper gap.
+        borderRadius: BorderRadius.circular(
+          radii.r3 > _borderWidth ? radii.r3 - _borderWidth : 0,
+        ),
         child: child,
       ),
     );

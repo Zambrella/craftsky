@@ -159,6 +159,38 @@ test('appeal confirmation, changed outcome and effect reversal use separate conf
   expect(writes[1]).toMatchObject({ path: expect.stringContaining('/appeal-resolutions'), body: { expectedRevision: 2, outcome: 'changed', reversedEffects: ['strike'], rationale: 'The evidence supports reversing the strike.' } })
 })
 
+test.each([false, true])('a changed appeal can reverse only severe suspension (other consequence: %s)', async (keepWarning) => {
+  let detail = { ...initial, state: 'resolved', revision: 2, appealStatus: 'pending',
+    decisions: [{ disposition: 'violation', reason: 'child_safety', createdAt: initial.createdAt }],
+    effects: [{ effectId: 'severe-effect', type: 'severeSuspension', action: 'apply', active: true, createdAt: initial.createdAt },
+      ...(keepWarning ? [{ effectId: 'warning-effect', type: 'formalWarning', action: 'apply', active: true, createdAt: initial.createdAt }] : [])],
+    standing: { ...initial.standing, severeSuspended: true, suspended: true } }
+  const writes: { path: string; body: Record<string, unknown>; key: string | null }[] = []
+  fixture((path, init) => {
+    if (init?.method === 'POST') {
+      writes.push({ path, body: JSON.parse(String(init.body)), key: new Headers(init.headers).get('Idempotency-Key') })
+      detail = { ...detail, revision: 3, appealStatus: 'changed', effects: detail.effects.map(effect => effect.type === 'severeSuspension' ? { ...effect, active: false } : effect), standing: initial.standing }
+      return response({ revision: detail.revision })
+    }
+    if (path.endsWith('/cases/' + reference)) return response(detail)
+  })
+  const user = await openCase()
+  await user.selectOptions(await screen.findByLabelText('Appeal outcome'), 'changed')
+  await user.click(screen.getByLabelText('Severe suspension', { exact: true }))
+  await user.type(screen.getByLabelText('Appeal rationale'), 'Review supports reversing the severe suspension only.')
+  await user.click(screen.getByRole('button', { name: 'Review appeal resolution' }))
+  expect(writes).toHaveLength(0)
+  await user.click(screen.getByRole('button', { name: 'Confirm appeal resolution' }))
+  await waitFor(() => expect(writes).toHaveLength(1))
+  expect(writes[0]).toMatchObject({ path: expect.stringContaining('/appeal-resolutions'), body: {
+    expectedRevision: 2, outcome: 'changed', reversedEffects: ['severeSuspension'], rationale: 'Review supports reversing the severe suspension only.'
+  } })
+  expect(writes[0].key).toBeTruthy()
+  await screen.findByText('Resolved · revision 3')
+  expect(screen.queryByLabelText('Appeal outcome')).toBeNull()
+  expect(detail.effects.find(effect => effect.type === 'formalWarning')?.active).toBe(keepWarning ? true : undefined)
+})
+
 test('severe suspension restoration identifies its exact active effect and needs its own confirmation', async () => {
   const effectId = '50000000-0000-4000-8000-000000000099'
   const writes: RequestInit[] = []
@@ -383,4 +415,33 @@ test('changed cases label the captured reference and show current content separa
   expect(screen.getByText('Edited current version')).toBeTruthy()
   expect(screen.getByText('reported-cid')).toBeTruthy()
   expect(screen.getByText('The content for the captured version was not retained.')).toBeTruthy()
+})
+
+
+test('other illegal content requires a reviewed basis and preserves it in confirmation and history', async () => {
+  let body: Record<string, unknown> | undefined
+  fixture((path, init) => {
+    if (init?.method === 'POST') { body = JSON.parse(String(init.body)); return response({ revision: 1 }) }
+    if (body && path.endsWith('/cases/' + reference)) return response({ ...initial, state: 'resolved', revision: 1, decisions: [{ ...body, createdAt: initial.createdAt }] })
+  })
+  const user = await openCase()
+  await user.selectOptions(screen.getByLabelText('Decision'), 'violation')
+  await user.selectOptions(screen.getByLabelText('Policy reason'), 'illegal_content')
+  expect(screen.getByRole('option', { name: 'Other illegal content' })).toBeTruthy()
+  await user.type(screen.getByLabelText('Internal evidence notes'), 'Reviewed synthetic facts.')
+  await user.click(screen.getByLabelText('Account strike'))
+  const review = screen.getByRole('button', { name: 'Review decision' })
+  expect(review.matches(':disabled')).toBe(true)
+  await user.type(screen.getByLabelText('Illegal-content rationale'), 'Private synthetic offence and legal basis.')
+  await user.type(screen.getByLabelText('Explanation for the account owner'), 'Safe finding explanation.')
+  expect(review.matches(':disabled')).toBe(true)
+  await user.selectOptions(screen.getByLabelText('Legal classification'), 'otherIllegalContent')
+  expect(review.matches(':disabled')).toBe(false)
+  await user.click(review)
+  expect(screen.getByRole('dialog').textContent).toContain('Private synthetic offence and legal basis.')
+  await user.click(screen.getByRole('button', { name: 'Confirm decision' }))
+  await screen.findByText(/Command committed/)
+  expect(body).toMatchObject({ reason: 'illegal_content', illegalContentRationale: 'Private synthetic offence and legal basis.', legalClassification: 'otherIllegalContent', userSafeDetail: 'Safe finding explanation.', consequences: ['strike'] })
+  expect(await screen.findByRole('heading', { name: 'Internal illegal-content rationale' })).toBeTruthy()
+  expect(screen.getByText('Private synthetic offence and legal basis.')).toBeTruthy()
 })

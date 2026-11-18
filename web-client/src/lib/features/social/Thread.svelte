@@ -24,6 +24,7 @@
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let {
 		api,
 		session,
@@ -53,6 +54,8 @@
 	}>('thread');
 	let loadedPages = $state(0);
 	const work = new Work('social.Thread.action');
+	let loadingMore = $state(false);
+	let loadingRepliesFor = $state<string>();
 	if (snapshot) work.hasLoaded = true;
 	let post = $state<PostPresentation | undefined>(snapshot),
 		comments = $state<CommentItem[]>([]),
@@ -102,43 +105,49 @@
 		work.dispose();
 	});
 	function load(more = false) {
+		if (work.busy) return Promise.resolve();
 		const nextCursor = more ? cursor : undefined;
 		const ordering = sort;
 		return work.run(
 			async () => {
-				const root =
-					more || (!loadedPages && snapshot)
-						? post
-						: await api.posts.get(did, rkey);
-				if (!guest && !section && root && visible(root) && root.reply) {
-					const address = postAddress(root.reply.root.uri);
-					if (address)
+				loadingMore = more;
+				try {
+					const root =
+						more || (!loadedPages && snapshot)
+							? post
+							: await api.posts.get(did, rkey);
+					if (!guest && !section && root && visible(root) && root.reply) {
+						const address = postAddress(root.reply.root.uri);
+						if (address)
+							return {
+								kind: 'redirect' as const,
+								href: `/posts/${encodeURIComponent(address.did)}/${encodeURIComponent(address.rkey)}?focus=${encodeURIComponent(root.uri)}`
+							};
+					}
+					if (section === 'likes' || section === 'reposts')
 						return {
-							kind: 'redirect' as const,
-							href: `/posts/${encodeURIComponent(address.did)}/${encodeURIComponent(address.rkey)}?focus=${encodeURIComponent(root.uri)}`
+							root,
+							kind: 'people' as const,
+							page: await api.posts[section](did, rkey, { cursor: nextCursor })
 						};
+					if (section === 'quotes')
+						return {
+							root,
+							kind: 'quotes' as const,
+							page: await api.posts.quotes(did, rkey, { cursor: nextCursor })
+						};
+					return {
+						root,
+						kind: 'comments' as const,
+						page: await api.posts.comments(did, rkey, {
+							sort: ordering,
+							focus: more ? undefined : focused,
+							cursor: nextCursor
+						})
+					};
+				} finally {
+					loadingMore = false;
 				}
-				if (section === 'likes' || section === 'reposts')
-					return {
-						root,
-						kind: 'people' as const,
-						page: await api.posts[section](did, rkey, { cursor: nextCursor })
-					};
-				if (section === 'quotes')
-					return {
-						root,
-						kind: 'quotes' as const,
-						page: await api.posts.quotes(did, rkey, { cursor: nextCursor })
-					};
-				return {
-					root,
-					kind: 'comments' as const,
-					page: await api.posts.comments(did, rkey, {
-						sort: ordering,
-						focus: more ? undefined : focused,
-						cursor: nextCursor
-					})
-				};
 			},
 			(result) => {
 				if (result.kind === 'redirect') {
@@ -184,14 +193,20 @@
 		);
 	}
 	function replies(comment: CommentItem) {
-		if (!visible(comment.post)) return;
+		if (!visible(comment.post) || work.busy) return;
 		const more = comment.replies.loaded && !!comment.replies.cursor;
 		const address = comment.post;
 		void work.run(
-			() =>
-				api.posts.replies(address.author.did, address.rkey, {
-					cursor: comment.replies.cursor
-				}),
+			async () => {
+				loadingRepliesFor = address.uri;
+				try {
+					return await api.posts.replies(address.author.did, address.rkey, {
+						cursor: comment.replies.cursor
+					});
+				} finally {
+					loadingRepliesFor = undefined;
+				}
+			},
 			(result) => {
 				comment.replies = {
 					...result,
@@ -375,10 +390,15 @@
 									);
 									comments = [...comments];
 								}}
-							/>{/each}{#if comment.replies.cursor}<button
+							/>{/each}{#if comment.replies.cursor}<LoadMore
+								label="Load more replies"
+								loadingLabel="Loading more replies"
+								loading={work.busy &&
+									visible(comment.post) &&
+									loadingRepliesFor === comment.post.uri}
 								onclick={() => replies(comment)}
-								disabled={work.busy}>Load more replies</button
-							>{/if}
+								disabled={work.busy}
+							/>{/if}
 					</div>{/if}
 			</section>{:else}{#if !work.busy && !work.error}<EmptyState
 					title="Comments"
@@ -386,9 +406,16 @@
 					icon="comment"
 				/>{/if}{/each}
 	</section>{/if}
-{#if cursor}<button class="next" disabled={work.busy} onclick={() => load(true)}
-		>Load more</button
-	>{/if}
+{#if cursor}<LoadMore
+		loading={work.busy && loadingMore}
+		disabled={work.busy}
+		loadingLabel={section === 'likes' || section === 'reposts'
+			? 'Loading more accounts'
+			: section === 'quotes'
+				? 'Loading more quotes'
+				: 'Loading more comments'}
+		onclick={() => load(true)}
+	/>{/if}
 
 <style>
 	.open-comments {
@@ -489,8 +516,7 @@
 	.reply-controls {
 		padding: 0 16px 8px 72px;
 	}
-	.reply-controls button,
-	.replies > button {
+	.reply-controls button {
 		background: transparent;
 		border: 0;
 		box-shadow: none;

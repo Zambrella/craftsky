@@ -1,6 +1,9 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/profile/widgets/profile_business_hero.dart';
+import 'package:craftsky_app/shared/widgets/business_identity_icon.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
@@ -12,6 +15,8 @@ class ProfileIdentity extends StatelessWidget {
     this.pronouns,
     this.businessLabel,
     this.centered = false,
+    this.isBusiness = false,
+    this.customisation = ProfileCustomisation.defaults,
     super.key,
   });
 
@@ -20,6 +25,8 @@ class ProfileIdentity extends StatelessWidget {
   final String? pronouns;
   final String? businessLabel;
   final bool centered;
+  final bool isBusiness;
+  final ProfileCustomisation customisation;
 
   @override
   Widget build(BuildContext context) {
@@ -50,16 +57,36 @@ class ProfileIdentity extends StatelessWidget {
             alignment: centered
                 ? Alignment.center
                 : AlignmentDirectional.centerStart,
-            child: ProfileIdentityTextHero.destination(
-              context,
-              part: ProfileIdentityHeroPart.name,
-              child: Text(
-                name,
-                style: theme.textTheme.headlineMedium,
-                maxLines: 1,
-                softWrap: false,
-                textAlign: centered ? TextAlign.center : TextAlign.start,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isBusiness) ...[
+                  Semantics(
+                    label: l10n.businessProfileLabel,
+                    image: true,
+                    excludeSemantics: true,
+                    child: ProfileBusinessHero.destination(
+                      context,
+                      child: BusinessIdentityIcon(
+                        size: 24,
+                        customisation: customisation,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                ProfileIdentityTextHero.destination(
+                  context,
+                  part: ProfileIdentityHeroPart.name,
+                  child: Text(
+                    name,
+                    style: theme.textTheme.headlineMedium,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: centered ? TextAlign.center : TextAlign.start,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

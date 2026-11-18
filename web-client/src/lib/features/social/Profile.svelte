@@ -1,4 +1,9 @@
 <script lang="ts">
+	import BusinessIdentityIcon from './BusinessIdentityIcon.svelte';
+	import ProfileShaderBackground from './ProfileShaderBackground.svelte';
+	import { profileShaderStyle } from './profile-background-shader.ts';
+	import { appendPage } from '#lib/pagination.ts';
+	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
 		protectAccountAction,
@@ -7,6 +12,8 @@
 	import { notify } from './toasts.svelte';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
+	import ProfileShareCard from './ProfileShareCard.svelte';
+	import RichText from './RichText.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { getContext, onMount, onDestroy, untrack } from 'svelte';
@@ -20,6 +27,8 @@
 		type BusinessEvent
 	} from '#lib/api/client.ts';
 	import Avatar from '#lib/Avatar.svelte';
+	import { safeURL } from '#lib/public.ts';
+	import ImageGallery from './ImageGallery.svelte';
 	import CraftBadge from '#lib/CraftBadge.svelte';
 	import MemberPost from './MemberPost.svelte';
 	import ReportForm from '../moderation/ReportForm.svelte';
@@ -33,6 +42,7 @@
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import { profileTabs, tabLabel, joinedAge } from './presentation';
 	import { profileStyle, texture, safeLink } from './model';
 	let {
@@ -55,6 +65,8 @@
 	const guest = $derived(api.audience === 'guest');
 	const requestSignIn = getContext<RequestSignIn | undefined>(signInContext);
 	const work = new Work('social.Profile.action');
+	const followWork = new Work('social.Profile.action');
+	let avatarOpen = $state(false);
 
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
@@ -69,8 +81,11 @@
 		}
 	>();
 	let loadedTab: string | undefined = snapshot?.tab;
+	let shareCard = $state<Profile>();
+	let shareReturnFocus = $state<HTMLElement>();
 	let hydrated = $state(false);
 	let profile = $state<Profile | undefined>(snapshot?.profile);
+	const avatarURL = $derived(safeURL(profile?.avatar ?? undefined));
 	if (snapshot) publications?.observeProfile(snapshot.profile);
 	const displayedStats = $derived(
 		profile ? publications?.profileStats(profile) || profile : undefined
@@ -150,6 +165,7 @@
 	onDestroy(() => {
 		generation++;
 		work.dispose();
+		followWork.dispose();
 		contentWork.dispose();
 	});
 	const profileDid = $derived(profile?.did);
@@ -219,7 +235,7 @@
 				() => api.profiles.posts(id, tab as 'posts', { cursor }),
 				(value) => {
 					if (revision !== generation) return;
-					posts = [...posts, ...value.items];
+					posts = appendPage(posts, value.items, (post) => post.uri ?? post);
 					cursor = value.cursor;
 				},
 				undefined,
@@ -231,7 +247,7 @@
 		if (!profile) return;
 		const key = newOperationKey(),
 			following = profile.viewerIsFollowing;
-		void work.run(
+		void followWork.run(
 			() =>
 				following
 					? api.profiles.unfollow(id, key)
@@ -288,7 +304,7 @@
 			() => {
 				reportOpen = false;
 				reportLink = undefined;
-				notify('Report submitted.');
+				notify(reportConfirmation, false, true);
 			},
 			undefined,
 			'social.Profile.report'
@@ -299,6 +315,9 @@
 {#if profile ? profile.did !== session?.did : ![session?.did, session?.handle].includes(id)}<div
 		class="profile-navigation"
 		class:collapsed={headerCollapsed}
+		class:reference-background={(profileShaderStyle(
+			profile?.customisation?.profileBackground
+		) ?? -1) >= 6}
 		style={profile ? profileStyle(profile.customisation) : undefined}
 	>
 		<a
@@ -315,8 +334,18 @@
 	</div>{/if}
 <svelte:window onscroll={updateHeader} />
 {#if profile && headerCollapsed}<div class="profile-compact-header">
-		<div class="compact-profile-identity">
-			<Avatar author={profile} /><CompactIdentity author={profile} />
+		<div
+			class="compact-profile-identity"
+			class:own-profile={profile.did === session?.did}
+		>
+			{#if avatarURL}<button
+					class="avatar-trigger"
+					aria-label="View profile picture"
+					onclick={() => (avatarOpen = true)}
+					><Avatar author={profile} /></button
+				>{:else}<Avatar author={profile} />{/if}<CompactIdentity
+				author={profile}
+			/>
 		</div>
 	</div>{/if}
 <Status {work} skeleton="profile" />{#if profile}<div
@@ -324,6 +353,10 @@
 		style={profileStyle(profile.customisation)}
 	>
 		<div class="profile-band">
+			{#if profileShaderStyle(profile.customisation?.profileBackground) !== undefined}<ProfileShaderBackground
+					style={profileShaderStyle(profile.customisation?.profileBackground)!}
+					colour={profile.customisation?.colour ?? 'cobalt'}
+				/>{/if}
 			{#if texture(profile.customisation)}<span
 					class="profile-texture"
 					style:mask-image={texture(profile.customisation)}
@@ -331,16 +364,32 @@
 				></span>{/if}
 		</div>
 		<div class="profile-identity" bind:this={identityElement}>
-			<Avatar
-				author={{
-					did: profile.did,
-					handle: profile.handle,
-					displayName: profile.displayName || undefined,
-					avatar: profile.avatar || undefined
-				}}
-				large
-			/>
+			{#if avatarURL}<button
+					class="avatar-trigger"
+					aria-label="View profile picture"
+					onclick={() => (avatarOpen = true)}
+					><Avatar author={profile} large /></button
+				>{:else}
+				<Avatar
+					author={{
+						did: profile.did,
+						handle: profile.handle,
+						displayName: profile.displayName || undefined,
+						avatar: profile.avatar || undefined
+					}}
+					large
+				/>{/if}
 			<h1>
+				{#if profile.accountType === 'business'}<span
+						class="business-icon"
+						role="img"
+						aria-label="Business"
+						title="Business"
+						><BusinessIdentityIcon
+							size={24}
+							customisation={profile.customisation}
+						/></span
+					>{/if}
 				{profile.displayName ||
 					(profile.handle ? '@' + profile.handle : 'Account unavailable')}
 			</h1>
@@ -348,9 +397,6 @@
 			<p class="handle">
 				{#if profile.displayName}@{profile.handle}{/if}
 			</p>
-			{#if profile.accountType === 'business'}<p class="business-label">
-					Business
-				</p>{/if}
 			<ul class="chips">
 				{#each profile.crafts || [] as craft}<li>
 						<CraftBadge {craft} />
@@ -358,6 +404,7 @@
 			</ul>
 		</div>
 		<div class="profile-meta stack">
+			<Status work={followWork} showLoading={false} />
 			{#if !profile.isCraftskyProfile}<p class="muted non-member">
 					Non CraftSky profile
 				</p>{/if}
@@ -405,9 +452,18 @@
 				{:else}{#if !profile.blocking && !profile.blockedBy}<button
 							class="button"
 							class:following={profile.viewerIsFollowing}
-							disabled={work.busy || !!work.retry}
+							disabled={work.busy ||
+								followWork.busy ||
+								!!work.retry ||
+								!!followWork.retry}
+							aria-busy={followWork.busy}
 							onclick={follow}
-							>{profile.viewerIsFollowing ? 'Unfollow' : 'Follow'}</button
+							>{#if followWork.busy}<span
+									class="follow-spinner"
+									aria-hidden="true"
+								></span>{/if}{profile.viewerIsFollowing
+								? 'Unfollow'
+								: 'Follow'}</button
 						><a
 							class="icon-button message-action"
 							href={'/messages/new?did=' + encodeURIComponent(profile.did)}
@@ -430,6 +486,19 @@
 						}}
 					></button>
 					<div class="menu-items">
+						{#if profile.did === session?.did}
+							<button
+								data-public-action
+								onclick={(event) => {
+									shareReturnFocus =
+										event.currentTarget
+											.closest('details')
+											?.querySelector('summary') ?? undefined;
+									shareCard = profile;
+								}}><Icon name="shareCard" />Share card</button
+							>
+						{/if}
+
 						<button
 							data-public-action
 							disabled={work.busy}
@@ -464,34 +533,59 @@
 									);
 								}}><Icon name="share" />Share</button
 							>
+							{#if !guest && !profile.blocking && !profile.blockedBy}
+								<div class="profile-menu-divider"></div>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/followers'}><Icon name="profile" />Followers</a
+								>
+								<a
+									href={'/profiles/' +
+										encodeURIComponent(profile.did) +
+										'/following'}><Icon name="profile" />Following</a
+								>
+							{/if}
 							<div class="profile-menu-divider"></div>
 							{#if !profile.blocking && !profile.blockedBy}<button
-									disabled={work.busy || !!work.retry}
+									disabled={work.busy ||
+										followWork.busy ||
+										!!work.retry ||
+										!!followWork.retry}
 									onclick={() => relationship('mute')}
 									><Icon name="mute" />{profile.muted
 										? 'Unmute account'
 										: 'Mute account'}</button
 								>{/if}<button
 								class="destructive"
-								disabled={work.busy || !!work.retry}
+								disabled={work.busy ||
+									followWork.busy ||
+									!!work.retry ||
+									!!followWork.retry}
 								onclick={() => relationship('block')}
 								><Icon name="block" />{profile.blocking
 									? 'Unblock account'
 									: 'Block account'}</button
 							><button
 								data-public-action
-								disabled={work.busy || !!work.retry}
+								disabled={work.busy ||
+									followWork.busy ||
+									!!work.retry ||
+									!!followWork.retry}
 								onclick={() => {
 									reportLink = undefined;
 									reportOpen = true;
-								}}><Icon name="report" />Report profile</button
+								}}><Icon name="flag" />Report profile</button
 							>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
-										disabled={work.busy || !!work.retry}
+										disabled={work.busy ||
+											followWork.busy ||
+											!!work.retry ||
+											!!followWork.retry}
 										onclick={() => {
 											reportLink = link.uri.split('/').pop();
 											reportOpen = true;
 										}}
-										><Icon name="report" />Report link {link.title ||
+										><Icon name="flag" />Report link {link.title ||
 											link.url}</button
 									>{/if}{/each}{/if}
 					</div>
@@ -505,7 +599,7 @@
 			{#if !profile.moderation || reveal}{#if profile.description}<p
 						class="profile-bio prose"
 					>
-						{profile.description}
+						<RichText text={profile.description} detectPlainText />
 					</p>{/if}
 				<ul class="profile-links">
 					{#each profile.links || [] as link}{#if safeLink(link.url)}<li>
@@ -576,8 +670,8 @@
 						/>{:else}<EmptyState
 							title="Products"
 							detail={profile.did === session?.did
-								? 'Add products to show what your business offers.'
-								: 'No products shared yet.'}
+								? 'Add featured products to help visitors find your work.'
+								: 'No featured products yet.'}
 							icon="business"
 							>{#snippet actions()}{#if profile?.did === session?.did}<a
 										href="/settings/products">Manage products</a
@@ -590,8 +684,8 @@
 						/>{:else}{#if !contentWork.busy && !contentWork.error}<EmptyState
 								title="Upcoming events"
 								detail={profile.did === session?.did
-									? 'Share your next workshop, market or event.'
-									: 'No upcoming events.'}
+									? 'Add an event appearance to share what’s coming up.'
+									: 'No upcoming events yet.'}
 								icon="calendar"
 								>{#snippet actions()}{#if profile?.did === session?.did}<a
 											href="/settings/events">Manage events</a
@@ -616,15 +710,64 @@
 							encodeURIComponent(id) +
 							'?' +
 							new URLSearchParams({ tab, cursor })}>Older {tab}</a
-					>{:else}<button
-						class="next"
-						disabled={contentWork.busy}
-						onclick={more}>Load more</button
-					>{/if}{/if}
+					>{:else}<LoadMore
+						loading={contentWork.busy}
+						autoLoad={tab !== 'events' && !contentWork.error}
+						pageKey={JSON.stringify([id, tab, cursor])}
+						loadingLabel={tab === 'events'
+							? 'Loading more events'
+							: 'Loading more posts'}
+						onclick={more}
+					/>{/if}{/if}
 		</div>
 	</div>{/if}
 
+{#if shareCard && shareCard.did === profile?.did}
+	<ProfileShareCard
+		profile={shareCard}
+		returnFocus={shareReturnFocus}
+		onClose={() => (shareCard = undefined)}
+	/>
+{/if}
+{#if avatarOpen && avatarURL}<ImageGallery
+		images={[
+			{
+				fullsize: avatarURL,
+				alt: `${profile?.displayName || profile?.handle || 'Account'} profile picture`
+			}
+		]}
+		onclose={() => (avatarOpen = false)}
+	/>{/if}
+
 <style>
+	.avatar-trigger {
+		display: inline-flex;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		box-shadow: none;
+		cursor: zoom-in;
+	}
+	.follow-spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: follow-spin 1s linear infinite;
+	}
+	@keyframes follow-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.follow-spinner {
+			animation: none;
+		}
+	}
+
 	.profile-content {
 		min-height: calc(100dvh - 106px);
 	}
@@ -648,6 +791,12 @@
 		border-bottom: 1.5px solid var(--ink);
 	}
 
+	@media (min-width: 901px) {
+		.compact-profile-identity.own-profile {
+			padding-left: 16px;
+		}
+	}
+
 	.profile-navigation {
 		position: sticky;
 		top: 0;
@@ -665,6 +814,10 @@
 		box-shadow: none;
 		color: var(--profile-foreground, white);
 		border-radius: 50%;
+	}
+	.profile-navigation.reference-background:not(.collapsed) .icon-button {
+		background: var(--paper);
+		color: var(--ink);
 	}
 	.profile-navigation.collapsed .icon-button {
 		color: var(--ink);
@@ -789,16 +942,22 @@
 		width: 106px;
 		height: 106px;
 	}
+	.profile-identity h1 {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+	}
+	.business-icon {
+		display: inline-flex;
+		flex-shrink: 0;
+	}
 	.profile-identity {
 		margin-top: -53px;
 	}
 	.profile-identity h1 {
 		margin-top: 19px;
 		font-size: 28px;
-	}
-	.profile-identity .business-label {
-		font-size: 13px;
-		font-weight: 600;
 	}
 	.member-profile > .tabs {
 		position: sticky;
@@ -821,13 +980,16 @@
 	}
 	.profile-about h3 {
 		font-size: 12px;
+		line-height: 1.2;
+		letter-spacing: 1.68px;
 		color: var(--ink-2);
-		font-weight: 500;
+		font-weight: 600;
 		margin: 0 0 4px;
 	}
 	.profile-about p {
 		margin: 0;
-		font-size: 15px;
+		font-size: 14px;
+		line-height: 1.5;
 	}
 
 	.profile-actions > .button,
@@ -876,8 +1038,5 @@
 		);
 		width: 40px;
 		height: 40px;
-	}
-	.profile-identity .business-label {
-		color: var(--ink);
 	}
 </style>

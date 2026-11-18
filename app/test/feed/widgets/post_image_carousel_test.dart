@@ -43,6 +43,38 @@ List<PostImage> _images(String prefix) {
 }
 
 void main() {
+  testWidgets('swiping a mixed-ratio album preserves its frame height', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'portrait',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'Portrait',
+            aspectRatio: const PostImageAspectRatio(width: 4, height: 5),
+          ),
+          PostImage(
+            cid: 'landscape',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'Landscape',
+            aspectRatio: const PostImageAspectRatio(width: 10, height: 1),
+          ),
+        ],
+      ),
+    );
+    final frame = find.byKey(const Key('post-image-frame'));
+    final height = tester.getSize(frame).height;
+    await tester.drag(find.byType(PageView), const Offset(-320, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('2/2'), findsOneWidget);
+    expect(tester.getSize(frame).height, height);
+  });
+
   group('computeBoundedImageHeight', () {
     test('uses stable fallback when aspect ratio is missing', () {
       final height = computeBoundedImageHeight(
@@ -65,46 +97,58 @@ void main() {
     test('clamps very tall images to max height', () {
       final height = computeBoundedImageHeight(
         availableWidth: 320,
-        aspectRatio: const PostImageAspectRatio(width: 919, height: 2000),
+        aspectRatio: const PostImageAspectRatio(width: 800, height: 2000),
       );
 
-      expect(height, 420);
+      expect(height, 700);
     });
 
-    test('clamps very wide images to min height', () {
+    test('preserves very wide images without a minimum height', () {
       final height = computeBoundedImageHeight(
         availableWidth: 320,
         aspectRatio: const PostImageAspectRatio(width: 2000, height: 919),
       );
 
-      expect(height, 160);
+      expect(height, 320 * 919 / 2000);
     });
   });
 
   test('carousel max height grows with the viewport within safe bounds', () {
-    expect(computeResponsiveCarouselMaxHeight(600), 420);
-    expect(computeResponsiveCarouselMaxHeight(1024), 716.8);
-    expect(computeResponsiveCarouselMaxHeight(1400), 720);
+    expect(computeResponsiveCarouselMaxHeight(600), 390);
+    expect(computeResponsiveCarouselMaxHeight(300), 195);
+    expect(computeResponsiveCarouselMaxHeight(1024), 665.6);
+    expect(computeResponsiveCarouselMaxHeight(1400), 700);
   });
 
-  test('fitting portraits and landscape images remain edge-to-edge', () {
-    expect(
-      computePostImageFit(
-        availableWidth: 320,
-        aspectRatio: const PostImageAspectRatio(width: 4, height: 5),
-        maxHeight: 420,
-      ),
-      BoxFit.cover,
-    );
-    expect(
-      computePostImageFit(
-        availableWidth: 800,
-        aspectRatio: const PostImageAspectRatio(width: 16, height: 9),
-        maxHeight: 420,
-      ),
-      BoxFit.cover,
-    );
-  });
+  for (final ratio in [
+    const PostImageAspectRatio(width: 4, height: 5),
+    const PostImageAspectRatio(width: 10, height: 1),
+    null,
+  ]) {
+    testWidgets('contains the whole image regardless of ratio ($ratio)', (
+      tester,
+    ) async {
+      await _pumpCarousel(
+        tester,
+        PostImageCarousel(
+          images: [
+            PostImage(
+              cid: 'whole',
+              mime: 'image/jpeg',
+              size: 1,
+              alt: '',
+              aspectRatio: ratio,
+              fullsize: 'https://example.com/whole.jpg',
+            ),
+          ],
+        ),
+      );
+      expect(
+        tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage)).fit,
+        BoxFit.contain,
+      );
+    });
+  }
 
   testWidgets('contains over-height portrait images on tablet surfaces', (
     tester,
@@ -133,7 +177,7 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const Key('post-image-frame'))).height,
-      716.8,
+      665.6,
     );
     expect(
       tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage)).fit,

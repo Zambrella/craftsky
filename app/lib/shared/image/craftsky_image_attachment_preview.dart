@@ -19,6 +19,8 @@ class CraftskyImageAttachmentPreview extends StatelessWidget {
     this.overlayKey,
     this.progressKey,
     this.labelKey,
+    this.frameHeight,
+    this.fit = BoxFit.cover,
   });
 
   final Uint8List? bytes;
@@ -32,6 +34,8 @@ class CraftskyImageAttachmentPreview extends StatelessWidget {
   final Key? overlayKey;
   final Key? progressKey;
   final Key? labelKey;
+  final double? frameHeight;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -45,46 +49,52 @@ class CraftskyImageAttachmentPreview extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
-        child: AspectRatio(
-          aspectRatio: aspectRatio.clamp(0.7, 1.6),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              switch ((bytes, imageUrl)) {
-                (final value?, _) => Image.memory(
-                  value,
-                  key: imageKey,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
-                (null, final url?) => CachedNetworkImage(
-                  imageUrl: url,
-                  key: imageKey,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorWidget: (_, _, _) => const Center(
-                    child: Icon(CraftskyIcons.brokenImage),
+        child: LayoutBuilder(
+          builder: (context, constraints) => AspectRatio(
+            aspectRatio: frameHeight == null
+                ? aspectRatio.clamp(0.7, 1.6)
+                : constraints.maxWidth / frameHeight!,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (frameHeight != null)
+                  ColoredBox(color: colors.surfaceContainerLow),
+                switch ((bytes, imageUrl)) {
+                  (final value?, _) => Image.memory(
+                    value,
+                    key: imageKey,
+                    fit: fit,
+                    width: double.infinity,
                   ),
-                ),
-                (null, null) => DecoratedBox(
-                  decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
-                  child: unavailable
-                      ? const Center(child: Icon(CraftskyIcons.brokenImage))
-                      : switch (placeholderIcon) {
-                          final icon? => Center(child: Icon(icon, size: 56)),
-                          null => null,
-                        },
-                ),
-              },
-              if (busyLabel case final label?)
-                _ImageBusyOverlay(
-                  label: label,
-                  progress: busyProgress,
-                  overlayKey: overlayKey,
-                  progressKey: progressKey,
-                  labelKey: labelKey,
-                ),
-            ],
+                  (null, final url?) => CachedNetworkImage(
+                    imageUrl: url,
+                    key: imageKey,
+                    fit: fit,
+                    width: double.infinity,
+                    errorWidget: (_, _, _) => const Center(
+                      child: Icon(CraftskyIcons.brokenImage),
+                    ),
+                  ),
+                  (null, null) => DecoratedBox(
+                    decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
+                    child: unavailable
+                        ? const Center(child: Icon(CraftskyIcons.brokenImage))
+                        : switch (placeholderIcon) {
+                            final icon? => Center(child: Icon(icon, size: 56)),
+                            null => null,
+                          },
+                  ),
+                },
+                if (busyLabel case final label?)
+                  _ImageBusyOverlay(
+                    label: label,
+                    progress: busyProgress,
+                    overlayKey: overlayKey,
+                    progressKey: progressKey,
+                    labelKey: labelKey,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

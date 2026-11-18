@@ -44,10 +44,10 @@ be checked at each annual regulatory review.
 
 | Area | Current position | Safety significance |
 |---|---|---|
-| Public posting | Text, images, video, links, project metadata, replies, and quote posts | Users can publish illegal or harmful material to an open network. |
+| Public posting | Text, images, video, links, project metadata, replies, and quote posts. Douglas Todd explicitly confirmed video uploads for launch on 9 November 2026. | Users can publish illegal or harmful material to an open network. Video moderation and release evidence must cover the enabled feature; video-disabled assumptions cannot be credited as safeguards. |
 | Discovery | The following/home feed is chronological and not engagement-ranked; search and discovery use documented relevance or popularity ordering | Search and sharing can increase reach even without an engagement-ranked home feed. |
 | Contact | Public replies, mentions, quotes, follows, likes, and reposts | Enables unwanted contact and public harassment. |
-| Private messaging | Not provided | Materially reduces grooming, private abuse, fraud, and hidden-sharing risk. |
+| Private messaging | Bluesky-backed DMs are implemented and confirmed for launch by Douglas Todd on 9 November 2026. Reports go to Bluesky; incoming-contact settings are exposed in CraftSky. | Include grooming, unwanted contact and private abuse in risk assessment; verify provider dependencies and CraftSky escalation. DM reports do not enter the local moderation queue. |
 | Livestreaming | Not provided | Reduces real-time abuse and intervention risk. |
 | Ephemeral content | Not provided | Improves auditability compared with disappearing content. |
 | Blocking | Public AT Protocol block with symmetric CraftSky restrictions | Helps users stop interaction in CraftSky but cannot promise network-wide isolation. |
@@ -77,7 +77,8 @@ be checked at each annual regulatory review.
 ## Protective Design Decisions
 
 - No advertising or paid reach.
-- No direct messages or livestreaming at launch.
+- No livestreaming identified in the assessed implementation. Bluesky-backed DMs
+  are included at launch and must be assessed, not counted as an absent risk.
 - Chronological feeds rather than engagement-ranked home feeds.
 - Reports are private and report volume does not determine guilt.
 - Moderator decisions use append-only evidence and effect records.

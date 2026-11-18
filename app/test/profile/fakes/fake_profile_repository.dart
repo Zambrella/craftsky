@@ -42,6 +42,8 @@ class FakeProfileRepository implements ProfileRepository {
     this.onUnblock,
     this.onReport,
     this.onListMutualFollowers,
+    this.onListFollowers,
+    this.onListFollowing,
     this.onListFollowersMe,
     this.onListFollowingMe,
     this.onListMutedProfiles,
@@ -88,6 +90,18 @@ class FakeProfileRepository implements ProfileRepository {
     String? cursor,
   })?
   onListMutualFollowers;
+  final Future<ProfileAccountPage> Function(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  })?
+  onListFollowers;
+  final Future<ProfileAccountPage> Function(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  })?
+  onListFollowing;
   final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
   onListFollowersMe;
   final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
@@ -241,6 +255,24 @@ class FakeProfileRepository implements ProfileRepository {
       Future<ProfileAccountPage>.error(
         UnimplementedError('listMutualFollowers not stubbed'),
       );
+
+  @override
+  Future<ProfileAccountPage> listFollowers(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) =>
+      onListFollowers?.call(handleOrDid, limit: limit, cursor: cursor) ??
+      Future.error(UnimplementedError('listFollowers not stubbed'));
+
+  @override
+  Future<ProfileAccountPage> listFollowing(
+    String handleOrDid, {
+    int? limit,
+    String? cursor,
+  }) =>
+      onListFollowing?.call(handleOrDid, limit: limit, cursor: cursor) ??
+      Future.error(UnimplementedError('listFollowing not stubbed'));
 
   @override
   Future<ProfileAccountPage> listFollowersMe({int? limit, String? cursor}) =>

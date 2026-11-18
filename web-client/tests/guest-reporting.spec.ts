@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { reportConfirmation } from '../src/lib/features/moderation/report-confirmation';
 
 for (const subject of ['post', 'profile']) {
 	test(`guest submits a ${subject} report through the shared form`, async ({
@@ -50,8 +51,13 @@ for (const subject of ['post', 'profile']) {
 		await dialog.getByRole('button', { name: 'Submit report' }).click();
 		await expect(dialog).toHaveCount(0);
 		await expect(
-			page.locator('.snackbar').getByText('Report submitted.', { exact: true })
+			page.locator('.snackbar').getByText(reportConfirmation, { exact: true })
 		).toBeVisible();
+		await expect(
+			page
+				.locator('.snackbar')
+				.getByRole('link', { name: 'Find support', exact: true })
+		).toHaveAttribute('href', '/safety');
 		expect(writes).toHaveLength(1);
 		expect(writes[0].path).toMatch(
 			subject === 'post'
@@ -117,4 +123,38 @@ test('guest report can be cancelled and a failed submission retried in place', a
 		{ reasonType: 'spam', details: 'Retain this report' },
 		{ reasonType: 'spam', details: 'Retain this report' }
 	]);
+});
+
+test('report option labels stay in the list-page dialog', async ({ page }) => {
+	await page.goto('/feed');
+	await page.getByRole('button', { name: 'Explore CraftSky' }).click();
+	const listUrl = page.url();
+	const card = page.locator('.member-post').first();
+	await card.getByLabel('More post actions', { exact: true }).click();
+	await card.getByRole('button', { name: 'Report post', exact: true }).click();
+	const dialog = page.getByRole('dialog', { name: 'Report post', exact: true });
+	await dialog.getByText('Child safety', { exact: true }).click();
+	await expect(
+		dialog.getByRole('radio', { name: 'Grooming', exact: true })
+	).toBeVisible();
+	await expect(page).toHaveURL(listUrl);
+	await dialog.getByText('Grooming', { exact: true }).click();
+	await expect(
+		dialog.getByRole('radio', { name: 'Grooming', exact: true })
+	).toBeChecked();
+	await dialog.getByLabel('Details', { exact: true }).click();
+	await expect(page).toHaveURL(listUrl);
+	await dialog.getByRole('button', { name: 'Change category' }).click();
+	await dialog
+		.getByText('Spam, misleading or off-topic content', { exact: true })
+		.click();
+	await expect(
+		dialog.getByRole('radio', { name: 'Spam', exact: true })
+	).toBeVisible();
+	await expect(page).toHaveURL(listUrl);
+	await dialog.getByRole('button', { name: 'Cancel report' }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(page).toHaveURL(listUrl);
+	await card.getByText('Guest knitting project', { exact: true }).click();
+	await expect(page).toHaveURL(/\/posts\//);
 });

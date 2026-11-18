@@ -107,32 +107,51 @@ describe('business products', () => {
 		uri: 'https://shop.example/wool',
 		amount: '12.50',
 		currency: 'gbp',
-		image: {
-			cid: 'bafyimage',
-			mime: 'image/jpeg',
-			size: 100,
-			alt: 'Blue wool',
-			aspectRatio: { width: 100, height: 200 }
-		}
+		images: [
+			{
+				cid: 'bafyimage',
+				mime: 'image/jpeg',
+				size: 100,
+				alt: 'Blue wool',
+				aspectRatio: { width: 100, height: 200 }
+			}
+		]
 	};
 	it('converts image views back to blob references and canonical decimal prices', () => {
 		expect(productBody([product])).toEqual([
 			{
 				title: 'Hand dyed wool',
 				uri: 'https://shop.example/wool',
-				image: {
-					image: {
-						$type: 'blob',
-						ref: { $link: 'bafyimage' },
-						mimeType: 'image/jpeg',
-						size: 100
-					},
-					alt: 'Blue wool',
-					aspectRatio: { width: 100, height: 200 }
-				},
+				images: [
+					{
+						image: {
+							$type: 'blob',
+							ref: { $link: 'bafyimage' },
+							mimeType: 'image/jpeg',
+							size: 100
+						},
+						alt: 'Blue wool',
+						aspectRatio: { width: 100, height: 200 }
+					}
+				],
 				price: { amount: '12.5', currency: 'GBP' }
 			}
 		]);
+	});
+	it('omits the price when the amount is blank despite a suggested currency', () => {
+		expect(
+			productBody([{ ...product, amount: '', currency: 'GBP' }])[0]
+		).not.toHaveProperty('price');
+	});
+	it('trims product text and detects duplicate destinations after trimming', () => {
+		expect(
+			productBody([
+				{ ...product, title: '  Blue wool  ', uri: ` ${product.uri} ` }
+			])[0]
+		).toMatchObject({ title: 'Blue wool', uri: product.uri });
+		expect(() =>
+			productBody([product, { ...product, uri: ` ${product.uri} ` }])
+		).toThrow('different destination');
 	});
 	it('rejects unsafe and duplicate destinations and incomplete prices', () => {
 		expect(() =>
@@ -142,15 +161,13 @@ describe('business products', () => {
 			'different destination'
 		);
 		expect(() => productBody([{ ...product, currency: '' }])).toThrow('both');
-		expect(() => productBody([{ ...product, image: undefined }])).toThrow(
-			'image'
-		);
+		expect(() => productBody([{ ...product, images: [] }])).toThrow('photos');
 	});
 });
 describe('business event time zones', () => {
 	it('resolves an explicit IANA timezone independently of the browser timezone', () => {
 		expect(zonedTimestamp('2026-07-02T12:30', 'Europe/London')).toBe(
-			'2026-07-02T11:30:00.000Z'
+			'2026-07-02T11:30:00Z'
 		);
 		expect(wallTime('2026-07-02T11:30:00Z', 'Europe/London')).toBe(
 			'2026-07-02T12:30'

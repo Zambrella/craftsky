@@ -348,6 +348,8 @@ Widget _app(
   Future<SubscriptionAccess> Function(AccountSessionLease)? access,
 }) => ProviderScope(
   overrides: [
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     secureSessionRegistryStorageProvider.overrideWithValue(
       _ProductsRegistryStorage(
         SessionRegistry.empty().upsertAndActivate(
@@ -357,6 +359,8 @@ Widget _app(
         ),
       ),
     ),
+    // This override belongs to the test harness's root ProviderScope.
+    // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
     subscriptionAccessProvider.overrideWith(
       (ref, lease) =>
           access?.call(lease) ??
@@ -420,14 +424,16 @@ Profile _profile({bool withProducts = false, int productCount = 0}) => Profile(
 BusinessProductView _product(String title) => BusinessProductView(
   title: title,
   uri: 'https://shop.example/$title',
-  image: BusinessImageView(
-    cid: 'bafy-$title',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: title,
-    thumb: 'https://cdn.example/$title/thumb',
-    fullsize: 'https://cdn.example/$title/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-$title',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: title,
+      thumb: 'https://cdn.example/$title/thumb',
+      fullsize: 'https://cdn.example/$title/full',
+    ),
+  ],
 );
 
 final class _Repository extends Fake implements BusinessRepository {

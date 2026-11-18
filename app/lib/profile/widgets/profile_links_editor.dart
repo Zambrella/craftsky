@@ -334,21 +334,19 @@ class _LinkFormState extends ConsumerState<_LinkForm> {
             ],
           ],
         ),
+        primaryAction: CraftskyDialogPrimaryAction(
+          key: const Key('profile-link-save'),
+          onPressed: _busy ? null : _save,
+          label: _busy
+              ? l10n.profileLinkChecking
+              : _unreachable
+              ? l10n.profileLinkSaveAnyway
+              : l10n.editProfileSave,
+        ),
         actions: [
           TextButton(
             onPressed: _busy ? null : () => Navigator.of(context).pop(),
             child: Text(l10n.actionCancel),
-          ),
-          TextButton(
-            key: const Key('profile-link-save'),
-            onPressed: _busy ? null : _save,
-            child: Text(
-              _busy
-                  ? l10n.profileLinkChecking
-                  : _unreachable
-                  ? l10n.profileLinkSaveAnyway
-                  : l10n.editProfileSave,
-            ),
           ),
         ],
       ),

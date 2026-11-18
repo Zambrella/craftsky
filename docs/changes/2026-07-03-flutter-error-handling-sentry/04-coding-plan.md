@@ -4,7 +4,7 @@
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md`
-- Additional references inspected: `atproto-craft-social-app-reference.md`, Sentry Flutter SDK docs via Context7, Sentry Flutter skill references for error monitoring/logging/ecosystem integrations, and Riverpod 3 retry docs via Context7.
+- Additional references inspected: `docs/architecture.md`, Sentry Flutter SDK docs via Context7, Sentry Flutter skill references for error monitoring/logging/ecosystem integrations, and Riverpod 3 retry docs via Context7.
 
 ## 2. Implementation Strategy
 Add one app-owned observability boundary and one finite user-facing error boundary, then wire existing app startup, API mapping, provider logging, l10n, and message/full-screen UI through those boundaries.

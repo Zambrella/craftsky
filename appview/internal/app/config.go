@@ -5,6 +5,7 @@ package app
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -23,6 +24,7 @@ import (
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/safetyalerts"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/scheduledposts"
 )
@@ -331,8 +333,7 @@ type Config struct {
 	SafetyIntimateImageResponseWithin time.Duration
 	SafetyEvidenceS3                  safetyincident.S3EvidenceStoreConfig
 
-	// Observability. Sentry export/tracing stays disabled unless explicitly
-	// configured, and unsafe body logging is local-dev only.
+	// Observability. Sentry export/tracing stays disabled unless explicitly configured.
 	SentryDSN                 string
 	SentryRelease             string
 	SentryLogsEnabled         bool
@@ -341,10 +342,6 @@ type Config struct {
 	SentryMetricsEnabled      bool
 	SentryTapTracingEnabled   bool
 	SentryTapTracesSampleRate float64
-	UnsafeLogResponseBodies   bool
-	// UnsafeLogInstagramWebhookBodies is a temporary local capability-spike
-	// diagnostic. Production validation always forces it off.
-	UnsafeLogInstagramWebhookBodies bool
 
 	// Dev-only synthetic moderation controls. These fields are cleared in prod.
 	EnableDevModeration         bool
@@ -353,24 +350,30 @@ type Config struct {
 	TrustedModerationSourceDIDs []string
 
 	ModerationAdminEnabled       bool
+	SafetyEmailEnabled           bool
+	SafetyEmailConsoleOrigin     string
+	BrevoAPIKey                  Secret
 	ModerationSourceDID          string
 	ModerationExpiryPollInterval time.Duration
 	ModerationExpiryBatchSize    int
 }
 
-// LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
+// LoadConfig reads config/<env>.env from envFilePath, layers os.Getenv
 // on top (so shell env vars override the file), and validates that every
 // required field is set. Missing required fields produce an error naming
 // the specific key.
 //
 // envFilePath is passed explicitly (not derived from env) so tests can
 // point at a temp file. Callers in main code will pass
-// "environments/<env>.env".
+// "config/<env>.env".
 func LoadConfig(env Env, envFilePath string) (Config, error) {
 	// godotenv.Load merges the file into os.Environ without overwriting
 	// existing values — exactly the "os.Getenv wins" semantics we want.
 	// A missing file is not fatal: os.Getenv alone may have everything.
-	_ = godotenv.Load(envFilePath)
+	if err := godotenv.Load(envFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Dotenv parse errors can include secret source lines. Do not wrap them.
+		return Config{}, fmt.Errorf("cannot read configuration file: check permissions and dotenv syntax")
+	}
 
 	cfg := Config{
 		VideoProvider:             getEnvWithDefault("VIDEO_PROVIDER", "bunny"),
@@ -1071,17 +1074,28 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 			cfg.SentryTapTracesSampleRate = 1
 		}
 	}
-	if cfg.UnsafeLogResponseBodies, err = boolEnv("APPVIEW_UNSAFE_LOG_RESPONSE_BODIES", false); err != nil {
-		return Config{}, err
-	}
-	if cfg.UnsafeLogInstagramWebhookBodies, err = boolEnv("INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES", false); err != nil {
-		return Config{}, err
-	}
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
 	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
 		return Config{}, err
+	}
+	if cfg.SafetyEmailEnabled, err = boolEnv("SAFETY_EMAIL_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.SafetyEmailEnabled {
+		cfg.BrevoAPIKey = Secret(strings.TrimSpace(os.Getenv("BREVO_API_KEY")))
+		if cfg.BrevoAPIKey.Reveal() == "" || !cfg.ModerationAdminEnabled {
+			return Config{}, fmt.Errorf("SAFETY_EMAIL_ENABLED requires BREVO_API_KEY and MODERATION_ADMIN_ENABLED")
+		}
+		origin := os.Getenv("SAFETY_EMAIL_CONSOLE_ORIGIN")
+		if origin == "" && env == EnvDev {
+			origin = cfg.OAuth.CallbackURL.Scheme + "://" + cfg.OAuth.CallbackURL.Host
+		}
+		cfg.SafetyEmailConsoleOrigin, err = safetyalerts.ConsoleOrigin(origin, env == EnvDev)
+		if err != nil {
+			return Config{}, fmt.Errorf("SAFETY_EMAIL_CONSOLE_ORIGIN must be an HTTPS origin (loopback HTTP is allowed in dev)")
+		}
 	}
 	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
 	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {
@@ -1125,8 +1139,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.DevModerationToken = ""
 		cfg.DevLabelerDID = ""
 		cfg.TrustedModerationSourceDIDs = nil
-		cfg.UnsafeLogResponseBodies = false
-		cfg.UnsafeLogInstagramWebhookBodies = false
 	}
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")

@@ -28,6 +28,41 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../test_support/member_browsing_context.dart';
 
 void main() {
+  for (final fail in [false, true]) {
+    test(
+      'discarded conflict reload cannot overwrite a rebuild (error=$fail)',
+      () async {
+        final repository = _Repository()
+          ..error = const ApiBadRequest('pds_record_conflict');
+        final reload = Completer<Profile>();
+        final container = _container(
+          repository,
+          _profile('bafy-current'),
+          loader: () => reload.future,
+        );
+        addTearDown(container.dispose);
+        final initial = await container.read(productsControllerProvider.future);
+        final controller = container.read(productsControllerProvider.notifier);
+        await controller.replaceProducts(initial.products);
+        final pending = controller.reloadAfterConflict();
+        container.invalidate(productsControllerProvider);
+        await container.read(productsControllerProvider.future);
+        if (fail) {
+          reload.completeError(const ApiNetworkError('offline'));
+        } else {
+          reload.complete(_profile('bafy-stale', tagline: 'Discarded reload'));
+        }
+        await expectLater(pending, completes);
+        final current = container.read(productsControllerProvider);
+        expect(current.hasError, isFalse);
+        expect(
+          current.requireValue.declaration.expectedCid.toString(),
+          'bafy-current',
+        );
+      },
+    );
+  }
+
   test(
     'IT-007 saves one complete declaration with current CID and order',
     () async {
@@ -187,13 +222,15 @@ void main() {
                 id: product.id,
                 title: product.title,
                 destination: product.destination,
-                image: UploadedBusinessImageDraft(
-                  cid: 'bafy-replacement',
-                  mime: 'image/png',
-                  size: 4,
-                  alt: 'Replacement image',
-                  localPreviewBytes: previewBytes,
-                ),
+                images: [
+                  UploadedBusinessImageDraft(
+                    cid: 'bafy-replacement',
+                    mime: 'image/png',
+                    size: 4,
+                    alt: 'Replacement image',
+                    localPreviewBytes: previewBytes,
+                  ),
+                ],
                 amount: product.amount,
                 currency: product.currency,
               ),
@@ -211,7 +248,7 @@ void main() {
       expect(accepted.products.single.image?.previewBytes, same(previewBytes));
       expect(repository.bodies.single['products'], [
         isA<Map<String, dynamic>>().having(
-          (product) => product['image'],
+          (product) => (product['images'] as List).single,
           'image',
           {
             'image': {
@@ -274,13 +311,15 @@ void main() {
           id: first.id,
           title: 'Accepted product',
           destination: first.destination,
-          image: UploadedBusinessImageDraft(
-            cid: 'bafy-replacement',
-            mime: 'image/png',
-            size: 3,
-            alt: 'Accepted replacement',
-            localPreviewBytes: previewBytes,
-          ),
+          images: [
+            UploadedBusinessImageDraft(
+              cid: 'bafy-replacement',
+              mime: 'image/png',
+              size: 3,
+              alt: 'Accepted replacement',
+              localPreviewBytes: previewBytes,
+            ),
+          ],
           amount: first.amount,
           currency: first.currency,
         ),
@@ -394,14 +433,16 @@ Profile _profile(String cid, {String tagline = 'Details survive'}) => Profile(
 BusinessProductView _product(String title, String path) => BusinessProductView(
   title: title,
   uri: 'https://shop.example/$path',
-  image: BusinessImageView(
-    cid: 'bafy-$path',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: title,
-    thumb: 'https://cdn.example/$path/thumb',
-    fullsize: 'https://cdn.example/$path/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-$path',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: title,
+      thumb: 'https://cdn.example/$path/thumb',
+      fullsize: 'https://cdn.example/$path/full',
+    ),
+  ],
 );
 
 final class _Repository extends Fake implements BusinessRepository {

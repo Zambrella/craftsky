@@ -14,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyintake"
 )
 
@@ -184,6 +185,8 @@ func writeSafetyIntakeError(w http.ResponseWriter, r *http.Request, err error) b
 	}
 	runID := middleware.GetRunID(r.Context())
 	switch {
+	case errors.Is(err, safetyintake.ErrInvalidSubject):
+		envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_external_intake_subject", "use a CraftSky record link, AT URI or appeal case reference", runID, nil)
 	case errors.Is(err, safetyintake.ErrInvalidEmailMetadata):
 		envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_external_intake", "external intake is invalid", runID, nil)
 	case errors.Is(err, safetyintake.ErrUnsafeAttachment):
@@ -191,6 +194,7 @@ func writeSafetyIntakeError(w http.ResponseWriter, r *http.Request, err error) b
 	case errors.Is(err, safetyintake.ErrAppealOwnerMismatch):
 		envelope.WriteError(w, http.StatusUnprocessableEntity, "appeal_owner_mismatch", "appeal owner could not be verified", runID, nil)
 	default:
+		observability.ReportRequestFailure(r.Context(), err, "safety.intake", "store")
 		envelope.WriteError(w, http.StatusServiceUnavailable, "external_intake_unavailable", "external intake unavailable", runID, nil)
 	}
 	return false

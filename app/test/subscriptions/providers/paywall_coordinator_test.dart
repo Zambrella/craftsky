@@ -1,12 +1,81 @@
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
-import 'package:craftsky_app/subscriptions/services/billing_owner_guard.dart';
+import 'package:craftsky_app/subscriptions/services/billing_account_guard.dart';
 import 'package:craftsky_app/subscriptions/services/paywall_coordinator.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'new purchase cannot duplicate an existing same-owner store plan',
+    () async {
+      final service = _PaywallService(
+        offerings: {
+          'business': const _Offering('business', {r'$rc_monthly'}),
+        },
+        result: DirectPaywallResult.purchased,
+        hasActiveSubscription: true,
+      );
+      expect(
+        await _present(service, SubscriptionTier.business),
+        PaywallOutcome.existingStoreSubscription,
+      );
+      expect(service.ownershipRequirements, [false, true]);
+      expect(service.presentedOfferings, isEmpty);
+    },
+  );
+
+  test(
+    'explicit replacement permits the same-owner existing store plan',
+    () async {
+      final service = _PaywallService(
+        offerings: {
+          'business': const _Offering('business', {r'$rc_monthly'}),
+        },
+        result: DirectPaywallResult.purchased,
+        hasActiveSubscription: true,
+      );
+      const guard = BillingAccountGuard(_ownerRegistry);
+      final outcome = await PaywallCoordinator(
+        service,
+        guard,
+        RevenueCatIdentityGuard(service),
+      ).changePlan(guard.capture(), SubscriptionTier.business);
+      expect(outcome, PaywallOutcome.reconcile);
+      expect(service.ownershipRequirements, [false, false]);
+      expect(service.presentedOfferings, ['business']);
+    },
+  );
+
+  test('conflicting ownership stops before native checkout', () async {
+    final service = _PaywallService(
+      offerings: {
+        'plus': const _Offering('plus', {r'$rc_monthly'}),
+      },
+      result: DirectPaywallResult.purchased,
+      ownershipError: const StoreAccountConflictException(),
+    );
+    expect(
+      await _present(service, SubscriptionTier.plus),
+      PaywallOutcome.storeAccountConflict,
+    );
+    expect(service.presentedOfferings, isEmpty);
+  });
+  test('unverified ownership stops before native checkout', () async {
+    final service = _PaywallService(
+      offerings: {
+        'plus': const _Offering('plus', {r'$rc_monthly'}),
+      },
+      result: DirectPaywallResult.purchased,
+      ownershipError: const StoreOwnershipUnverifiedException(),
+    );
+    expect(
+      await _present(service, SubscriptionTier.plus),
+      PaywallOutcome.providerError,
+    );
+    expect(service.presentedOfferings, isEmpty);
+  });
   test('IT-005 presents each named monthly offering directly', () async {
     for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
       final service = _PaywallService(
@@ -27,7 +96,7 @@ void main() {
   test('UT-006 maps direct paywall results deterministically', () async {
     final expected = {
       DirectPaywallResult.purchased: PaywallOutcome.reconcile,
-      DirectPaywallResult.restored: PaywallOutcome.reconcile,
+      DirectPaywallResult.restored: PaywallOutcome.restored,
       DirectPaywallResult.cancelled: PaywallOutcome.cancelled,
       DirectPaywallResult.error: PaywallOutcome.providerError,
     };
@@ -100,7 +169,7 @@ void main() {
         );
       },
     );
-    final guard = BillingOwnerGuard(() => registry);
+    final guard = BillingAccountGuard(() => registry);
 
     final result = await PaywallCoordinator(
       service,
@@ -129,7 +198,7 @@ void main() {
           );
         },
       );
-      final guard = BillingOwnerGuard(() => registry);
+      final guard = BillingAccountGuard(() => registry);
 
       final result = await PaywallCoordinator(
         service,
@@ -148,7 +217,7 @@ Future<PaywallOutcome> _present(
   SubscriptionTier tier,
 ) {
   final registry = _ownerRegistry();
-  final ownerGuard = BillingOwnerGuard(() => registry);
+  final ownerGuard = BillingAccountGuard(() => registry);
   return PaywallCoordinator(
     service,
     ownerGuard,
@@ -162,8 +231,7 @@ SessionRegistry _ownerRegistry() => SessionRegistry.empty()
       did: 'did:plc:alice',
       handle: 'alice.test',
     )
-    .reserveBillingOwner('did:plc:alice')
-    .completeBillingOwner(
+    .setBillingCustomer(
       'did:plc:alice',
       '20000000-0000-4000-8000-000000000001',
     );
@@ -182,18 +250,43 @@ final class _Offering implements RevenueCatOffering {
   String? packagePrice(String identifier) => null;
 }
 
-final class _PaywallService implements RevenueCatService {
+final class _PaywallService
+    implements
+        RevenueCatService,
+        NativeStoreOwnershipService,
+        NativePlanChangeService {
   new({
     required this.offerings,
     required this.result,
     this.failPresentation = false,
+    this.ownershipError,
     this.onOffering,
     this.onPresentation,
+    this.hasActiveSubscription = false,
   });
 
   final Map<String, RevenueCatOffering> offerings;
   final DirectPaywallResult result;
   final bool failPresentation;
+  final Exception? ownershipError;
+  final bool hasActiveSubscription;
+  final ownershipRequirements = <bool>[];
+  @override
+  String get store => 'app_store';
+  @override
+  bool get supportsPlanChanges => true;
+  @override
+  Future<void> verifyStoreOwnership(
+    String appUserId, {
+    bool requireNoActiveSubscription = false,
+  }) async {
+    ownershipRequirements.add(requireNoActiveSubscription);
+    if (ownershipError case final error?) throw error;
+    if (requireNoActiveSubscription && hasActiveSubscription) {
+      throw const StoreSubscriptionExistsException();
+    }
+  }
+
   final void Function()? onOffering;
   final void Function()? onPresentation;
   final requestedOfferings = <String>[];
@@ -230,6 +323,12 @@ final class _PaywallService implements RevenueCatService {
 
   @override
   Future<void> restorePurchases() => throw UnimplementedError();
+
+  @override
+  Future<DirectPaywallResult> changePlan(
+    RevenueCatOffering offering, {
+    required bool Function() isCurrent,
+  }) => presentPaywall(offering);
 
   @override
   Future<void> presentCustomerCenter(

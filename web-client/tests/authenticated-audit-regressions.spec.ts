@@ -150,7 +150,7 @@ test('stopping a pending publication retains the frozen request and retry reuses
 	await editor(page).fill('Frozen original');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 	await expect.poll(() => attempts.length).toBe(1);
-	await page.getByRole('button', { name: 'Stop waiting' }).click();
+	await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await expect(
 		page.getByRole('heading', { name: 'Waiting for confirmation' })
 	).toBeVisible();

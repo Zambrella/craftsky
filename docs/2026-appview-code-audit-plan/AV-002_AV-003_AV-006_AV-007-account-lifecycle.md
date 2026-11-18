@@ -292,7 +292,7 @@ AV-007 closes only after the approved branch is implemented honestly. Under the 
 ## References
 
 - [AppView code audit](../2026-08-12-appview-code-audit.md)
-- [AT Protocol architecture reference](../../atproto-craft-social-app-reference.md)
+- [AT Protocol architecture reference](../architecture.md)
 - [AppView API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [Profile onboarding and membership design](../superpowers/specs/2026-04-23-profile-onboarding-design.md)
 - [Scheduled-post requirements](../changes/2026-07-31-scheduled-posts/01-requirements.md)

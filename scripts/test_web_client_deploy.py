@@ -2,6 +2,8 @@
 import importlib.machinery
 import importlib.util
 import json
+import io
+from urllib.error import HTTPError
 from pathlib import Path
 import subprocess
 import tempfile
@@ -101,29 +103,60 @@ class PreviewTests(unittest.TestCase):
     def test_redirects_are_not_followed(self):
         self.assertIsNone(deploy.NoRedirects().redirect_request(None, None, 302, "", {}, "https://evil.example"))
 
-    def test_hosted_verification_accepts_cloudflare_noindex_and_checks_all_native_files(self):
+    @staticmethod
+    def hosted_response(request, **kwargs):
         paths = {
             "/.well-known/assetlinks.json": "verified-links/.well-known/assetlinks.json",
             "/.well-known/apple-app-site-association": "verified-links/.well-known/apple-app-site-association",
             "/auth/complete": "verified-links/auth/complete.html",
             "/account-deletion/reauth-complete": "verified-links/account-deletion/reauth-complete.html",
         }
+        path = deploy.urlsplit(request.full_url).path
+        headers = {
+            "X-Robots-Tag": "noindex", "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "Content-Type": "application/json" if path.startswith("/.well-known/") else "text/html; charset=utf-8",
+        }
+        if path in ("/", "/sign-in"):
+            headers["Location"] = "/feed" if path == "/" else "/feed?auth=1"
+            raise HTTPError(request.full_url, 303, "See Other", headers, io.BytesIO(b""))
+        result = MagicMock()
+        result.__enter__.return_value = result
+        result.status = 200
+        result.headers = headers
+        result.read.return_value = (deploy.ROOT / paths[path]).read_bytes() if path in paths else b"<html/>"
+        return result
+
+    def test_hosted_verification_accepts_guest_redirects_and_checks_destinations_and_native_files(self):
+        with patch.object(deploy, "build_opener") as opener:
+            opener.return_value.open.side_effect = self.hosted_response
+            deploy.verify("https://preview.example.workers.dev")
+            requested = [call.args[0].full_url for call in opener.return_value.open.call_args_list]
+            self.assertEqual(len(requested), 8)
+            self.assertIn("https://preview.example.workers.dev/feed", requested)
+            self.assertIn("https://preview.example.workers.dev/feed?auth=1", requested)
+
+    def test_verification_rejects_foreign_or_unexpected_guest_redirects(self):
+        for location in ["https://evil.example/feed", "//evil.example/feed", "/unexpected", "/feed?auth=1"]:
+            with self.subTest(location=location), patch.object(deploy, "build_opener") as opener:
+                opener.return_value.open.side_effect = HTTPError(
+                    "https://preview.example.workers.dev/", 303, "See Other",
+                    {"Location": location}, io.BytesIO(b""))
+                with self.assertRaisesRegex(ValueError, "unexpected redirect"):
+                    deploy.verify("https://preview.example.workers.dev")
+                self.assertEqual(opener.return_value.open.call_count, 1)
+
+    def test_guest_redirect_still_requires_privacy_headers(self):
         def response(request, **kwargs):
-            path = deploy.urlsplit(request.full_url).path
-            result = MagicMock()
-            result.__enter__.return_value = result
-            result.status = 200
-            result.headers = {
-                "X-Robots-Tag": "noindex", "Cache-Control": "no-store",
-                "Referrer-Policy": "no-referrer",
-                "Content-Type": "application/json" if path.startswith("/.well-known/") else "text/html; charset=utf-8",
-            }
-            result.read.return_value = (deploy.ROOT / paths[path]).read_bytes() if path in paths else b"<html/>"
-            return result
+            try:
+                return self.hosted_response(request, **kwargs)
+            except HTTPError as error:
+                error.headers.pop("Cache-Control")
+                raise
         with patch.object(deploy, "build_opener") as opener:
             opener.return_value.open.side_effect = response
-            deploy.verify("https://preview.example.workers.dev")
-            self.assertEqual(opener.return_value.open.call_count, 6)
+            with self.assertRaisesRegex(ValueError, "missing no-store"):
+                deploy.verify("https://preview.example.workers.dev")
 
     def test_worker_config_has_no_live_domain(self):
         config = json.loads(deploy.CONFIG.read_text())

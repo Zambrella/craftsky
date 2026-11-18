@@ -21,6 +21,7 @@ class ProfileAccountSummaryMapper
         HandleMapper(),
         ProfileCustomisationMapper(),
       ]);
+      AccountTypeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -73,6 +74,12 @@ class ProfileAccountSummaryMapper
     opt: true,
     def: const [],
   );
+  static AccountType? _$accountType(ProfileAccountSummary v) => v.accountType;
+  static const Field<ProfileAccountSummary, AccountType> _f$accountType = Field(
+    'accountType',
+    _$accountType,
+    opt: true,
+  );
   static bool _$muted(ProfileAccountSummary v) => v.muted;
   static const Field<ProfileAccountSummary, bool> _f$muted = Field(
     'muted',
@@ -113,6 +120,7 @@ class ProfileAccountSummaryMapper
     #description: _f$description,
     #avatar: _f$avatar,
     #crafts: _f$crafts,
+    #accountType: _f$accountType,
     #muted: _f$muted,
     #blocking: _f$blocking,
     #blockedBy: _f$blockedBy,
@@ -128,6 +136,7 @@ class ProfileAccountSummaryMapper
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
       crafts: data.dec(_f$crafts),
+      accountType: data.dec(_f$accountType),
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
       blockedBy: data.dec(_f$blockedBy),
@@ -214,6 +223,7 @@ abstract class ProfileAccountSummaryCopyWith<
     String? description,
     String? avatar,
     List<String>? crafts,
+    AccountType? accountType,
     bool? muted,
     bool? blocking,
     bool? blockedBy,
@@ -248,6 +258,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     Object? description = $none,
     Object? avatar = $none,
     List<String>? crafts,
+    Object? accountType = $none,
     bool? muted,
     bool? blocking,
     bool? blockedBy,
@@ -261,6 +272,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
       if (crafts != null) #crafts: crafts,
+      if (accountType != $none) #accountType: accountType,
       if (muted != null) #muted: muted,
       if (blocking != null) #blocking: blocking,
       if (blockedBy != null) #blockedBy: blockedBy,
@@ -279,6 +291,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),
     crafts: data.get(#crafts, or: $value.crafts),
+    accountType: data.get(#accountType, or: $value.accountType),
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),
     blockedBy: data.get(#blockedBy, or: $value.blockedBy),

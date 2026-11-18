@@ -4,7 +4,7 @@
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md`
-- Reference architecture: `atproto-craft-social-app-reference.md`
+- Reference architecture: `docs/architecture.md`
 - API architecture: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 
 ## 2. Implementation Strategy

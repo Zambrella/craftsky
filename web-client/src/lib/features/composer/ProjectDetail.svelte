@@ -113,7 +113,7 @@
 			aria-labelledby={uid + '-title'}
 			use:mountComposerPage
 		>
-			<header class="workspace-header project-detail-heading">
+			<header class="workspace-header project-detail-heading page-appbar">
 				<button
 					type="button"
 					class="icon-button project-detail-back"
@@ -186,17 +186,7 @@
 		background: var(--paper);
 	}
 	.project-detail-heading {
-		flex: none;
 		justify-content: flex-start;
-		gap: 16px;
-		padding: 3px 8px;
-		height: 56px;
-	}
-	.project-detail-heading h1 {
-		margin: 0;
-		font:
-			600 20px/1.25 Outfit,
-			sans-serif;
 	}
 	.project-detail-back {
 		color: var(--ink);

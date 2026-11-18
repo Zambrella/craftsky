@@ -429,6 +429,8 @@ class _PostSummaryAuthor extends StatelessWidget {
               handle: author.handle.toString(),
               displayName: author.displayName,
               crafts: author.crafts,
+              isBusiness: author.isBusiness,
+              customisation: author.customisation,
             ),
           ),
         ],
@@ -440,6 +442,7 @@ class _PostSummaryAuthor extends StatelessWidget {
             handle: author.handle.toString(),
             displayName: author.displayName,
             crafts: author.crafts,
+            isBusiness: author.isBusiness,
             avatar: avatar,
             builder: (context, avatar, openProfile) =>
                 identity(avatar, onTap ?? openProfile),
@@ -470,13 +473,7 @@ class _PostSummaryImage extends ConsumerWidget {
                 aspectRatio: image.aspectRatio,
                 maxHeight: maxHeight,
               );
-        final fit = isVideo
-            ? BoxFit.cover
-            : computePostImageFit(
-                availableWidth: constraints.maxWidth,
-                aspectRatio: image.aspectRatio,
-                maxHeight: maxHeight,
-              );
+        final fit = isVideo ? BoxFit.cover : BoxFit.contain;
         return ClipRRect(
           key: const Key('post-summary-image'),
           borderRadius: BorderRadius.circular(radii.r2),

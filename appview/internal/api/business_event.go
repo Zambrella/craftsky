@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
@@ -425,7 +425,7 @@ func PostBusinessEventHandler(
 					return acceptedBusinessEventCreateResult(owner, authoritative)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -590,7 +590,7 @@ func PutBusinessEventHandler(
 					return acceptedBusinessEventMutationResult(owner, http.StatusOK, authoritative)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -702,7 +702,7 @@ func DeleteBusinessEventHandler(
 					return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -792,7 +792,7 @@ func decodeBusinessEventRequest(body io.Reader, now time.Time, existing bool) (b
 func validateBusinessEventRequest(request *businessEventRequest, now time.Time, existing bool) *FieldError {
 	fields := make(map[string]string)
 	event := request.eventWrite()
-	if event.Name == "" || business.ValidateText(business.TextFieldEventName, event.Name) != nil {
+	if strings.TrimSpace(event.Name) == "" || business.ValidateText(business.TextFieldEventName, event.Name) != nil {
 		fields["name"] = "is invalid"
 	}
 	if request.Summary != nil && business.ValidateText(business.TextFieldEventSummary, *request.Summary) != nil {

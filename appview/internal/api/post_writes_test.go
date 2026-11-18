@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"log/slog"
@@ -1235,4 +1236,38 @@ func facetArrayLength(t *testing.T, raw json.RawMessage) int {
 		t.Fatalf("unmarshal facets %s: %v", raw, err)
 	}
 	return len(facets)
+}
+
+func TestCreatePost_HashtagBudgetResponseKeepsSourceRecord(t *testing.T) {
+	pds := &fakePostEffectState{}
+	store := &fakePostStore{}
+	h := api.CreatePostHandler(store, newPDSEffectsFactory(pds), fakeResolver{handleFor: "a.example"}, api.DefaultMediaLimits(), nilLogger())
+	facets := []any{}
+	for i := range 12 {
+		facets = append(facets, map[string]any{"index": map[string]int{"byteStart": 0, "byteEnd": 2}, "features": []any{map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": fmt.Sprintf("tag%d", i)}}})
+	}
+	body, err := json.Marshal(map[string]any{"text": "#x", "sponsored": false, "facets": facets})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, authedReq(http.MethodPost, "/v1/posts", string(body), "did:plc:alice"))
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body)
+	}
+	var response api.PostResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Tags) != 10 || response.Tags[9] != "tag9" {
+		t.Fatalf("tags=%v", response.Tags)
+	}
+	rec := pds.lastCreateRec.(map[string]any)
+	rawFacets, err := json.Marshal(rec["facets"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if facetArrayLength(t, rawFacets) != 12 {
+		t.Fatal("source facets changed")
+	}
 }

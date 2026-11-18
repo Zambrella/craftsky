@@ -1,0 +1,2002 @@
+{
+  "preparedAt": "2026-11-13",
+  "status": "unsaved_browser_preview_not_applied",
+  "product": "social.craftsky.app.business:monthly",
+  "source": {
+    "currency": "USD",
+    "amount_micros": 9990000,
+    "description": "Google Play Console Set prices conversion/localization; tax-inclusive destinations include taxes and price charming as displayed."
+  },
+  "counts": {
+    "namedRegions": 174,
+    "selectorCount": 175,
+    "selectorIncludesFutureMarketOption": true,
+    "priceEntriesIncludingFutureDefaults": 176
+  },
+  "common": {
+    "availability": {
+      "territories": {
+        "DZ": true,
+        "AR": true,
+        "AU": true,
+        "AT": true,
+        "AZ": true,
+        "BH": true,
+        "BD": true,
+        "BE": true,
+        "BM": true,
+        "BO": true,
+        "BR": true,
+        "VG": true,
+        "BG": true,
+        "KH": true,
+        "CM": true,
+        "CA": true,
+        "KY": true,
+        "CL": true,
+        "CO": true,
+        "CR": true,
+        "HR": true,
+        "CY": true,
+        "CZ": true,
+        "CI": true,
+        "DK": true,
+        "EC": true,
+        "EG": true,
+        "SV": true,
+        "EE": true,
+        "ET": true,
+        "FI": true,
+        "FR": true,
+        "GE": true,
+        "DD": true,
+        "GH": true,
+        "GI": true,
+        "GR": true,
+        "HK": true,
+        "HU": true,
+        "IN": true,
+        "ID": true,
+        "IQ": true,
+        "IE": true,
+        "IL": true,
+        "IT": true,
+        "JP": true,
+        "JO": true,
+        "KZ": true,
+        "KE": true,
+        "KW": true,
+        "LV": true,
+        "LI": true,
+        "LT": true,
+        "LU": true,
+        "MO": true,
+        "MY": true,
+        "MX": true,
+        "FM": true,
+        "MC": true,
+        "MN": true,
+        "MA": true,
+        "BU": true,
+        "NL": true,
+        "NZ": true,
+        "NG": true,
+        "NO": true,
+        "OM": true,
+        "PK": true,
+        "PA": true,
+        "PY": true,
+        "PE": true,
+        "PH": true,
+        "PL": true,
+        "PT": true,
+        "QA": true,
+        "RO": true,
+        "RU": true,
+        "SM": true,
+        "SA": true,
+        "SN": true,
+        "CS": true,
+        "SG": true,
+        "SK": true,
+        "SI": true,
+        "ZA": true,
+        "KR": true,
+        "ES": true,
+        "LK": true,
+        "SE": true,
+        "CH": true,
+        "TW": true,
+        "TZ": true,
+        "TH": true,
+        "TC": true,
+        "TR": true,
+        "UA": true,
+        "AE": true,
+        "GB": true,
+        "US": true,
+        "UZ": true,
+        "VA": true,
+        "VD": true,
+        "AL": true,
+        "AO": true,
+        "AG": true,
+        "AM": true,
+        "AW": true,
+        "BS": true,
+        "BY": true,
+        "BZ": true,
+        "BA": true,
+        "BW": true,
+        "CV": true,
+        "TD": true,
+        "KM": true,
+        "CG": true,
+        "CD": true,
+        "DJ": true,
+        "DM": true,
+        "DO": true,
+        "ER": true,
+        "FJ": true,
+        "GM": true,
+        "GD": true,
+        "GT": true,
+        "GN": true,
+        "HT": true,
+        "HN": true,
+        "JM": true,
+        "KG": true,
+        "LA": true,
+        "LB": true,
+        "LR": true,
+        "LY": true,
+        "MV": true,
+        "MU": true,
+        "MD": true,
+        "MZ": true,
+        "NA": true,
+        "NP": true,
+        "NI": true,
+        "MK": true,
+        "PG": true,
+        "RW": true,
+        "WS": true,
+        "SC": true,
+        "SL": true,
+        "SB": true,
+        "SO": true,
+        "KN": true,
+        "LC": true,
+        "SR": true,
+        "TJ": true,
+        "TO": true,
+        "TT": true,
+        "TN": true,
+        "TM": true,
+        "UG": true,
+        "UY": true,
+        "NH": true,
+        "VE": true,
+        "YD": true,
+        "ZM": true,
+        "RH": true,
+        "BJ": true,
+        "BF": true,
+        "CF": true,
+        "GA": true,
+        "GW": true,
+        "IS": true,
+        "ML": true,
+        "MT": true,
+        "NE": true,
+        "TG": true
+      }
+    },
+    "pricing": {
+      "territory_prices": {
+        "DZ": {
+          "amount_micros": 1375000000,
+          "currency": "DZD"
+        },
+        "AR": {
+          "amount_micros": 15400000000,
+          "currency": "ARS"
+        },
+        "AU": {
+          "amount_micros": 15990000,
+          "currency": "AUD"
+        },
+        "AT": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "AZ": {
+          "amount_micros": 16990000,
+          "currency": "AZN"
+        },
+        "BH": {
+          "amount_micros": 10990000,
+          "currency": "USD"
+        },
+        "BD": {
+          "amount_micros": 1400000000,
+          "currency": "BDT"
+        },
+        "BE": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "BM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BO": {
+          "amount_micros": 114990000,
+          "currency": "BOB"
+        },
+        "BR": {
+          "amount_micros": 55990000,
+          "currency": "BRL"
+        },
+        "VG": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BG": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "KH": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "CM": {
+          "amount_micros": 7100000000,
+          "currency": "XAF"
+        },
+        "CA": {
+          "amount_micros": 13990000,
+          "currency": "CAD"
+        },
+        "KY": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "CL": {
+          "amount_micros": 11800000000,
+          "currency": "CLP"
+        },
+        "CO": {
+          "amount_micros": 33000000000,
+          "currency": "COP"
+        },
+        "CR": {
+          "amount_micros": 4500000000,
+          "currency": "CRC"
+        },
+        "HR": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "CY": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "CZ": {
+          "amount_micros": 269990000,
+          "currency": "CZK"
+        },
+        "CI": {
+          "amount_micros": 7000000000,
+          "currency": "XOF"
+        },
+        "DK": {
+          "amount_micros": 85000000,
+          "currency": "DKK"
+        },
+        "EC": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "EG": {
+          "amount_micros": 609990000,
+          "currency": "EGP"
+        },
+        "SV": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "EE": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "ET": {
+          "amount_micros": 1600000000,
+          "currency": "ETB"
+        },
+        "FI": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "FR": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "GE": {
+          "amount_micros": 29000000,
+          "currency": "GEL"
+        },
+        "DD": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "GH": {
+          "amount_micros": 140000000,
+          "currency": "GHS"
+        },
+        "GI": {
+          "amount_micros": 7490000,
+          "currency": "GBP"
+        },
+        "GR": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "HK": {
+          "amount_micros": 78000000,
+          "currency": "HKD"
+        },
+        "HU": {
+          "amount_micros": 4190000000,
+          "currency": "HUF"
+        },
+        "IN": {
+          "amount_micros": 1100000000,
+          "currency": "INR"
+        },
+        "ID": {
+          "amount_micros": 179000000000,
+          "currency": "IDR"
+        },
+        "IQ": {
+          "amount_micros": 15100000000,
+          "currency": "IQD"
+        },
+        "IE": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "IL": {
+          "amount_micros": 32000000,
+          "currency": "ILS"
+        },
+        "IT": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "JP": {
+          "amount_micros": 1760000000,
+          "currency": "JPY"
+        },
+        "JO": {
+          "amount_micros": 7050000,
+          "currency": "JOD"
+        },
+        "KZ": {
+          "amount_micros": 5190000000,
+          "currency": "KZT"
+        },
+        "KE": {
+          "amount_micros": 1500000000,
+          "currency": "KES"
+        },
+        "KW": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LV": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "LI": {
+          "amount_micros": 9100000,
+          "currency": "CHF"
+        },
+        "LT": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "LU": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "MO": {
+          "amount_micros": 80880000,
+          "currency": "MOP"
+        },
+        "MY": {
+          "amount_micros": 43990000,
+          "currency": "MYR"
+        },
+        "MX": {
+          "amount_micros": 215000000,
+          "currency": "MXN"
+        },
+        "FM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "MC": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "MN": {
+          "amount_micros": 36000000000,
+          "currency": "MNT"
+        },
+        "MA": {
+          "amount_micros": 119990000,
+          "currency": "MAD"
+        },
+        "BU": {
+          "amount_micros": 21000000000,
+          "currency": "MMK"
+        },
+        "NL": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "NZ": {
+          "amount_micros": 20990000,
+          "currency": "NZD"
+        },
+        "NG": {
+          "amount_micros": 14500000000,
+          "currency": "NGN"
+        },
+        "NO": {
+          "amount_micros": 119000000,
+          "currency": "NOK"
+        },
+        "OM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "PK": {
+          "amount_micros": 2750000000,
+          "currency": "PKR"
+        },
+        "PA": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "PY": {
+          "amount_micros": 60000000000,
+          "currency": "PYG"
+        },
+        "PE": {
+          "amount_micros": 33990000,
+          "currency": "PEN"
+        },
+        "PH": {
+          "amount_micros": 715000000,
+          "currency": "PHP"
+        },
+        "PL": {
+          "amount_micros": 48990000,
+          "currency": "PLN"
+        },
+        "PT": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "QA": {
+          "amount_micros": 36000000,
+          "currency": "QAR"
+        },
+        "RO": {
+          "amount_micros": 59990000,
+          "currency": "RON"
+        },
+        "RU": {
+          "amount_micros": 799000000,
+          "currency": "RUB"
+        },
+        "SM": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "SA": {
+          "amount_micros": 42990000,
+          "currency": "SAR"
+        },
+        "SN": {
+          "amount_micros": 7000000000,
+          "currency": "XOF"
+        },
+        "CS": {
+          "amount_micros": 1299000000,
+          "currency": "RSD"
+        },
+        "SG": {
+          "amount_micros": 13990000,
+          "currency": "SGD"
+        },
+        "SK": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "SI": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "ZA": {
+          "amount_micros": 194990000,
+          "currency": "ZAR"
+        },
+        "KR": {
+          "amount_micros": 15000000000,
+          "currency": "KRW"
+        },
+        "ES": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "LK": {
+          "amount_micros": 3325000000,
+          "currency": "LKR"
+        },
+        "SE": {
+          "amount_micros": 125000000,
+          "currency": "SEK"
+        },
+        "CH": {
+          "amount_micros": 8400000,
+          "currency": "CHF"
+        },
+        "TW": {
+          "amount_micros": 340000000,
+          "currency": "TWD"
+        },
+        "TZ": {
+          "amount_micros": 26000000000,
+          "currency": "TZS"
+        },
+        "TH": {
+          "amount_micros": 350000000,
+          "currency": "THB"
+        },
+        "TC": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TR": {
+          "amount_micros": 599990000,
+          "currency": "TRY"
+        },
+        "UA": {
+          "amount_micros": 539990000,
+          "currency": "UAH"
+        },
+        "AE": {
+          "amount_micros": 38990000,
+          "currency": "AED"
+        },
+        "GB": {
+          "amount_micros": 8990000,
+          "currency": "GBP"
+        },
+        "US": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "UZ": {
+          "amount_micros": 134500000000,
+          "currency": "UZS"
+        },
+        "VA": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "VD": {
+          "amount_micros": 257000000000,
+          "currency": "VND"
+        },
+        "AL": {
+          "amount_micros": 11990000,
+          "currency": "USD"
+        },
+        "AO": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "AG": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "AM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "AW": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BS": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BY": {
+          "amount_micros": 11990000,
+          "currency": "USD"
+        },
+        "BZ": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BA": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BW": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "CV": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TD": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "KM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "CG": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "CD": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "DJ": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "DM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "DO": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "ER": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "FJ": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "GM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "GD": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "GT": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "GN": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "HT": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "HN": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "JM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "KG": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LA": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LB": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LR": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LY": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "MV": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "MU": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "MD": {
+          "amount_micros": 11990000,
+          "currency": "USD"
+        },
+        "MZ": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "NA": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "NP": {
+          "amount_micros": 10990000,
+          "currency": "USD"
+        },
+        "NI": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "MK": {
+          "amount_micros": 11990000,
+          "currency": "USD"
+        },
+        "PG": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "RW": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "WS": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "SC": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "SL": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "SB": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "SO": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "KN": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "LC": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "SR": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TJ": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TO": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TT": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TN": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "TM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "UG": {
+          "amount_micros": 11990000,
+          "currency": "USD"
+        },
+        "UY": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "NH": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "VE": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "YD": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "ZM": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "RH": {
+          "amount_micros": 9990000,
+          "currency": "USD"
+        },
+        "BJ": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "BF": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "CF": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "GA": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "GW": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "IS": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "ML": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "MT": {
+          "amount_micros": 10990000,
+          "currency": "EUR"
+        },
+        "NE": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        },
+        "TG": {
+          "amount_micros": 8990000,
+          "currency": "EUR"
+        }
+      }
+    }
+  },
+  "futureMarketPrices": [
+    {
+      "name": "New countries/regions (USD)",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": null
+    },
+    {
+      "name": "New countries/regions (EUR)",
+      "price": "EUR 9.05",
+      "tax": "No VAT",
+      "region": null
+    }
+  ],
+  "overrides": [
+    {
+      "region": "GB",
+      "generated": {
+        "amount_micros": 8990000,
+        "currency": "GBP"
+      },
+      "proposed": {
+        "amount_micros": 8990000,
+        "currency": "GBP"
+      },
+      "reason": "Generated price already matches approved GB seed; retain explicitly."
+    },
+    {
+      "region": "US",
+      "generated": {
+        "amount_micros": 9990000,
+        "currency": "USD"
+      },
+      "proposed": {
+        "amount_micros": 9990000,
+        "currency": "USD"
+      },
+      "reason": "Preserve approved US price."
+    }
+  ],
+  "defaults": {
+    "basePlanState": "DRAFT",
+    "billingPeriod": "P1M",
+    "gracePeriodDays": 7,
+    "automaticAccountHoldDays": 53,
+    "resubscribe": "Allow",
+    "basePlanOfferChanges": "Charge at next billing date"
+  },
+  "observedRows": [
+    {
+      "name": "Algeria",
+      "price": "DZD 1,375.00",
+      "tax": "No VAT",
+      "region": "DZ"
+    },
+    {
+      "name": "Argentina",
+      "price": "ARS 15,400.00",
+      "tax": "No VAT",
+      "region": "AR"
+    },
+    {
+      "name": "Australia",
+      "price": "AUD 15.99",
+      "tax": "10%",
+      "region": "AU"
+    },
+    {
+      "name": "Austria",
+      "price": "EUR 10.99",
+      "tax": "20%",
+      "region": "AT"
+    },
+    {
+      "name": "Azerbaijan",
+      "price": "AZN 16.99",
+      "tax": "No VAT",
+      "region": "AZ"
+    },
+    {
+      "name": "Bahrain",
+      "price": "USD 10.99",
+      "tax": "10%",
+      "region": "BH"
+    },
+    {
+      "name": "Bangladesh",
+      "price": "BDT 1,400.00",
+      "tax": "15%",
+      "region": "BD"
+    },
+    {
+      "name": "Belgium",
+      "price": "EUR 10.99",
+      "tax": "21%",
+      "region": "BE"
+    },
+    {
+      "name": "Bermuda",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "BM"
+    },
+    {
+      "name": "Bolivia",
+      "price": "BOB 114.99",
+      "tax": "No VAT",
+      "region": "BO"
+    },
+    {
+      "name": "Brazil",
+      "price": "BRL 55.99",
+      "tax": "No VAT",
+      "region": "BR"
+    },
+    {
+      "name": "British Virgin Islands",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "VG"
+    },
+    {
+      "name": "Bulgaria",
+      "price": "EUR 10.99",
+      "tax": "20%",
+      "region": "BG"
+    },
+    {
+      "name": "Cambodia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KH"
+    },
+    {
+      "name": "Cameroon",
+      "price": "XAF 7,100",
+      "tax": "19.25%",
+      "region": "CM"
+    },
+    {
+      "name": "Canada",
+      "price": "CAD 13.99",
+      "tax": "No VAT",
+      "region": "CA"
+    },
+    {
+      "name": "Cayman Islands",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KY"
+    },
+    {
+      "name": "Chile",
+      "price": "CLP 11,800",
+      "tax": "19%",
+      "region": "CL"
+    },
+    {
+      "name": "Colombia",
+      "price": "COP 33,000",
+      "tax": "No VAT",
+      "region": "CO"
+    },
+    {
+      "name": "Costa Rica",
+      "price": "CRC 4,500.00",
+      "tax": "No VAT",
+      "region": "CR"
+    },
+    {
+      "name": "Croatia",
+      "price": "EUR 10.99",
+      "tax": "25%",
+      "region": "HR"
+    },
+    {
+      "name": "Cyprus",
+      "price": "EUR 10.99",
+      "tax": "19%",
+      "region": "CY"
+    },
+    {
+      "name": "Czechia",
+      "price": "CZK 269.99",
+      "tax": "21%",
+      "region": "CZ"
+    },
+    {
+      "name": "Côte d’Ivoire",
+      "price": "XOF 7,000",
+      "tax": "18%",
+      "region": "CI"
+    },
+    {
+      "name": "Denmark",
+      "price": "DKK 85.00",
+      "tax": "25% with 2 location overrides\nHover over to see all rates",
+      "region": "DK"
+    },
+    {
+      "name": "Ecuador",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "EC"
+    },
+    {
+      "name": "Egypt",
+      "price": "EGP 609.99",
+      "tax": "14%",
+      "region": "EG"
+    },
+    {
+      "name": "El Salvador",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SV"
+    },
+    {
+      "name": "Estonia",
+      "price": "EUR 10.99",
+      "tax": "24%",
+      "region": "EE"
+    },
+    {
+      "name": "Ethiopia",
+      "price": "ETB 1,600.00",
+      "tax": "No VAT",
+      "region": "ET"
+    },
+    {
+      "name": "Finland",
+      "price": "EUR 10.99",
+      "tax": "25.5% with 1 location override\nHover over to see all rates",
+      "region": "FI"
+    },
+    {
+      "name": "France",
+      "price": "EUR 10.99",
+      "tax": "20% with 11 location overrides\nHover over to see all rates",
+      "region": "FR"
+    },
+    {
+      "name": "Georgia",
+      "price": "GEL 29.00",
+      "tax": "18%",
+      "region": "GE"
+    },
+    {
+      "name": "Germany",
+      "price": "EUR 10.99",
+      "tax": "19%",
+      "region": "DD"
+    },
+    {
+      "name": "Ghana",
+      "price": "GHS 140.00",
+      "tax": "20%",
+      "region": "GH"
+    },
+    {
+      "name": "Gibraltar",
+      "price": "GBP 7.49",
+      "tax": "No VAT",
+      "region": "GI"
+    },
+    {
+      "name": "Greece",
+      "price": "EUR 10.99",
+      "tax": "24%",
+      "region": "GR"
+    },
+    {
+      "name": "Hong Kong",
+      "price": "HKD 78.00",
+      "tax": "No VAT",
+      "region": "HK"
+    },
+    {
+      "name": "Hungary",
+      "price": "HUF 4,190",
+      "tax": "27%",
+      "region": "HU"
+    },
+    {
+      "name": "India",
+      "price": "INR 1,100.00",
+      "tax": "18%",
+      "region": "IN"
+    },
+    {
+      "name": "Indonesia",
+      "price": "IDR 179,000",
+      "tax": "No VAT",
+      "region": "ID"
+    },
+    {
+      "name": "Iraq",
+      "price": "IQD 15,100",
+      "tax": "No VAT",
+      "region": "IQ"
+    },
+    {
+      "name": "Ireland",
+      "price": "EUR 10.99",
+      "tax": "23%",
+      "region": "IE"
+    },
+    {
+      "name": "Israel",
+      "price": "ILS 32.00",
+      "tax": "No VAT",
+      "region": "IL"
+    },
+    {
+      "name": "Italy",
+      "price": "EUR 10.99",
+      "tax": "22%",
+      "region": "IT"
+    },
+    {
+      "name": "Japan",
+      "price": "JPY 1,760",
+      "tax": "10%",
+      "region": "JP"
+    },
+    {
+      "name": "Jordan",
+      "price": "JOD 7.050",
+      "tax": "No VAT",
+      "region": "JO"
+    },
+    {
+      "name": "Kazakhstan",
+      "price": "KZT 5,190.00",
+      "tax": "16%",
+      "region": "KZ"
+    },
+    {
+      "name": "Kenya",
+      "price": "KES 1,500.00",
+      "tax": "16%",
+      "region": "KE"
+    },
+    {
+      "name": "Kuwait",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KW"
+    },
+    {
+      "name": "Latvia",
+      "price": "EUR 10.99",
+      "tax": "21%",
+      "region": "LV"
+    },
+    {
+      "name": "Liechtenstein",
+      "price": "CHF 9.10",
+      "tax": "8.1%",
+      "region": "LI"
+    },
+    {
+      "name": "Lithuania",
+      "price": "EUR 10.99",
+      "tax": "21%",
+      "region": "LT"
+    },
+    {
+      "name": "Luxembourg",
+      "price": "EUR 10.99",
+      "tax": "17%",
+      "region": "LU"
+    },
+    {
+      "name": "Macao",
+      "price": "MOP 80.88",
+      "tax": "No VAT",
+      "region": "MO"
+    },
+    {
+      "name": "Malaysia",
+      "price": "MYR 43.99",
+      "tax": "8%",
+      "region": "MY"
+    },
+    {
+      "name": "Mexico",
+      "price": "MXN 215.00",
+      "tax": "16%",
+      "region": "MX"
+    },
+    {
+      "name": "Micronesia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "FM"
+    },
+    {
+      "name": "Monaco",
+      "price": "EUR 10.99",
+      "tax": "20%",
+      "region": "MC"
+    },
+    {
+      "name": "Mongolia",
+      "price": "MNT 36,000.00",
+      "tax": "No VAT",
+      "region": "MN"
+    },
+    {
+      "name": "Morocco",
+      "price": "MAD 119.99",
+      "tax": "20%",
+      "region": "MA"
+    },
+    {
+      "name": "Myanmar (Burma)",
+      "price": "MMK 21,000",
+      "tax": "No VAT",
+      "region": "BU"
+    },
+    {
+      "name": "Netherlands",
+      "price": "EUR 10.99",
+      "tax": "21%",
+      "region": "NL"
+    },
+    {
+      "name": "New Zealand",
+      "price": "NZD 20.99",
+      "tax": "15%",
+      "region": "NZ"
+    },
+    {
+      "name": "Nigeria",
+      "price": "NGN 14,500.00",
+      "tax": "7.5%",
+      "region": "NG"
+    },
+    {
+      "name": "Norway",
+      "price": "NOK 119.00",
+      "tax": "25% with 1 location override\nHover over to see all rates",
+      "region": "NO"
+    },
+    {
+      "name": "Oman",
+      "price": "USD 9.99",
+      "tax": "5%",
+      "region": "OM"
+    },
+    {
+      "name": "Pakistan",
+      "price": "PKR 2,750.00",
+      "tax": "No VAT",
+      "region": "PK"
+    },
+    {
+      "name": "Panama",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "PA"
+    },
+    {
+      "name": "Paraguay",
+      "price": "PYG 60,000",
+      "tax": "No VAT",
+      "region": "PY"
+    },
+    {
+      "name": "Peru",
+      "price": "PEN 33.99",
+      "tax": "No VAT",
+      "region": "PE"
+    },
+    {
+      "name": "Philippines",
+      "price": "PHP 715.00",
+      "tax": "12%",
+      "region": "PH"
+    },
+    {
+      "name": "Poland",
+      "price": "PLN 48.99",
+      "tax": "23%",
+      "region": "PL"
+    },
+    {
+      "name": "Portugal",
+      "price": "EUR 10.99",
+      "tax": "23%",
+      "region": "PT"
+    },
+    {
+      "name": "Qatar",
+      "price": "QAR 36.00",
+      "tax": "No VAT",
+      "region": "QA"
+    },
+    {
+      "name": "Romania",
+      "price": "RON 59.99",
+      "tax": "21%",
+      "region": "RO"
+    },
+    {
+      "name": "Russia",
+      "price": "RUB 799.00",
+      "tax": "No VAT",
+      "region": "RU"
+    },
+    {
+      "name": "San Marino",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "SM"
+    },
+    {
+      "name": "Saudi Arabia",
+      "price": "SAR 42.99",
+      "tax": "15%",
+      "region": "SA"
+    },
+    {
+      "name": "Senegal",
+      "price": "XOF 7,000",
+      "tax": "18%",
+      "region": "SN"
+    },
+    {
+      "name": "Serbia",
+      "price": "RSD 1,299",
+      "tax": "20%",
+      "region": "CS"
+    },
+    {
+      "name": "Singapore",
+      "price": "SGD 13.99",
+      "tax": "9%",
+      "region": "SG"
+    },
+    {
+      "name": "Slovakia",
+      "price": "EUR 10.99",
+      "tax": "23%",
+      "region": "SK"
+    },
+    {
+      "name": "Slovenia",
+      "price": "EUR 10.99",
+      "tax": "22%",
+      "region": "SI"
+    },
+    {
+      "name": "South Africa",
+      "price": "ZAR 194.99",
+      "tax": "15%",
+      "region": "ZA"
+    },
+    {
+      "name": "South Korea",
+      "price": "KRW 15,000",
+      "tax": "10%",
+      "region": "KR"
+    },
+    {
+      "name": "Spain",
+      "price": "EUR 10.99",
+      "tax": "21% with 4 location overrides\nHover over to see all rates",
+      "region": "ES"
+    },
+    {
+      "name": "Sri Lanka",
+      "price": "LKR 3,325.00",
+      "tax": "No VAT",
+      "region": "LK"
+    },
+    {
+      "name": "Sweden",
+      "price": "SEK 125.00",
+      "tax": "25%",
+      "region": "SE"
+    },
+    {
+      "name": "Switzerland",
+      "price": "CHF 8.40",
+      "tax": "No VAT",
+      "region": "CH"
+    },
+    {
+      "name": "Taiwan",
+      "price": "TWD 340.00",
+      "tax": "5%",
+      "region": "TW"
+    },
+    {
+      "name": "Tanzania",
+      "price": "TZS 26,000.00",
+      "tax": "No VAT",
+      "region": "TZ"
+    },
+    {
+      "name": "Thailand",
+      "price": "THB 350.00",
+      "tax": "7%",
+      "region": "TH"
+    },
+    {
+      "name": "Turks & Caicos Islands",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TC"
+    },
+    {
+      "name": "Türkiye",
+      "price": "TRY 599.99",
+      "tax": "20%",
+      "region": "TR"
+    },
+    {
+      "name": "Ukraine",
+      "price": "UAH 539.99",
+      "tax": "20%",
+      "region": "UA"
+    },
+    {
+      "name": "United Arab Emirates",
+      "price": "AED 38.99",
+      "tax": "5%",
+      "region": "AE"
+    },
+    {
+      "name": "United Kingdom",
+      "price": "GBP 8.99",
+      "tax": "20%",
+      "region": "GB"
+    },
+    {
+      "name": "United States",
+      "price": "USD 9.99",
+      "tax": "No VAT with 7 location overrides\nHover over to see all rates",
+      "region": "US"
+    },
+    {
+      "name": "Uzbekistan",
+      "price": "UZS 134,500.00",
+      "tax": "12%",
+      "region": "UZ"
+    },
+    {
+      "name": "Vatican City",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "VA"
+    },
+    {
+      "name": "Vietnam",
+      "price": "VND 257,000",
+      "tax": "No VAT",
+      "region": "VD"
+    },
+    {
+      "name": "New countries/regions (USD)",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": null
+    },
+    {
+      "name": "Albania",
+      "price": "USD 11.99",
+      "tax": "20%",
+      "region": "AL"
+    },
+    {
+      "name": "Angola",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "AO"
+    },
+    {
+      "name": "Antigua & Barbuda",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "AG"
+    },
+    {
+      "name": "Armenia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "AM"
+    },
+    {
+      "name": "Aruba",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "AW"
+    },
+    {
+      "name": "Bahamas",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "BS"
+    },
+    {
+      "name": "Belarus",
+      "price": "USD 11.99",
+      "tax": "20%",
+      "region": "BY"
+    },
+    {
+      "name": "Belize",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "BZ"
+    },
+    {
+      "name": "Bosnia & Herzegovina",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "BA"
+    },
+    {
+      "name": "Botswana",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "BW"
+    },
+    {
+      "name": "Cape Verde",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "CV"
+    },
+    {
+      "name": "Chad",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TD"
+    },
+    {
+      "name": "Comoros",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KM"
+    },
+    {
+      "name": "Congo - Brazzaville",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "CG"
+    },
+    {
+      "name": "Congo - Kinshasa",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "CD"
+    },
+    {
+      "name": "Djibouti",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "DJ"
+    },
+    {
+      "name": "Dominica",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "DM"
+    },
+    {
+      "name": "Dominican Republic",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "DO"
+    },
+    {
+      "name": "Eritrea",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "ER"
+    },
+    {
+      "name": "Fiji",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "FJ"
+    },
+    {
+      "name": "Gambia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "GM"
+    },
+    {
+      "name": "Grenada",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "GD"
+    },
+    {
+      "name": "Guatemala",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "GT"
+    },
+    {
+      "name": "Guinea",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "GN"
+    },
+    {
+      "name": "Haiti",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "HT"
+    },
+    {
+      "name": "Honduras",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "HN"
+    },
+    {
+      "name": "Jamaica",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "JM"
+    },
+    {
+      "name": "Kyrgyzstan",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KG"
+    },
+    {
+      "name": "Laos",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "LA"
+    },
+    {
+      "name": "Lebanon",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "LB"
+    },
+    {
+      "name": "Liberia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "LR"
+    },
+    {
+      "name": "Libya",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "LY"
+    },
+    {
+      "name": "Maldives",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "MV"
+    },
+    {
+      "name": "Mauritius",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "MU"
+    },
+    {
+      "name": "Moldova",
+      "price": "USD 11.99",
+      "tax": "20%",
+      "region": "MD"
+    },
+    {
+      "name": "Mozambique",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "MZ"
+    },
+    {
+      "name": "Namibia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "NA"
+    },
+    {
+      "name": "Nepal",
+      "price": "USD 10.99",
+      "tax": "13%",
+      "region": "NP"
+    },
+    {
+      "name": "Nicaragua",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "NI"
+    },
+    {
+      "name": "North Macedonia",
+      "price": "USD 11.99",
+      "tax": "18%",
+      "region": "MK"
+    },
+    {
+      "name": "Papua New Guinea",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "PG"
+    },
+    {
+      "name": "Rwanda",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "RW"
+    },
+    {
+      "name": "Samoa",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "WS"
+    },
+    {
+      "name": "Seychelles",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SC"
+    },
+    {
+      "name": "Sierra Leone",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SL"
+    },
+    {
+      "name": "Solomon Islands",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SB"
+    },
+    {
+      "name": "Somalia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SO"
+    },
+    {
+      "name": "St Kitts & Nevis",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "KN"
+    },
+    {
+      "name": "St Lucia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "LC"
+    },
+    {
+      "name": "Suriname",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "SR"
+    },
+    {
+      "name": "Tajikistan",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TJ"
+    },
+    {
+      "name": "Tonga",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TO"
+    },
+    {
+      "name": "Trinidad & Tobago",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TT"
+    },
+    {
+      "name": "Tunisia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TN"
+    },
+    {
+      "name": "Turkmenistan",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "TM"
+    },
+    {
+      "name": "Uganda",
+      "price": "USD 11.99",
+      "tax": "18%",
+      "region": "UG"
+    },
+    {
+      "name": "Uruguay",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "UY"
+    },
+    {
+      "name": "Vanuatu",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "NH"
+    },
+    {
+      "name": "Venezuela",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "VE"
+    },
+    {
+      "name": "Yemen",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "YD"
+    },
+    {
+      "name": "Zambia",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "ZM"
+    },
+    {
+      "name": "Zimbabwe",
+      "price": "USD 9.99",
+      "tax": "No VAT",
+      "region": "RH"
+    },
+    {
+      "name": "New countries/regions (EUR)",
+      "price": "EUR 9.05",
+      "tax": "No VAT",
+      "region": null
+    },
+    {
+      "name": "Benin",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "BJ"
+    },
+    {
+      "name": "Burkina Faso",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "BF"
+    },
+    {
+      "name": "Central African Republic",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "CF"
+    },
+    {
+      "name": "Gabon",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "GA"
+    },
+    {
+      "name": "Guinea-Bissau",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "GW"
+    },
+    {
+      "name": "Iceland",
+      "price": "EUR 10.99",
+      "tax": "24%",
+      "region": "IS"
+    },
+    {
+      "name": "Mali",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "ML"
+    },
+    {
+      "name": "Malta",
+      "price": "EUR 10.99",
+      "tax": "18%",
+      "region": "MT"
+    },
+    {
+      "name": "Niger",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "NE"
+    },
+    {
+      "name": "Togo",
+      "price": "EUR 8.99",
+      "tax": "No VAT",
+      "region": "TG"
+    }
+  ]
+}

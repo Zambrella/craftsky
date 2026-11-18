@@ -24,12 +24,12 @@ void main() {
       final us = AppLocalizationsEn('en_US');
       final gb = AppLocalizationsEn('en_GB');
       final timed = _event(
-        startsAt: DateTime(2026, 8, 30, 9),
-        endsAt: DateTime(2026, 8, 30, 17, 30),
+        startsAt: DateTime.utc(2026, 8, 30, 9),
+        endsAt: DateTime.utc(2026, 8, 30, 17, 30),
       );
       final allDay = _event(
-        startsAt: DateTime(2026, 8, 30),
-        endsAt: DateTime(2026, 9, 2),
+        startsAt: DateTime.utc(2026, 8, 30),
+        endsAt: DateTime.utc(2026, 9, 2),
         isAllDay: true,
       );
 
@@ -42,8 +42,58 @@ void main() {
         'Aug 30–Sep 1, 2026',
       );
       expect(BusinessFormatters.event(allDay, us).time, 'All day');
-      expect(allDay.endsAt, DateTime(2026, 9, 2));
+      expect(allDay.endsAt, DateTime.utc(2026, 9, 2));
     });
+
+    test('uses the event timezone for timed dates and spanning ranges', () {
+      final l10n = AppLocalizationsEn('en_US');
+      final event = _event(
+        startsAt: DateTime.utc(2026, 8, 30, 14, 30),
+        endsAt: DateTime.utc(2026, 8, 30, 16),
+        timeZone: 'Asia/Tokyo',
+      );
+
+      expect(BusinessFormatters.event(event, l10n).date, 'Aug 30–Aug 31, 2026');
+      expect(BusinessFormatters.event(event, l10n).time, '11:30 PM–1:00 AM');
+    });
+
+    test('all-day dates stay in the authored timezone across DST', () {
+      final l10n = AppLocalizationsEn('en_US');
+      final spring = _event(
+        startsAt: DateTime.utc(2026, 3, 8, 5),
+        endsAt: DateTime.utc(2026, 3, 9, 4),
+        timeZone: 'America/New_York',
+        isAllDay: true,
+      );
+      final fall = _event(
+        startsAt: DateTime.utc(2026, 11, 1, 4),
+        endsAt: DateTime.utc(2026, 11, 2, 5),
+        timeZone: 'America/New_York',
+        isAllDay: true,
+      );
+
+      expect(BusinessFormatters.event(spring, l10n).date, 'Mar 8, 2026');
+      expect(BusinessFormatters.event(fall, l10n).date, 'Nov 1, 2026');
+      expect(BusinessFormatters.event(spring, l10n).time, 'All day');
+    });
+
+    test(
+      'date ranges retain both years and unknown zones fall back to UTC',
+      () {
+        final l10n = AppLocalizationsEn('en_US');
+        final event = _event(
+          startsAt: DateTime.utc(2026, 12, 31, 23),
+          endsAt: DateTime.utc(2027, 1, 1, 1),
+          timeZone: 'Unknown/Timezone',
+        );
+
+        expect(
+          BusinessFormatters.event(event, l10n).date,
+          'Dec 31, 2026–Jan 1, 2027',
+        );
+        expect(BusinessFormatters.event(event, l10n).time, '11:00 PM–1:00 AM');
+      },
+    );
 
     test('localizes hydrated country and preserves locality', () {
       final l10n = AppLocalizationsEn('en_GB');
@@ -63,6 +113,7 @@ BusinessEvent _event({
   required DateTime startsAt,
   required DateTime endsAt,
   bool isAllDay = false,
+  String? timeZone,
 }) => BusinessEvent(
   did: 'did:plc:formatter',
   rkey: 'event',
@@ -74,6 +125,7 @@ BusinessEvent _event({
   roles: const [BusinessOpenValue(value: 'vendor', known: true)],
   status: const BusinessOpenValue(value: 'scheduled', known: true),
   isAllDay: isAllDay,
+  timeZone: timeZone,
   past: false,
   createdAt: DateTime(2026),
   publicSuppressionReasons: const [],

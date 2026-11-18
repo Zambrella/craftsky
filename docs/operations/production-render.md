@@ -1,6 +1,6 @@
 # Production on Render
 
-This runbook implements [ADR 016](../../adr/016-render-managed-production-infrastructure.md).
+This runbook implements [ADR 016](../adr/016-render-managed-production-infrastructure.md).
 The source of truth for resource configuration is [`render.yaml`](../../render.yaml).
 
 ## Production topology
@@ -22,6 +22,16 @@ plus the USD 25/month Pro workspace fee, before excess bandwidth. AWS S3 is
 usage-priced separately.
 
 ## Initial setup
+
+Safety emails, when enabled, require `BREVO_API_KEY`,
+`MODERATION_ADMIN_ENABLED=true` and an explicit HTTPS
+`SAFETY_EMAIL_CONSOLE_ORIGIN` (normally `https://appview.craftsky.social`). The
+sender appends `/admin/`; this origin is independent of `OAUTH_PUBLIC_ORIGIN`.
+Set the console origin on an existing service before deploying a release that
+requires it with `SAFETY_EMAIL_ENABLED=true`. Its `sync: false` Blueprint entry
+does not populate existing services. Keep the feature disabled until the complete
+configuration is present and reviewed; no live environment change is implied by
+the checked-in declaration.
 
 ### 1. Add Render billing details
 
@@ -70,6 +80,8 @@ attaching it:
 
 AppView performs `HeadBucket` at startup and then uses `HeadObject`, `GetObject`,
 `PutObject`, and `DeleteObject`. Do not grant access to other buckets.
+
+See [configuration management](../development/configuration.md) for setting ownership, worktree development secrets and the generated variable reference.
 
 ### 3. Generate application secrets
 

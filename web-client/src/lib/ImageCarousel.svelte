@@ -8,16 +8,31 @@
 		detail = false,
 		interactive = false,
 		initialIndex = 0,
-		onChange
+		onChange,
+		onOpen,
+		imageLink
 	}: {
 		images: Image[];
 		detail?: boolean;
 		interactive?: boolean;
 		initialIndex?: number;
 		onChange?: (index: number) => void;
+		onOpen?: (index: number) => void;
+		imageLink?: { href: string; label: string; target?: string; rel?: string };
 	} = $props();
 	const pictures = $derived(
 		images.filter((image) => !!safeURL(image.fullsize))
+	);
+	// Reserve the tallest frame before images decode or selection changes.
+	const frameAspectRatio = $derived(
+		Math.min(
+			...pictures.map((picture) => {
+				const ratio = picture.aspectRatio;
+				return ratio && ratio.width > 0 && ratio.height > 0
+					? ratio.width / ratio.height
+					: 1;
+			})
+		)
 	);
 	const displayURLs = $derived(
 		pictures.map((picture) =>
@@ -205,6 +220,7 @@
 {#if pictures.length}<div class="post-images" class:interactive>
 		<div
 			class="gallery"
+			style:aspect-ratio={frameAspectRatio}
 			class:dragging
 			bind:this={gallery}
 			role="region"
@@ -228,8 +244,17 @@
 			onwheel={interrupt}
 		>
 			{#each pictures as picture, index}<a
-					href={safeURL(picture.fullsize)}
-					aria-label={picture.alt || `View image ${index + 1}`}
+					href={imageLink?.href ?? safeURL(picture.fullsize)}
+					target={imageLink?.target}
+					rel={imageLink?.rel}
+					aria-label={imageLink?.label ??
+						(picture.alt || `View image ${index + 1}`)}
+					onclick={(event) => {
+						if (onOpen) {
+							event.preventDefault();
+							onOpen(images.indexOf(picture));
+						}
+					}}
 					onkeydown={(event) => {
 						if (
 							!interactive ||

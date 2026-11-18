@@ -1,12 +1,18 @@
 <script lang="ts">
+	import BusinessIdentityIcon from './features/social/BusinessIdentityIcon.svelte';
 	import type { Snippet } from 'svelte';
 	import type { Facet } from './api/types';
 	import Avatar from './Avatar.svelte';
+	import SponsoredLabel from './SponsoredLabel.svelte';
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
 	import Icon from './features/shell/Icon.svelte';
 	import { confirmExternalLink } from './features/social/prompt';
 	import catalogue from './features/composer/catalogue.json';
+	import {
+		identityCrafts,
+		identityCraftLabel
+	} from './features/social/compact-identity';
 	import {
 		authorName,
 		gaugeText,
@@ -27,7 +33,8 @@
 		field,
 		member = false,
 		onImageChange,
-		initialImageIndex = 0
+		initialImageIndex = 0,
+		detailHref
 	}: {
 		post: Post;
 		detail?: boolean;
@@ -37,35 +44,20 @@
 		member?: boolean;
 		onImageChange?: (index: number) => void;
 		initialImageIndex?: number;
+		detailHref?: string;
 	} = $props();
 	const editDescriptionId = $props.id();
 	const profileHref = (did: string) =>
 		member ? '/profiles/' + encodeURIComponent(did) : profilePath(did);
 	const postHref = () =>
-		member
+		detailHref ??
+		(member
 			? '/posts/' +
 				encodeURIComponent(post.author.did) +
 				'/' +
 				encodeURIComponent(post.rkey)
-			: postPath(post);
-	const authorCrafts = $derived.by(() => {
-		const entries = new Map<string, string>();
-		for (const value of post.author.crafts || []) {
-			const id = value.split('#').at(-1)?.trim().toLowerCase() || '';
-			if (id) entries.set(id, label(id));
-		}
-		return [...entries].map(([id, name]) => ({
-			id,
-			name,
-			icon: [
-				'knitting',
-				'crochet',
-				'sewing',
-				'embroidery',
-				'quilting'
-			].includes(id)
-		}));
-	});
+			: postPath(post));
+	const authorCrafts = $derived(identityCrafts(post.author.crafts));
 	let visibleCraftCount = $state(5);
 	const pattern = $derived(post.project?.common.pattern);
 	const hasPattern = $derived(
@@ -110,7 +102,7 @@
 				context?.measureText('+' + count).width ||
 				measure.getBoundingClientRect().width;
 			const budget = Math.min(
-				node.clientWidth,
+				node.clientWidth - (post.author.business ? 24 : 0),
 				Math.max(
 					node.clientWidth - name.scrollWidth,
 					8 + countWidth(entries.length)
@@ -220,15 +212,22 @@
 	<div class="author">
 		<a href={profileHref(post.author.did)}
 			><Avatar author={post.author} /><span
-				>{#if member}<span
+				>{#if member || post.author.business}<span
 						class="member-author-line"
 						use:fitCrafts={authorCrafts}
-						><strong>{authorName(post.author)}</strong
+						>{#if post.author.business}<span
+								class="business-icon"
+								role="img"
+								aria-label="Business"
+								title="Business"
+								><BusinessIdentityIcon
+									customisation={post.author.customisation}
+								/></span
+							>{/if}<strong>{authorName(post.author)}</strong
 						>{#if authorCrafts.length}<span
 								class="author-crafts"
 								role="img"
-								aria-label={'Crafts: ' +
-									authorCrafts.map((entry) => entry.name).join(', ')}
+								aria-label={identityCraftLabel(authorCrafts)}
 								title={authorCrafts.map((entry) => entry.name).join(', ')}
 								>{#each authorCrafts
 									.filter((entry) => entry.icon)
@@ -246,10 +245,9 @@
 							>{/if}<span class="craft-count-measure" aria-hidden="true"
 							>+{authorCrafts.length}</span
 						></span
-					>{:else}<strong>{authorName(post.author)}</strong
-					>{/if}{#if post.author.business}<span class="business-label"
-						>Business account</span
-					>{/if}<small>@{post.author.handle}</small></span
+					>{:else}<strong>{authorName(post.author)}</strong>{/if}<small
+					>@{post.author.handle}</small
+				></span
 			></a
 		><a
 			class="date"
@@ -270,9 +268,7 @@
 			></a
 		>
 	</div>
-	{#if post.sponsored}<p class="badge sponsored">
-			Sponsored / commercial relationship
-		</p>{/if}
+	{#if post.sponsored}<SponsoredLabel />{/if}
 	{#if !post.project}
 		{#if detail}<h1 class="visually-hidden">{postTitle(post)}</h1>{/if}
 		{#if !detail}<h2 class="visually-hidden">
@@ -397,6 +393,13 @@
 </article>
 
 <style>
+	.business-icon {
+		display: inline-flex;
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		margin-right: 8px;
+	}
 	.project-detail-metadata a {
 		text-decoration: none;
 	}

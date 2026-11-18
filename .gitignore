@@ -7,9 +7,13 @@ appview/tmp/
 *.out
 
 # Env
+config/*.env
 .env
 .env.local
+.env.secrets.local
 app/config/*.env
+app/config/.env*
+!app/config/.env*.example
 !app/config/*.env.example
 
 # Dev-only media fixtures stay local; the directory README remains tracked.
@@ -60,11 +64,15 @@ web-client/.svelte-kit/
 web-client/.wrangler/
 web-client/test-results/
 web-client/playwright-report/
+web-client/config/.env*
+!web-client/config/.env*.example
+# Ignore legacy local files during migration too.
 web-client/.env*
 !web-client/.env.example
 web-client/.sentry-artifacts/
 web-client/.deployments/
 .wrangler/
+.cloudflare/
 
 # CraftSky in numbers standalone static site
 stats/node_modules/

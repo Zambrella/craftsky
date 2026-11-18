@@ -103,7 +103,7 @@ void main() {
       expect(menu.groups.first.items.single.text, 'View likes');
       expect(
         menu.groups[1].items.map((item) => item.text),
-        ['Copy link', 'Send via chat'],
+        ['Copy link', 'Share', 'Send via chat'],
       );
       expect(menu.groups.last.items.single.text, 'Delete post');
       expect(
@@ -477,7 +477,7 @@ void _notifyNearEnd(WidgetTester tester) {
   final context = tester.element(
     find.descendant(
       of: find.byType(AutoPaginatedListView),
-      matching: find.byType(ListView),
+      matching: find.byType(Scrollable),
     ),
   );
   ScrollUpdateNotification(
@@ -500,7 +500,7 @@ void _expectNoFlutterError(WidgetTester tester) {
 
 Future<void> _expectPaginationLoading(WidgetTester tester) async {
   if (find.byType(StitchProgressIndicator).evaluate().isEmpty) {
-    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.drag(find.byType(Scrollable), const Offset(0, -600));
     await tester.pump();
   }
   expect(find.byType(StitchProgressIndicator), findsOneWidget);

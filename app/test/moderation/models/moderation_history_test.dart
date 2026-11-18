@@ -47,6 +47,21 @@ void main() {
     expect(page.cursor, 'opaque:next');
   });
 
+  test('sanction reasons decode without losing their specific meaning', () {
+    expect(
+      ModerationReasonMapper.fromValue('illegal_content'),
+      ModerationReason.illegalContent,
+    );
+    expect(
+      ModerationReasonMapper.fromValue('fraud_or_scam'),
+      ModerationReason.fraudOrScam,
+    );
+    expect(
+      ModerationReasonMapper.fromValue('self_harm'),
+      ModerationReason.selfHarm,
+    );
+  });
+
   test('missing appeal status maps to no confirmed appeal', () {
     final entry = ModerationHistoryEntryMapper.fromMap({
       'caseReference': 'MOD-550e8400-e29b-41d4-a716-446655440000',

@@ -110,13 +110,15 @@ class BusinessProductView with BusinessProductViewMappable {
   const new({
     required this.title,
     this.uri,
-    this.image,
+    this.images = const [],
     this.price,
   });
 
   final String title;
   final String? uri;
-  final BusinessImageView? image;
+  final List<BusinessImageView> images;
+  List<BusinessImageView> get photos => images;
+  BusinessImageView? get image => images.firstOrNull;
   final BusinessPrice? price;
 }
 

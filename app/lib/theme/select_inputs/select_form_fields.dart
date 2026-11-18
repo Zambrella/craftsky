@@ -16,6 +16,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
     this.onChanged,
     this.required = false,
     this.requiredLabel = 'required',
+    this.clearable = true,
   });
 
   final String name;
@@ -31,6 +32,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
   final ValueChanged<T?>? onChanged;
   final bool required;
   final String requiredLabel;
+  final bool clearable;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskySingleSelectInput<T>(
@@ -52,6 +55,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
           keyPrefix: keyPrefix ?? name,
           required: required,
           requiredLabel: requiredLabel,
+          clearable: clearable,
           onChanged: (value) {
             field.didChange(value);
             onChanged?.call(value);
@@ -100,6 +104,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskySearchableMultiSelectInput<T>(
@@ -162,6 +167,7 @@ class CraftskyFormTokenField extends StatelessWidget {
       name: name,
       initialValue: initialValue,
       enabled: enabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: validator,
       builder: (field) {
         return CraftskyTokenInput(

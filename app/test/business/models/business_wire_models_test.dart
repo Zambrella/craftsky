@@ -16,7 +16,9 @@ void main() {
       'crafts': <String>[],
       'accountType': 'business',
       'business': {
-        'cid': 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
+        'cid':
+            'bafyreicdvexolyvp6j6yksqiib7hihwktt6'
+            'ogalbvyzvtkj6ecrtqqw5fq',
         'businessTypes': [
           {'value': 'dyer', 'known': true},
           {'value': 'future-catalog-value', 'known': false},
@@ -26,16 +28,19 @@ void main() {
           {
             'title': 'First skein',
             'uri': 'https://shop.example/first',
-            'image': {
-              'cid':
-                  'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
-              'mime': 'image/jpeg',
-              'size': 101,
-              'alt': 'Rust yarn',
-              'aspectRatio': {'width': 4, 'height': 3},
-              'thumb': 'https://cdn.example/thumb.jpeg',
-              'fullsize': 'https://cdn.example/full.jpeg',
-            },
+            'images': [
+              {
+                'cid':
+                    'bafyreicdvexolyvp6j6yksqiib7hihwktt6'
+                    'ogalbvyzvtkj6ecrtqqw5fq',
+                'mime': 'image/jpeg',
+                'size': 101,
+                'alt': 'Rust yarn',
+                'aspectRatio': {'width': 4, 'height': 3},
+                'thumb': 'https://cdn.example/thumb.jpeg',
+                'fullsize': 'https://cdn.example/full.jpeg',
+              },
+            ],
           },
         ],
       },
@@ -72,7 +77,9 @@ void main() {
   test('rejects a malformed required business image field', () {
     expect(
       () => BusinessImageViewMapper.fromMap({
-        'cid': 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
+        'cid':
+            'bafyreicdvexolyvp6j6yksqiib7hihwktt6'
+            'ogalbvyzvtkj6ecrtqqw5fq',
         'mime': 'image/jpeg',
         'size': -1,
         'alt': '',

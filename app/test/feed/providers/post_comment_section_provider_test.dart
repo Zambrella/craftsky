@@ -65,6 +65,48 @@ PostCommentSection _section({
 );
 
 void main() {
+  test(
+    'refresh reloads comment depth and keeps expanded branches expanded',
+    () async {
+      final container = ProviderContainer.test(
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onCommentSection:
+                  (did, rkey, {cursor, sort, focus, limit}) async => _section(
+                    comments: [
+                      _comment(cursor == null ? 'first' : 'second', 1),
+                    ],
+                    cursor: cursor == null ? 'next' : null,
+                  ),
+              onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+                  ReplyPage(loaded: true, items: [_reply('kept-reply', 2)]),
+            ),
+          ),
+        ],
+      );
+      final provider = postCommentSectionProvider(_aliceDid, _rootRkey);
+      container.listen(provider, (_, _) {});
+      await container.read(provider.future);
+      container.read(provider.notifier)
+        ..appendCommentPage(CommentPage(items: [_comment('second', 2)]))
+        ..setRepliesForComment(
+          commentUri: _comment('first', 1).post.uri,
+          replies: [_reply('kept-reply', 2)],
+        );
+      container.invalidate(provider);
+      final next = await container.read(provider.future);
+      expect(next.comments.items, hasLength(2));
+      expect(next.comments.items.first.replies.loaded, isTrue);
+      expect(
+        next.comments.items.first.replies.items.single.post.rkey.toString(),
+        'kept-reply',
+      );
+      expect(next.comments.items.last.replies.loaded, isFalse);
+    },
+  );
+
   setUpAll(initializeMappers);
 
   group('postCommentSectionProvider', () {

@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('detail edit serializes the complete known declaration', () {
     final current = BusinessProfile(
-      cid: 'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      cid:
+          'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaa'
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       businessTypes: const [
         BusinessOpenValue(value: 'teacher', known: true),
         BusinessOpenValue(value: 'future-type', known: false),
@@ -26,15 +28,19 @@ void main() {
         BusinessProductView(
           title: 'Class kit',
           uri: 'https://example.com/kit',
-          image: BusinessImageView(
-            cid: 'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            mime: 'image/jpeg',
-            size: 42,
-            alt: 'A class kit',
-            thumb: 'https://cdn.example/thumb',
-            fullsize: 'https://cdn.example/full',
-            aspectRatio: BusinessImageAspectRatio(width: 4, height: 3),
-          ),
+          images: [
+            BusinessImageView(
+              cid:
+                  'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaa'
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              mime: 'image/jpeg',
+              size: 42,
+              alt: 'A class kit',
+              thumb: 'https://cdn.example/thumb',
+              fullsize: 'https://cdn.example/full',
+              aspectRatio: BusinessImageAspectRatio(width: 4, height: 3),
+            ),
+          ],
           price: const BusinessPrice(amount: '12.50', currency: 'GBP'),
         ),
       ],
@@ -60,20 +66,22 @@ void main() {
         {
           'title': 'Class kit',
           'uri': 'https://example.com/kit',
-          'image': {
-            'image': {
-              r'$type': 'blob',
-              'ref': {
-                r'$link':
-                    'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-                    'aaaaaa',
+          'images': [
+            {
+              'image': {
+                r'$type': 'blob',
+                'ref': {
+                  r'$link':
+                      'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                      'aaaaaa',
+                },
+                'mimeType': 'image/jpeg',
+                'size': 42,
               },
-              'mimeType': 'image/jpeg',
-              'size': 42,
+              'alt': 'A class kit',
+              'aspectRatio': {'width': 4, 'height': 3},
             },
-            'alt': 'A class kit',
-            'aspectRatio': {'width': 4, 'height': 3},
-          },
+          ],
           'price': {'amount': '12.50', 'currency': 'GBP'},
         },
       ],

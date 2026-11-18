@@ -1,0 +1,98 @@
+{
+	"title": "Safety and support",
+	"intro": "You deserve to feel safe while sharing your craft. This guide is available without signing in, for young people, parents and carers.",
+	"supportTitle": "Find support",
+	"supportIntro": "If something has upset you, these public-body resources can help with bullying, eating problems, self-harm or suicidal feelings. Choose the resource and region that fit your situation. Each link opens a separate website.",
+	"urgent": "If you or someone else is in immediate danger, contact local emergency services. CraftSky is not an emergency service.",
+	"resources": [
+		{
+			"title": "Bullying and online bullying",
+			"scope": "UK government guidance",
+			"body": "Advice on telling someone you trust and finding help with bullying, including online bullying.",
+			"url": "https://www.gov.uk/bullying-at-school/reporting-bullying"
+		},
+		{
+			"title": "Eating problems",
+			"scope": "NHS guidance — England",
+			"body": "Information about eating disorders and how to get support for yourself or someone else, including young people.",
+			"url": "https://www.nhs.uk/mental-health/feelings-symptoms-behaviours/behaviours/eating-disorders/overview/"
+		},
+		{
+			"title": "Self-harm support",
+			"scope": "NHS guidance — England",
+			"body": "Where to find help if you self-harm, think about self-harm or are worried about someone else.",
+			"url": "https://www.nhs.uk/mental-health/feelings-symptoms-behaviours/behaviours/self-harm/getting-help/"
+		},
+		{
+			"title": "Urgent mental health help — England",
+			"scope": "NHS England",
+			"body": "Official routes to urgent support for a mental health crisis, including suicidal feelings.",
+			"url": "https://www.nhs.uk/nhs-services/mental-health-services/where-to-get-urgent-help-for-mental-health/"
+		},
+		{
+			"title": "Urgent mental health help — Scotland",
+			"scope": "NHS inform",
+			"body": "Official routes to urgent mental health support in Scotland.",
+			"url": "https://www.nhsinform.scot/illnesses-and-conditions/mental-health/mental-health-support/get-urgent-mental-health-help/"
+		},
+		{
+			"title": "Mental health support — Wales",
+			"scope": "NHS 111 Wales",
+			"body": "Mental health and wellbeing support, including urgent help for people of all ages in Wales.",
+			"url": "https://111.wales.nhs.uk/encyclopaedia/m/article/mentalhealthandwellbeing"
+		},
+		{
+			"title": "Mental health support — Northern Ireland",
+			"scope": "nidirect",
+			"body": "Official advice on finding help during a mental health crisis or when worried about someone else.",
+			"url": "https://www.nidirect.gov.uk/articles/mental-health-emergency-if-youre-crisis-or-despair"
+		},
+		{
+			"title": "Supporting a child or teenager",
+			"scope": "NHS guidance — England",
+			"body": "Mental health information and support for parents and carers.",
+			"url": "https://www.nhs.uk/mental-health/children-and-young-adults/advice-for-parents/"
+		}
+	],
+	"youngTitle": "For young people",
+	"youngBody": "You can enjoy CraftSky without sharing your address, school, phone number or private information. You do not have to reply to someone who makes you uncomfortable. Report the concern, block or mute an account, or talk to someone you trust. Do not copy or forward harmful images to make a report.",
+	"stepsTitle": "Ways to take control",
+	"steps": [
+		{
+			"title": "Report",
+			"symbol": "!",
+			"body": "Open the post, profile or event menu and choose Report. Tell us where the concern is; do not forward harmful images. CraftSky reviews reports before deciding what action to take."
+		},
+		{
+			"title": "Block",
+			"symbol": "×",
+			"body": "Open the person's profile menu and choose Block to restrict contact and visibility in CraftSky. Blocks cannot guarantee isolation across independent AT Protocol services."
+		},
+		{
+			"title": "Mute",
+			"symbol": "−",
+			"body": "Open the person's profile menu and choose Mute to reduce what you see from them in CraftSky. Muting is private, but does not stop them contacting you."
+		}
+	],
+	"messagesTitle": "Bluesky messages",
+	"messagesBody": "CraftSky messages use Bluesky's shared inbox. Use the message or conversation report action for concerns there; those reports go to Bluesky, not CraftSky's moderation queue. Incoming-contact settings are shared with Bluesky. Reading a request does not accept it. Consider your contact settings, and do not feel pressured to continue a conversation or move elsewhere.",
+	"parentsTitle": "For parents and carers",
+	"parentsBody": "CraftSky's minimum age is 16, and age is self-declared rather than verified. Public posts can be copied by independent AT Protocol services. Talk together about privacy, unwanted contact, respectful body and fit discussion, and where to get help. Use the reporting, blocking and muting steps above, and the separate Bluesky route for messages.",
+	"limits": "We do not routinely share your report text or identity with the reported person. A safe moderation explanation may be given, and disclosure can occur where authorized, needed to protect someone, or otherwise permitted or required by law. No service can promise absolute confidentiality. These resources are independent of CraftSky; listing them does not imply endorsement or guaranteed availability.",
+	"outsideUK": "These resources describe UK support. Outside the UK, use your local health and emergency services. Follow the destination's regional and age guidance.",
+	"reviewed": "9 November 2026",
+	"searchNotice": "Looking for support? You can find help with eating problems, self-harm or suicidal feelings. You can still continue your search.",
+	"reportSupport": "If this has upset you, support is available for bullying, eating problems, self-harm and suicidal feelings.",
+	"searchTerms": [
+		"suicide",
+		"suicidal",
+		"self harm",
+		"self injury",
+		"self injure",
+		"self injuring",
+		"eating disorder",
+		"eating disorders",
+		"anorexia",
+		"bulimia"
+	]
+}

@@ -69,6 +69,12 @@ enum ModerationReason {
   @MappableValue('intellectual_property')
   intellectualProperty,
   other,
+  @MappableValue('illegal_content')
+  illegalContent,
+  @MappableValue('fraud_or_scam')
+  fraudOrScam,
+  @MappableValue('self_harm')
+  selfHarm,
   unknown,
 }
 

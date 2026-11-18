@@ -10,7 +10,7 @@ AppView owns billing identity, licenses, DID assignment, and server-side access.
 
 ## 2. Current Codebase Findings
 
-- `adr/014-account-assigned-subscription-licenses.md` requires payer identity to
+- `docs/adr/014-account-assigned-subscription-licenses.md` requires payer identity to
   remain separate from the DID receiving benefits.
 - AppView has no subscription persistence, RevenueCat integration, paid-access
   endpoint, or paid feature gate today.

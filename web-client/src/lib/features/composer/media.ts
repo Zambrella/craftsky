@@ -34,7 +34,18 @@ export async function prepareImage(
 ): Promise<DraftMedia> {
 	if (source.size > 40_000_000)
 		throw new InputError('Choose an image smaller than 40 MB.');
-	const bitmap = await createImageBitmap(source);
+	let bitmap: ImageBitmap;
+	try {
+		bitmap = await createImageBitmap(source);
+	} catch (cause) {
+		const message =
+			'This image could not be read. Try another image or export it as a JPEG or PNG.';
+		// For a Blob source, the browser uses InvalidStateError when its bytes
+		// cannot be decoded as an image. Other decoder failures remain reportable.
+		if (cause instanceof DOMException && cause.name === 'InvalidStateError')
+			throw new InputError(message, { cause });
+		throw new UserFacingError(message, { cause });
+	}
 	try {
 		const crop = transform.crop || { x: 0, y: 0, width: 1, height: 1 };
 		if (
@@ -126,18 +137,18 @@ export function videoSourceMime(
 
 export async function inspectVideo(file: File): Promise<DraftMedia> {
 	if (file.size > 300_000_000)
-		throw new UserFacingError(
+		throw new InputError(
 			'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.'
 		);
 	if (!file.size)
-		throw new UserFacingError(
+		throw new InputError(
 			'This video file is empty. Choose another MP4 or MOV file.'
 		);
 	const mime = videoSourceMime(
 		new Uint8Array(await file.slice(0, 12).arrayBuffer())
 	);
 	if (!mime)
-		throw new UserFacingError(
+		throw new InputError(
 			"This video format isn't supported. Choose an MP4 or MOV file."
 		);
 	const result: DraftMedia = {
@@ -183,7 +194,7 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 			throw new UserFacingError('Could not read this video.');
 		}
 		if (element.duration > 600)
-			throw new UserFacingError(
+			throw new InputError(
 				'This video is too long. Videos must be ten minutes or shorter. Trim it and try again.'
 			);
 		return {
@@ -229,15 +240,20 @@ async function boundedJSON(
 		data.set(chunk, offset);
 		offset += chunk.length;
 	}
+	let value: unknown;
 	try {
-		const value = JSON.parse(new TextDecoder().decode(data));
-		if (!value || typeof value !== 'object' || Array.isArray(value)) throw 0;
-		return value;
-	} catch {
+		value = JSON.parse(new TextDecoder().decode(data));
+	} catch (cause) {
+		throw new UserFacingError(
+			'The video service returned an invalid response.',
+			{ cause }
+		);
+	}
+	if (!value || typeof value !== 'object' || Array.isArray(value))
 		throw new UserFacingError(
 			'The video service returned an invalid response.'
 		);
-	}
+	return value as Record<string, unknown>;
 }
 function blobValue(value: unknown): BlobReference | undefined {
 	if (!value || typeof value !== 'object') return;

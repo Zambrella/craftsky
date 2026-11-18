@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func TestWebhookHandlerUnsafeDiagnosticsLogsRawBodyAndReduction(t *testing.T) {
+func TestWebhookHandlerDiagnosticsOmitRawBodyAndRetainReduction(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -37,12 +37,11 @@ func TestWebhookHandlerUnsafeDiagnosticsLogsRawBodyAndReduction(t *testing.T) {
 		t.Fatalf("NewPayloadReducer: %v", err)
 	}
 	handler, err := NewWebhookHandler(WebhookHandlerConfig{
-		AppSecret:       []byte(secret),
-		VerifyToken:     "synthetic-verify-token",
-		Reducer:         reducer,
-		Sink:            &recordingWebhookSink{},
-		Logger:          logger,
-		UnsafeDebugLogs: true,
+		AppSecret:   []byte(secret),
+		VerifyToken: "synthetic-verify-token",
+		Reducer:     reducer,
+		Sink:        &recordingWebhookSink{},
+		Logger:      logger,
 	})
 	if err != nil {
 		t.Fatalf("NewWebhookHandler: %v", err)
@@ -57,8 +56,8 @@ func TestWebhookHandlerUnsafeDiagnosticsLogsRawBodyAndReduction(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %q", response.Code, response.Body.String())
 	}
-	if !strings.Contains(logs.String(), bodyValue) {
-		t.Fatalf("debug logs omitted raw webhook body: %s", logs.String())
+	if strings.Contains(logs.String(), bodyValue) {
+		t.Fatalf("debug logs exposed raw webhook body: %s", logs.String())
 	}
 	if !strings.Contains(logs.String(), `"supported_event_count":0`) {
 		t.Fatalf("debug logs omitted reduction count: %s", logs.String())

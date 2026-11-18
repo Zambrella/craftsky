@@ -107,7 +107,10 @@ void main() {
     final button = tester.widget<ChunkyButton>(
       find.widgetWithText(ChunkyButton, 'Delete account'),
     );
-    expect(button.backgroundColor, AppTheme.lightThemeData.colorScheme.error);
+    expect(
+      button.style?.backgroundColor?.resolve({}),
+      AppTheme.lightThemeData.colorScheme.error,
+    );
     expect(button.onPressed, isNull);
 
     await tester.enterText(

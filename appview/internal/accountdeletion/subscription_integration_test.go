@@ -25,7 +25,7 @@ func TestSubscriptionDeletionParticipantBlocksClosesAndUnassigns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration)+string(eventsMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+string(eventsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:deleting-billing-owner")
@@ -147,7 +147,7 @@ func TestSubscriptionDeletionParticipantBlocksMixedProviderBilling(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 	participant := subscriptions.NewDeletionParticipant()
@@ -236,7 +236,7 @@ func TestAcceptedSelfAssignedDeletionSerializesWithSnapshotApply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accountsMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accountsMigration)+stripeCheckoutDeletionDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 9, 9, 13, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:deletion-snapshot-race")
@@ -384,6 +384,9 @@ func waitForAdvisoryWaiter(t *testing.T, pool interface {
 				  AND classid=(($1::bigint >> 32) & 4294967295)::oid
 				  AND objid=($1::bigint & 4294967295)::oid
 				  AND NOT granted
+				  AND pid IN (SELECT pid FROM pg_stat_activity
+				              WHERE datname=current_database()
+				                AND application_name=current_setting('application_name'))
 			)
 		`, key).Scan(&waiting); err != nil {
 			t.Fatal(err)
@@ -410,6 +413,7 @@ func waitForSnapshotLockWaiter(t *testing.T, pool interface {
 				SELECT 1 FROM pg_stat_activity
 				WHERE pid <> pg_backend_pid()
 				  AND datname=current_database()
+				  AND application_name=current_setting('application_name')
 				  AND wait_event_type='Lock'
 				  AND (
 					query LIKE '%SELECT reconciled_generation, state%'
@@ -427,4 +431,16 @@ func waitForSnapshotLockWaiter(t *testing.T, pool interface {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// Pending checkout operations can still become payable after deletion intent.
+// The production checkout table is part of every billing-deletion fixture.
+func stripeCheckoutDeletionDDL(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile("../../migrations/000125_stripe_web_checkouts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, []byte(`ALTER TABLE billing_web_checkouts ADD COLUMN embedded BOOLEAN NOT NULL DEFAULT false;`)...)
+	return string(data)
 }

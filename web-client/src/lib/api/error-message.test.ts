@@ -32,6 +32,7 @@ describe('error parity and diagnostic evidence', () => {
 			'instagram_post_already_imported',
 			'This Instagram post has already been imported. Check its status in Instagram settings.'
 		],
+		[403, 'forbidden', "You don't have permission to do that."],
 		[404, 'not_found', 'That content is no longer available.'],
 		[
 			503,
@@ -39,13 +40,81 @@ describe('error parity and diagnostic evidence', () => {
 			'CraftSky is having trouble right now. Please try again.'
 		],
 		[200, 'invalid_response', 'Something went wrong. Please try again.'],
-		[400, 'bad_request', "That didn't work. Please try again."]
+		[400, 'bad_request', "That didn't work. Please try again."],
+		[
+			503,
+			'web_checkout_unavailable',
+			'Web subscriptions are not available right now. Please try again later.'
+		],
+		[
+			409,
+			'subscription_reconciliation_required',
+			'Refresh your subscription status before opening checkout.'
+		],
+		[
+			409,
+			'subscription_already_exists',
+			'This account already has a subscription or a payment awaiting resolution. Refresh your subscription status.'
+		],
+		[
+			409,
+			'web_checkout_pending',
+			'This account already has a checkout in progress. Continue with that plan or cancel the pending purchase before choosing another.'
+		],
+		[
+			503,
+			'web_management_unavailable',
+			'Subscription management is temporarily unavailable. Please try again.'
+		]
 	] as const)(
 		'maps %s/%s to client-owned Flutter copy',
 		(status, code, message) => {
 			expect(apiErrorMessage(new APIError(status, code, secret))).toBe(message);
 		}
 	);
+	it('retains preclassified adapter failures rather than calling them offline', async () => {
+		const failure = new APIError(
+			200,
+			'invalid_response',
+			secret,
+			id,
+			undefined,
+			undefined,
+			{ cause: new SyntaxError(secret) }
+		);
+		failure.responseKind = 'nonJson';
+		const transport = new APITransport(async () => {
+			throw failure;
+		});
+		await expect(transport.get('/private')).rejects.toBe(failure);
+		expect(failure.httpMethod).toBe('GET');
+		expect(expectedFailure(failure)).toBe(false);
+		expect(failureContext(failure, 'workspace')).toMatchObject({
+			httpStatus: 200,
+			appViewRequestId: id,
+			responseKind: 'nonJson',
+			errorCode: 'invalid_response'
+		});
+	});
+	it('retains response evidence when a page shape is malformed', async () => {
+		const transport = new APITransport(async () =>
+			Response.json(
+				{ items: secret, cursor: 123 },
+				{ headers: { 'X-Request-ID': id } }
+			)
+		);
+		const failure = await transport.page('/private').catch((error) => error);
+		expect(failureContext(failure, 'workspace')).toEqual({
+			operation: 'workspace',
+			httpStatus: 200,
+			httpMethod: 'GET',
+			responseKind: 'json',
+			errorCode: 'invalid_response',
+			appViewRequestId: id
+		});
+		expect(expectedFailure(failure)).toBe(false);
+		expect(apiErrorMessage(failure)).not.toContain(secret);
+	});
 	it('preserves causes for offline reads and uncertain writes without changing retry semantics', async () => {
 		const cause = new TypeError(secret);
 		const transport = new APITransport(async () => {

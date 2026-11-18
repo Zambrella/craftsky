@@ -396,3 +396,28 @@ Per implement-tdd, stop after reading this handoff and offer implementation revi
 ### Guest action parity revision (7 November 2026)
 
 The owner revised the earlier hidden-control requirement: guests use the shared member post and visitor-profile controls. Like, save, repost, quote, follow, messaging and account-only menu actions open the existing Join CraftSky modal in place. Public reading and copying links remain available. No member request or mutation is sent before authentication, and no attempted action is replayed after sign-in. Regular profiles default to Projects using the shared tab policy. Public join-date and recent-post summary fields use the existing anonymous-visibility filters; no backfill is required.
+
+
+## 10 November 2026: explicit opt-out amendment
+
+The owner changed guest preference policy: only an explicit `!no-unauthenticated`
+opts an account out. This supersedes the unknown-hidden and pending-hold guest
+serving results recorded above. Unknown provenance remains stored as unknown;
+no refresh, data migration or backfill is introduced. Lifecycle, moderation and
+media-safety restrictions continue to apply. Same-revision conflicts retain an
+explicit opt-out from either observation; stale events cannot clear it. Settings
+reads and saves still report errors and pending outcomes accurately in both
+clients. Current regression evidence belongs with this amendment rather than
+rewriting historical execution results.
+
+Validation for this amendment:
+
+- Backend PostgreSQL/race regression passed with
+  `./scripts/appview-test focused ./internal/guestvisibility ./internal/api ./internal/index ./internal/pdscommands ./internal/business -race -run 'GuestVisibility|^TestPublic|BlueskyProfileGuest'`.
+  The business package had no matching standalone tests; guest event behavior was
+  covered by the API integration suite. The final policy/provenance suite also
+  passed separately after preserving the original conflicting opt-out evidence.
+- Web guest API/proxy/session and privacy-setting regression: 7 files, 65 tests passed.
+- Flutter guest transport/cache-transition and privacy-setting regression: 8 tests passed.
+- Shared backend behavior applies to both clients; no client source or build changes.
+- Local verification only. This amendment has not been pushed or deployed.

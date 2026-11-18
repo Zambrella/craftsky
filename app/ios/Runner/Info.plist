@@ -30,6 +30,8 @@
 		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>CraftSky needs camera access so you can take photos to share or use on your profile.</string>
+		<key>NSMotionUsageDescription</key>
+		<string>CraftSky uses device motion to gently tilt your profile share card.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>CraftSky needs photo library access so you can attach photos and videos to your posts.</string>
 		<key>UIApplicationSceneManifest</key>

@@ -11,6 +11,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/pages/business_details_settings_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
@@ -42,6 +43,39 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
+  for (final route in _ownerRoutes) {
+    testWidgets('cold ${route.label} redirect retains pending access lookup', (
+      tester,
+    ) async {
+      final pendingAccess = Completer<SubscriptionAccess>();
+      final access = SubscriptionAccess(
+        did: Did.parse('did:plc:test'),
+        effectiveTier: SubscriptionTier.business,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.business,
+      );
+      addTearDown(() {
+        if (!pendingAccess.isCompleted) pendingAccess.complete(access);
+      });
+      var disposed = false;
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        initialLocation: route.location,
+        size: route.size,
+        pendingAccess: pendingAccess.future,
+        onAccessDispose: () => disposed = true,
+      );
+      expect(disposed, isFalse, reason: 'the redirect still needs the lookup');
+
+      pendingAccess.complete(access);
+      await tester.pumpAndSettle();
+
+      expect(harness.router.state.matchedLocation, route.location);
+      expect(find.byType(route.pageType), findsOneWidget);
+    });
+  }
+
   for (final route in _ownerRoutes) {
     testWidgets('AT-008 ${route.label} route closes on Business lapse', (
       tester,
@@ -86,7 +120,30 @@ void main() {
       expect(find.byType(ProductsSettingsPage), findsNothing);
     },
   );
+  for (final tier in [SubscriptionTier.business, SubscriptionTier.free]) {
+    testWidgets('Business details settings require confirmed $tier access', (
+      tester,
+    ) async {
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        accessTier: tier,
+        initialLocation: const BusinessDetailsRoute().location,
+        size: const Size(500, 800),
+      );
+      expect(
+        harness.router.state.matchedLocation,
+        tier == SubscriptionTier.business ? '/settings/business' : '/settings',
+      );
+      expect(
+        find.byType(BusinessDetailsSettingsPage),
+        tier == SubscriptionTier.business ? findsOneWidget : findsNothing,
+      );
+    });
+  }
+
   test('UT-018 owner routes use canonical settings locations', () {
+    expect(const BusinessDetailsRoute().location, '/settings/business');
     expect(
       const BusinessProductsRoute().location,
       '/settings/products',
@@ -241,6 +298,8 @@ Future<_RouterHarness> _pumpRouter(
   required Size size,
   SubscriptionTier? accessTier,
   StateProvider<SubscriptionTier>? accessTierProvider,
+  Future<SubscriptionAccess>? pendingAccess,
+  VoidCallback? onAccessDispose,
   List<BusinessProductView> products = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -279,6 +338,8 @@ Future<_RouterHarness> _pumpRouter(
         ),
       ),
       subscriptionAccessProvider.overrideWith((ref, lease) async {
+        if (onAccessDispose != null) ref.onDispose(onAccessDispose);
+        if (pendingAccess != null) return await pendingAccess;
         final tier =
             (accessTierProvider == null
                 ? null
@@ -378,27 +439,31 @@ final class _RouterHarness {
 final _firstProduct = BusinessProductView(
   title: 'One',
   uri: 'https://shop.example/one',
-  image: BusinessImageView(
-    cid: 'bafy-one',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: 'One',
-    thumb: 'https://cdn.example/one/thumb',
-    fullsize: 'https://cdn.example/one/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-one',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: 'One',
+      thumb: 'https://cdn.example/one/thumb',
+      fullsize: 'https://cdn.example/one/full',
+    ),
+  ],
 );
 
 final _secondProduct = BusinessProductView(
   title: 'Two',
   uri: 'https://shop.example/two',
-  image: BusinessImageView(
-    cid: 'bafy-two',
-    mime: 'image/jpeg',
-    size: 10,
-    alt: 'Two',
-    thumb: 'https://cdn.example/two/thumb',
-    fullsize: 'https://cdn.example/two/full',
-  ),
+  images: [
+    BusinessImageView(
+      cid: 'bafy-two',
+      mime: 'image/jpeg',
+      size: 10,
+      alt: 'Two',
+      thumb: 'https://cdn.example/two/thumb',
+      fullsize: 'https://cdn.example/two/full',
+    ),
+  ],
 );
 
 final class _BusinessRepository extends Fake implements BusinessRepository {

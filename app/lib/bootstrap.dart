@@ -56,7 +56,6 @@ import 'package:craftsky_app/service_status/providers/service_status_controller.
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
-import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
@@ -71,6 +70,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -126,7 +126,7 @@ final class ProviderLogger extends ProviderObserver {
     };
     final workflow = accountDid == null
         ? null
-        : PublicRecordContext(actorDid: accountDid);
+        : PrivateOperationalFailureContext(accountDid: accountDid);
     final appError = AppErrorMapper.map(
       error,
       fallbackKind: AppErrorKind.backgroundLoadFailed,
@@ -158,7 +158,7 @@ final class ProviderLogger extends ProviderObserver {
     }
 
     unawaited(
-      reporter.captureException(
+      GuardedErrorReporter(reporter).captureException(
         error,
         stackTrace: stackTrace,
         context: diagnosticContext,
@@ -181,9 +181,15 @@ String _formatProviderValue(Object provider, Object? value) {
 
 String _formatAsyncValue(Object provider, AsyncValue<Object?> value) {
   return switch (value) {
+    // Diagnostic formatting omits null previous values; the next arm handles
+    // loading without that optional display detail.
+    // ignore: riverpod_lint/async_value_nullable_pattern
     AsyncLoading(:final value?) =>
       'AsyncLoading(previous: ${_formatDataValue(provider, value)})',
     AsyncLoading() => 'AsyncLoading()',
+    // Error ownership/classification is independent of this display-only arm.
+    // Null previous values intentionally use the following error arm.
+    // ignore: riverpod_lint/async_value_nullable_pattern
     AsyncError(:final error, :final value?) =>
       'AsyncError('
           'errorType: ${error.runtimeType}, '
@@ -241,6 +247,7 @@ Future<void> bootstrap(
         const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
     isDebug: kDebugMode,
     configurator: const NativeRevenueCatConfigurator(),
+    diagnostics: SubscriptionDiagnostics(reporter: reporter),
   );
 
   // Default locale for intl date/number formatting.
@@ -265,25 +272,11 @@ Future<void> bootstrap(
   final notificationService = await bootstrapFirebaseNotificationService();
 
   // Fail fast if --dart-define=CRAFTSKY_API_BASE_URL is missing in a
-  // release build. Building the provider throws StateError before any
-  // networking is attempted. We dispose the throwaway container so the
-  // check stays cheap; the real app creates its own via ProviderScope.
-  //
-  // Also eagerly resolve deviceIdProvider so the first /v1/* request
-  // has the header. The server enforces X-Craftsky-Device-Id on all
-  // authenticated routes; if the provider hasn't resolved by the time
-  // the session Dio fires its first request, the server 400s. The
-  // eager await here guarantees the future is hot before runApp.
-  final probe = ProviderContainer(
-    observers: [ProviderLogger(reporter: reporter)],
-    retry: appProviderRetry,
-  );
-  try {
-    probe.read(dioProvider);
-    await probe.read(deviceIdProvider.future);
-  } finally {
-    probe.dispose();
-  }
+  // release build, without starting a second provider graph. Provider state
+  // belongs to the app's scope; resolving a device ID in a throwaway container
+  // cannot initialize that scope. SessionAuthInterceptor awaits the app's
+  // device-ID future before forwarding each authenticated request.
+  baseDioOptions();
 
   _log.fine('bootstrap complete');
 

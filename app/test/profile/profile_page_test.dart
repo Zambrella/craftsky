@@ -22,6 +22,7 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/sharing/profile_share_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -32,6 +33,7 @@ import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/guide_data.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -44,6 +46,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -136,6 +139,8 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().last,
         );
         await tester.pumpAndSettle();
+        expect(find.text('Share card'), findsNothing);
+        await tester.ensureVisible(find.text('Report profile'));
         await tester.tap(find.text('Report profile'));
         await tester.pumpAndSettle();
         expect(find.text('Report profile'), findsOneWidget);
@@ -814,7 +819,7 @@ void main() {
         find.descendant(of: collapsedTitle, matching: find.text('Business')),
         findsNothing,
       );
-      expect(find.text('Business'), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.storefront), findsOneWidget);
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
@@ -1063,7 +1068,7 @@ void main() {
         displayName: 'Alice',
         banner: 'https://example.test/old-banner.jpg',
         crafts: const [],
-        customisation: const ProfileCustomisation(background: 'x2'),
+        customisation: const ProfileCustomisation(background: 'craft-sewing'),
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -1283,6 +1288,7 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Block account'));
       await tester.tap(find.text('Block account'));
       await tester.pumpAndSettle();
       expect(find.text('Block this account?'), findsOneWidget);
@@ -1347,6 +1353,7 @@ void main() {
           find.byTooltip('More profile actions').hitTestable().first,
         );
         await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Mute account'));
         await tester.tap(find.text('Mute account'));
         await tester.pumpAndSettle();
 
@@ -1747,22 +1754,29 @@ void main() {
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Report profile'));
       await tester.tap(find.text('Report profile'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Spam, misleading or off-topic content'));
       await tester.pump();
       await tester.tap(find.text('Spam'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(submittedTarget, 'did:plc:other');
       expect(submitted?.reasonType, 'spam');
       expect(find.text('Report profile'), findsNothing);
-      expect(
-        messenger.calls,
-        contains(('info', 'Thanks — your report was submitted.', null)),
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(ProfilePage)),
       );
+      final acknowledgement = messenger.calls.single;
+      expect(acknowledgement.$1, 'info');
+      expect(
+        acknowledgement.$2,
+        '${l10n.reportSubmitSuccess} ${safetyGuide['reportSupport']}',
+      );
+      expect(acknowledgement.$3?.label, l10n.safetyFindSupport);
     });
 
     testWidgets(
@@ -2144,7 +2158,77 @@ void main() {
       expect(messenger.calls.first.$2, 'Could not update follow state.');
     });
 
-    testWidgets('tapping Share dispatches a coming-soon info', (tester) async {
+    testWidgets('tapping Share card opens the profile artwork', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final profile = Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final messenger = RecordingMessenger();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            testMemberBrowsingOverride,
+            authSessionProvider.overrideWith(
+              () => SignedInAuthSession(did: 'did:plc:alice'),
+            ),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More profile actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share card'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your share card'), findsOneWidget);
+      expect(find.text('Meet me on CraftSky'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileShareCard),
+          matching: find.text('@alice.bsky.social'),
+        ),
+        findsOneWidget,
+      );
+      expect(messenger.calls, isEmpty);
+    });
+
+    testWidgets('tapping Share opens native sharing with the profile link', (
+      tester,
+    ) async {
+      const channel = MethodChannel('dev.fluttercommunity.plus/share');
+      MethodCall? share;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        share = call;
+        return 'dev.fluttercommunity.plus/share/dismissed';
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -2179,9 +2263,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Share'));
       await tester.pumpAndSettle();
-      expect(messenger.calls.length, 1);
-      expect(messenger.calls.first.$1, 'info');
-      expect(messenger.calls.first.$2, 'Share coming soon.');
+      expect(share?.method, 'share');
+      expect(
+        (share?.arguments as Map)['uri'],
+        'https://app.craftsky.social/profiles/did%3Aplc%3Aother',
+      );
+      expect(messenger.calls, isEmpty);
     });
 
     testWidgets('tapping profile avatar opens the fullscreen image gallery', (

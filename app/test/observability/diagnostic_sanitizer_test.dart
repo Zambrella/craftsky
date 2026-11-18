@@ -374,12 +374,12 @@ void main() {
         'incomingPath': '/v1/saves/PRIVATE',
         'appViewMessage': 'PRIVATE',
         'appViewError': 'future_code',
-        'appViewRequestId': 'request-1',
+        'appViewRequestId': 'd0000000-0000-4000-8000-00000000000d',
       });
       expect(fields, {
         'httpMethod': 'GET',
         'appViewError': 'future_code',
-        'appViewRequestId': 'request-1',
+        'appViewRequestId': 'd0000000-0000-4000-8000-00000000000d',
       });
     },
   );

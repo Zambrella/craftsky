@@ -1,5 +1,33 @@
 import { test, expect } from '@playwright/test';
 
+test('profile bio links open mentions, tags and external confirmation', async ({
+	page
+}) => {
+	await page.goto('/profiles/alice.test');
+	const bio = page.locator('.profile-bio');
+	await expect(
+		bio.getByRole('link', { name: '@bob.test', exact: true })
+	).toHaveAttribute('href', '/profiles/bob.test');
+	await expect(
+		bio.getByRole('link', { name: '#編織', exact: true })
+	).toHaveAttribute('href', '/search/tags?tag=%E7%B7%A8%E7%B9%94');
+	await bio
+		.getByRole('link', { name: 'https://example.org/yarn', exact: true })
+		.click();
+	const dialog = page.getByRole('dialog', { name: 'Open link?' });
+	await expect(dialog).toBeVisible();
+	await expect(
+		dialog.getByRole('link', { name: 'Open link', exact: true })
+	).toHaveAttribute('href', 'https://example.org/yarn');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	await bio.getByRole('link', { name: '@bob.test', exact: true }).click();
+	await expect(page).toHaveURL(/profiles\/bob.test$/);
+	await expect(
+		page.getByRole('heading', { name: 'Bob', exact: true })
+	).toBeVisible();
+});
+
 // AT-004 / FR-003 / AC-004, AC-006: public profile tabs and multi-author
 // threads reuse the regular social UI without creating a viewer account.
 test('reads profiles, comment tabs and multi-author post threads as a guest', async ({
@@ -121,6 +149,25 @@ test('canonical guest navigation replaces profile and post subjects', async ({
 	).toHaveCount(0);
 });
 
+test('automatic profile pagination merges overlapping posts without losing the profile', async ({
+	page
+}) => {
+	const nextPage = page.waitForResponse(
+		(response) =>
+			new URL(response.url()).searchParams.get('cursor') ===
+			'profile-reposts-next'
+	);
+	await page.goto('/profiles/alice.test?tab=reposts');
+	await nextPage;
+	await expect(
+		page.getByRole('button', { name: 'Load more', exact: true })
+	).toHaveCount(0);
+	await expect(
+		page.getByRole('heading', { name: 'Alice', exact: true })
+	).toBeVisible();
+	await expect(page.locator('.member-post')).toHaveCount(1);
+});
+
 // IR-002 / IT-010, REG-003 / FR-003, FR-011 / AC-004, AC-011:
 // enhancement consumes the successful SSR snapshot without refetching it.
 test('successful public SSR stays readable when browser API requests fail', async ({
@@ -215,7 +262,13 @@ test('late previous-profile pagination stays isolated after navigation', async (
 	});
 	try {
 		await page.goto('/profiles/alice.test?tab=reposts');
-		await page.getByRole('button', { name: 'Load more', exact: true }).click();
+		await expect(page.locator('.member-post').first()).toBeVisible();
+		await page.evaluate(() =>
+			scrollTo({
+				top: document.documentElement.scrollHeight,
+				behavior: 'instant'
+			})
+		);
 		await started;
 		await page
 			.getByRole('link', { name: 'Bob @bob.test', exact: true })
@@ -271,6 +324,10 @@ for (const navigation of ['author', 'posts'] as const) {
 				resolveIncoming(body);
 				await route.fulfill({ response, body });
 			});
+			const more = page.waitForRequest(
+				(req) =>
+					new URL(req.url()).searchParams.get('cursor') === 'fresh-cursor'
+			);
 			if (navigation === 'author')
 				await page
 					.locator('a[href="/profiles/did%3Aplc%3Arefresh"]')
@@ -297,13 +354,12 @@ for (const navigation of ['author', 'posts'] as const) {
 			await expect(
 				page.getByText('EXCLUDED_AFTER_REFRESH', { exact: true })
 			).toHaveCount(0);
-			const more = page.waitForRequest(
-				(req) =>
-					new URL(req.url()).searchParams.get('cursor') === 'fresh-cursor'
+			await page.evaluate(() =>
+				scrollTo({
+					top: document.documentElement.scrollHeight,
+					behavior: 'instant'
+				})
 			);
-			await page
-				.getByRole('button', { name: 'Load more', exact: true })
-				.click();
 			await more;
 			await expect(
 				page.getByRole('button', { name: 'Load more', exact: true })

@@ -65,9 +65,12 @@ test('serves post text, project details and share metadata in initial HTML', asy
 	);
 	await expect(page.getByText('Blue linen', { exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Summer dress' })).toHaveCount(0);
-	await expect(
-		page.getByText('Sponsored / commercial relationship', { exact: true })
-	).toBeVisible();
+	const sponsored = page.getByText('Sponsored', { exact: true });
+	await expect(sponsored).toBeVisible();
+	await expect(sponsored).toHaveAttribute(
+		'title',
+		'The creator marked this post as sponsored because they received money, products, or another benefit.'
+	);
 	expect(response.headers()['cache-control']).toBe('no-store');
 	expect(response.headers()['content-security-policy']).toContain(
 		"frame-ancestors 'none'"
@@ -78,7 +81,11 @@ test('profile, tab, pagination and author navigation work without JavaScript', a
 }) => {
 	await page.goto('/profiles/alice.test');
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Alice');
-	await expect(page.getByText('Business', { exact: true })).toBeVisible();
+	await expect(
+		page
+			.getByRole('heading', { level: 1 })
+			.getByRole('img', { name: 'Business', exact: true })
+	).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Bad link' })).toHaveCount(0);
 	await page.getByRole('link', { name: 'Projects', exact: true }).click();
 	await expect(
@@ -106,6 +113,7 @@ test('missing, upstream failure, invalid tab and unknown routes use real error s
 	for (const [path, status] of [
 		['/profiles/missing.test', 404],
 		['/profiles/failed.test', 503],
+		['/profiles/rate-limited.test', 429],
 		['/profiles/alice.test?tab=private', 400],
 		['/unknown', 404]
 	] as const) {
@@ -114,6 +122,34 @@ test('missing, upstream failure, invalid tab and unknown routes use real error s
 		expect(await response.text()).not.toContain('PRIVATE_CANARY');
 		expect(response.headers()['x-robots-tag']).toContain('noindex');
 		expect(response.headers()['cache-control']).toBe('no-store');
+	}
+});
+
+test('public failure pages give recovery advice for the actual failure', async ({
+	request
+}) => {
+	for (const [path, heading, advice] of [
+		[
+			'/profiles/alice.test?tab=private',
+			'This link isn’t valid.',
+			'Check the address or return to CraftSky.'
+		],
+		[
+			'/profiles/rate-limited.test',
+			'Too many requests.',
+			'Please wait a moment, then reload this page.'
+		],
+		[
+			'/profiles/failed.test',
+			'We couldn’t load this page.',
+			'CraftSky is having trouble right now. Please try again.'
+		]
+	]) {
+		const response = await request.get(path);
+		const html = await response.text();
+		expect(html).toContain(heading);
+		expect(html).toContain(advice);
+		expect(html).not.toContain('PRIVATE_CANARY');
 	}
 });
 test('OAuth fallbacks and association files retain their exact safe content', async ({

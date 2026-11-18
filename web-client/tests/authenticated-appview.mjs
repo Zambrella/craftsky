@@ -56,6 +56,7 @@ const profile = (owner) => ({
 	did: owner,
 	handle: owner.endsWith('bob') ? 'bob.test' : 'alice.test',
 	displayName: owner.endsWith('bob') ? 'Bob Maker' : 'Alice Maker',
+	...(control.shareAvatar ? { avatar: control.shareAvatar } : {}),
 	description: 'Making a little every day.',
 	crafts: [
 		'social.craftsky.feed.defs#knitting',
@@ -322,7 +323,7 @@ function visualData(owner) {
 	if (!state.events.length) state.events.push(event);
 	state.business.products = state.business.products.map((product) => ({
 		...product,
-		image: { ...product.image, ...visualImage }
+		images: product.images.map((image) => ({ ...image, ...visualImage }))
 	}));
 	for (const category of [
 		'like',
@@ -418,12 +419,14 @@ function reset() {
 						{
 							title: 'Blue wool',
 							uri: 'https://shop.example/wool',
-							image: {
-								cid: 'bafyproduct',
-								mime: 'image/png',
-								size: 200,
-								alt: 'Blue wool'
-							},
+							images: [
+								{
+									cid: 'bafyproduct',
+									mime: 'image/png',
+									size: 200,
+									alt: 'Blue wool'
+								}
+							],
 							price: { amount: '12.5', currency: 'GBP' }
 						}
 					]
@@ -470,6 +473,8 @@ createServer(async (req, res) => {
 		for (const [name, flags] of Object.entries(value.owners || {})) {
 			if (Object.hasOwn(flags, 'languages'))
 				settings.get(owners[name]).languages = flags.languages;
+			if (Object.hasOwn(flags, 'business'))
+				settings.get(owners[name]).business = flags.business;
 		}
 		control = {
 			...control,
@@ -812,6 +817,18 @@ createServer(async (req, res) => {
 		);
 		if (relationships && method === 'GET') {
 			const kind = relationships[2];
+			if (
+				relationships[1].replace(/^@/, '') === 'did:plc:bob' &&
+				['followers', 'following'].includes(kind)
+			) {
+				const next = url.searchParams.get('cursor');
+				const items = next ? [visual.peers[1]] : [visual.peers[0]];
+				return send(200, {
+					items,
+					cursor: next ? null : 'profile-next',
+					totalCount: 2
+				});
+			}
 			const items =
 				kind === 'followers' || kind === 'mutual-followers'
 					? visual.peers.slice(0, 2)
@@ -1123,7 +1140,7 @@ createServer(async (req, res) => {
 	if (pathname === '/v1/profiles/me/business') {
 		if (
 			!req.headers['idempotency-key'] ||
-			req.headers['if-match'] !== state.business?.cid
+			req.headers['if-match'] !== (state.business?.cid || '*')
 		)
 			return send(409, {
 				error: 'business_conflict',
@@ -1133,7 +1150,11 @@ createServer(async (req, res) => {
 			state.business = null;
 			return send(204);
 		}
-		const previous = state.business;
+		const previous = state.business || {
+			cid: 'business-cid-new',
+			businessTypes: [],
+			products: []
+		};
 		state.business = {
 			...body,
 			cid: `${previous.cid}-next`,
@@ -1142,9 +1163,39 @@ createServer(async (req, res) => {
 				...previous.businessTypes.filter((value) => !value.known)
 			],
 			offerings: body.offerings.map((value) => ({ value, known: true })),
-			products: body.preserveProducts ? previous.products : body.products
+			products: body.preserveProducts
+				? previous.products
+				: body.products.map((product) => ({
+						...product,
+						images: product.images.map(({ image, alt, aspectRatio }) => ({
+							cid: image.ref.$link,
+							mime: image.mimeType,
+							size: image.size,
+							alt,
+							...(aspectRatio ? { aspectRatio } : {})
+						}))
+					}))
 		};
 		return send(200, { cid: state.business.cid });
+	}
+	if (
+		(pathname === '/v1/events' && method === 'POST') ||
+		(pathname.startsWith('/v1/events/') && method === 'PUT')
+	) {
+		if (
+			![body.startsAt, body.endsAt].every(
+				(value) =>
+					typeof value === 'string' &&
+					/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)
+			)
+		)
+			return send(422, {
+				error: 'validation_failed',
+				message: 'invalid business event',
+				fields: {
+					startsAt: 'startsAt and endsAt must form a valid event time range'
+				}
+			});
 	}
 	if (pathname === '/v1/events') {
 		if (method === 'POST') {
@@ -1176,6 +1227,7 @@ createServer(async (req, res) => {
 		);
 		if (!item)
 			return send(404, { error: 'event_missing', message: 'Not found' });
+		if (method === 'GET') return send(200, item);
 		if (req.headers['if-match'] !== item.cid)
 			return send(409, { error: 'event_conflict', message: 'Event changed' });
 		if (method === 'DELETE') {
@@ -1195,10 +1247,29 @@ createServer(async (req, res) => {
 			uri: item.uri
 		});
 	}
+	if (pathname === '/v1/billing/web-prices' && method === 'GET')
+		return send(200, {
+			items: [
+				{
+					tier: 'plus',
+					amount: 249,
+					currency: 'gbp',
+					taxBehavior: 'inclusive'
+				},
+				{
+					tier: 'business',
+					amount: 899,
+					currency: 'gbp',
+					taxBehavior: 'inclusive'
+				}
+			]
+		});
 	if (pathname === '/v1/billing/account')
 		return send(200, {
 			billingAccountId: 'billing-1',
 			revenueCatAppUserId: 'private-rc-id',
+			webCheckoutAvailable: false,
+			reconciledAt: new Date().toISOString(),
 			requestedGeneration: 1,
 			reconciledGeneration: 1,
 			reconciliationStale: false,
@@ -1217,18 +1288,6 @@ createServer(async (req, res) => {
 		});
 	if (pathname === '/v1/billing/reconciliation')
 		return send(200, { generation: 1 });
-	if (pathname === '/v1/billing/licenses/license-1/assignment') {
-		if (method === 'DELETE') {
-			delete state.license.assignedDid;
-			return send(204);
-		}
-		state.license.assignedDid = body.targetDid;
-		return send(200, {
-			licenseId: 'license-1',
-			targetDid: body.targetDid,
-			assignedAt: '2026-11-02T12:00:00Z'
-		});
-	}
 	if (pathname === '/v1/migrations/instagram/account') {
 		if (method === 'DELETE') {
 			state.instagram = null;

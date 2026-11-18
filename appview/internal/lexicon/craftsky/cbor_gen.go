@@ -842,7 +842,7 @@ func (t *BusinessDefs_Product) MarshalCBOR(w io.Writer) error {
 	cw := cbg.NewCborWriter(w)
 	fieldCount := 4
 
-	if t.Image == nil {
+	if t.Images == nil {
 		fieldCount--
 	}
 
@@ -875,25 +875,6 @@ func (t *BusinessDefs_Product) MarshalCBOR(w io.Writer) error {
 	}
 	if _, err := cw.WriteString(string(t.Uri)); err != nil {
 		return err
-	}
-
-	// t.Image (craftsky.BusinessDefs_Image) (struct)
-	if t.Image != nil {
-
-		if len("image") > 1000000 {
-			return xerrors.Errorf("Value in field \"image\" was too long")
-		}
-
-		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("image"))); err != nil {
-			return err
-		}
-		if _, err := cw.WriteString(string("image")); err != nil {
-			return err
-		}
-
-		if err := t.Image.MarshalCBOR(cw); err != nil {
-			return err
-		}
 	}
 
 	// t.Price (craftsky.BusinessDefs_Price) (struct)
@@ -937,6 +918,35 @@ func (t *BusinessDefs_Product) MarshalCBOR(w io.Writer) error {
 	if _, err := cw.WriteString(string(t.Title)); err != nil {
 		return err
 	}
+
+	// t.Images ([]*craftsky.BusinessDefs_Image) (slice)
+	if t.Images != nil {
+
+		if len("images") > 1000000 {
+			return xerrors.Errorf("Value in field \"images\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("images"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("images")); err != nil {
+			return err
+		}
+
+		if len(t.Images) > 8192 {
+			return xerrors.Errorf("Slice value in field t.Images was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.Images))); err != nil {
+			return err
+		}
+		for _, v := range t.Images {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
+		}
+	}
 	return nil
 }
 
@@ -965,7 +975,7 @@ func (t *BusinessDefs_Product) UnmarshalCBOR(r io.Reader) (err error) {
 
 	n := extra
 
-	nameBuf := make([]byte, 5)
+	nameBuf := make([]byte, 6)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -991,26 +1001,6 @@ func (t *BusinessDefs_Product) UnmarshalCBOR(r io.Reader) (err error) {
 				}
 
 				t.Uri = string(sval)
-			}
-			// t.Image (craftsky.BusinessDefs_Image) (struct)
-		case "image":
-
-			{
-
-				b, err := cr.ReadByte()
-				if err != nil {
-					return err
-				}
-				if b != cbg.CborNull[0] {
-					if err := cr.UnreadByte(); err != nil {
-						return err
-					}
-					t.Image = new(BusinessDefs_Image)
-					if err := t.Image.UnmarshalCBOR(cr); err != nil {
-						return xerrors.Errorf("unmarshaling t.Image pointer: %w", err)
-					}
-				}
-
 			}
 			// t.Price (craftsky.BusinessDefs_Price) (struct)
 		case "price":
@@ -1042,6 +1032,55 @@ func (t *BusinessDefs_Product) UnmarshalCBOR(r io.Reader) (err error) {
 				}
 
 				t.Title = string(sval)
+			}
+			// t.Images ([]*craftsky.BusinessDefs_Image) (slice)
+		case "images":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.Images: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.Images = make([]*BusinessDefs_Image, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.Images[i] = new(BusinessDefs_Image)
+							if err := t.Images[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.Images[i] pointer: %w", err)
+							}
+						}
+
+					}
+
+				}
 			}
 
 		default:

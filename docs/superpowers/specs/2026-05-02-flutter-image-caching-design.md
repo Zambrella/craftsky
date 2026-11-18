@@ -434,7 +434,7 @@ The implementation plan will be authored separately via the writing-plans skill,
 
 ## References
 
-- [`atproto-craft-social-app-reference.md`](../../atproto-craft-social-app-reference.md) — overall app shape.
+- [`docs/architecture.md`](../../architecture.md) — overall app shape.
 - [API architecture spec](2026-04-21-appview-api-architecture-design.md) — flags blob upload as deferred future work.
 - [Profile onboarding spec](2026-04-23-profile-onboarding-design.md) — documents the CID-keyed CDN URL synthesis.
 - `cached_network_image` — https://pub.dev/packages/cached_network_image

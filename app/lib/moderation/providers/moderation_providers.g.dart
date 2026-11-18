@@ -211,7 +211,7 @@ final class AccountModerationHistoryProvider
 }
 
 String _$accountModerationHistoryHash() =>
-    r'c94292f15fd39fb9f4670b0c84d225497a7df32b';
+    r'64fb53beb5cccc02514ca2ea264431c50b83c721';
 
 final class AccountModerationHistoryFamily extends $Family
     with

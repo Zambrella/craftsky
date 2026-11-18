@@ -78,6 +78,8 @@ class Profile with ProfileMappable {
   final ModerationMetadata? moderation;
   final ProfileCustomisation customisation;
   final AccountType? accountType;
+
+  bool get isBusiness => accountType == AccountType.business;
   final BusinessProfile? business;
   final bool hasUpcomingEvents;
 }

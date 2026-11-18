@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { UserFacingError } from '#lib/user-facing-error.ts';
+	import { APITransport } from '#lib/api/transport.ts';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import type {
@@ -18,14 +20,17 @@
 	import type { Session } from './model.ts';
 	import { visibleSettingsGroups } from './presentation.ts';
 	import SettingsIcon from './SettingsIcon.svelte';
+	import PlusTierIcon from '../shell/PlusTierIcon.svelte';
 	import Preferences from './Preferences.svelte';
 	import Connections from './Connections.svelte';
 	import Account from './Account.svelte';
 	import Billing from './Billing.svelte';
 	import Instagram from './Instagram.svelte';
 	import Business from './Business.svelte';
-	import './settings.css';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import SettingsPageLayout from './SettingsPageLayout.svelte';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	let {
 		api,
 		path,
@@ -41,7 +46,12 @@
 		access = $state<SubscriptionAccess>();
 	let theme = $state('Use device setting');
 	const openAccounts = getContext<() => void>('craftsky-open-accounts');
-	let paid = $derived(!!access?.givesAccess && access.effectiveTier !== 'free');
+	let paid = $derived(
+		premium.allowed(
+			'plus',
+			!!access?.givesAccess && access.effectiveTier !== 'free'
+		)
+	);
 	function loadMenu() {
 		void menu.load(
 			async () => {
@@ -49,8 +59,20 @@
 				const [me, tier] =
 					policy.state === 'eligible'
 						? await Promise.all([
-								api.profiles.me().catch(() => undefined),
-								api.billing.access().catch(() => undefined)
+								api.profiles.me().catch((error) => {
+									void reportFailure(
+										error,
+										'settings.SettingsWorkspace.profile'
+									);
+									return undefined;
+								}),
+								api.billing.access().catch((error) => {
+									void reportFailure(
+										error,
+										'settings.SettingsWorkspace.access'
+									);
+									return undefined;
+								})
 							])
 						: [undefined, undefined];
 				return { policy, me, tier };
@@ -80,8 +102,10 @@
 		visibleSettingsGroups(
 			restricted,
 			subscriptionsEnabled() &&
-				!!access?.givesAccess &&
-				access.effectiveTier === 'business'
+				premium.allowed(
+					'business',
+					!!access?.givesAccess && access.effectiveTier === 'business'
+				)
 		)
 	);
 	async function signOut() {
@@ -98,13 +122,10 @@
 				if (!session.id)
 					throw new UserFacingError('Reopen Settings to sign out.');
 				await disablePush(api, session.id).catch(() => {});
-				const response = await fetch('/api/auth/logout', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ accountId: session.id })
+				await new APITransport(fetch, '/api/auth').request('POST', '/logout', {
+					body: { accountId: session.id },
+					response: 'empty'
 				});
-				if (!response.ok)
-					throw new UserFacingError('Could not sign out. Try again.');
 				await forgetPush(session.id).catch(() => {});
 				try {
 					clearAccountChat(localStorage, session.id, session.did);
@@ -118,13 +139,11 @@
 	}
 </script>
 
-<div class="settings-workspace" data-settings-page={section || 'index'}>
-	{#if section}<a
-			class="back settings-back"
-			href="/settings"
-			aria-label="Back to Settings"
-			><SettingsIcon name="back" /><span>Settings</span></a
-		>{/if}
+<SettingsPageLayout
+	section={section || 'index'}
+	backHref={section ? '/settings' : undefined}
+	backLabel="Back to Settings"
+>
 	{#key `${session.did}:${section}`}
 		{#if !section}
 			<h1 class="workspace-heading">Settings</h1>
@@ -147,7 +166,9 @@
 							did: session.did,
 							handle: session.handle,
 							displayName: profile?.displayName,
-							crafts: profile?.crafts || []
+							crafts: profile?.crafts || [],
+							accountType: profile?.accountType,
+							customisation: profile?.customisation
 						}}
 					/>
 				</div>
@@ -165,13 +186,15 @@
 								: 'Make more with CraftSky'}
 						</h2>
 						<p>
-							{paid
-								? 'Review your access and subscription details.'
-								: 'Unlock scheduling, saved folders and more with Plus or Business.'}
-						</p>
-						<span class="callout-action"
-							>{paid ? 'View subscription' : 'Explore subscriptions'}</span
-						></a
+							{#if paid}
+								Review your access and subscription details.
+							{:else}
+								Unlock scheduling, saved folders and more with <strong
+									>Plus</strong
+								>
+								or <strong>Business</strong>.
+							{/if}
+						</p></a
 					>{/if}
 				{#each shownGroups as group}<section class="settings-group">
 						<h2 class="section-label">{group.title}</h2>
@@ -187,25 +210,29 @@
 										: undefined}
 									onclick={(event) => {
 										if (
-											!subscriptionsEnabled() &&
+											!premium.allowed() &&
 											['growth', 'customisation'].includes(slug)
 										) {
 											event.preventDefault();
-											comingSoon(label);
+											void premium.require(label);
 										}
 									}}
 									href={external
 										? 'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en'
-										: slug === 'notifications'
-											? '/notifications/settings'
-											: `/settings/${slug}`}
+										: slug === 'safety'
+											? '/safety'
+											: slug === 'notifications'
+												? '/notifications/settings'
+												: `/settings/${slug}`}
 									target={external ? '_blank' : undefined}
 									rel={external ? 'noopener noreferrer' : undefined}
 									><span class="tile-leading"
 										><SettingsIcon
 											name={slug}
 										/>{#if subscriptionsEnabled() && !paid && ['growth', 'customisation'].includes(slug)}<span
-												class="plus-mark">+</span
+												class="plus-mark"
+												aria-hidden="true"
+												data-plus-badge><PlusTierIcon size={12} /></span
 											>{/if}</span
 									><span class="tile-copy"
 										><span>{label}</span>{#if slug === 'appearance'}<small
@@ -269,4 +296,4 @@
 		{:else}<h1 class="workspace-heading">Page not found</h1>
 			<p>Choose a page in <a href="/settings">Settings</a>.</p>{/if}
 	{/key}
-</div>
+</SettingsPageLayout>

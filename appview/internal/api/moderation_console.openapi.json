@@ -6269,6 +6269,10 @@
                     },
                     "severityRationale": {
                       "type": "string"
+                    },
+                    "illegalContentRationale": {
+                      "type": "string",
+                      "description": "Private operator assessment of offence or legal basis and reasoning. Required with evidenceNotes, userSafeDetail and otherIllegalContent classification for reason illegal_content; prohibited for other reasons. Never included in owner responses."
                     }
                   }
                 }
@@ -6407,6 +6411,10 @@
               "credibleThreat",
               "otherIllegalContent"
             ]
+          },
+          "illegalContentRationale": {
+            "type": "string",
+            "description": "Private operator assessment of offence or legal basis and reasoning. Required with evidenceNotes, userSafeDetail and otherIllegalContent classification for reason illegal_content; prohibited for other reasons. Never included in owner responses."
           }
         },
         "required": [

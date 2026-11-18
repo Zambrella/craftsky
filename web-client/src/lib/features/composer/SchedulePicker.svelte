@@ -2,7 +2,9 @@
 	import { fieldError } from '#lib/field-validation.ts';
 	import { onDestroy, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import PlusActionIcon from '../shell/PlusActionIcon.svelte';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
 	import { scheduledLocalDate, scheduleWindow } from './model';
 	let {
 		owner,
@@ -24,9 +26,9 @@
 		onchange: (later: boolean, value: string) => void;
 	} = $props();
 	const uid = $props.id();
+	const premium = useSubscriptionFeature();
 	let menu: HTMLElement;
 	let dialog: HTMLDialogElement;
-	let upgrade: HTMLDialogElement;
 	let trigger: HTMLButtonElement;
 	let selected = $state('');
 	let error = $state('');
@@ -36,16 +38,15 @@
 		untrack(() => {
 			menu?.hidePopover();
 			dialog?.close();
-			upgrade?.close();
 		});
 	});
 	function positionMenu() {
 		if (!subscriptionsEnabled()) {
-			comingSoon('Scheduled posts');
+			void premium.require('Scheduled posts');
 			return;
 		}
 		if (!allowed) {
-			upgrade.showModal();
+			void premium.require('Scheduled posts');
 			return;
 		}
 		const bounds = trigger.getBoundingClientRect(),
@@ -98,7 +99,6 @@
 		disposed = true;
 		menu?.hidePopover();
 		dialog?.close();
-		upgrade?.close();
 	});
 </script>
 
@@ -114,10 +114,10 @@
 	popovertarget={allowed && subscriptionsEnabled() ? uid + '-menu' : undefined}
 	onclick={positionMenu}
 	{disabled}
-	><Icon name="clock" />{#if !allowed}<span
-			class="plus-badge"
-			aria-label="CraftSky Plus">+</span
-		>{/if}{#if later && value}<span>{label}</span>{/if}</button
+	><PlusActionIcon
+		name="clock"
+		locked={subscriptionsEnabled() && !allowed}
+	/>{#if later && value}<span>{label}</span>{/if}</button
 >
 <div
 	bind:this={menu}
@@ -195,22 +195,6 @@
 		</div>
 	</form>
 </dialog>
-<dialog
-	bind:this={upgrade}
-	class="schedule-dialog"
-	aria-label="Scheduled posts with CraftSky Plus"
->
-	<h2>Scheduled posts</h2>
-	<p>
-		Schedule posts ahead of time with CraftSky Plus. Manage your subscription in
-		the mobile app.
-	</p>
-	<div class="schedule-actions">
-		<button type="button" onclick={() => upgrade.close()}>Close</button><a
-			href="/settings/subscriptions">Learn more</a
-		>
-	</div>
-</dialog>
 
 <style>
 	.schedule-control {
@@ -229,20 +213,6 @@
 	}
 	.schedule-control {
 		position: relative;
-	}
-	.plus-badge {
-		position: absolute;
-		right: 0;
-		top: 0;
-		color: var(--ink);
-		background: var(--butter);
-		border-radius: 50%;
-		min-width: 16px;
-		height: 16px;
-		display: grid;
-		place-items: center;
-		font-size: 12px;
-		font-weight: 700;
 	}
 	.schedule-menu {
 		position: fixed;

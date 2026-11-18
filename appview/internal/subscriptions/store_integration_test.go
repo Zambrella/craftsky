@@ -19,7 +19,7 @@ func TestCoreBillingConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read subscription accounts migration: %v", err)
 	}
-	pool := testdb.WithSchema(t, string(up))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(up))
 	ctx := context.Background()
 
 	var accountID string
@@ -130,7 +130,7 @@ func TestEnsureBillingAccountIsExplicitStableAndConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(up))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(up))
 	store := NewStore(pool)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:concurrent-billing-owner")
@@ -188,6 +188,9 @@ func TestEnsureBillingAccountIsExplicitStableAndConcurrent(t *testing.T) {
 	}
 	if created || repeated.ID != stable.ID || repeated.RevenueCatAppUserID != stable.RevenueCatAppUserID {
 		t.Fatalf("repeated ensure = %+v, created=%t; first %+v", repeated, created, stable)
+	}
+	if repeated.RequestedGeneration != 1 || repeated.ReconciledGeneration != 0 || repeated.ReconciliationRequested == nil {
+		t.Fatalf("initial registration was not queued exactly once: %+v", repeated)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM billing_accounts`).Scan(&count); err != nil {
 		t.Fatal(err)

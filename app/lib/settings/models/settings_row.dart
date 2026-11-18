@@ -10,6 +10,7 @@ enum SettingsSectionId {
 }
 
 enum SettingsRowId {
+  safety,
   switchAccount,
   appearance,
   customisation,
@@ -23,6 +24,7 @@ enum SettingsRowId {
   mutedAccounts,
   blockedAccounts,
   findPeopleFromInstagram,
+  businessDetails,
   businessEvents,
   businessProducts,
   accountStanding,
@@ -33,6 +35,8 @@ enum SettingsRowId {
   privacyPolicy,
   clearImageCache,
   version,
+  manageProvider,
+  changeProviderPassword,
   deleteAccount,
   signOut,
 }
@@ -137,6 +141,10 @@ const settingsSections = <SettingsSectionDescriptor>[
   SettingsSectionDescriptor(
     id: SettingsSectionId.general,
     rows: [
+      SettingsRowDescriptor(
+        id: SettingsRowId.safety,
+        kind: SettingsRowKind.disclosure,
+      ),
       SettingsRowDescriptor(
         id: SettingsRowId.accountStanding,
         kind: SettingsRowKind.disclosure,

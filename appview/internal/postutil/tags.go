@@ -196,3 +196,15 @@ func ExtractProjectMentionDIDs(patternTexts []FacetedText, materials []FacetedTe
 	}
 	return MergeMentionDIDs(mentionSets...)
 }
+
+const MaxPostHashtags = 10
+
+// LimitTags applies the per-post discovery budget after all sources are merged.
+// Duplicate spellings consume one slot; source records remain untouched.
+func LimitTags(tagSets ...[]string) []string {
+	tags := MergeTags(tagSets...)
+	if len(tags) > MaxPostHashtags {
+		return tags[:MaxPostHashtags]
+	}
+	return tags
+}

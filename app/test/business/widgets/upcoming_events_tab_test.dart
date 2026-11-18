@@ -159,11 +159,8 @@ void main() {
       ['Fibre Fair'],
     );
     expect(find.text('Sep 5, 2026'), findsOneWidget);
-    final cardContext = tester.element(find.byType(EventCard));
-    final expectedStart = MaterialLocalizations.of(cardContext).formatTimeOfDay(
-      TimeOfDay.fromDateTime(first.startsAt.toLocal()),
-    );
-    expect(find.textContaining(expectedStart), findsOneWidget);
+    // September is BST in the event's London timezone, regardless of device TZ.
+    expect(find.text('10:00 AM–6:00 PM'), findsOneWidget);
     expect(find.text('Vendor'), findsOneWidget);
     expect(find.text('In person'), findsOneWidget);
     expect(find.text('Town Hall'), findsOneWidget);
@@ -210,7 +207,9 @@ void main() {
       const Offset(0, -800),
     );
     await tester.pump();
-    expect(find.text('You’ve reached the end.'), findsOneWidget);
+    expect(find.text('You’ve reached the end.'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Refresh'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Load more'), findsNothing);
     expect(repository.cursors, [null, 'opaque:next']);
   });
 
@@ -265,14 +264,23 @@ void main() {
       ),
     );
     await tester.pump();
-    final refresh = find.widgetWithText(TextButton, 'Refresh');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProfileEventsTab)),
+    );
+    await container
+        .read(
+          profileBusinessEventsProvider(
+            _target(),
+            audience: container.read(browsingContextProvider),
+          ).notifier,
+        )
+        .refresh();
+    await tester.pump();
     await tester.scrollUntilVisible(
-      refresh,
+      find.text('Couldn’t refresh upcoming events.'),
       400,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(refresh);
-    await tester.pump();
 
     expect(find.text('Confirmed event'), findsOneWidget);
     expect(find.text('Couldn’t refresh upcoming events.'), findsOneWidget);

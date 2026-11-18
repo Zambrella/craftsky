@@ -981,12 +981,9 @@ class BusinessProductViewMapper extends ClassMapperBase<BusinessProductView> {
     _$uri,
     opt: true,
   );
-  static BusinessImageView? _$image(BusinessProductView v) => v.image;
-  static const Field<BusinessProductView, BusinessImageView> _f$image = Field(
-    'image',
-    _$image,
-    opt: true,
-  );
+  static List<BusinessImageView> _$images(BusinessProductView v) => v.images;
+  static const Field<BusinessProductView, List<BusinessImageView>> _f$images =
+      Field('images', _$images, opt: true, def: const []);
   static BusinessPrice? _$price(BusinessProductView v) => v.price;
   static const Field<BusinessProductView, BusinessPrice> _f$price = Field(
     'price',
@@ -998,7 +995,7 @@ class BusinessProductViewMapper extends ClassMapperBase<BusinessProductView> {
   final MappableFields<BusinessProductView> fields = const {
     #title: _f$title,
     #uri: _f$uri,
-    #image: _f$image,
+    #images: _f$images,
     #price: _f$price,
   };
 
@@ -1006,7 +1003,7 @@ class BusinessProductViewMapper extends ClassMapperBase<BusinessProductView> {
     return BusinessProductView(
       title: data.dec(_f$title),
       uri: data.dec(_f$uri),
-      image: data.dec(_f$image),
+      images: data.dec(_f$images),
       price: data.dec(_f$price),
     );
   }
@@ -1081,13 +1078,17 @@ abstract class BusinessProductViewCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  BusinessImageViewCopyWith<$R, BusinessImageView, BusinessImageView>?
-  get image;
+  ListCopyWith<
+    $R,
+    BusinessImageView,
+    BusinessImageViewCopyWith<$R, BusinessImageView, BusinessImageView>
+  >
+  get images;
   BusinessPriceCopyWith<$R, BusinessPrice, BusinessPrice>? get price;
   $R call({
     String? title,
     String? uri,
-    BusinessImageView? image,
+    List<BusinessImageView>? images,
     BusinessPrice? price,
   });
   BusinessProductViewCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
@@ -1104,8 +1105,16 @@ class _BusinessProductViewCopyWithImpl<$R, $Out>
   late final ClassMapperBase<BusinessProductView> $mapper =
       BusinessProductViewMapper.ensureInitialized();
   @override
-  BusinessImageViewCopyWith<$R, BusinessImageView, BusinessImageView>?
-  get image => $value.image?.copyWith.$chain((v) => call(image: v));
+  ListCopyWith<
+    $R,
+    BusinessImageView,
+    BusinessImageViewCopyWith<$R, BusinessImageView, BusinessImageView>
+  >
+  get images => ListCopyWith(
+    $value.images,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(images: v),
+  );
   @override
   BusinessPriceCopyWith<$R, BusinessPrice, BusinessPrice>? get price =>
       $value.price?.copyWith.$chain((v) => call(price: v));
@@ -1113,13 +1122,13 @@ class _BusinessProductViewCopyWithImpl<$R, $Out>
   $R call({
     String? title,
     Object? uri = $none,
-    Object? image = $none,
+    List<BusinessImageView>? images,
     Object? price = $none,
   }) => $apply(
     FieldCopyWithData({
       if (title != null) #title: title,
       if (uri != $none) #uri: uri,
-      if (image != $none) #image: image,
+      if (images != null) #images: images,
       if (price != $none) #price: price,
     }),
   );
@@ -1127,7 +1136,7 @@ class _BusinessProductViewCopyWithImpl<$R, $Out>
   BusinessProductView $make(CopyWithData data) => BusinessProductView(
     title: data.get(#title, or: $value.title),
     uri: data.get(#uri, or: $value.uri),
-    image: data.get(#image, or: $value.image),
+    images: data.get(#images, or: $value.images),
     price: data.get(#price, or: $value.price),
   );
 

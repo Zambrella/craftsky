@@ -316,6 +316,8 @@ class _ChatRecipientPickerState extends ConsumerState<ChatRecipientPicker> {
                             handle: profile.handle.value,
                             displayName: profile.displayName,
                             crafts: profile.crafts,
+                            isBusiness: profile.isBusiness,
+                            customisation: profile.customisation,
                           ),
                           onTap: _busy
                               ? null

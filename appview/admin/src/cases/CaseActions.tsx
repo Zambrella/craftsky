@@ -14,23 +14,26 @@ function DecisionForm({ review }: { review: (r: Review) => void }) {
   const [evidenceNotes, setEvidence] = useState('')
   const [userSafeDetail, setExplanation] = useState('')
   const [severityRationale, setSeverity] = useState('')
+  const [illegalContentRationale, setIllegalRationale] = useState('')
   const [legalClassification, setLegal] = useState('unassessed')
   const [consequences, setEffects] = useState<Effect[]>([])
   const violation = disposition === 'violation'
+  const illegal = reason === 'illegal_content'
   function submit(event: FormEvent) {
     event.preventDefault()
-    const body = violation ? { disposition, reason, evidenceNotes: evidenceNotes.trim(), userSafeDetail: userSafeDetail.trim(), legalClassification, consequences, ...(consequences.includes('severeSuspension') ? { severityRationale: severityRationale.trim() } : {}) } : { disposition, ...(evidenceNotes.trim() ? { evidenceNotes: evidenceNotes.trim() } : {}) }
-    review({ title: 'Decision', endpoint: 'decisions', body, summary: [violation ? `Violation: ${label(reason)}` : 'No action. Resolve without consequences.', ...consequences.filter(() => violation).map(e => effectLabels[e]), `Internal notes: ${evidenceNotes || 'None'}`, ...(violation ? [`Explanation for owner: ${userSafeDetail || 'No additional explanation'}`, `Legal classification: ${label(legalClassification)}`, ...(consequences.includes('severeSuspension') ? [`Severe suspension rationale: ${severityRationale}`] : [])] : [])] })
+    const body = violation ? { disposition, reason, evidenceNotes: evidenceNotes.trim(), userSafeDetail: userSafeDetail.trim(), legalClassification, ...(illegal ? { illegalContentRationale: illegalContentRationale.trim() } : {}), consequences, ...(consequences.includes('severeSuspension') ? { severityRationale: severityRationale.trim() } : {}) } : { disposition, ...(evidenceNotes.trim() ? { evidenceNotes: evidenceNotes.trim() } : {}) }
+    review({ title: 'Decision', endpoint: 'decisions', body, summary: [violation ? `Violation: ${label(reason)}` : 'No action. Resolve without consequences.', ...consequences.filter(() => violation).map(e => effectLabels[e]), `Internal notes: ${evidenceNotes || 'None'}`, ...(violation ? [`Explanation for owner: ${userSafeDetail || 'No additional explanation'}`, `Legal classification: ${label(legalClassification)}`, ...(illegal ? [`Internal illegal-content rationale: ${illegalContentRationale.trim()}`] : []), ...(consequences.includes('severeSuspension') ? [`Severe suspension rationale: ${severityRationale}`] : [])] : [])] })
   }
   return <form onSubmit={submit} className="case-form"><label>Decision<select value={disposition} onChange={e => setDisposition(e.target.value)}><option value="noAction">No action</option><option value="violation">Policy violation</option></select></label>
     {violation && <label>Policy reason<select value={reason} onChange={e => setReason(e.target.value)}>{reasons.map(r => <option value={r} key={r}>{label(r)}</option>)}</select></label>}
     <label>Internal evidence notes<textarea value={evidenceNotes} required={violation} maxLength={10000} onChange={e => setEvidence(e.target.value)}/></label><p className="hint">For operators only. Keep evidence factual and relevant.</p>
-    {violation && <><label>Explanation for the account owner<textarea value={userSafeDetail} maxLength={10000} onChange={e => setExplanation(e.target.value)}/></label><p className="hint">Visible to the account owner. Do not include reporter identities, private evidence or internal notes.</p>
+    {violation && <><label>Explanation for the account owner<textarea value={userSafeDetail} required={illegal} maxLength={10000} onChange={e => setExplanation(e.target.value)}/></label><p className="hint">Visible to the account owner. Do not include reporter identities, private evidence or internal notes.</p>
+      {illegal && <><label>Illegal-content rationale<textarea required maxLength={10000} value={illegalContentRationale} onChange={e => setIllegalRationale(e.target.value)}/></label><p className="hint">For operators only. Identify the offence or legal basis, supporting facts and reasoning. A report is an allegation, not a legal finding. Use a specific policy reason when it fits.</p></>}
       <EffectChoices legend="Consequences" choices={Object.keys(effectLabels) as Effect[]} value={consequences} onChange={setEffects}/>
       {consequences.includes('severeSuspension') && <label>Severe suspension rationale<textarea required value={severityRationale} maxLength={10000} onChange={e => setSeverity(e.target.value)}/></label>}
       <label>Legal classification<select value={legalClassification} onChange={e => setLegal(e.target.value)}>{['unassessed', 'childSexualExploitation', 'intimateImageAbuse', 'credibleThreat', 'otherIllegalContent'].map(v => <option value={v} key={v}>{label(v)}</option>)}</select></label>
-      <p className="hint">Choose at most one content visibility consequence. Strikes and severe suspensions require a qualifying policy reason. The server validates each decision.</p>
+      <p className="hint">Choose at most one content visibility consequence. Strikes and severe suspensions require a qualifying policy reason. Other illegal content also requires an assessed Other illegal content classification, internal legal rationale and safe owner explanation. Severe fraud or self-harm decisions must concern supported serious wrongdoing, not an ordinary dispute or help-seeking. The server validates each decision.</p>
     </>}
-    <button className="primary" disabled={violation && (!evidenceNotes.trim() || !consequences.length)}>Review decision</button>
+    <button className="primary" disabled={violation && (!evidenceNotes.trim() || !consequences.length || (illegal && (!illegalContentRationale.trim() || !userSafeDetail.trim() || legalClassification !== 'otherIllegalContent')))}>Review decision</button>
   </form>
 }

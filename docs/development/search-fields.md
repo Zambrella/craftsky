@@ -1,6 +1,6 @@
 # Searchable-field contract
 
-Contract revision: **2**. Application taxonomy: **catalog-v1.json**, version **1**.
+Contract revision: **2**. Application taxonomy: **catalog-v1.json**, version **2**.
 
 `appview/internal/api/search_fields.go` is the executable keyword allowlist;
 `appview/internal/projectcatalog/catalog-v1.json` supplies stable values, labels,
@@ -57,6 +57,21 @@ each search surface remain in force. No business/subscription boost is added.
 Timeline ordering remains chronological and independent of search relevance.
 
 ## Hashtags
+
+Newly indexed or updated posts contribute at most **10 distinct hashtags** to
+hashtag search, discovery and suggestions. The same budget covers the whole
+post/project: post text facets, structured project tags, pattern name/designer/
+publisher facets, then material facets in list order. Tags are trimmed and
+lowercased before deduplication; the first ten identities win. Repeated tags
+consume one slot. Both clients use the same priority when painting and publishing
+composer hashtags; excess hashtags remain ordinary text, and removing an earlier
+tag makes room for the next one. Links and mentions retain their own facets.
+
+AppView accepts over-budget records from other clients and caps only its tag
+projections and immediate publication response. Source PDS records are preserved.
+There is no historical backfill or read-time cap; existing indexed rows are
+unchanged until a subsequent indexing update. Ordinary keyword matching still
+includes visible text. Craft and design-tag taxonomy filters are unaffected.
 
 Search, grouped discovery, and composer suggestions include all historical
 eligible posts. `postCount` is the all-time distinct-post count for that tag,

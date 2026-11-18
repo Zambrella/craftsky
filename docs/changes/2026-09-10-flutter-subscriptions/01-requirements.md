@@ -10,7 +10,7 @@ for later work.
 ## 2. Current Codebase Findings
 
 - Relevant files:
-  - `adr/014-account-assigned-subscription-licenses.md` separates the private
+  - `docs/adr/014-account-assigned-subscription-licenses.md` separates the private
     billing owner from the DID receiving a license.
   - `docs/changes/2026-09-07-account-subscriptions/01-requirements.md` and the
     implemented `appview/internal/api/subscriptions.go` define the AppView

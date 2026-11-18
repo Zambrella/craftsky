@@ -16,6 +16,7 @@ class PublicAppDevTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / 'scripts').mkdir()
+        (self.root / 'config').mkdir()
         (self.root / 'web-client').mkdir()
         self.bin = self.root / 'bin'
         self.bin.mkdir()
@@ -28,6 +29,9 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
 if os.environ.get('FIXTURE_PORT_FAILURE'): sys.exit(1)
 if sys.argv[1]=='port': print(os.environ.get('FIXTURE_ADDRESS','127.0.0.1:18400'))
 ''')
+        config = self.root / 'scripts/config'
+        config.write_text('#!/bin/sh\nprintf \'25444\\n\'\n')
+        config.chmod(0o755)
         npm = self.bin / 'npm'
         npm.write_text('''#!/usr/bin/env python3
 import json, os, sys
@@ -36,6 +40,14 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
 ''')
         compose.chmod(0o755)
         npm.chmod(0o755)
+        node = self.bin / 'node'
+        node.write_text('''#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ['LAUNCH_LOG']+'.summary', 'w') as f:
+ f.write(json.dumps({'args':sys.argv[1:],'cwd':os.getcwd()}))
+print('Web services and feature flags (fixture)')
+''')
+        node.chmod(0o755)
         self.log = self.root / 'calls.jsonl'
         self.env = {**os.environ, 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
                     'LAUNCH_LOG': str(self.log), 'APPVIEW_ORIGIN': 'https://production.invalid'}
@@ -51,7 +63,7 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
         return result, calls
 
     def test_selects_this_worktrees_backend_and_explicit_port_without_sourcing_secrets(self):
-        (self.root / '.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\nPRIVATE_CANARY=protected\n')
+        (self.root / 'config/.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\nPRIVATE_CANARY=protected\n')
         result, calls = self.run_launcher('--open')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[0]['args'], ['port', 'appview', '8080'])
@@ -60,6 +72,10 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
         self.assertEqual(calls[-1]['origin'], 'http://127.0.0.1:18400')
         self.assertEqual(calls[-1]['cwd'], str((self.root / 'web-client').resolve()))
         self.assertIsNone(calls[-1]['canary'])
+        summary = json.loads(Path(str(self.log)+'.summary').read_text())
+        self.assertEqual(summary['args'], ['scripts/config-summary.mjs', '--open'])
+        self.assertEqual(summary['cwd'], str((self.root / 'web-client').resolve()))
+        self.assertIn('Web services and feature flags', result.stdout)
 
     def test_uses_stable_checkout_port_and_reuses_installed_dependencies(self):
         (self.root / 'web-client/node_modules').mkdir()
@@ -71,7 +87,7 @@ with open(os.environ['LAUNCH_LOG'], 'a') as f:
 
     def test_normalizes_all_interfaces_and_prefers_shell_override(self):
         self.env.update(FIXTURE_ADDRESS='0.0.0.0:19001', CRAFTSKY_PUBLIC_APP_PORT='25555')
-        (self.root / '.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\n')
+        (self.root / 'config/.env.local').write_text('CRAFTSKY_PUBLIC_APP_PORT=25444\n')
         result, calls = self.run_launcher()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[-1]['origin'], 'http://127.0.0.1:19001')

@@ -8,6 +8,7 @@
 	import Status from './Status.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import { Work } from './work.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	let { api, id }: { api: CraftskyAPI; id: string } = $props();
 	const back = getContext<((event: MouseEvent) => void) | undefined>(
 		'craftsky-back'
@@ -56,11 +57,13 @@
 				icon="profile"
 			/>{/if}
 	{/each}
-	{#if cursor}<button
-			class="button next"
-			disabled={work.busy || !!work.retry}
-			onclick={() => load(true)}>Load more mutual followers</button
-		>{/if}
+	{#if cursor}<LoadMore
+			loading={work.busy}
+			disabled={!!work.retry}
+			label="Load more mutual followers"
+			loadingLabel="Loading more mutual followers"
+			onclick={() => load(true)}
+		/>{/if}
 </section>
 
 <style>

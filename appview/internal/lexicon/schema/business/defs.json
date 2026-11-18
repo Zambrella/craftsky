@@ -121,15 +121,19 @@
           "format": "uri",
           "description": "External product destination."
         },
-        "image": {
-          "type": "ref",
-          "ref": "#image",
-          "description": "Optional product image for interoperable records; Craftsky writes require it."
-        },
         "price": {
           "type": "ref",
           "ref": "#price",
           "description": "Optional seller-authored display price."
+        },
+        "images": {
+          "type": "array",
+          "maxLength": 4,
+          "items": {
+            "type": "ref",
+            "ref": "#image"
+          },
+          "description": "Product photos in authored carousel order. Craftsky writes require one to four."
         }
       }
     }

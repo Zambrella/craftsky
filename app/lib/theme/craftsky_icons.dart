@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/widgets.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -69,6 +70,7 @@ abstract final class CraftskyIcons {
   static const IconData menu = PhosphorIconsRegular.list;
   static const IconData mention = PhosphorIconsRegular.at;
   static const IconData more = PhosphorIconsRegular.dotsThree;
+  static const IconData shareCard = PhosphorIconsRegular.qrCode;
   static const IconData moveDown = PhosphorIconsRegular.arrowDown;
   static const IconData moveToFolder = PhosphorIconsRegular.folderOpen;
   static const IconData moveUp = PhosphorIconsRegular.arrowUp;
@@ -117,7 +119,6 @@ abstract final class CraftskyIcons {
   static const IconData settings = PhosphorIconsRegular.gear;
   static const IconData settingsSelected = PhosphorIconsFill.gear;
   static const IconData share = PhosphorIconsRegular.shareNetwork;
-  static const IconData plusTier = PhosphorIconsFill.sparkle;
   static const IconData sponsored = PhosphorIconsRegular.currencyDollar;
   static const IconData storefront = PhosphorIconsRegular.storefront;
   static const IconData systemTheme = PhosphorIconsRegular.sunDim;
@@ -193,6 +194,11 @@ abstract final class CraftskyIconsBold {
   static const IconData send = PhosphorIconsBold.paperPlaneTilt;
   static const IconData settings = PhosphorIconsBold.gear;
   static const IconData share = PhosphorIconsBold.shareNetwork;
+
+  /// The system share glyph follows the platform's familiar convention.
+  static IconData shareForPlatform(TargetPlatform platform) =>
+      platform == TargetPlatform.iOS ? CupertinoIcons.share : share;
+
   static const IconData switchAccount = PhosphorIconsBold.userSwitch;
   static const IconData textPost = PhosphorIconsBold.textAlignLeft;
   static const IconData ticket = PhosphorIconsBold.ticket;

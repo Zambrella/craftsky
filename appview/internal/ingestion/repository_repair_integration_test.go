@@ -186,7 +186,8 @@ func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *te
 		t.Fatalf("create repair projection audit: %v", err)
 	}
 	ctx := context.Background()
-	store, lifecycles, service := repairIntegrationService(t, pool, nil)
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	store, lifecycles, service := repairIntegrationServiceWithClock(t, pool, nil, func() time.Time { return now })
 	dispatcher := repairIntegrationDispatcher(t)
 	owner := syntax.DID("did:plc:repair-integration")
 
@@ -268,6 +269,10 @@ func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *te
 			t.Fatalf("verified snapshot unexpectedly omitted profile: %+v", description)
 		}
 	}
+	// This journey exercises snapshot repair, not the independently queued Tap registration.
+	if _, err := pool.Exec(ctx, `DELETE FROM tap_repository_jobs WHERE did=$1 AND job_kind='tap_add_repo'`, owner); err != nil {
+		t.Fatalf("remove unrelated Tap registration job: %v", err)
+	}
 	if err := store.EnqueueRepositoryJob(ctx, owner, ingestion.RepositoryJobPDSReconcile); err != nil {
 		t.Fatalf("enqueue repair: %v", err)
 	}
@@ -302,6 +307,8 @@ func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *te
 	if err != nil {
 		t.Fatalf("new retry repair: %v", err)
 	}
+	// Advance the injected clock beyond retry backoff without relying on test speed.
+	now = now.Add(2 * time.Second)
 	claim = claimRepairRepositoryJob(t, store)
 	if err := store.RunRepositoryJob(ctx, claim, func(ctx context.Context, _ ingestion.RepositoryClaim) (string, error) {
 		return repair.Apply(ctx, snapshot, dispatcher)
@@ -442,15 +449,20 @@ func repairIntegrationDispatcher(t *testing.T) *index.TransactionalDispatcher {
 
 func repairIntegrationService(t *testing.T, pool *pgxpool.Pool, participant ownerlifecycle.TransitionParticipant) (*ingestion.Store, *ownerlifecycle.Store, *ingestion.Service) {
 	t.Helper()
+	return repairIntegrationServiceWithClock(t, pool, participant, time.Now)
+}
+
+func repairIntegrationServiceWithClock(t *testing.T, pool *pgxpool.Pool, participant ownerlifecycle.TransitionParticipant, now func() time.Time) (*ingestion.Store, *ownerlifecycle.Store, *ingestion.Service) {
+	t.Helper()
 	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
 	if err != nil {
 		t.Fatalf("new repair owner fencer: %v", err)
 	}
-	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, now)
 	if err != nil {
 		t.Fatalf("new repair lifecycle store: %v", err)
 	}
-	store, err := ingestion.NewStore(pool, time.Now)
+	store, err := ingestion.NewStore(pool, now)
 	if err != nil {
 		t.Fatalf("new repair ingestion store: %v", err)
 	}
@@ -487,6 +499,9 @@ func claimRepairRepositoryJob(t *testing.T, store *ingestion.Store) ingestion.Re
 	})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim repair repository job: claims=%d err=%v", len(claims), err)
+	}
+	if claims[0].Kind != ingestion.RepositoryJobPDSReconcile {
+		t.Fatalf("claimed %s job, want PDS reconciliation", claims[0].Kind)
 	}
 	return claims[0]
 }

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
@@ -20,6 +21,7 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
     this.description,
     this.avatar,
     this.crafts = const [],
+    this.accountType,
     this.muted = false,
     this.blocking = false,
     this.blockedBy = false,
@@ -34,6 +36,9 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
   final String? description;
   final String? avatar;
   final List<String> crafts;
+  final AccountType? accountType;
+
+  bool get isBusiness => accountType == AccountType.business;
   final bool muted;
   final bool blocking;
   final bool blockedBy;

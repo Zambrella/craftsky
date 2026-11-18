@@ -2,12 +2,12 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"slices"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,6 +17,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
@@ -46,10 +47,10 @@ type businessProfileRequest struct {
 }
 
 type businessProfileProductBody struct {
-	Title string                    `json:"title"`
-	URI   string                    `json:"uri"`
-	Image *businessProfileImageBody `json:"image,omitempty"`
-	Price *business.Price           `json:"price,omitempty"`
+	Title  string                      `json:"title"`
+	URI    string                      `json:"uri"`
+	Images []*businessProfileImageBody `json:"images,omitempty"`
+	Price  *business.Price             `json:"price,omitempty"`
 }
 
 type businessProfileImageBody struct {
@@ -124,7 +125,7 @@ func PutBusinessProfileHandler(
 					return acceptedBusinessProfilePutResult(owner, authoritative)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return rejectedBusinessProfileResult(runID, err)
+					return rejectedBusinessProfileResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -288,7 +289,7 @@ func DeleteBusinessProfileHandler(
 					return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {
@@ -454,27 +455,35 @@ func validateBusinessProfileRequest(request *businessProfileRequest) *FieldError
 	products := make([]business.Product, 0, len(request.Products))
 	for index, product := range request.Products {
 		prefix := "products[" + formatInt64(int64(index)) + "]"
-		if business.ValidateText(business.TextFieldProductTitle, product.Title) != nil {
+		if strings.TrimSpace(product.Title) == "" || business.ValidateText(business.TextFieldProductTitle, product.Title) != nil {
 			fields[prefix+".title"] = "is invalid"
 		}
 		if business.ValidateWebDestination(product.URI) != nil {
 			fields[prefix+".uri"] = "is invalid"
 		}
-		if product.Image == nil {
-			fields[prefix+".image"] = "is required"
-		} else {
-			if len(product.Image.Image) == 0 {
-				fields[prefix+".image.image"] = "is required"
+		images := product.Images
+		if len(images) < 1 || len(images) > 4 {
+			fields[prefix+".images"] = "must contain one to four images"
+		}
+		for imageIndex, image := range images {
+			imagePrefix := prefix + ".images[" + formatInt64(int64(imageIndex)) + "]"
+			if image == nil {
+				fields[imagePrefix] = "must not be null"
+				continue
+			}
+			if len(image.Image) == 0 {
+				fields[imagePrefix+".image"] = "is required"
 			} else {
-				validateProfileImageUpdate(fields, prefix+".image.image", ProfileImageUpdate{Present: true, Blob: product.Image.Image}, DefaultMediaLimits())
+				validateProfileImageUpdate(fields, imagePrefix+".image", ProfileImageUpdate{Present: true, Blob: image.Image}, DefaultMediaLimits())
 			}
-			if business.ValidateText(business.TextFieldImageAlt, product.Image.Alt) != nil {
-				fields[prefix+".image.alt"] = "is invalid"
+			if business.ValidateText(business.TextFieldImageAlt, image.Alt) != nil {
+				fields[imagePrefix+".alt"] = "is invalid"
 			}
-			if ratio := product.Image.AspectRatio; ratio != nil && (ratio.Width <= 0 || ratio.Height <= 0) {
-				fields[prefix+".image.aspectRatio"] = "must have positive dimensions"
+			if ratio := image.AspectRatio; ratio != nil && (ratio.Width <= 0 || ratio.Height <= 0) {
+				fields[imagePrefix+".aspectRatio"] = "must have positive dimensions"
 			}
 		}
+
 		if product.Price != nil && business.ValidatePrice(*product.Price) != nil {
 			fields[prefix+".price"] = "is invalid"
 		}
@@ -563,10 +572,10 @@ func buildBusinessProfileReplacement(current json.RawMessage, replacement map[st
 	return business.MergeProfileReplacement(current, raw)
 }
 
-func rejectedBusinessProfileResult(runID string, err error) pdscommands.TerminalResult {
+func rejectedBusinessProfileResult(runID string, err error, contexts ...context.Context) pdscommands.TerminalResult {
 	var fieldErr *FieldError
 	if !errors.As(err, &fieldErr) {
-		return RejectedCommandResult(runID, err)
+		return RejectedCommandResult(runID, err, contexts...)
 	}
 	body, _ := json.Marshal(envelope.Error{Error: fieldErr.Code, Message: "invalid business profile", RequestID: runID, Fields: fieldErr.Fields})
 	return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusUnprocessableEntity, ResponseBody: body}

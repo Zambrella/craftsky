@@ -89,6 +89,46 @@ PaginationContractSubject<Post> _paginationSubject(
 }
 
 void main() {
+  test(
+    'background refresh preserves all author pages and first-page pin metadata',
+    () async {
+      final cursors = <String?>[];
+      final container = ProviderContainer.test(
+        overrides: [
+          testMemberBrowsingOverride,
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListByAuthor: (did, {cursor, limit}) async {
+                cursors.add(cursor);
+                return PostPage(
+                  items: [_samplePost(rkey: cursor ?? 'first')],
+                  cursor: cursor == null ? 'second' : null,
+                  pinnedPostUri: cursor == null ? 'pin' : null,
+                );
+              },
+            ),
+          ),
+        ],
+      );
+      final provider = userPostsProvider(_aliceDid);
+      container.listen(provider, (_, _) {});
+      await container.read(provider.future);
+      await container.read(provider.notifier).loadMore();
+      cursors.clear();
+      container.invalidate(provider);
+      final result = await container.read(provider.future);
+      expect(result.items, hasLength(2));
+      expect(result.pinnedPostUri, 'pin');
+      expect(cursors, [null, 'second']);
+    },
+  );
+
   setUpAll(initializeMappers);
 
   paginationContract(

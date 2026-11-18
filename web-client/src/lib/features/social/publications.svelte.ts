@@ -7,6 +7,7 @@ import type {
 } from '#lib/api/types.ts';
 import { visible } from './model';
 import { craftKey } from './craft-feeds';
+import { reportFailure } from '../diagnostics/client.ts';
 import type { ProjectFilters } from '#lib/api/types.ts';
 export const publicationsContext = Symbol('confirmed-publications');
 
@@ -103,7 +104,9 @@ export class Publications {
 					finish();
 					return;
 				}
-			} catch {
+			} catch (error) {
+				if (!cancelled && attempt >= 30)
+					void reportFailure(error, 'post.edit.reconcile');
 				// A background read failure does not change the accepted write outcome.
 			}
 			if (cancelled) return;

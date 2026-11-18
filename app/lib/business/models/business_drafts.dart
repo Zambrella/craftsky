@@ -6,6 +6,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:flutter/foundation.dart';
 
 const _unset = Object();
@@ -32,6 +33,7 @@ enum EventDraftError {
   modeInvalid,
   statusInvalid,
   timeZoneInvalid,
+  timeDoesNotExist,
   allDayBoundaryInvalid,
   endNotAfterStart,
   durationTooLong,
@@ -95,6 +97,9 @@ class BusinessEventDraft {
   }
 
   final String name;
+
+  /// Wall-clock calendar fields in [timeZone], rather than UTC instants.
+  /// The editor uses UTC DateTime containers to avoid the device's DST rules.
   final DateTime startsAt;
   final DateTime endsAt;
   final List<String> roles;
@@ -173,6 +178,10 @@ class BusinessEventDraft {
       errors.add(EventDraftError.allDayBoundaryInvalid);
     }
     if (timeZones.contains(timeZone)) {
+      if (!timeZones.isRepresentable(timeZone, startsAt) ||
+          !timeZones.isRepresentable(timeZone, endsAt)) {
+        errors.add(EventDraftError.timeDoesNotExist);
+      }
       final start = timeZones.toUtc(timeZone, startsAt);
       final end = timeZones.toUtc(timeZone, endsAt);
       if (!end.isAfter(start)) {
@@ -205,6 +214,10 @@ class BusinessEventDraft {
   BusinessEventUtcRange utcRange(BusinessTimeZoneService timeZones) {
     if (!timeZones.contains(timeZone)) {
       throw ArgumentError.value(timeZone, 'timeZone', 'Unknown IANA timezone');
+    }
+    if (!timeZones.isRepresentable(timeZone, startsAt) ||
+        !timeZones.isRepresentable(timeZone, endsAt)) {
+      throw ArgumentError('Time does not exist in the selected timezone');
     }
     final start = timeZones.toUtc(timeZone, startsAt);
     final end = timeZones.toUtc(timeZone, endsAt);
@@ -443,18 +456,21 @@ class BusinessDeclarationDraft {
   static Map<String, dynamic> _productToJson(BusinessProductView product) {
     final json = <String, dynamic>{'title': product.title};
     if (product.uri != null) json['uri'] = product.uri;
-    if (product.image case final image?) {
-      json['image'] = {
-        'image': {
-          r'$type': 'blob',
-          'ref': {r'$link': image.cid.toString()},
-          'mimeType': image.mime,
-          'size': image.size,
-        },
-        'alt': image.alt,
-        if (image.aspectRatio case final ratio?)
-          'aspectRatio': {'width': ratio.width, 'height': ratio.height},
-      };
+    if (product.photos.isNotEmpty) {
+      json['images'] = [
+        for (final image in product.photos)
+          {
+            'image': {
+              r'$type': 'blob',
+              'ref': {r'$link': image.cid.toString()},
+              'mimeType': image.mime,
+              'size': image.size,
+            },
+            'alt': image.alt,
+            if (image.aspectRatio case final ratio?)
+              'aspectRatio': {'width': ratio.width, 'height': ratio.height},
+          },
+      ];
     }
     if (product.price case final price?) {
       json['price'] = {'amount': price.amount, 'currency': price.currency};
@@ -472,6 +488,7 @@ class BusinessDeclarationDraft {
 }
 
 const businessProductLimit = 4;
+const businessProductImageLimit = 4;
 const businessProductTitleLimit = 150;
 const businessImageAltLimit = 1000;
 
@@ -539,7 +556,8 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
       size = image.size,
       alt = alt ?? image.alt,
       aspectRatio = image.aspectRatio,
-      previewUrl = image.thumb;
+      previewUrl = image.thumb,
+      previewBytes = image.previewBytes;
 
   const new _({
     required this.cid,
@@ -548,6 +566,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
     required this.alt,
     required this.aspectRatio,
     required this.previewUrl,
+    required this.previewBytes,
   });
 
   final String cid;
@@ -558,6 +577,8 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
   final BusinessImageAspectRatio? aspectRatio;
   @override
   final String previewUrl;
+  @override
+  final Uint8List? previewBytes;
 
   @override
   bool get hasImage => true;
@@ -573,6 +594,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
         alt: value,
         aspectRatio: aspectRatio,
         previewUrl: previewUrl,
+        previewBytes: previewBytes,
       );
 
   @override
@@ -652,7 +674,7 @@ class ProductDraft {
     required this.id,
     required this.title,
     required this.destination,
-    required this.image,
+    this.images = const [],
     this.amount = '',
     this.currency = '',
   });
@@ -661,9 +683,7 @@ class ProductDraft {
     id: id,
     title: product.title,
     destination: product.uri ?? '',
-    image: product.image == null
-        ? const MissingBusinessImageDraft()
-        : ExistingBusinessImageDraft(product.image!),
+    images: product.photos.map(ExistingBusinessImageDraft.new).toList(),
     amount: product.price?.amount ?? '',
     currency: product.price?.currency ?? '',
   );
@@ -671,7 +691,10 @@ class ProductDraft {
   final String id;
   final String title;
   final String destination;
-  final BusinessImageDraft image;
+  final List<BusinessImageDraft> images;
+  List<BusinessImageDraft> get photos => images;
+  BusinessImageDraft get image =>
+      images.firstOrNull ?? const MissingBusinessImageDraft();
   final String amount;
   final String currency;
 
@@ -689,8 +712,13 @@ class ProductDraft {
         uri.userInfo.isNotEmpty) {
       errors.add(ProductDraftError.destinationInvalid);
     }
-    if (!image.hasImage) errors.add(ProductDraftError.imageRequired);
-    if (!image.isValid) errors.add(ProductDraftError.imageInvalid);
+    if (photos.isEmpty || photos.any((image) => !image.hasImage)) {
+      errors.add(ProductDraftError.imageRequired);
+    }
+    if (photos.length > businessProductImageLimit ||
+        photos.any((image) => !image.isValid)) {
+      errors.add(ProductDraftError.imageInvalid);
+    }
     if (amount.isEmpty != currency.isEmpty) {
       errors.add(ProductDraftError.priceIncomplete);
     } else if (amount.isNotEmpty && !_validPrice(amount, currency)) {
@@ -702,7 +730,7 @@ class ProductDraft {
   Map<String, dynamic> toJson() => {
     'title': title,
     'uri': destination,
-    'image': ?image.toJson(),
+    'images': [for (final image in photos) image.toJson()],
     if (amount.isNotEmpty) 'price': {'amount': amount, 'currency': currency},
   };
 }
@@ -749,8 +777,7 @@ bool _validImage(
     const {'image/jpeg', 'image/png', 'image/webp'}.contains(mime) &&
     size >= 0 &&
     size <= 2000000 &&
-    alt.characters.length <= businessImageAltLimit &&
-    utf8.encode(alt).length <= businessImageAltLimit &&
+    RecordTextLimits.imageAlt.accepts(alt) &&
     (aspectRatio == null || (aspectRatio.width > 0 && aspectRatio.height > 0));
 
 bool _validPrice(String amount, String currency) {

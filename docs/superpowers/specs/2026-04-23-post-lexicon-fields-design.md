@@ -2,7 +2,7 @@
 
 - **Status:** Draft
 - **Date:** 2026-04-23
-- **Related:** [ADR 001 — post lexicon project extensibility](../../../adr/001-post-lexicon-project-extensibility.md)
+- **Related:** [ADR 001 — post lexicon project extensibility](../../adr/001-post-lexicon-project-extensibility.md)
 
 ## Summary
 

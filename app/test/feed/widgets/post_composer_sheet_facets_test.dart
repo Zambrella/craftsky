@@ -208,7 +208,7 @@ void main() {
 
       await tester.enterText(
         find.byType(TextField).first,
-        '🧶 Hi @alice.craftsky.social see craftsky.social, #SockKAL',
+        ' \n🧶 Hi @alice.craftsky.social see craftsky.social, #SockKAL\n\t ',
       );
       await _pumpUntilPostEnabled(tester);
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));

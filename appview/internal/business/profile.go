@@ -35,10 +35,10 @@ type ProfileView struct {
 }
 
 type ProductView struct {
-	Title string
-	URI   string
-	Image *HydratedImage
-	Price *Price
+	Title  string
+	URI    string
+	Images []*HydratedImage
+	Price  *Price
 }
 
 func MergeProfileReplacement(existingRaw, replacementKnown json.RawMessage) (json.RawMessage, error) {
@@ -79,10 +79,10 @@ func HydrateProfile(raw json.RawMessage) (ProfileView, error) {
 		} `json:"location"`
 		PrimaryAction *Action `json:"primaryAction"`
 		Products      []struct {
-			Title string          `json:"title"`
-			URI   string          `json:"uri"`
-			Image json.RawMessage `json:"image"`
-			Price *Price          `json:"price"`
+			Title  string            `json:"title"`
+			URI    string            `json:"uri"`
+			Images []json.RawMessage `json:"images"`
+			Price  *Price            `json:"price"`
 		} `json:"products"`
 	}
 	if err := json.Unmarshal(raw, &source); err != nil {
@@ -121,7 +121,11 @@ func HydrateProfile(raw json.RawMessage) (ProfileView, error) {
 		if ValidateWebDestination(product.URI) == nil {
 			hydrated.URI = product.URI
 		}
-		hydrated.Image = hydrateIndependentImage(product.Image)
+		for _, rawImage := range product.Images {
+			if image := hydrateIndependentImage(rawImage); image != nil {
+				hydrated.Images = append(hydrated.Images, image)
+			}
+		}
 		view.Products = append(view.Products, hydrated)
 	}
 	return view, nil

@@ -1,3 +1,4 @@
+import { graphemeCount } from '#lib/text.ts';
 export interface ActiveFacetToken {
 	kind: 'mention' | 'hashtag';
 	start: number;
@@ -45,9 +46,14 @@ export function replaceFacetToken(
 
 /** Display ranges only; mention identity is still resolved when publishing. */
 export function facetSegments(
-	text: string
+	text: string,
+	precedingHashtags: string[] = []
 ): { text: string; facet: boolean }[] {
 	const parts: { text: string; facet: boolean }[] = [];
+	const accepted = acceptedHashtags([
+		...precedingHashtags,
+		...hashtagsInText(text)
+	]);
 	const pattern =
 		/(https?:\/\/[^\s<>]+)|(?:^|[\s(])(@[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,})|(?:^|[\s(])(#[\p{L}\p{N}_]+)/gu;
 	let offset = 0;
@@ -56,10 +62,35 @@ export function facetSegments(
 		const start = match.index! + match[0].indexOf(token);
 		if (start > offset)
 			parts.push({ text: text.slice(offset, start), facet: false });
-		parts.push({ text: token, facet: true });
+		parts.push({
+			text: token,
+			facet: !match[3] || accepted.has(token.slice(1).toLowerCase())
+		});
 		offset = start + token.length;
 	}
 	if (offset < text.length)
 		parts.push({ text: text.slice(offset), facet: false });
 	return parts;
+}
+
+export const maxPostHashtags = 10;
+export function acceptedHashtags(tags: Iterable<string>): Set<string> {
+	const accepted = new Set<string>();
+	for (const raw of tags) {
+		const tag = raw.trim().toLowerCase();
+		if (tag && accepted.size < maxPostHashtags) accepted.add(tag);
+	}
+	return accepted;
+}
+export function hashtagsInText(text: string): string[] {
+	const pattern =
+		/(https?:\/\/[^\s<>]+)|(?:^|[\s(])(@[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,})|(?:^|[\s(])(#[\p{L}\p{N}_]+)/gu;
+	return [...text.matchAll(pattern)].flatMap((match) => {
+		const tag = match[3]?.slice(1);
+		return tag &&
+			graphemeCount(tag) <= 64 &&
+			new TextEncoder().encode(tag).length <= 640
+			? [tag]
+			: [];
+	});
 }

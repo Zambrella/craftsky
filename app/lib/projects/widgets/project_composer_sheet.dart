@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/save_composer_snapshot.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/draft_save_controller.dart';
@@ -78,7 +79,9 @@ import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
@@ -369,6 +372,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
+      reporter: ref.read(errorReporterProvider),
     );
     _videoController =
         widget.videoController ??
@@ -1290,6 +1294,28 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         : selectOptions;
   }
 
+  List<String> _hashtagPrefix({
+    bool pattern = false,
+    bool designer = false,
+    bool publisher = false,
+  }) => [
+    ...hashtagsInText(_bodyController.text),
+    ...?(widget.publishedEdit == null
+            ? _existingScheduledProject()
+            : ProjectMapper.fromMap(
+                Map<String, dynamic>.from(
+                  widget.publishedEdit!.seed.editable['project']! as Map,
+                ),
+              ))
+        ?.common
+        .tags,
+    if (pattern || designer || publisher)
+      ...hashtagsInText(_patternNameController.text),
+    if (designer || publisher)
+      ...hashtagsInText(_patternDesignerController.text),
+    if (publisher) ...hashtagsInText(_patternPublisherController.text),
+  ];
+
   Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
     ..._initialFormValues,
     ..._detailFormValues,
@@ -1375,6 +1401,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openPatternDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -1387,7 +1414,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
               _patternDetailsFormKey,
               _patternDetailFieldNames,
             ),
-            child: _patternDetailFields(l10n),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([
+                _patternDesignerController,
+                _patternPublisherController,
+              ]),
+              builder: (context, child) => _patternDetailFields(l10n),
+            ),
           ),
         ),
       ),
@@ -1396,6 +1429,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openCommonDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -1421,6 +1455,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _openCraftDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     final title = _craftDetailsTitle(l10n);
     if (title == null) return;
@@ -1473,6 +1508,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternDesignerLabel,
           hintText: l10n.projectComposerPatternDesignerHint,
           controller: _patternDesignerController,
+          precedingHashtags: () => _hashtagPrefix(pattern: true),
           focusNode: _patternDesignerFocusNode,
           allowedTokenKinds: const {ActiveFacetTokenKind.mention},
         ),
@@ -1485,6 +1521,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternPublisherLabel,
           hintText: l10n.projectComposerPatternPublisherHint,
           controller: _patternPublisherController,
+          precedingHashtags: () => _hashtagPrefix(designer: true),
           focusNode: _patternPublisherFocusNode,
           allowedTokenKinds: const {ActiveFacetTokenKind.mention},
         ),
@@ -1673,6 +1710,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternNameLabel,
           hintText: l10n.projectComposerPatternNameHint,
           controller: _patternNameController,
+          precedingHashtags: _hashtagPrefix,
           textCapitalization: TextCapitalization.none,
           focusNode: _patternNameFocusNode,
           enabled: controlsEnabled,
@@ -1704,6 +1742,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ProjectMaterialsField(
+          precedingHashtags: () => _hashtagPrefix(publisher: true),
           name: ProjectComposerFields.materials,
           label: l10n.projectComposerMaterialsLabel,
           inputHintText: l10n.projectComposerMaterialsAddHint,
@@ -2526,7 +2565,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
               ownership: owner,
               allowVideoBlobRecovery: allowBlobRecovery,
             );
-        if (created == null) throw const VideoPublicationException(null);
+        if (created == null) throw const ComposerSubmissionFailure();
         _submissionSucceeded = true;
       },
       onProgress: (progress) {
@@ -2561,6 +2600,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       isCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
     );
     await _submissionCoordinator.run(
+      accountDid: submissionOwner?.session.account.did.value,
+      kind: ComposerSubmissionKind.project,
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) throw DiagnosticStateError('composer disposed');
@@ -2666,14 +2707,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     activeOwner: ref.read(sessionRegistryProvider).value?.activeLease,
     save: (owner) {
       _formKey.currentState?.save();
-      return ref
-          .read(draftSaveControllerProvider(owner).notifier)
-          .save(
-            _projectDraftWriteRequest(
-              owner,
-              ref.read(composerImagesProvider(_composerId)),
-            ),
-          );
+      return saveComposerSnapshot(
+        container: ProviderScope.containerOf(context, listen: false),
+        owner: owner,
+        request: _projectDraftWriteRequest(
+          owner,
+          ref.read(composerImagesProvider(_composerId)),
+        ),
+      );
     },
   );
 

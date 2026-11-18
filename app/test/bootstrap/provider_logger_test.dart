@@ -195,7 +195,7 @@ void main() {
         await expectation;
         expect(
           reporter.contexts.single.workflow?.selectedFields,
-          containsPair('actorDid', 'did:plc:alice'),
+          containsPair('operationAccountDid', 'did:plc:alice'),
         );
         expect(
           reporter.contexts.single.safeDiagnostics,
@@ -235,7 +235,7 @@ void main() {
             details: ApiFailureDetails(
               statusCode: 500,
               appViewError: 'internal_error',
-              requestId: 'req_123',
+              requestId: '50000000-0000-4000-8000-000000000005',
             ),
           ),
         );
@@ -261,7 +261,10 @@ void main() {
         );
         expect(
           reporter.contexts.single.safeDiagnostics,
-          containsPair('appViewRequestId', 'req_123'),
+          containsPair(
+            'appViewRequestId',
+            '50000000-0000-4000-8000-000000000005',
+          ),
         );
         expect(
           reporter.contexts.single.safeDiagnostics,

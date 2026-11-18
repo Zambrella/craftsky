@@ -6,7 +6,7 @@
 - Acceptance tests: `docs/changes/2026-09-17-unified-pds-record-mutations/02-acceptance-tests.md`
 - Document review: `docs/changes/2026-09-17-unified-pds-record-mutations/03-document-review.md` (`Approved`)
 - API conventions: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
-- Architecture reference: `atproto-craft-social-app-reference.md`
+- Architecture reference: `docs/architecture.md`
 - Risk: High. Implementation requires the ordered phase gates in FR-049 and all release evidence in AC-043.
 - Schema decision: Create migration 73 directly as the final development architecture. There is no production migration compatibility obligation and no relationship-intent compatibility table.
 - SQL decision: Use the repository's current scoped inline-`pgx` pattern. `appview/queries/` contains no active sqlc definitions or generated package, so bootstrapping sqlc is outside this change.

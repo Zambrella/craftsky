@@ -3,6 +3,7 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 
 /// Resolves visible CraftSky handles to DIDs without network access.
 abstract interface class MentionResolver {
@@ -27,6 +28,7 @@ class FacetGenerator {
     bool includeTags = true,
   }) async {
     final facets = <Map<String, dynamic>>[];
+    final accepted = acceptedHashtags(hashtagsInText(text));
 
     for (final token in detectSupportedFacetTokens(text)) {
       switch (token) {
@@ -41,7 +43,9 @@ class FacetGenerator {
           if (!includeLinks) continue;
           facets.add(token.toRawFacet(text));
         case TagFacetToken():
-          if (!includeTags) continue;
+          if (!includeTags || !accepted.contains(token.tag.toLowerCase())) {
+            continue;
+          }
           facets.add(token.toRawFacet(text));
       }
     }

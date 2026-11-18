@@ -1,5 +1,77 @@
 # AppView Changelog
 
+## 1.4.0 - 2026-11-17
+
+- feat(profile): add visitor follower and following lists
+- feat(catalog): add navy, turquoise, and teal colors
+- chore(routes): add follower diagnostics entries
+- fix(ci): upgrade Go to 1.27.4 for release gate
+- feat(composer): limit posts to ten hashtags
+- feat(settings): show account hosting provider details
+- feat(profile): add colour options and shader backgrounds
+- fix(settings): repair provider accessibility and fixture inventory
+- feat(profile): add reference-inspired shader backgrounds
+- chore(repo): optimize checks and client performance
+- chore(app): harden Riverpod lifecycles and enable linting
+- feat(subscriptions): support independent billing accounts
+- fix(observability): report consumed failures across app flows
+- fix(observability): preserve causes across failure diagnostics
+- feat(docs): add searchable change archive
+- fix(subscriptions): guard purchases by store ownership
+- feat(subscriptions): add complimentary access grants
+- feat(subscriptions): add embedded checkout and web paywalls
+- feat(subscriptions): expand cross-client subscription and business parit
+- feat(business): add product photo carousels
+- fix(subscriptions): harden billing lifecycle and access handling
+- feat(profile): retire textures and decorate recent searches
+- chore(subscriptions): normalize checkout errors
+- test: stabilize timezone and timestamp assertions
+- chore(render): enable production subscription billing
+- chore(render): enable production billing configuration
+
+## 1.3.2 - 2026-11-10
+
+- fix(privacy): require explicit opt-out from guest visibility
+
+## 1.3.1 - 2026-11-10
+
+- fix(stats): count active records in aggregate totals
+
+## 1.3.0 - 2026-11-10
+
+- feat(web-client): move authenticated routes to root
+- feat(web-client): add tagged release and preview promotion flow
+- fix(web-client): provide safe social share images
+- feat(video): add Bunny Stream development integration
+- fix(web-client): recover autocomplete and handle missing crafts
+- feat(video): add Bunny uploads and hosted web playback
+- fix(web-client): harden recovery and restore release checks
+- feat(stats): add public CraftSky statistics page
+- fix(appview): classify public stats diagnostics
+- fix(video): show previews in quotes and saved posts
+- fix(video): extend upload finalization deadlines
+- feat(video): cancel Bunny uploads safely
+- test(video): tidy Bunny and video test formatting
+- feat(guest-browsing): enable public content exploration
+- feat(feed): add extended network timeline
+- feat(browsing): expand logged-out content exploration
+- feat(moderation): allow guests to submit content reports
+- chore(app): remove Flutter web support
+- fix(search): align recent and hashtag result rows
+- fix(observability): preserve actionable production diagnostics
+- fix(appview): align report reason constraints with intake
+- feat(video): enforce PDS blob limits for Bunny uploads
+- test: isolate release fixtures from video provider defaults
+- feat(safety): add go-live safety and moderation controls
+- test(safetyalerts): use named redirect status constant
+- chore(config): centralize AppView secret management
+- feat(config): separate local credentials from app settings
+- refactor(config): move local env files into component config dirs
+- feat(config): isolate client settings by build mode
+- chore(docs): reorganize project documentation
+- fix(app): stabilize chat and feed journeys
+- chore(appview): use Instagram DM deep link
+
 ## 1.2.0 - 2026-11-04
 
 - feat(web): add server-rendered public pages

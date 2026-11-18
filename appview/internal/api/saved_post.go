@@ -11,6 +11,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/subscriptions"
 )
@@ -129,7 +130,7 @@ func (s *SavedPostService) ListSavedPosts(ctx context.Context, owner syntax.DID,
 	for _, row := range rowsByURI {
 		did, err := syntax.ParseDID(row.DID)
 		if err != nil {
-			return SavedPostPage{}, ErrSavedPostIdentityUnavailable
+			return SavedPostPage{}, observability.WrapError("saved post identity unavailable", errors.Join(ErrSavedPostIdentityUnavailable, err))
 		}
 		if _, seen := seenSubjects[did]; !seen {
 			seenSubjects[did] = struct{}{}
@@ -161,7 +162,7 @@ func (s *SavedPostService) ListSavedPosts(ctx context.Context, owner syntax.DID,
 	}
 	handles, err := resolveHandlesForRows(ctx, rows, s.resolver)
 	if err != nil {
-		return SavedPostPage{}, ErrSavedPostIdentityUnavailable
+		return SavedPostPage{}, observability.WrapError("saved post identity unavailable", errors.Join(ErrSavedPostIdentityUnavailable, err))
 	}
 	summaries, err := s.hydrator.EngagementSummaries(ctx, owner.String(), []string{}, postURIs)
 	if err != nil {
@@ -186,7 +187,7 @@ func (s *SavedPostService) ListSavedPosts(ctx context.Context, owner syntax.DID,
 	}
 	if err := attachQuoteViews(ctx, s.hydrator, s.resolver, responses); err != nil {
 		if errors.Is(err, ErrHandleUnavailable) {
-			return SavedPostPage{}, ErrSavedPostIdentityUnavailable
+			return SavedPostPage{}, observability.WrapError("saved post identity unavailable", errors.Join(ErrSavedPostIdentityUnavailable, err))
 		}
 		return SavedPostPage{}, err
 	}
@@ -263,6 +264,7 @@ func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationSto
 		if assignment.Present && len(accessReaders) > 0 {
 			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "saved.post", "subscription_access")
 				writeSavedPostError(w, r, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", nil)
 				return
 			}
@@ -277,6 +279,7 @@ func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationSto
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "saved.post.save", "target_lookup")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post target lookup failed", nil)
 			return
 		}
@@ -286,12 +289,16 @@ func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationSto
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "saved.post.save", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post mutation failed", nil)
 			return
 		}
 		if len(accessReaders) > 0 {
 			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
 			if err != nil || !access.AllowsPlus() {
+				if err != nil {
+					observability.ReportRequestFailure(r.Context(), err, "saved.post.save", "subscription_access")
+				}
 				// An ordinary save stays available even if access cannot be read.
 				// Its retained folder association must not be disclosed on lapse.
 				result.State.FolderID = nil
@@ -313,6 +320,7 @@ func UnsavePostHandler(store SavedPostMutationStore) http.Handler {
 		}
 		uri := syntax.ATURI("at://" + did.String() + "/" + craftskyPostNSID + "/" + rkey.String())
 		if err := store.Unsave(r.Context(), owner, uri); err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "saved.post.delete", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post delete failed", nil)
 			return
 		}
@@ -337,6 +345,7 @@ func CreateSavedPostFolderHandler(store SavedPostFolderStore) http.Handler {
 				writeSavedPostFieldError(w, r, err)
 				return
 			}
+			observability.ReportRequestFailure(r.Context(), err, "saved.folder.create", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post folder create failed", nil)
 			return
 		}
@@ -365,6 +374,7 @@ func RenameSavedPostFolderHandler(store SavedPostFolderStore) http.Handler {
 				writeSavedPostFieldError(w, r, err)
 				return
 			}
+			observability.ReportRequestFailure(r.Context(), err, "saved.folder.rename", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post folder rename failed", nil)
 			return
 		}
@@ -389,6 +399,7 @@ func DeleteSavedPostFolderHandler(store SavedPostFolderStore) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "saved.folder.delete", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post folder delete failed", nil)
 			return
 		}
@@ -413,6 +424,7 @@ func ListSavedPostFoldersHandler(store SavedPostFolderStore) http.Handler {
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "saved.folder.list", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post folder list failed", nil)
 			return
 		}
@@ -440,6 +452,7 @@ func ListSavedPostsHandler(service SavedPostListService, accessReaders ...interf
 		if len(accessReaders) > 0 {
 			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "saved.post", "subscription_access")
 				writeSavedPostError(w, r, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", nil)
 				return
 			}
@@ -458,9 +471,11 @@ func ListSavedPostsHandler(service SavedPostListService, accessReaders ...interf
 			writeSavedPostError(w, r, http.StatusBadRequest, "invalid_cursor", "invalid cursor", nil)
 			return
 		case errors.Is(err, ErrSavedPostIdentityUnavailable):
+			observability.ReportRequestFailure(r.Context(), err, "saved.post.list", "identity")
 			writeSavedPostError(w, r, http.StatusBadGateway, "identity_unavailable", "could not resolve handle", nil)
 			return
 		case err != nil:
+			observability.ReportRequestFailure(r.Context(), err, "saved.post.list", "store")
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post list failed", nil)
 			return
 		}

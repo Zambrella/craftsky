@@ -424,7 +424,7 @@ test('restricted accounts retain settings and complete owner-bound reauthenticat
 	).toBeVisible();
 	await page.goto('/settings/account');
 	await page
-		.getByRole('button', { name: 'Delete account', exact: true })
+		.getByRole('button', { name: 'Delete CraftSky account', exact: true })
 		.click();
 	const deletionDialog = page.getByRole('dialog');
 	await expect(deletionDialog).toBeVisible();

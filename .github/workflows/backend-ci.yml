@@ -25,6 +25,8 @@ jobs:
       workflows: ${{ steps.paths.outputs.workflows }}
       status: ${{ steps.paths.outputs.status }}
       app_profile: ${{ steps.paths.outputs.app_profile }}
+      website: ${{ steps.paths.outputs.website }}
+      stats: ${{ steps.paths.outputs.stats }}
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -43,9 +45,16 @@ jobs:
           workflows=false
           status=false
           app_profile=false
-          while IFS= read -r path; do
+          website=false
+          stats=false
+          # Resolve the diff before classifying: a failed git process inside a
+          # process substitution would otherwise produce a green, empty result.
+          changed_paths=$(mktemp)
+          trap 'rm -f "$changed_paths"' EXIT
+          git diff --name-only -z "$BASE_SHA...HEAD" > "$changed_paths"
+          while IFS= read -r -d '' path; do
             case "$path" in
-              appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
+              appview/*|config/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/config|scripts/compose-dev|scripts/worktree-create|scripts/test_config.py|docs/development/configuration-reference.md|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
                 appview=true
                 ;;
             esac
@@ -73,9 +82,21 @@ jobs:
                 app_profile=true
                 ;;
             esac
-          done < <(git diff --name-only "$BASE_SHA...HEAD")
+            case "$path" in
+              web/*|scripts/cloudflare_pages_build.py|scripts/test_cloudflare_pages_build.py|scripts/web-deploy|scripts/test_web_deploy.py|justfile|.github/workflows/*)
+                website=true
+                ;;
+            esac
+            case "$path" in
+              stats/*|scripts/stats-dev|justfile|.github/workflows/*)
+                stats=true
+                ;;
+            esac
+          done < "$changed_paths"
           printf 'appview=%s\napp=%s\nworkflows=%s\nstatus=%s\napp_profile=%s\n' \
             "$appview" "$app" "$workflows" "$status" "$app_profile" >>"$GITHUB_OUTPUT"
+          printf 'website=%s\nstats=%s\n' \
+            "$website" "$stats" >>"$GITHUB_OUTPUT"
 
   appview-unit-feedback:
     name: AppView unit feedback
@@ -90,8 +111,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache-dependency-path: appview/go.sum
+
+      - name: Verify configuration inventory and worktree secret handling
+        run: |
+          ./scripts/config lint
+          python3 -m unittest discover -s scripts -p 'test_config.py'
 
       - name: Run unit-only AppView tests
         run: ./scripts/appview-test unit
@@ -111,11 +137,30 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache-dependency-path: appview/go.sum
 
       - name: Install release-gate tools
-        run: sudo apt-get update && sudo apt-get install --yes just ripgrep
+        run: |
+          tool_dir="$RUNNER_TEMP/appview-gate-tools"
+          archive_dir=$(mktemp -d)
+          trap 'rm -rf "$archive_dir"' EXIT
+          mkdir -p "$tool_dir"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/casey/just/releases/download/1.59.0/just-1.59.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$archive_dir/just.tar.gz"
+          printf '%s  %s\n' 409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e "$archive_dir/just.tar.gz" | sha256sum --check --strict
+          tar -xzf "$archive_dir/just.tar.gz" -C "$archive_dir" just
+          install -m 755 "$archive_dir/just" "$tool_dir/just"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$archive_dir/ripgrep.tar.gz"
+          printf '%s  %s\n' 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c "$archive_dir/ripgrep.tar.gz" | sha256sum --check --strict
+          tar -xzf "$archive_dir/ripgrep.tar.gz" -C "$archive_dir" ripgrep-15.2.0-x86_64-unknown-linux-musl/rg
+          install -m 755 "$archive_dir/ripgrep-15.2.0-x86_64-unknown-linux-musl/rg" "$tool_dir/rg"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          "$tool_dir/just" --version
+          "$tool_dir/rg" --version
 
       - name: Run AppView release gate
         env:
@@ -156,7 +201,7 @@ jobs:
 
       - name: Analyze
         working-directory: app
-        run: flutter analyze
+        run: dart analyze --fatal-infos
 
       - name: Set up Rive native test runtime
         working-directory: app
@@ -166,6 +211,13 @@ jobs:
       - name: Test
         working-directory: app
         run: flutter test
+
+      - name: Test enabled subscription feature entry
+        working-directory: app
+        run: >-
+          flutter test --dart-define=SUBSCRIPTIONS_ENABLED=true
+          test/subscriptions/subscription_feature_lock_test.dart
+          test/subscriptions/pages/subscription_operation_lifecycle_test.dart
 
   status:
     name: Service status checks
@@ -193,6 +245,59 @@ jobs:
       - name: Validate anonymous Worker
         run: node --test service-status/test/worker.test.js
 
+  website:
+    name: Public website checks
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - run: cd web && npm exec -- playwright install --with-deps chromium
+      - name: Check built website and deployment tooling
+        run: |
+          npm run --prefix web build
+          python3 -m unittest discover -s scripts -p test_web_deploy.py
+          python3 -m unittest discover -s scripts -p test_cloudflare_pages_build.py
+          WEB_TEST_ROOT=dist npm test --prefix web
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: website-fixture-failures
+          path: web/test-results/
+          if-no-files-found: ignore
+
+  stats:
+    name: Statistics website checks
+    needs: changes
+    if: needs.changes.outputs.stats == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: stats/package-lock.json
+      - run: npm ci --prefix stats
+      - run: cd stats && npm exec -- playwright install --with-deps chromium
+      - run: npm run --prefix stats check
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stats-fixture-failures
+          path: stats/test-results/
+          if-no-files-found: ignore
+
   app-profile:
     name: App profile publication checks
     needs: changes
@@ -217,7 +322,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
 
       - name: Lint workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
@@ -234,7 +339,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache-dependency-path: appview/go.sum
 
       - name: Exercise fuzz targets
@@ -297,7 +402,7 @@ jobs:
   required:
     name: PR checks
     if: always() && github.event_name == 'pull_request'
-    needs: [changes, appview-unit-feedback, appview, app, status, app-profile, workflow-lint]
+    needs: [changes, appview-unit-feedback, appview, app, status, website, stats, app-profile, workflow-lint]
     runs-on: ubuntu-24.04
     steps:
       - name: Require applicable checks
@@ -307,12 +412,14 @@ jobs:
           APPVIEW_RESULT: ${{ needs.appview.result }}
           APP_RESULT: ${{ needs.app.result }}
           STATUS_RESULT: ${{ needs.status.result }}
+          WEBSITE_RESULT: ${{ needs.website.result }}
+          STATS_RESULT: ${{ needs.stats.result }}
           APP_PROFILE_RESULT: ${{ needs.app-profile.result }}
           WORKFLOW_RESULT: ${{ needs.workflow-lint.result }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$CHANGES_RESULT" == success ]]
-          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$APP_PROFILE_RESULT" "$WORKFLOW_RESULT"; do
+          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$WEBSITE_RESULT" "$STATS_RESULT" "$APP_PROFILE_RESULT" "$WORKFLOW_RESULT"; do
             [[ "$result" == success || "$result" == skipped ]]
           done

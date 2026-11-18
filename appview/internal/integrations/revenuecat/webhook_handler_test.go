@@ -1,10 +1,13 @@
 package revenuecat
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -13,12 +16,55 @@ import (
 	"testing"
 	"time"
 
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/subscriptions"
 )
 
 type recordingEventStore struct {
 	events []subscriptions.RevenueCatEvent
 	err    error
+}
+
+func TestWebhookStoreFailureReportsOriginalCauseWithoutPrivateEventData(t *testing.T) {
+	cause := errors.New("private-store-detail-canary")
+	store := &recordingEventStore{err: cause}
+	handler, err := NewWebhookHandler(WebhookConfig{
+		Authorization: "private-authorization-canary", SkipSignatureVerification: true,
+		BodyLimit: 1024, IngressDeadline: time.Second,
+	}, store, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var local bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&local, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	const body = `{"api_version":"1.0","event":{"id":"private-event-canary","type":"RENEWAL","app_user_id":"10000000-0000-0000-0000-000000000001","event_timestamp_ms":1788955200123,"receipt":"private-payment-canary"}}`
+	request := httptest.NewRequest(http.MethodPost, "/integrations/revenuecat/webhook", strings.NewReader(body))
+	request.Header.Set("Authorization", "private-authorization-canary")
+	captures := 0
+	request = request.WithContext(ctxkeys.WithDiagnosticBoundary(request.Context(), func(_ context.Context, original error, fields map[string]any) []slog.Attr {
+		captures++
+		if original != cause || fields["operation"] != "revenuecat.webhook" || fields["failure_stage"] != "store" || fields["http_status"] != http.StatusServiceUnavailable {
+			t.Fatal("request owner lost original cause or selected failure facts")
+		}
+		return []slog.Attr{slog.String("error_type", "errors.errorString")}
+	}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if captures != 1 || response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("failure result changed or cause was duplicated: %d captures, status %d", captures, response.Code)
+	}
+	for _, retained := range []string{"revenuecat.webhook", `"failure_stage":"store"`, "errors.errorString"} {
+		if !strings.Contains(local.String(), retained) {
+			t.Fatalf("missing local diagnostic %s", retained)
+		}
+	}
+	for _, private := range []string{"private-store-detail-canary", "private-event-canary", "private-payment-canary", "private-authorization-canary", "10000000-0000-0000-0000-000000000001"} {
+		if strings.Contains(local.String()+response.Body.String(), private) {
+			t.Fatalf("private webhook field escaped: %s", private)
+		}
+	}
 }
 
 type blockingRequestBody struct {

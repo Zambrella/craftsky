@@ -103,6 +103,9 @@ git rev-parse --verify --quiet "$base^{commit}" >/dev/null || die "base ref does
 mkdir -p "$(dirname "$worktree_path")"
 git worktree add -b "$branch" "$worktree_path" "$base"
 
+# Use the current tooling even when the base predates configuration setup.
+"$repo_root/scripts/config" init --target "$worktree_path"
+
 printf '\nCreated worktree:\n'
 printf '  branch: %s\n' "$branch"
 printf '  base:   %s\n' "$base"

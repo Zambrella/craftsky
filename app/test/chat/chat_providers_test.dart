@@ -34,6 +34,32 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 // IT-015 / IT-019 / NFR-001: account dependency and stale acquisition.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'shell unread count recovers after the initial status read fails',
+    () async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository()
+        ..statusFailure = const ApiNetworkError('offline');
+      final container = _sessionContainer(repository);
+      await container.read(sessionRegistryProvider.future);
+      final counts = chatUnreadCountsProvider(account);
+      final subscription = container.listen(counts, (_, _) {});
+      addTearDown(subscription.close);
+      await expectLater(
+        container.read(counts.future),
+        throwsA(isA<ApiNetworkError>()),
+      );
+      expect(repository.countCalls, 0);
+
+      repository.statusFailure = null;
+      container.invalidate(chatStatusProvider(account));
+      await container.read(chatStatusProvider(account).future);
+      await container.pump();
+      expect((await container.read(counts.future)).accepted, 1);
+      expect(repository.countCalls, 1);
+    },
+  );
+
   for (final removeAccount in [false, true]) {
     test('cold-start DM open survives a delayed conversation lookup '
         'removed=$removeAccount', () async {

@@ -110,3 +110,9 @@ func observeScheduledQueue(observer OperationalObserver, snapshot ScheduledQueue
 		)
 	}
 }
+
+func observeScheduledInfrastructureFailure(ctx context.Context, observer OperationalObserver, cause error, operation, stage string) {
+	if diagnostic, ok := observer.(privateFailureObserver); ok {
+		diagnostic.ObservePrivateFailure(ctx, cause, "", "", operation, stage, "retry", 0)
+	}
+}

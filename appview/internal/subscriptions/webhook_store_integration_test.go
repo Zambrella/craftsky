@@ -22,7 +22,7 @@ func TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(accounts)+string(events))
+	pool := testdb.WithSubscriptionAccessSchema(t, string(accounts)+string(events))
 	store := NewStore(pool)
 	account, _, err := store.EnsureAccount(context.Background(), syntax.DID("did:plc:webhook-owner"))
 	if err != nil {
@@ -72,8 +72,8 @@ func TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally(t *testin
 	if err := pool.QueryRow(context.Background(), `SELECT requested_generation FROM billing_accounts WHERE id=$1`, account.ID).Scan(&generation); err != nil {
 		t.Fatal(err)
 	}
-	if eventCount != 1 || generation != 1 {
-		t.Fatalf("durable event/work = count %d generation %d, want 1/1", eventCount, generation)
+	if eventCount != 1 || generation != account.RequestedGeneration+1 {
+		t.Fatalf("durable event/work = count %d generation %d, want 1/%d", eventCount, generation, account.RequestedGeneration+1)
 	}
 
 	retry := RevenueCatEvent{ID: "event-retry", Type: strings.Repeat("x", 129), RevenueCatAppUserID: account.RevenueCatAppUserID}

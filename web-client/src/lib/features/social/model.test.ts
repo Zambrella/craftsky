@@ -75,6 +75,20 @@ describe('social presentation boundaries', () => {
 		).toEqual({ did: 'did:plc:alice', rkey: 'rkey' });
 		expect(postAddress('https://evil.test/')).toBeUndefined();
 	});
+	it('does not request retired texture assets while retaining craft tiles', () => {
+		for (const profileBackground of [
+			'bayerdark',
+			'cubedark',
+			'dotcrossdark',
+			'scallopdark',
+			'skewdark',
+			'x2'
+		])
+			expect(texture({ colour: 'seafoam', profileBackground })).toBeUndefined();
+		expect(
+			texture({ colour: 'seafoam', profileBackground: 'craft-knitting' })
+		).toBe("url('/profile_backgrounds/craft-knitting.svg')");
+	});
 	it('restores typed recent searches with queries and filters', () => {
 		expect(
 			recentDestination({

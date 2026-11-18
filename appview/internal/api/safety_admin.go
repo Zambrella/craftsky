@@ -10,6 +10,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
@@ -67,6 +68,7 @@ func SafetyAdminStatusHandler(
 		}
 		queue, err := health.Health(r.Context())
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "safety.status.read", "queue_health")
 			envelope.WriteError(w, http.StatusServiceUnavailable, "safety_status_unavailable", "safety status unavailable", runID, nil)
 			return
 		}
@@ -83,6 +85,7 @@ func SafetyAdminStatusHandler(
 			}
 			loaded, err := reader.SafeWork(r.Context())
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "safety.status.read", "work_items")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "safety_status_unavailable", "safety status unavailable", runID, nil)
 				return
 			}

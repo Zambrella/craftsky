@@ -7,7 +7,7 @@ Status: implemented (CI wiring deferred — see §3.9)
 
 The AppView hand-rolls a narrow Go struct for every record shape it needs to read off the firehose. Today there is one such struct ([`craftskyProfileRecord` in `appview/internal/index/craftsky_profile.go:49`](../../../appview/internal/index/craftsky_profile.go#L49)), but `feed.post`, `feed.like`, `feed.repost`, and per-craft `project.*` indexers are imminent. Each one will repeat the pattern: read the JSON in `lexicon/social/craftsky/**/*.json`, transcribe a subset of the fields into a Go struct in the indexer file, keep the two in sync by code review.
 
-This is fine for one tiny record. It is bad for the post lexicon: `feed.post` has nested `project.{common, details}` with an open union on `details` keyed by craft ([ADR 001](../../../adr/001-post-lexicon-project-extensibility.md)). Transcribing the `$type` discriminator dispatch by hand for every new craft sub-lexicon is the kind of work that drifts from the schema silently and is only caught by the AppView dropping records that should have indexed.
+This is fine for one tiny record. It is bad for the post lexicon: `feed.post` has nested `project.{common, details}` with an open union on `details` keyed by craft ([ADR 001](../../adr/001-post-lexicon-project-extensibility.md)). Transcribing the `$type` discriminator dispatch by hand for every new craft sub-lexicon is the kind of work that drifts from the schema silently and is only caught by the AppView dropping records that should have indexed.
 
 The lexicon JSON should be the single source of truth for record shape. The Go types should be derived from it.
 

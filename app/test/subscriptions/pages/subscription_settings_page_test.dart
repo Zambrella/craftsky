@@ -1,9 +1,12 @@
+import 'dart:async';
+import 'dart:ui' show SemanticsAction;
+
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
-import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -11,880 +14,449 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/session_registry_storage.dart';
+
 void main() {
-  testWidgets('AT-004 beneficiary sees self access and no owner details', (
+  testWidgets('pending Stripe payment offers only current-tier Manage', (
     tester,
   ) async {
-    var switched = false;
+    var managed = 0;
     await _pump(
       tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.beneficiary,
-        access: _access(
-          SubscriptionTier.free,
-          assignedTier: SubscriptionTier.plus,
-        ),
-        ownerRetained: true,
-        billingAvailability: BillingAvailability.available,
-        onSwitchToOwner: () => switched = true,
+      _model(
+        store: 'stripe',
+        paidTier: SubscriptionTier.business,
+        pendingPayment: true,
+        paidAccess: false,
+        onManage: () => managed++,
       ),
     );
 
-    expect(find.textContaining('Plus is assigned'), findsOneWidget);
-    expect(find.text('Restore purchases'), findsNothing);
-    expect(find.text('Manage subscription'), findsNothing);
-    expect(find.textContaining('20000000-'), findsNothing);
-    await tester.tap(find.text('Switch to billing owner'));
-    expect(switched, isTrue);
+    expect(find.text('Active'), findsNothing);
+    expect(find.text('Downgrade'), findsNothing);
+    await tester.ensureVisible(find.text('Manage'));
+    await tester.tap(find.text('Manage'));
+    expect(managed, 1);
   });
-
-  testWidgets('AT-013 dormant assignment is visible for every page role', (
-    tester,
-  ) async {
-    final access = _access(
-      SubscriptionTier.free,
-      assignedTier: SubscriptionTier.plus,
-    );
-    await _pump(
+  for (final status in ['trialing', 'in_grace_period', 'in_billing_retry']) {
+    testWidgets('$status keeps the paid tier Active and manageable', (
       tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.neverReserved,
-        access: access,
-        billingAvailability: BillingAvailability.available,
-      ),
-    );
-
-    expect(find.text('Current access: Free'), findsOneWidget);
-    expect(find.textContaining('Plus is assigned'), findsOneWidget);
-
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: access,
-        billingAvailability: BillingAvailability.available,
-        ownerRecoveryLocked: true,
-      ),
-    );
-
-    expect(find.text('Current access: Free'), findsOneWidget);
-    expect(find.textContaining('Plus is assigned'), findsOneWidget);
-  });
-
-  testWidgets('AT-004 active assigned access is not described as dormant', (
-    tester,
-  ) async {
-    for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+    ) async {
+      var managed = 0;
       await _pump(
         tester,
-        SubscriptionPageModel(
-          role: SubscriptionPageRole.neverReserved,
-          access: _access(tier, assignedTier: tier),
-          billingAvailability: BillingAvailability.available,
+        _model(
+          store: 'app_store',
+          subscriptionStatus: status,
+          onManage: () => managed++,
         ),
       );
 
-      expect(find.text('Current access: ${_tierName(tier)}'), findsOneWidget);
       expect(
-        find.textContaining('is not currently providing access'),
-        findsNothing,
+        find.byKey(const ValueKey('subscription-status-plus')),
+        findsOneWidget,
       );
-    }
-  });
+      await tester.ensureVisible(find.text('Manage'));
+      await tester.tap(find.text('Manage'));
 
-  testWidgets('AT-013 owner joins shuffled billing rows by subscription ID', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        billingState: _ownerState(unknownBusinessStatus: true),
-        assignedAccountLabels: {
-          Did.parse('did:plc:bob'): '@bob.test',
-        },
-        onPurchase: (_) {},
-        onRestore: () {},
-        onManage: () {},
-        onRefresh: () {},
-        onAssign: (_) {},
-        onUnassign: (_) {},
-      ),
-    );
-
-    expect(find.text('Plus'), findsWidgets);
-    expect(find.textContaining('Renews on'), findsOneWidget);
-    expect(find.text('Assigned to @bob.test'), findsOneWidget);
-    expect(find.text('Business'), findsWidgets);
-    expect(
-      find.textContaining('Schedule posts, organise saves'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Everything in Plus, plus featured products'),
-      findsOneWidget,
-    );
-    expect(find.text('Status unavailable'), findsOneWidget);
-    expect(find.textContaining('future_status'), findsNothing);
-    expect(find.text('Restore purchases'), findsOneWidget);
-    expect(find.text('Manage subscription'), findsOneWidget);
-    expect(find.textContaining('Product:'), findsNothing);
-    expect(find.textContaining('Oct 1'), findsOneWidget);
-    expect(find.textContaining('Current period:'), findsNothing);
-    expect(find.textContaining('License can'), findsNothing);
-    expect(find.text('Not assigned'), findsNothing);
-    expect(find.textContaining('Reconciliation requested:'), findsNothing);
-    expect(find.textContaining('Last reconciled:'), findsNothing);
-    expect(find.text('Change assignment'), findsOneWidget);
-  });
-
-  testWidgets('unsubscribed cards explain both tiers before purchase', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _emptyState(),
-        onPurchase: (_) {},
-      ),
-    );
-
-    expect(
-      find.textContaining('pin posts and track follower growth'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('business details and events'), findsOneWidget);
-  });
-
-  testWidgets('AT-014 pending reconciliation offers refresh, not checkout', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _emptyState(),
-        operationNotice: SubscriptionOperationNotice.pending,
-        onPurchase: (_) {},
-        onRestore: () {},
-        onManage: () {},
-        onRefresh: () {},
-        onAssign: (_) {},
-        onUnassign: (_) {},
-      ),
-    );
-
-    expect(find.textContaining('waiting for confirmed'), findsOneWidget);
-    expect(find.text('Refresh status'), findsOneWidget);
-    expect(_tierDetails(SubscriptionTier.plus), findsNothing);
-    expect(_tierDetails(SubscriptionTier.business), findsNothing);
-  });
-
-  testWidgets('AT-014 reconciled anomaly requires support', (tester) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _emptyState(),
-        operationNotice: SubscriptionOperationNotice.supportRequired,
-        onRefresh: () {},
-      ),
-    );
-
-    expect(find.text('Subscription state needs support'), findsOneWidget);
-    expect(find.textContaining('waiting for confirmed'), findsNothing);
-  });
-
-  testWidgets('AT-014 unresolved owner relationship requires support', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _orphanSubscriptionState(),
-        onPurchase: (_) {},
-      ),
-    );
-
-    expect(find.text('Subscription state needs support'), findsNWidgets(2));
-    expect(_tierDetails(SubscriptionTier.plus), findsOneWidget);
-    expect(_tierDetails(SubscriptionTier.business), findsOneWidget);
-  });
-
-  testWidgets('AT-005 unsafe dormant tier hides repurchase action', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        billingState: _ownerState(
-          unknownBusinessStatus: false,
-          businessRenewal: 'will_renew',
-        ),
-        onPurchase: (_) {},
-      ),
-    );
-
-    expect(_tierDetails(SubscriptionTier.business), findsOneWidget);
-  });
-
-  testWidgets('AT-005 canonical dormant assignment can be removed', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        billingState: _ownerState(
-          unknownBusinessStatus: false,
-          businessAssigned: 'did:plc:alice',
-        ),
-        assignedAccountLabels: {
-          Did.parse('did:plc:alice'): '@alice.test',
-          Did.parse('did:plc:bob'): '@bob.test',
-        },
-        onPurchase: (_) {},
-        onAssign: (_) {},
-        onUnassign: (_) {},
-      ),
-    );
-
-    expect(_tierDetails(SubscriptionTier.business), findsOneWidget);
-    expect(find.text('Change assignment'), findsOneWidget);
-    expect(find.text('Remove assignment'), findsNWidgets(2));
-  });
-
-  testWidgets(
-    'AT-013 replacement license and dormant assignment expose both actions',
-    (tester) async {
-      String? assignedLicenseId;
-      String? unassignedLicenseId;
-      await _pump(
-        tester,
-        SubscriptionPageModel(
-          role: SubscriptionPageRole.owner,
-          access: _access(SubscriptionTier.free),
-          billingAvailability: BillingAvailability.available,
-          billingState: _replacementState(),
-          assignedAccountLabels: {
-            Did.parse('did:plc:bob'): '@bob.test',
-          },
-          onAssign: (license) => assignedLicenseId = license.id,
-          onUnassign: (license) => unassignedLicenseId = license.id,
-        ),
-      );
-
-      expect(find.text('Assign license'), findsOneWidget);
-      expect(find.text('Remove assignment'), findsOneWidget);
-      expect(find.text('Active'), findsOneWidget);
-      expect(find.text('Not currently providing access'), findsNothing);
-      expect(find.textContaining('Product:'), findsNothing);
-      expect(find.textContaining('Access ends:'), findsNothing);
-      expect(find.text('License cannot currently be assigned'), findsNothing);
-
-      await _tapVisible(tester, find.text('Assign license'));
-      await _tapVisible(tester, find.text('Remove assignment'));
-
-      expect(assignedLicenseId, '40000000-0000-4000-8000-000000000004');
-      expect(unassignedLicenseId, '40000000-0000-4000-8000-000000000003');
-    },
-  );
-
-  testWidgets('AT-013 every secondary owned license is rendered', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _replacementState(
-          oldGivesAccess: true,
-          oldAssigned: false,
-          oldAssignable: true,
-        ),
-        onAssign: (_) {},
-      ),
-    );
-
-    expect(find.textContaining('Product:'), findsNothing);
-    expect(find.text('Active'), findsOneWidget);
-    expect(find.textContaining('Access until'), findsOneWidget);
-    expect(find.text('Assign license'), findsNWidgets(2));
-  });
-
-  testWidgets('AT-014 anomalous tier fail-closes secondary assignment', (
-    tester,
-  ) async {
-    final unassignedLicenseIds = <String>[];
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _replacementState(
-          oldGivesAccess: true,
-          oldAnomaly: 'duplicate_tier',
-          newAssigned: true,
-        ),
-        assignedAccountLabels: {
-          Did.parse('did:plc:bob'): '@bob.test',
-        },
-        onAssign: (_) {},
-        onUnassign: (license) => unassignedLicenseIds.add(license.id),
-      ),
-    );
-
-    expect(find.text('Subscription state needs support'), findsOneWidget);
-    expect(find.text('Assign license'), findsNothing);
-    expect(find.text('Change assignment'), findsNothing);
-    expect(find.text('Remove assignment'), findsNWidgets(2));
-
-    await _tapVisible(tester, find.text('Remove assignment').first);
-    await _tapVisible(tester, find.text('Remove assignment').last);
-
-    expect(unassignedLicenseIds, [
-      '40000000-0000-4000-8000-000000000003',
-      '40000000-0000-4000-8000-000000000004',
-    ]);
-  });
-
-  testWidgets('AT-013 renders dormant and anomalous secondary licenses', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _replacementState(
-          oldAssigned: false,
-          includeAnomalousSecondary: true,
-        ),
-        onAssign: (_) {},
-        onUnassign: (_) {},
-      ),
-    );
-
-    expect(find.textContaining('Product:'), findsNothing);
-    expect(find.text('Subscription state needs support'), findsNWidgets(2));
-    expect(find.text('Assign license'), findsNothing);
-    expect(find.text('Change assignment'), findsNothing);
-    expect(find.text('Remove assignment'), findsNothing);
-  });
-
-  testWidgets('UT-010 dormant end-only timing stays hidden', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _ownerState(
-          unknownBusinessStatus: false,
-          businessStore: 'future_private_store',
-          businessEndsAt: DateTime.utc(2026, 11, 2, 12),
-        ),
-      ),
-    );
-
-    expect(find.textContaining('future_private_store'), findsNothing);
-    expect(find.textContaining('Product:'), findsNothing);
-    expect(find.textContaining('Access ends:'), findsNothing);
-    expect(find.textContaining('Access until'), findsNothing);
-    expect(find.textContaining('Nov 2'), findsNothing);
-  });
-
-  testWidgets('owner tier cards show localized RevenueCat prices', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-        billingState: _emptyState(),
-        tierPrices: const {
-          SubscriptionTier.plus: r'$4.99',
-          SubscriptionTier.business: '£8.99',
-        },
-      ),
-    );
-
-    expect(find.text(r'$4.99 / month'), findsOneWidget);
-    expect(find.text('£8.99 / month'), findsOneWidget);
-    expect(find.text('Price unavailable'), findsNothing);
-
-    final businessPrice = tester.widget<Text>(find.text('£8.99 / month'));
-    final accent = businessPrice.style!.color!;
-    final surface = Theme.of(
-      tester.element(find.text('£8.99 / month')),
-    ).colorScheme.surface;
-    final cardBackground = Color.alphaBlend(
-      accent.withValues(alpha: 0.08),
-      surface,
-    );
-    expect(_contrastRatio(accent, cardBackground), greaterThanOrEqualTo(4.5));
-  });
-
-  testWidgets(
-    'AT-012 unavailable billing keeps self access and hides native actions',
-    (
+      expect(managed, 1);
+    });
+  }
+  for (final status in [
+    'will_renew',
+    'will_change_product',
+    'will_not_renew',
+    null,
+  ]) {
+    testWidgets('summary labels confirmed renewal correctly for $status', (
       tester,
     ) async {
       await _pump(
         tester,
-        SubscriptionPageModel(
-          role: SubscriptionPageRole.owner,
-          access: _access(SubscriptionTier.plus),
-          billingAvailability: BillingAvailability.unavailable,
-          billingState: _emptyState(),
-          onPurchase: (_) {},
-          onRestore: () {},
-          onManage: () {},
+        _model(
+          store: 'app_store',
+          renewalStatus: status,
+          currentPeriodEndsAt: DateTime(2026, 12, 15, 15, 14),
+          accessEndsAt: DateTime(2027, 1, 15, 15, 14),
         ),
       );
+      final renewing =
+          status == 'will_renew' || status == 'will_change_product';
+      expect(
+        find.textContaining(
+          renewing ? 'Renews on Dec 15, 2026' : 'Access until Jan 15, 2027',
+        ),
+        findsOneWidget,
+      );
+      final card = tester.widget<CraftskyCard>(
+        find.byKey(const ValueKey('subscription-access-card')),
+      );
+      expect(card.clipBehavior, Clip.none);
+    });
+  }
 
-      expect(find.text('Current access: Plus'), findsOneWidget);
-      expect(find.textContaining('fully usable'), findsOneWidget);
-      expect(_tierDetails(SubscriptionTier.plus), findsNothing);
-      expect(_tierDetails(SubscriptionTier.business), findsNothing);
-      expect(find.text('Restore purchases'), findsNothing);
-      expect(find.text('Manage subscription'), findsNothing);
+  for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+    testWidgets(
+      'subscribed ${tier.name} retains full cards and provider actions',
+      (tester) async {
+        var managed = 0;
+        final purchases = <SubscriptionTier>[];
+        await _pump(
+          tester,
+          _model(
+            store: 'app_store',
+            paidTier: tier,
+            accessEndsAt: DateTime(2026, 12, 15, 15, 14),
+            onManage: () => managed++,
+            onPurchase: purchases.add,
+          ),
+        );
+        expect(
+          find.textContaining('Renews on Dec 15, 2026'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Schedule posts,'), findsOneWidget);
+        expect(find.textContaining('Everything in Plus,'), findsOneWidget);
+        expect(find.text('£2.49 / month'), findsOneWidget);
+        expect(find.text('£8.99 / month'), findsOneWidget);
+        for (final label in [
+          'Manage',
+          if (tier == SubscriptionTier.plus) 'Upgrade' else 'Downgrade',
+        ]) {
+          await tester.ensureVisible(find.text(label));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(label));
+        }
+        expect(managed, 2);
+        expect(purchases, isEmpty);
+      },
+    );
+  }
+
+  testWidgets(
+    'pull refresh is unavailable while billing actions block refresh',
+    (tester) async {
+      var calls = 0;
+      await _pump(
+        tester,
+        _model(refreshEnabled: false, onRefresh: () => calls++),
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets('AT-011 locked owner recovery preserves self access', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        ownerRecoveryLocked: true,
-      ),
-    );
-
-    expect(find.text('Current access: Plus'), findsOneWidget);
-    final error = find.textContaining(
-      "We couldn't confirm this account's billing details",
-    );
-    expect(error, findsOneWidget);
-    expect(
-      tester.widget<Text>(error).style?.color,
-      Theme.of(tester.element(error)).colorScheme.error,
-    );
-    expect(
-      tester
-          .widget<CraftskyCard>(
-            find.ancestor(
-              of: error,
-              matching: find.byType(CraftskyCard),
-            ),
-          )
-          .clipBehavior,
-      Clip.none,
-    );
-    expect(find.text('Retry setup'), findsNothing);
-    expect(_tierDetails(SubscriptionTier.plus), findsNothing);
-  });
-
-  testWidgets('expired sign-in prompts login without claiming billing loss', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        ownerSignInRequired: true,
-      ),
-    );
-
-    final message = find.textContaining('Your sign-in has expired');
-    expect(message, findsOneWidget);
-    expect(find.text('Current access: Plus'), findsOneWidget);
-    expect(
-      tester.widget<Text>(message).style?.color,
-      Theme.of(tester.element(message)).colorScheme.error,
-    );
-    expect(find.textContaining('contact support'), findsNothing);
-    expect(find.text('Refresh status'), findsNothing);
-    expect(find.text('Retry setup'), findsNothing);
-  });
-
-  testWidgets('owner choice explains reconnecting on a new device', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.neverReserved,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-      ),
-    );
-
-    expect(find.textContaining("we'll reconnect it here"), findsOneWidget);
-    expect(
-      find.textContaining("Billing ownership can't be moved"),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('AT-011 missing owner exposes reauthentication guidance only', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.inactiveOwner,
-        access: _access(SubscriptionTier.free),
-        billingAvailability: BillingAvailability.available,
-      ),
-    );
-
-    expect(find.text('Current access: Free'), findsOneWidget);
-    expect(
-      find.text(
-        'The billing owner must sign in again before subscriptions can be '
-        'managed.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Switch to billing owner'), findsNothing);
-    expect(find.text('Restore purchases'), findsNothing);
-    expect(find.text('Manage subscription'), findsNothing);
-    expect(find.textContaining('Product:'), findsNothing);
-  });
-
-  testWidgets('AT-014 transient owner failure preserves access and refresh', (
-    tester,
-  ) async {
-    var refreshed = false;
-    await _pump(
-      tester,
-      SubscriptionPageModel(
-        role: SubscriptionPageRole.owner,
-        access: _access(SubscriptionTier.plus),
-        billingAvailability: BillingAvailability.available,
-        operationNotice: SubscriptionOperationNotice.providerFailure,
-        onRefresh: () => refreshed = true,
-      ),
-    );
-
-    expect(find.text('Current access: Plus'), findsOneWidget);
-    expect(find.textContaining('provider could not complete'), findsOneWidget);
-    await tester.tap(find.text('Refresh status'));
-    expect(refreshed, isTrue);
-  });
-
-  testWidgets('AT-010 app resume refreshes owner state', (tester) async {
-    var reads = 0;
-    final model = SubscriptionPageModel(
-      role: SubscriptionPageRole.owner,
-      access: _access(SubscriptionTier.free),
-      billingAvailability: BillingAvailability.available,
-      billingState: _emptyState(),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          subscriptionPageModelProvider.overrideWith((_) async {
-            reads++;
-            return model;
-          }),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SubscriptionPage(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
-    expect(reads, 1);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
-
-    expect(reads, 2);
-  });
-
-  testWidgets('AT-008 assignment failures retain distinct safe messages', (
-    tester,
-  ) async {
-    const cases = {
-      SubscriptionOperationNotice.assignmentConflict:
-          'That license is already assigned.',
-      SubscriptionOperationNotice.assignmentCooldown:
-          'That license cannot be reassigned yet.',
-      SubscriptionOperationNotice.licenseNotFound:
-          'That license is no longer available.',
-      SubscriptionOperationNotice.targetIneligible:
-          'That account cannot receive this license.',
-      SubscriptionOperationNotice.unauthorized:
-          'Your session can no longer make that billing change.',
-      SubscriptionOperationNotice.actionFailed:
-          'That subscription change could not be completed.',
-    };
-
-    for (final MapEntry(key: notice, value: message) in cases.entries) {
+  testWidgets(
+    'pull refresh waits for subscription refresh and allows another pull',
+    (tester) async {
+      var calls = 0;
+      final completed = Completer<void>();
       await _pump(
         tester,
-        SubscriptionPageModel(
-          role: SubscriptionPageRole.owner,
-          access: _access(SubscriptionTier.free),
-          billingAvailability: BillingAvailability.available,
-          billingState: _emptyState(),
-          operationNotice: notice,
+        _model(
+          onRefresh: () {
+            calls++;
+            return completed.future;
+          },
         ),
       );
-      expect(find.textContaining(message), findsOneWidget);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(calls, 1);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(calls, 1);
+      completed.complete();
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'pending checkout cards explain the block and offer safe cancellation',
+    (tester) async {
+      var canceled = 0;
+      await _pump(
+        tester,
+        _model(pendingCheckout: true, onCancelCheckout: () => canceled++),
+      );
+      expect(
+        find.textContaining('A purchase is still pending'),
+        findsOneWidget,
+      );
+      final card = find.byKey(const ValueKey('subscription-tier-plus'));
+      await tester.ensureVisible(card);
+      await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(AlertDialog);
+      expect(dialog, findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: dialog,
+          matching: find.text('Cancel pending purchase'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(canceled, 1);
+    },
+  );
+
+  testWidgets(
+    'entire tier cards activate once and expose one accessible action',
+    (tester) async {
+      final selected = <SubscriptionTier>[];
+      await _pump(tester, _model(onPurchase: selected.add));
+      final semantics = tester.ensureSemantics();
+
+      for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+        final card = find.byKey(ValueKey('subscription-tier-${tier.name}'));
+        await tester.ensureVisible(card);
+        await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
+        expect(selected.last, tier);
+        final label = tier == SubscriptionTier.plus ? 'Plus' : 'Business';
+        final node = tester.getSemantics(
+          find.bySemanticsLabel(RegExp('^$label:')),
+        );
+        expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      }
+      expect(selected, [SubscriptionTier.plus, SubscriptionTier.business]);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('disabled tier cards do not dispatch from their body', (
+    tester,
+  ) async {
+    final selected = <SubscriptionTier>[];
+    await _pump(
+      tester,
+      _model(onPurchase: selected.add, actionsEnabled: false),
+    );
+    for (final tier in [SubscriptionTier.plus, SubscriptionTier.business]) {
+      final card = find.byKey(ValueKey('subscription-tier-${tier.name}'));
+      await tester.ensureVisible(card);
+      expect(tester.widget<InkWell>(card).onTap, isNull);
+      await tester.tapAt(tester.getTopLeft(card) + const Offset(24, 24));
     }
+    expect(selected, isEmpty);
   });
+
+  testWidgets(
+    'complimentary Plus shows its expiry and both paid subscribe choices',
+    (tester) async {
+      var selected = SubscriptionTier.free;
+      await _pump(
+        tester,
+        _model(promo: true, onPurchase: (tier) => selected = tier),
+      );
+      expect(find.text('Current access: Plus'), findsOneWidget);
+      expect(find.text('Complimentary access'), findsOneWidget);
+      expect(find.textContaining('Plus until'), findsOneWidget);
+      expect(find.textContaining('paid billing immediately'), findsOneWidget);
+      expect(find.text('Manage'), findsNothing);
+      expect(find.text('Subscribe to Plus'), findsOneWidget);
+      await tester.ensureVisible(find.text('Subscribe to Business'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Subscribe to Business'));
+      expect(selected, SubscriptionTier.business);
+      await tester.ensureVisible(find.text('Subscribe to Plus'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Subscribe to Plus'));
+      expect(selected, SubscriptionTier.plus);
+    },
+  );
+
+  testWidgets(
+    'paid plus complimentary access keeps management without purchase timing',
+    (tester) async {
+      await _pump(tester, _model(store: 'app_store', promo: true));
+      expect(find.text('Complimentary access'), findsOneWidget);
+      expect(find.text('Manage'), findsOneWidget);
+      expect(find.textContaining('paid billing immediately'), findsNothing);
+      expect(find.text('Subscribe to Plus'), findsNothing);
+    },
+  );
+  testWidgets('complimentary lifetime access has a clear no-expiry label', (
+    tester,
+  ) async {
+    await _pump(tester, _model(promo: true, lifetimePromo: true));
+    expect(find.text('Plus with no expiry date'), findsOneWidget);
+    expect(find.textContaining('Plus until'), findsNothing);
+    expect(find.text('Subscribe to Plus'), findsOneWidget);
+  });
+  testWidgets(
+    'free account chooses a tier without a payer or assignment step',
+    (tester) async {
+      var selected = SubscriptionTier.free;
+      await _pump(tester, _model(onPurchase: (tier) => selected = tier));
+      expect(
+        find.textContaining('Business includes everything in Plus'),
+        findsNothing,
+      );
+      expect(find.textContaining('billing owner'), findsNothing);
+      expect(find.textContaining('Assign'), findsNothing);
+      expect(find.textContaining('web'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('subscription-view-details-business')),
+      );
+      expect(selected, SubscriptionTier.business);
+    },
+  );
+  testWidgets(
+    'native subscriber manages existing plan while replacements are gated',
+    (tester) async {
+      var selected = SubscriptionTier.free;
+      await _pump(
+        tester,
+        _model(store: 'app_store', onPurchase: (tier) => selected = tier),
+      );
+      expect(find.text('Manage'), findsOneWidget);
+      expect(find.text('Restore purchases'), findsOneWidget);
+      expect(find.textContaining('Assigned to'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('subscription-view-details-business')),
+      );
+      expect(selected, SubscriptionTier.free);
+    },
+  );
+  testWidgets(
+    'Stripe access offers management and upgrade without native checkout',
+    (tester) async {
+      await _pump(tester, _model(store: 'stripe'));
+      expect(find.text('Current access: Plus'), findsOneWidget);
+      expect(find.text('View details'), findsNothing);
+      expect(find.text('Manage'), findsOneWidget);
+      expect(find.text('Upgrade'), findsOneWidget);
+      expect(find.textContaining('web'), findsNothing);
+      expect(find.textContaining('Stripe'), findsNothing);
+    },
+  );
+  testWidgets(
+    'store conflict explains ownership without guessing a handle',
+    (tester) async {
+      await _pump(
+        tester,
+        _model(notice: SubscriptionOperationNotice.storeAccountConflict),
+      );
+      expect(
+        find.textContaining('linked to another CraftSky account'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('@'), findsNothing);
+      expect(find.textContaining('website'), findsNothing);
+    },
+  );
 }
 
-Future<void> _pump(WidgetTester tester, SubscriptionPageModel model) =>
-    tester.pumpWidget(
-      MaterialApp(
+SubscriptionPageModel _model({
+  String? store,
+  SubscriptionTier paidTier = SubscriptionTier.plus,
+  DateTime? accessEndsAt,
+  DateTime? currentPeriodEndsAt,
+  String? renewalStatus = 'will_renew',
+  String subscriptionStatus = 'active',
+  bool pendingPayment = false,
+  bool paidAccess = true,
+  VoidCallback? onManage,
+  bool promo = false,
+  bool lifetimePromo = false,
+  bool actionsEnabled = true,
+  bool refreshEnabled = true,
+  bool pendingCheckout = false,
+  VoidCallback? onCancelCheckout,
+  FutureOr<void> Function()? onRefresh,
+  ValueChanged<SubscriptionTier>? onPurchase,
+  SubscriptionOperationNotice? notice,
+}) => SubscriptionPageModel(
+  access: SubscriptionAccess(
+    did: Did.parse('did:plc:alice'),
+    effectiveTier: (store == null || !paidAccess) && !promo
+        ? SubscriptionTier.free
+        : paidTier,
+    accessEndsAt: accessEndsAt,
+    givesAccess: (store != null && paidAccess) || promo,
+  ),
+  billingAvailability: BillingAvailability.available,
+  tierPrices: const {
+    SubscriptionTier.plus: '£2.49',
+    SubscriptionTier.business: '£8.99',
+  },
+  nativeStore: 'app_store',
+  billingState: BillingState(
+    billingAccountId: '10000000-0000-4000-8000-000000000001',
+    revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
+    requestedGeneration: 1,
+    reconciledGeneration: 1,
+    reconciliationStale: false,
+    webCheckoutPending: pendingCheckout,
+    subscriptions: store == null
+        ? []
+        : [
+            BillingSubscription(
+              id: '30000000-0000-4000-8000-000000000001',
+              productId: 'plus',
+              store: store,
+              status: subscriptionStatus,
+              givesAccess: paidAccess,
+              pendingPayment: pendingPayment,
+              anomaly: 'none',
+              autoRenewalStatus: renewalStatus,
+              currentPeriodEndsAt: currentPeriodEndsAt,
+            ),
+          ],
+    licenses: store == null
+        ? []
+        : [
+            BillingLicense(
+              id: '40000000-0000-4000-8000-000000000001',
+              subscriptionId: '30000000-0000-4000-8000-000000000001',
+              tier: paidTier,
+              assignedDid: Did.parse('did:plc:alice'),
+              assignable: false,
+              anomaly: 'none',
+            ),
+          ],
+    promotionalGrants: promo
+        ? [
+            PromotionalGrant(
+              id: '50000000-0000-4000-8000-000000000001',
+              tier: SubscriptionTier.plus,
+              givesAccess: true,
+              expiresAt: lifetimePromo ? null : DateTime.utc(2027, 5, 13),
+            ),
+          ]
+        : const [],
+  ),
+  operationNotice: notice,
+  onPurchase: actionsEnabled ? onPurchase ?? (_) {} : null,
+  onRestore: () {},
+  onManage: onManage ?? () {},
+  onRefresh: refreshEnabled ? onRefresh ?? () {} : null,
+  onCancelCheckout: onCancelCheckout,
+);
+
+Future<void> _pump(WidgetTester tester, SubscriptionPageModel model) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        // This override belongs to the test harness root scope.
+        // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          InMemorySessionRegistryStorage(),
+        ),
+      ],
+      child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: SubscriptionPageView(model: model),
       ),
-    );
-
-Finder _tierDetails(SubscriptionTier tier) =>
-    find.byKey(ValueKey('subscription-view-details-${tier.name}'));
-
-Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
-  await tester.ensureVisible(finder);
-  await tester.pump();
-  await tester.tap(finder);
+    ),
+  );
+  await tester.pumpAndSettle();
 }
-
-double _contrastRatio(Color first, Color second) {
-  final firstLuminance = first.computeLuminance();
-  final secondLuminance = second.computeLuminance();
-  final lighter = firstLuminance > secondLuminance
-      ? firstLuminance
-      : secondLuminance;
-  final darker = firstLuminance > secondLuminance
-      ? secondLuminance
-      : firstLuminance;
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-SubscriptionAccess _access(
-  SubscriptionTier tier, {
-  SubscriptionTier? assignedTier,
-}) => SubscriptionAccess(
-  did: Did.parse('did:plc:alice'),
-  effectiveTier: tier,
-  givesAccess: tier != SubscriptionTier.free,
-  assignedTier: assignedTier,
-);
-
-String _tierName(SubscriptionTier tier) => switch (tier) {
-  SubscriptionTier.free => 'Free',
-  SubscriptionTier.plus => 'Plus',
-  SubscriptionTier.business => 'Business',
-};
-
-BillingState _emptyState() => const BillingState(
-  billingAccountId: '10000000-0000-4000-8000-000000000001',
-  revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
-  requestedGeneration: 1,
-  reconciledGeneration: 1,
-  reconciliationStale: false,
-  subscriptions: [],
-  licenses: [],
-);
-
-BillingState _orphanSubscriptionState() => const BillingState(
-  billingAccountId: '10000000-0000-4000-8000-000000000001',
-  revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
-  requestedGeneration: 1,
-  reconciledGeneration: 1,
-  reconciliationStale: false,
-  subscriptions: [
-    BillingSubscription(
-      id: '30000000-0000-4000-8000-000000000006',
-      productId: 'orphan-product',
-      store: 'app_store',
-      status: 'active',
-      givesAccess: true,
-      pendingPayment: false,
-      autoRenewalStatus: 'will_renew',
-      anomaly: 'none',
-    ),
-  ],
-  licenses: [],
-);
-
-BillingState _ownerState({
-  required bool unknownBusinessStatus,
-  String businessRenewal = 'will_not_renew',
-  String? businessAssigned,
-  String businessStore = 'app_store',
-  DateTime? businessEndsAt,
-}) => BillingState(
-  billingAccountId: '10000000-0000-4000-8000-000000000001',
-  revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
-  requestedGeneration: 1,
-  reconciledGeneration: 1,
-  reconciliationStale: false,
-  reconciliationRequestedAt: DateTime.utc(2026, 9, 10, 12),
-  reconciledAt: DateTime.utc(2026, 9, 11, 12),
-  subscriptions: [
-    BillingSubscription(
-      id: '30000000-0000-4000-8000-000000000002',
-      productId: 'business',
-      store: businessStore,
-      status: unknownBusinessStatus ? 'future_status' : 'active',
-      givesAccess: false,
-      pendingPayment: false,
-      autoRenewalStatus: businessRenewal,
-      endsAt: businessEndsAt,
-      anomaly: 'none',
-    ),
-    BillingSubscription(
-      id: '30000000-0000-4000-8000-000000000001',
-      productId: 'plus',
-      store: 'app_store',
-      status: 'active',
-      givesAccess: true,
-      pendingPayment: false,
-      autoRenewalStatus: 'will_renew',
-      currentPeriodStartsAt: DateTime.utc(2026, 9, 1, 12),
-      currentPeriodEndsAt: DateTime.utc(2026, 10, 1, 12),
-      anomaly: 'none',
-    ),
-  ],
-  licenses: [
-    BillingLicense(
-      id: '40000000-0000-4000-8000-000000000001',
-      subscriptionId: '30000000-0000-4000-8000-000000000001',
-      tier: SubscriptionTier.plus,
-      assignedDid: Did.parse('did:plc:bob'),
-      assignable: true,
-      anomaly: 'none',
-    ),
-    BillingLicense(
-      id: '40000000-0000-4000-8000-000000000002',
-      subscriptionId: '30000000-0000-4000-8000-000000000002',
-      tier: SubscriptionTier.business,
-      assignedDid: businessAssigned == null
-          ? null
-          : Did.parse(businessAssigned),
-      assignable: businessAssigned == null,
-      anomaly: 'none',
-    ),
-  ],
-);
-
-BillingState _replacementState({
-  bool oldGivesAccess = false,
-  bool oldAssigned = true,
-  bool oldAssignable = false,
-  String oldAnomaly = 'none',
-  bool newAssigned = false,
-  bool newAssignable = true,
-  bool includeAnomalousSecondary = false,
-}) => BillingState(
-  billingAccountId: '10000000-0000-4000-8000-000000000001',
-  revenueCatAppUserId: '20000000-0000-4000-8000-000000000001',
-  requestedGeneration: 2,
-  reconciledGeneration: 2,
-  reconciliationStale: false,
-  subscriptions: [
-    BillingSubscription(
-      id: '30000000-0000-4000-8000-000000000003',
-      productId: 'plus-old',
-      store: 'app_store',
-      status: oldGivesAccess ? 'active' : 'expired',
-      givesAccess: oldGivesAccess,
-      pendingPayment: false,
-      autoRenewalStatus: 'will_not_renew',
-      endsAt: DateTime.utc(2026, 8, 31, 12),
-      anomaly: oldAnomaly,
-    ),
-    const BillingSubscription(
-      id: '30000000-0000-4000-8000-000000000004',
-      productId: 'plus-new',
-      store: 'app_store',
-      status: 'active',
-      givesAccess: true,
-      pendingPayment: false,
-      autoRenewalStatus: 'will_renew',
-      anomaly: 'none',
-    ),
-    if (includeAnomalousSecondary)
-      const BillingSubscription(
-        id: '30000000-0000-4000-8000-000000000005',
-        productId: 'plus-anomaly',
-        store: 'app_store',
-        status: 'expired',
-        givesAccess: false,
-        pendingPayment: false,
-        autoRenewalStatus: 'will_not_renew',
-        anomaly: 'duplicate_tier',
-      ),
-  ],
-  licenses: [
-    BillingLicense(
-      id: '40000000-0000-4000-8000-000000000003',
-      subscriptionId: '30000000-0000-4000-8000-000000000003',
-      tier: SubscriptionTier.plus,
-      assignedDid: oldAssigned ? Did.parse('did:plc:bob') : null,
-      assignable: oldAssignable,
-      anomaly: 'none',
-    ),
-    BillingLicense(
-      id: '40000000-0000-4000-8000-000000000004',
-      subscriptionId: '30000000-0000-4000-8000-000000000004',
-      tier: SubscriptionTier.plus,
-      assignedDid: newAssigned ? Did.parse('did:plc:bob') : null,
-      assignable: newAssignable,
-      anomaly: 'none',
-    ),
-    if (includeAnomalousSecondary)
-      const BillingLicense(
-        id: '40000000-0000-4000-8000-000000000005',
-        subscriptionId: '30000000-0000-4000-8000-000000000005',
-        tier: SubscriptionTier.plus,
-        assignable: true,
-        anomaly: 'duplicate_tier',
-      ),
-  ],
-);

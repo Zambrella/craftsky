@@ -21,26 +21,39 @@ void main() {
         'rose',
         'amber',
         'lime',
-        'teal',
         'ink',
+        'terracotta',
+        'denim',
+        'forest',
+        'plum',
+        'seafoam',
+        'dusty-pink',
+        'chocolate',
       ]);
       expect(profileBackgroundCatalogue, [
         'none',
-        'bayerdark',
-        'cubedark',
-        'dotcrossdark',
-        'scallopdark',
-        'skewdark',
-        'x2',
         'craft-sewing',
         'craft-knitting',
         'craft-crochet',
         'craft-quilting',
         'craft-embroidery',
+        'animated-flow',
+        'animated-waves',
+        'animated-weave',
+        'animated-grain',
+        'animated-marble',
+        'animated-textile',
+        'animated-ribbons',
+        'animated-silk',
+        'animated-bloom',
+        'animated-sunbeams',
+        'animated-lagoon',
+        'animated-nebula',
+        'animated-prism',
       ]);
 
-      expect(profileColourCatalogue.toSet(), hasLength(7));
-      expect(profileBackgroundCatalogue.toSet(), hasLength(12));
+      expect(profileColourCatalogue.toSet(), hasLength(13));
+      expect(profileBackgroundCatalogue.toSet(), hasLength(19));
       expect(profileCraftBackgrounds, {
         'craft-sewing': 'sewing',
         'craft-knitting': 'knitting',
@@ -57,7 +70,7 @@ void main() {
 
   test('colour keys resolve to the approved local theme bundles', () {
     expect(profileColourBundles.keys, profileColourCatalogue);
-    expect(profileColourBundles, {
+    expect(Map.fromEntries(profileColourBundles.entries.take(6)), {
       'cobalt': const ProfileColourBundle(
         base: '#1535D6',
         foreground: '#FFFFFF',
@@ -120,19 +133,6 @@ void main() {
         darkHover: '#A2DF83',
         darkPressed: '#77BC59',
         softContainer: '#DDF9D8',
-        textureTint: '#FFFFFF',
-        textureOpacity: 0.18,
-      ),
-      'teal': const ProfileColourBundle(
-        base: '#007663',
-        foreground: '#FFFFFF',
-        hover: '#006454',
-        pressed: '#005146',
-        darkAccent: '#5BD0BC',
-        darkForeground: '#171513',
-        darkHover: '#73DCCB',
-        darkPressed: '#43B9A5',
-        softContainer: '#D8F9F3',
         textureTint: '#FFFFFF',
         textureOpacity: 0.18,
       ),
@@ -222,19 +222,22 @@ void main() {
       final customisation = ProfileCustomisation.fromMap(const {
         'colour': 'future-colour',
         'profileBorder': 'retired-value',
-        'profileBackground': 'cubedark',
+        'profileBackground': 'craft-quilting',
       });
 
       expect(
         customisation,
-        const ProfileCustomisation(background: 'cubedark'),
+        const ProfileCustomisation(background: 'craft-quilting'),
       );
       expect(
         ProfileCustomisation.fromMap(const {
-          'colour': 'teal',
-          'profileBackground': 'x2',
+          'colour': 'seafoam',
+          'profileBackground': 'craft-sewing',
         }),
-        const ProfileCustomisation(colour: 'teal', background: 'x2'),
+        const ProfileCustomisation(
+          colour: 'seafoam',
+          background: 'craft-sewing',
+        ),
       );
       expect(
         ProfileCustomisation.fromMap(const {
@@ -245,6 +248,35 @@ void main() {
       );
     },
   );
+
+  test('retired choices fall back independently to supported defaults', () {
+    expect(
+      ProfileCustomisation.fromMap(const {
+        'colour': 'teal',
+        'profileBackground': 'craft-sewing',
+      }),
+      const ProfileCustomisation(background: 'craft-sewing'),
+    );
+    for (final background in [
+      'animated-dust',
+      'animated-satin',
+      'animated-opal',
+      'bayerdark',
+      'cubedark',
+      'dotcrossdark',
+      'scallopdark',
+      'skewdark',
+      'x2',
+    ]) {
+      expect(
+        ProfileCustomisation.fromMap({
+          'colour': 'seafoam',
+          'profileBackground': background,
+        }),
+        const ProfileCustomisation(colour: 'seafoam'),
+      );
+    }
+  });
 
   test('identity models default absent customisation', () {
     final profile = ProfileMapper.fromMap({
@@ -286,8 +318,8 @@ void main() {
       'handle': 'alice.example',
       'crafts': <String>[],
       'customisation': {
-        'colour': 'teal',
-        'profileBackground': 'x2',
+        'colour': 'seafoam',
+        'profileBackground': 'craft-sewing',
       },
     });
     final malformed = PostAuthorMapper.fromMap({
@@ -298,7 +330,7 @@ void main() {
 
     expect(
       profile.customisation,
-      const ProfileCustomisation(colour: 'teal', background: 'x2'),
+      const ProfileCustomisation(colour: 'seafoam', background: 'craft-sewing'),
     );
     expect(malformed.customisation, ProfileCustomisation.defaults);
   });

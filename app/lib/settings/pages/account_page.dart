@@ -8,12 +8,13 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
+import 'package:craftsky_app/settings/widgets/account_provider_section.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,12 +85,31 @@ class AccountPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
               ],
+              if (auth is SignedIn)
+                AccountProviderSection(
+                  did: auth.did.value,
+                  handle: auth.handle.value,
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.accountCraftskyTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(l10n.accountDeleteBoundary),
+                  ],
+                ),
+              ),
               SettingsRowTile(
                 descriptor: const SettingsRowDescriptor(
                   id: SettingsRowId.deleteAccount,
                   kind: SettingsRowKind.destructiveAction,
                 ),
-                label: l10n.deleteAccountAction,
+                label: l10n.accountDeleteCraftskyAction,
                 leading: CraftskyIconsBold.deleteForever,
                 isLoading: actions.isRunning(_AccountAction.delete),
                 onTap: did == null || actions.isBusy
@@ -175,32 +195,32 @@ class _DidConfirmationDialogState extends State<_DidConfirmationDialog> {
             l10n.deleteAccountDidConfirmationPrompt(widget.confirmationDid),
           ),
           const SizedBox(height: 16),
-          TextField(
+          BrandTextField(
+            label: l10n.deleteAccountTypeDidLabel,
             controller: _controller,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: l10n.deleteAccountTypeDidLabel,
-            ),
             onChanged: (_) => setState(() {}),
           ),
         ],
+      ),
+      primaryAction: CraftskyDialogPrimaryAction(
+        label: l10n.deleteAccountAction,
+        style: const ButtonStyle(
+          backgroundColor: WidgetStatePropertyAll(BrandColors.red),
+        ),
+        onPressed:
+            matchesDeletionConfirmationDid(
+              confirmationDid: widget.confirmationDid,
+              input: _controller.text,
+            )
+            ? () => Navigator.pop(context, true)
+            : null,
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(l10n.actionCancel),
-        ),
-        ChunkyButton(
-          backgroundColor: BrandColors.red,
-          onPressed:
-              matchesDeletionConfirmationDid(
-                confirmationDid: widget.confirmationDid,
-                input: _controller.text,
-              )
-              ? () => Navigator.pop(context, true)
-              : null,
-          child: Text(l10n.deleteAccountAction),
         ),
       ],
     );

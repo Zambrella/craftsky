@@ -69,15 +69,91 @@ async function mockTargets(page: Page) {
 		return route.continue();
 	});
 }
-async function imageFixture(page: Page) {
-	const value = await page.evaluate(() => {
-		const canvas = document.createElement('canvas');
-		canvas.width = 8;
-		canvas.height = 10;
-		canvas.getContext('2d')!.fillRect(0, 0, 8, 10);
-		return canvas.toDataURL('image/png').split(',')[1];
-	});
+async function imageFixture(page: Page, width = 8, height = 10) {
+	const value = await page.evaluate(
+		({ width, height }) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			canvas.getContext('2d')!.fillRect(0, 0, 8, 10);
+			return canvas.toDataURL('image/png').split(',')[1];
+		},
+		{ width, height }
+	);
 	return Buffer.from(value, 'base64');
+}
+
+for (const viewportHeight of [400, 874, 1200]) {
+	for (const composer of ['/compose', '/compose/project']) {
+		for (const [width, height] of [
+			[600, 2400],
+			[2400, 600],
+			[800, 800]
+		]) {
+			test(`${composer} image preview matches card sizing for ${width}x${height} at ${viewportHeight}px`, async ({
+				page
+			}) => {
+				await page.setViewportSize({ width: 402, height: viewportHeight });
+				await page.goto(composer);
+				const buffer = await imageFixture(page, width, height);
+				await page.locator('input[type=file][multiple]').first().setInputFiles({
+					name: 'sizing.png',
+					mimeType: 'image/png',
+					buffer
+				});
+				const preview = page.locator('.photo-preview > img');
+				await expect(preview).toBeVisible();
+				await expect(preview).toHaveJSProperty('complete', true);
+				const previewSize = (await preview.boundingBox())!;
+				expect(previewSize.height).toBeLessThanOrEqual(
+					Math.min(viewportHeight * 0.65, 700)
+				);
+				await expect(preview).toHaveCSS('object-fit', 'contain');
+				await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+					const response = await route.fetch();
+					const body = await response.json();
+					body.items[0].post.images = [
+						{
+							cid: 'sizing',
+							alt: 'Sizing image',
+							fullsize: 'https://fixture.craftsky.test/sizing.png',
+							aspectRatio: { width, height }
+						}
+					];
+					await route.fulfill({ response, json: body });
+				});
+				await page.route('https://fixture.craftsky.test/sizing.png', (route) =>
+					route.fulfill({
+						body: buffer,
+						contentType: 'image/png'
+					})
+				);
+				await page.goto('/feed');
+				const gallery = page.locator('.member-post .gallery').first();
+				await expect(gallery).toBeVisible();
+				// Compare at the same available width: composer controls add their own padding.
+				await gallery.evaluate((element, width) => {
+					element.style.width = `${width}px`;
+				}, previewSize.width);
+				const cardImage = gallery.locator('img').first();
+				await expect(cardImage).toHaveJSProperty('complete', true);
+				await expect(cardImage).toHaveCSS('object-fit', 'contain');
+				await expect
+					.poll(async () => (await cardImage.boundingBox())!.height)
+					.toBeCloseTo(previewSize.height, 0);
+				if (
+					composer === '/compose' &&
+					viewportHeight === 1200 &&
+					height > width
+				) {
+					await page.setViewportSize({ width: 1280, height: 874 });
+					await expect
+						.poll(async () => (await cardImage.boundingBox())!.height)
+						.toBeCloseTo(874 * 0.7, 0);
+				}
+			});
+		}
+	}
 }
 async function savedDrafts(
 	page: Page
@@ -1224,3 +1300,41 @@ for (const width of [402, 1280]) {
 		await expect(descriptions.nth(0)).toHaveValue('First photo description');
 	});
 }
+
+test('project composers share ten hashtag slots and repaint when an earlier tag is removed', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	const caption = page.locator('textarea.post-text');
+	const pattern = page.getByRole('textbox', {
+		name: 'Pattern tag or name',
+		exact: true
+	});
+	const first = Array.from({ length: 9 }, (_, i) => `#tag${i}`).join(' ');
+	await caption.fill(first);
+	await pattern.fill('#tenth #overflow #TAG0');
+	const paint = page
+		.locator('.facet-input')
+		.filter({ has: pattern })
+		.locator('.facet-text-paint');
+	const tenth = paint.locator('span').filter({ hasText: /^#tenth$/ });
+	const overflow = paint.locator('span').filter({ hasText: /^#overflow$/ });
+	const duplicate = paint.locator('span').filter({ hasText: /^#TAG0$/ });
+	const color = (locator: typeof tenth) =>
+		locator.evaluate((node) => getComputedStyle(node).color);
+	await expect
+		.poll(async () => (await color(tenth)) !== (await color(overflow)))
+		.toBe(true);
+	expect(await color(duplicate)).toBe(await color(tenth));
+	await caption.fill(first.replace('#tag8', ''));
+	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await expect(page).toHaveURL(/\/feed$/);
+	await page.goto('/drafts');
+	await page
+		.getByRole('link', { name: 'Continue editing', exact: true })
+		.click();
+	await expect(caption).toHaveValue(first.replace('#tag8', ''));
+	await expect(pattern).toHaveValue('#tenth #overflow #TAG0');
+	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+});

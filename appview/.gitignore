@@ -1,2 +1,5 @@
-# Production env file — contains secrets, never commit.
+# Optional private profiles — production settings normally come from Render.
+config/*.env
+!config/dev.env
+# Keep legacy production secrets ignored during branch transitions.
 environments/prod.env

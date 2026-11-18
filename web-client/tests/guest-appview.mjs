@@ -246,7 +246,8 @@ createServer((req, res) => {
 			postsLast7Days: 3,
 			followerCount: 2,
 			followingCount: 1,
-			description: 'Making things in public.'
+			description:
+				'Making things in public. 🧶 @bob.test #編織 https://example.org/yarn.'
 		});
 	if (path === 'posts/did:plc:bob/reply/thread')
 		return send(200, {

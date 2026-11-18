@@ -73,7 +73,7 @@ to another migrated development database:
 
 ```sh
 ./scripts/compose-dev exec -T postgres psql -v ON_ERROR_STOP=1 \
-  -U craftsky -d craftsky_dev < tools/moderation-console/seed-previews.sql
+  -U craftsky -d craftsky_dev < scripts/moderation-console/seed-previews.sql
 ```
 
 Open `/admin/#/cases/MOD-65000000-0000-4000-8000-000000000001` for the photo post,

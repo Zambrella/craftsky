@@ -90,6 +90,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final provider = onboardingFlowProvider(lease);
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final notifier = ref.read(provider.notifier);
     final dirty = switch (state.step) {
       OnboardingStep.profile => state.identityDirty,
@@ -231,6 +232,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                       ),
                     OnboardingBottomAction(
                       state: action,
+                      keyboardVisible: keyboardVisible,
                       onPressed: () {
                         switch (action.kind) {
                           case OnboardingActionKind.next:

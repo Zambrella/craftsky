@@ -3,6 +3,7 @@
 class RouteLocations {
   new _();
 
+  static const safety = '/safety';
   static const welcome = '/welcome';
   static const signIn = '/sign-in';
   static const addAccount = '/add-account';
@@ -46,6 +47,7 @@ class RouteLocations {
   static const subscriptions = '$settings/$subscriptionsChild';
   static const moderationChild = 'moderation';
   static const aboutChild = 'about';
+  static const businessChild = 'business';
   static const productsChild = 'products';
   static const eventsChild = 'events';
   static const instagramMigrationChild = 'instagram';

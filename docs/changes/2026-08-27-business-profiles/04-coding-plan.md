@@ -6,7 +6,7 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` is approved. The revised requirements and tests resolve the prior contract gaps, and the user explicitly approved the full revised contract on 2026-08-28.
 - Approval status: Approved for TDD implementation on 2026-08-28.
-- Architecture references: `atproto-craft-social-app-reference.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`, `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`, and `docs/superpowers/specs/2026-04-26-lexicon-codegen-design.md`.
+- Architecture references: `docs/architecture.md`, `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`, `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`, and `docs/superpowers/specs/2026-04-26-lexicon-codegen-design.md`.
 - Scope boundary: Go AppView, durable lexicons, ADR, generated code, persistence, Tap projection, API, moderation, and permanent deletion only. Flutter remains excluded by NG-011.
 
 ## 2. Implementation Strategy
@@ -46,7 +46,7 @@ Before any lexicon file is created, add ADR 010 and verify the address record de
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `adr/010-business-profile-event-lexicons-and-pinned-data.md` | Create | Record durable schema shapes, shared defs, external CID verification, package-backed catalog policy, maxima/evolution, and unchanged actor profile | NFR-001 | AT-013, IT-016, MAN-001 |
+| `docs/adr/010-business-profile-event-lexicons-and-pinned-data.md` | Create | Record durable schema shapes, shared defs, external CID verification, package-backed catalog policy, maxima/evolution, and unchanged actor profile | NFR-001 | AT-013, IT-016, MAN-001 |
 | `lexicon/social/craftsky/business/defs.json` | Create | Shared image/aspect-ratio, price, action, and product definitions; open `knownValues` where required | FR-004, FR-007–FR-010, NFR-005 | UT-002–UT-013, IT-016 |
 | `lexicon/social/craftsky/business/profile.json` | Create | Optional singleton declaration referencing shared defs and pinned community address | FR-003–FR-010 | AT-003, IT-003, IT-004, IT-016 |
 | `lexicon/social/craftsky/business/event.json` | Create | TID-keyed event with exact required/optional fields and shared image ref | FR-011–FR-015 | AT-005, IT-005, IT-016 |

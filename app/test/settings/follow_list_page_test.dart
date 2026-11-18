@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
@@ -17,6 +18,69 @@ import 'package:material_ui/material_ui.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
+  for (final kind in FollowListKind.values) {
+    testWidgets(
+      'visitor ${kind.name} uses target and paginates the shared list',
+      (tester) async {
+        final calls = <String?>[];
+        Future<ProfileAccountPage> list(
+          String target, {
+          int? limit,
+          String? cursor,
+        }) async {
+          expect(target, 'did:plc:target');
+          calls.add(cursor);
+          return ProfileAccountPage(
+            totalCount: 2,
+            cursor: cursor == null ? 'next' : null,
+            items: [
+              ProfileAccountSummary(
+                did: cursor == null ? 'did:plc:alice' : 'did:plc:bob',
+                handle: cursor == null ? 'alice.test' : 'bob.test',
+                displayName: cursor == null ? 'Alice' : 'Bob',
+                isCraftskyProfile: true,
+              ),
+            ],
+          );
+        }
+
+        final repo = FakeProfileRepository(
+          onListFollowers: list,
+          onListFollowing: list,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: FollowListPage(
+                kind: kind,
+                targetDid: Did.parse('did:plc:target'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Alice'), findsOneWidget);
+        expect(
+          find.text(
+            kind == FollowListKind.followers
+                ? 'Followers (2)'
+                : 'Following (2)',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Load more'));
+        await tester.pumpAndSettle();
+        expect(calls, [null, 'next']);
+        expect(find.text('Alice'), findsOneWidget);
+        expect(find.text('Bob'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets('initial loading uses account row skeletons', (tester) async {
     final page = Completer<ProfileAccountPage>();
     final repo = FakeProfileRepository(

@@ -9,8 +9,8 @@ Wire the newly implemented AppView image upload backend into the Flutter app so 
   - `POST /v1/posts` now accepts top-level `images[]` with `{image, alt, aspectRatio?}`.
   - Post read/list responses now include `images[]` with `{cid, mime, size, alt, aspectRatio, thumb, fullsize}` when indexed image metadata is available.
 - Relevant ADRs:
-  - `adr/003-post-image-aspect-ratio.md` accepts optional `images[].aspectRatio = {width,height}` in the post lexicon.
-  - `adr/004-feed-card-image-display.md` accepts feed card image display as an inline bounded-aspect carousel with count, dots, tap-to-gallery, aspect-ratio-aware layout, and feed-safe min/max height bounds.
+  - `docs/adr/003-post-image-aspect-ratio.md` accepts optional `images[].aspectRatio = {width,height}` in the post lexicon.
+  - `docs/adr/004-feed-card-image-display.md` accepts feed card image display as an inline bounded-aspect carousel with count, dots, tap-to-gallery, aspect-ratio-aware layout, and feed-safe min/max height bounds.
 - Current Flutter behavior:
   - `app/lib/feed/models/post.dart` explicitly says `images` is omitted and the model has no image fields.
   - `PostApiClient.createPost`, `PostRepository.create`, `ApiPostRepository.create`, and `CreatePost.create` support text and optional reply only.
@@ -181,8 +181,8 @@ Reason: This is a broad user-visible Flutter change involving local media select
 - Inputs the requirements agent should use:
   - This file.
   - `docs/changes/2026-05-19-appview-image-blobs/` for backend API contract and constraints.
-  - `adr/003-post-image-aspect-ratio.md` for aspect-ratio metadata.
-  - `adr/004-feed-card-image-display.md` for feed image display policy.
+  - `docs/adr/003-post-image-aspect-ratio.md` for aspect-ratio metadata.
+  - `docs/adr/004-feed-card-image-display.md` for feed image display policy.
   - Flutter files: `app/lib/feed/models/post.dart`, `app/lib/feed/data/post_api_client.dart`, `app/lib/feed/data/post_repository.dart`, `app/lib/feed/data/api_post_repository.dart`, `app/lib/feed/providers/create_post_provider.dart`, `app/lib/feed/widgets/post_composer_sheet.dart`, `app/lib/feed/widgets/post_card.dart`, `app/lib/shared/image/image_cache_managers.dart`, `app/lib/shared/image/image_cache_providers.dart`, `app/lib/router/router.dart`, and `app/pubspec.yaml`.
 - Requirements areas likely needed:
   - Image selection and validation.

@@ -25,6 +25,9 @@ import (
 // admitted body. A concurrent second upload is rejected before reading while
 // the first retains its bytes in the remote-write stage.
 func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
+	// This probe checks admission and retained memory, not decode latency.
+	// The maximum-size WebP can take over five seconds with race instrumentation.
+	const uploadWait = 30 * time.Second
 	owner := syntax.DID("did:plc:release-media-probe")
 	encoded := mustDecodeBase64(t, worstCaseWebPBase64)
 	payload := make([]byte, int(DefaultMaxImageUploadBytes))
@@ -66,7 +69,9 @@ func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
 	}()
 	select {
 	case <-service.entered:
-	case <-time.After(5 * time.Second):
+	case response := <-firstResponse:
+		t.Fatalf("release upload returned before its write: status=%d; body=%s", response.Code, response.Body.String())
+	case <-time.After(uploadWait):
 		t.Fatal("timed out waiting for admitted release upload")
 	}
 
@@ -87,7 +92,7 @@ func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
 	var response *httptest.ResponseRecorder
 	select {
 	case response = <-firstResponse:
-	case <-time.After(5 * time.Second):
+	case <-time.After(uploadWait):
 		t.Fatal("timed out waiting for admitted release upload response")
 	}
 	if response.Code != http.StatusOK {

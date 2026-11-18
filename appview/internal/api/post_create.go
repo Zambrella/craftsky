@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"path"
 	"slices"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/postpublication"
@@ -295,12 +295,13 @@ func CreatePostHandler(
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
 					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
+						observability.ReportRequestFailure(r.Context(), err, "post.create", "rejection")
 						body, _ := json.Marshal(envelope.Error{
 							Error: "video_blob_missing", Message: "processed video blob is unavailable", RequestID: runID,
 						})
 						return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusBadGateway, ResponseBody: body}
 					}
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if errors.Is(err, instagram.ErrPostAlreadyImported) {
@@ -754,7 +755,7 @@ func syntheticPostRow(
 		CID:       string(cid),
 		Text:      req.Text,
 		Sponsored: req.Sponsored,
-		Tags:      postutil.MergeTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
+		Tags:      postutil.LimitTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
 		Langs:     append([]string(nil), req.Langs...),
 		CreatedAt: now,
 		IndexedAt: now,

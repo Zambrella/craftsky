@@ -1,6 +1,6 @@
 import type { DiagnosticOperation } from '../diagnostics/privacy';
 import { isCanceled } from '#lib/api/error-message.ts';
-import { apiErrorMessage } from '#lib/api/error-message.ts';
+import { userErrorMessage } from '#lib/user-facing-error.ts';
 import { notify } from './toasts.svelte';
 import { presentFieldErrors } from '#lib/field-validation.ts';
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
@@ -37,10 +37,7 @@ export class Work {
 			if (this.active && presentFieldErrors(error)) return;
 			void reportFailure(error, label);
 			if (this.active) {
-				this.error =
-					error instanceof APIError
-						? apiErrorMessage(error)
-						: 'Could not complete this request. Please try again.';
+				this.error = userErrorMessage(error);
 				if (
 					error instanceof MutationOutcomeUnknownError ||
 					(error instanceof APIError && error.retryable)

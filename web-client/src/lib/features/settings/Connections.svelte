@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { appendPage } from '#lib/pagination.ts';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import {
 		newOperationKey,
 		type Author,
@@ -12,13 +14,25 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import ConnectionsSkeleton from './ConnectionsSkeleton.svelte';
+	import LoadMore from '#lib/LoadMore.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
 	import { followerChart } from './native-settings.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
-	let { api, section }: { api: CraftskyAPI; section: string } = $props();
+	let {
+		api,
+		section,
+		profileId
+	}: { api: CraftskyAPI; section: string; profileId?: string } = $props();
+	function relationships(cursor?: string) {
+		return profileId && (kind === 'followers' || kind === 'following')
+			? api.profiles.profileRelationships(profileId, kind, { cursor })
+			: api.profiles.relationships(kind, { cursor });
+	}
 	const work = new Work('settings.Connections.action');
 	let loaded = $state(false);
+	let loadingMore = $state(false);
 	let items = $state<Author[]>([]),
 		cursor = $state<string | null>(null),
 		total = $state<number | null>(null);
@@ -27,7 +41,12 @@
 		latest = $state<number | null>(null),
 		change = $state<number | null>(null);
 	let available = $state(''),
-		allowsPlus = $state(false);
+		loadedPlus = $state(false);
+	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
+	$effect(() => {
+		if (section === 'growth' && loaded && allowsPlus && !loadedPlus)
+			untrack(() => void load());
+	});
 	let query = $state('');
 	let chartWidth = $state(600);
 	let chart = $derived(followerChart(points, period, chartWidth));
@@ -50,6 +69,9 @@
 				? 'blocks'
 				: (section as 'followers' | 'following')
 	);
+	const initialListLoading = $derived(
+		work.loading && !loaded && ['followers', 'following'].includes(kind)
+	);
 	let filtered = $derived(
 		items.filter((p) =>
 			`${p.handle} ${p.displayName || ''}`
@@ -61,7 +83,7 @@
 		if (section === 'growth')
 			return work.load(
 				async () => {
-					const access = await api.billing.access();
+					const access = await premium.readAccess(() => api.billing.access());
 					const data =
 						access.givesAccess && access.effectiveTier !== 'free'
 							? await api.profiles.followerGrowth(period)
@@ -86,12 +108,12 @@
 							: null;
 					change = typeof value.netChange === 'number' ? value.netChange : null;
 					available = text(value.availableFrom);
-					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
+					loadedPlus = access.givesAccess && access.effectiveTier !== 'free';
 				},
 				'settings.Connections.load'
 			);
 		return work.load(
-			() => api.profiles.relationships(kind),
+			() => relationships(),
 			(value) => {
 				loaded = true;
 				items = value.items;
@@ -101,11 +123,18 @@
 			'settings.Connections.load'
 		);
 	}
-	function more() {
+	async function more() {
 		const next = cursor;
-		if (!next) return;
-		void work.run(
-			() => api.profiles.relationships(kind, { cursor: next }),
+		if (!next || loadingMore || work.busy || work.retry) return;
+		await work.run(
+			async () => {
+				loadingMore = true;
+				try {
+					return await relationships(next);
+				} finally {
+					loadingMore = false;
+				}
+			},
 			(value) => {
 				items = appendPage(items, value.items, (item) => item.did);
 				cursor = value.cursor || null;
@@ -149,7 +178,10 @@
 				? 'Blocked accounts'
 				: `${title(section)} (${total ?? 0})`}
 </h1>
-<Feedback {work} reload={load} />
+{#if initialListLoading}<ConnectionsSkeleton />{:else}<Feedback
+		{work}
+		reload={load}
+	/>{/if}
 {#if section === 'growth'}
 	<section class="growth-page">
 		{#if !work.loading && loaded && allowsPlus}<div class="follower-total">
@@ -252,8 +284,8 @@
 		{:else if !work.loading && loaded}<p>
 				Follower growth is included with CraftSky Plus and Business.
 			</p>
-			<a class="action" href="/settings/subscriptions"
-				>View subscription access</a
+			<button class="action" onclick={() => premium.require('Growth')}
+				>Learn about subscriptions</button
 			>{/if}
 	</section>
 {:else if !work.loading && loaded}
@@ -300,12 +332,20 @@
 						: section === 'blocked'
 							? 'You have not blocked any accounts.'
 							: section === 'followers'
-								? 'No one follows you yet'
-								: 'You are not following anyone'}
+								? profileId
+									? 'No followers yet'
+									: 'No one follows you yet'
+								: profileId
+									? 'Not following anyone yet'
+									: 'You are not following anyone'}
 				detail="Nothing here yet."
 			/>{/each}
-		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
-			>{/if}
+		{#if cursor}<LoadMore
+				loading={loadingMore}
+				disabled={work.busy || !!work.retry}
+				loadingLabel="Loading more accounts"
+				onclick={() => void more()}
+			/>{/if}
 	</section>
 {/if}
 

@@ -4,6 +4,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
@@ -26,6 +27,7 @@ class ProjectMaterialsField extends StatelessWidget {
     required this.maxSelectedErrorText,
     required this.maxLengthErrorText,
     required this.enabled,
+    this.precedingHashtags,
     super.key,
   });
 
@@ -37,6 +39,7 @@ class ProjectMaterialsField extends StatelessWidget {
   final String maxSelectedErrorText;
   final String maxLengthErrorText;
   final bool enabled;
+  final List<String> Function()? precedingHashtags;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +48,7 @@ class ProjectMaterialsField extends StatelessWidget {
       enabled: enabled,
       builder: (field) {
         return _MaterialsInput(
+          precedingHashtags: precedingHashtags,
           label: label,
           values: List<ProjectMaterial>.from(field.value ?? const []),
           inputHintText: inputHintText,
@@ -71,6 +75,7 @@ class _MaterialsInput extends ConsumerStatefulWidget {
     required this.maxLengthErrorText,
     required this.enabled,
     required this.onChanged,
+    this.precedingHashtags,
   });
 
   static const maxSelected = 10;
@@ -83,6 +88,7 @@ class _MaterialsInput extends ConsumerStatefulWidget {
   final String maxSelectedErrorText;
   final String maxLengthErrorText;
   final bool enabled;
+  final List<String> Function()? precedingHashtags;
   final ValueChanged<List<ProjectMaterial>> onChanged;
 
   @override
@@ -227,6 +233,18 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
     final visibleMaterials = widget.values
         .where((material) => !identical(material, _editingMaterial))
         .toList();
+    final preview = [
+      for (final material in widget.values)
+        if (identical(material, _editingMaterial))
+          ProjectMaterial(text: _controller.text)
+        else
+          material,
+      if (_editingMaterial == null) ProjectMaterial(text: _controller.text),
+    ];
+    final accepted = acceptedHashtags([
+      ...?widget.precedingHashtags?.call(),
+      for (final material in preview) ...hashtagsInText(material.text),
+    ]);
     return PopScope(
       canPop: !_hasPendingChanges && !_isAdding,
       onPopInvokedWithResult: (didPop, _) {
@@ -236,6 +254,15 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FacetAutocompleteEditor(
+            precedingHashtags: () => [
+              ...?widget.precedingHashtags?.call(),
+              for (final material in widget.values.take(
+                _editingMaterial == null
+                    ? widget.values.length
+                    : widget.values.indexOf(_editingMaterial!),
+              ))
+                ...hashtagsInText(material.text),
+            ],
             maxLength: RecordTextLimits.material.graphemes,
             maxBytes: RecordTextLimits.material.bytes,
             key: const Key('${ProjectComposerFields.materials}-custom-input'),
@@ -249,6 +276,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
             betweenLabelAndField: visibleMaterials.isEmpty
                 ? null
                 : _MaterialEntryList(
+                    accepted: accepted,
                     values: visibleMaterials,
                     enabled: widget.enabled && !_isAdding,
                     hasPendingText: _controller.text.isNotEmpty,
@@ -301,10 +329,12 @@ class _MaterialEntryList extends StatelessWidget {
     required this.hasPendingText,
     required this.onEdit,
     required this.onRemove,
+    required this.accepted,
   });
 
   final List<ProjectMaterial> values;
   final bool enabled;
+  final Set<String> accepted;
   final bool hasPendingText;
   final ValueChanged<ProjectMaterial> onEdit;
   final ValueChanged<ProjectMaterial> onRemove;
@@ -337,7 +367,11 @@ class _MaterialEntryList extends StatelessWidget {
                   Expanded(
                     child: FacetedText(
                       text: material.text,
-                      facets: material.facets,
+                      facets: budgetedFacets(
+                        material.text,
+                        material.facets,
+                        accepted,
+                      ),
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: colors.onSurface,

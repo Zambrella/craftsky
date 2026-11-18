@@ -16,6 +16,7 @@ void main() {
           home: const Scaffold(body: MessagingExplanation()),
         ),
       );
+      expect(find.text('Safety and support'), findsNothing);
       expect(find.textContaining('shared Bluesky inbox'), findsOneWidget);
       expect(find.textContaining('other apps'), findsOneWidget);
       expect(find.textContaining('stored by Bluesky'), findsOneWidget);

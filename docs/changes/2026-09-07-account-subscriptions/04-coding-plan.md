@@ -6,7 +6,7 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` (`Approved`, high risk)
 - Direction: `00-direction.md`
-- Architecture decision: `adr/014-account-assigned-subscription-licenses.md`
+- Architecture decision: `docs/adr/014-account-assigned-subscription-licenses.md`
 - API conventions:
   `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
 - Provider contract: RevenueCat API v2 subscription resources and current

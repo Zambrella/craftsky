@@ -5,16 +5,18 @@
 	let {
 		work,
 		skeleton,
-		reload
+		reload,
+		showLoading = true
 	}: {
 		work: Work;
+		showLoading?: boolean;
 		skeleton?:
 			'posts' | 'people' | 'profile' | 'activity' | 'management' | 'comments';
 		reload?: () => void;
 	} = $props();
 </script>
 
-{#if work.busy}{#if skeleton && !work.hasLoaded}<Skeleton
+{#if showLoading && work.busy}{#if skeleton && !work.hasLoaded}<Skeleton
 			kind={skeleton}
 		/>{:else}<p role="status" class="social-loading">
 			<span aria-hidden="true"></span>Loading…
@@ -36,6 +38,13 @@
 
 <style>
 	.social-loading {
+		position: fixed;
+		inset-inline-end: 16px;
+		bottom: 88px;
+		z-index: 40;
+		margin: 0;
+		border-radius: 8px;
+		background: var(--paper-1);
 		display: flex;
 		align-items: center;
 		justify-content: center;

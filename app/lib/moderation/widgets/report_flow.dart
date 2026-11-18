@@ -10,10 +10,13 @@ import 'package:craftsky_app/moderation/providers/moderation_providers.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/guide_data.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -324,7 +327,17 @@ void _dismissReportRoute(BuildContext routeContext) {
 
 void _showReportSuccess(BuildContext context, String successMessage) {
   try {
-    context.showInfo(successMessage);
+    context.showInfo(
+      '$successMessage ${safetyGuide['reportSupport']}',
+      action: MessageAction(
+        label: AppLocalizations.of(context).safetyFindSupport,
+        onPressed: () {
+          if (context.mounted) {
+            unawaited(const SafetyRoute().push<void>(context));
+          }
+        },
+      ),
+    );
   } on Object {
     // The report has already been accepted. A missing/unavailable messenger
     // should not make the report form show a retryable submit failure.

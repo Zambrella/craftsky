@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -53,9 +54,7 @@ func CurrentMember(
 			current, err := checker.IsCurrentMember(r.Context(), did)
 			if err != nil {
 				RejectBodyWithoutDrain(w, r)
-				logger.Error("current membership check failed",
-					slog.String("run_id", GetRunID(r.Context())),
-					slog.String("error_category", "database"))
+				reportMiddlewareFailure(r.Context(), logger, err, "membership.check", "membership")
 				envelope.WriteError(w, http.StatusServiceUnavailable,
 					"membership_unavailable", "membership unavailable", GetRunID(r.Context()), nil)
 				return
@@ -70,9 +69,7 @@ func CurrentMember(
 				lifecycle, err := lifecycleReaders[0].Get(r.Context(), did)
 				if err != nil {
 					RejectBodyWithoutDrain(w, r)
-					logger.Error("owner lifecycle check failed",
-						slog.String("run_id", GetRunID(r.Context())),
-						slog.String("error_category", "database"))
+					reportMiddlewareFailure(r.Context(), logger, err, "membership.check", "lifecycle")
 					envelope.WriteError(w, http.StatusServiceUnavailable,
 						"lifecycle_unavailable", "membership unavailable", GetRunID(r.Context()), nil)
 					return
@@ -88,4 +85,14 @@ func CurrentMember(
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// Report the original failure before it becomes an HTTP response. The request
+// boundary supplies permitted identity and correlation, without session data.
+func reportMiddlewareFailure(ctx context.Context, logger *slog.Logger, cause error, operation, stage string) {
+	input := observability.DiagnosticInput{Error: cause, Context: observability.EventContext{
+		"component": "middleware", "operation": operation, "failure_stage": stage, "result": "error",
+	}}
+	observability.LogDiagnostic(ctx, logger, input)
+	observability.CaptureRequestDiagnostic(ctx, input)
 }

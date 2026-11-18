@@ -21,9 +21,8 @@ appview/
 │   ├── tap/                 # WebSocket-with-acks consumer for the Tap sidecar
 │   ├── index/               # CraftSky and shared atproto record indexers
 │   └── models/              # sqlc-generated database types
-├── environments/
-│   ├── dev.env              # checked in; no secrets
-│   └── prod.env.example     # template; real prod.env is gitignored
+├── config/
+│   └── dev.env              # checked-in local profile; production uses Render
 ├── migrations/              # SQL files consumed by golang-migrate/v4
 └── queries/                 # SQL files consumed by sqlc
 ```
@@ -193,10 +192,10 @@ Their bind addresses are independent:
 
 Changing the AppView address therefore cannot expose the database or object
 store. The wrapper rejects a non-loopback AppView address unless all remote-dev
-controls are present. To test from a remote device, copy `.env.local.example`
-to the ignored `.env.local`, then:
+controls are present. To test from a remote device, copy `appview/config/.env.local.example`
+to the ignored `appview/config/.env.local`, then:
 
-1. Set only `CRAFTSKY_APPVIEW_PUBLISH_HOST` to the interface address that the
+1. Set only `CRAFTSKY_APPVIEW_PUBLISH_HOST` in root `config/.env.local` to the interface address that the
    protected edge may reach.
 2. Set `APPVIEW_DEV_REMOTE_ACCESS=true` and generate
    `APPVIEW_DEV_AUTH_SECRET` with `openssl rand -hex 32`.
@@ -383,8 +382,8 @@ The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
 against users' PDSes, using [indigo's `atproto/auth/oauth`](https://github.com/bluesky-social/indigo/tree/main/atproto/auth/oauth).
 OAuth access/refresh tokens and DPoP keys stay server-side; clients present an
 opaque CraftSky bearer token on authenticated AppView requests. Narrow exceptions
-under [ADR 012](../adr/012-ephemeral-video-service-token-handoff.md) and
-[ADR 017](../adr/017-direct-image-upload-service-token-handoff.md) allow temporary,
+under [ADR 012](../docs/adr/012-ephemeral-video-service-token-handoff.md) and
+[ADR 017](../docs/adr/017-direct-image-upload-service-token-handoff.md) allow temporary,
 upload-only service JWTs for the configured video service and authorized PDS image
 endpoint. These credentials stay in memory and do not provide general OAuth authority.
 
@@ -567,7 +566,7 @@ Run `just moderation-help` for the underlying helper syntax. Effect lists are
 comma-separated and use `formalWarning`, `visibilityWarn`, `visibilityHide`,
 `visibilityTakedown`, `strike`, or `severeSuspension`. A severe suspension also
 requires an eligible reason and a non-empty `SEVERITY` argument. Override the
-local moderator identity or token in ignored `.env.local`, then recreate the
+local moderator identity or token in ignored `appview/config/.env.local`, then recreate the
 AppView container.
 
 ## Smoke testing the indexer
@@ -693,4 +692,6 @@ then, goat is the path of least resistance.
 
 ## Why Go
 
-See the reference doc's "Tech Stack" section. TL;DR: contributor accessibility, ecosystem maturity, single static binary deploys, alignment with the atproto Go ecosystem (`indigo`).
+Go provides familiar contributor tooling and aligns the backend with the atproto Go ecosystem (`indigo`). See the [architecture overview](../docs/architecture.md) for the current component and ownership boundaries.
+
+See [configuration management](../docs/development/configuration.md) for local secrets, worktree setup, validation and production ownership.

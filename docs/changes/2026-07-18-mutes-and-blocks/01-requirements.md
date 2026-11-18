@@ -7,7 +7,7 @@ Fully implement account mutes and blocks across the Craftsky AppView and Flutter
 ## 2. Current Codebase Findings
 
 - Relevant files:
-  - `atproto-craft-social-app-reference.md` already requires public PDS-backed blocks, server-side block filtering, optimistic client filtering during indexing lag, and private AppView-backed mutes.
+  - `docs/architecture.md` already requires public PDS-backed blocks, server-side block filtering, optimistic client filtering during indexing lag, and private AppView-backed mutes.
   - `appview/internal/index/bluesky_follow.go`, `appview/internal/api/follow.go`, and `appview/migrations/000012_atproto_follows.up.sql` provide the nearest public graph-record pattern: write through the user's PDS, consume Tap events, and index the active relationship in Postgres.
   - `appview/internal/app/deps.go` and `appview/internal/routes/routes.go` compose indexers, stores, PDS clients, and the authenticated `/v1/*` surface.
   - `docker-compose.yml` filters Tap collections and currently includes `app.bsky.graph.follow`, but not `app.bsky.graph.block`.

@@ -7,12 +7,16 @@ class ActionProgress extends StatelessWidget {
     required this.isLoading,
     required this.child,
     this.size = 18,
+    this.color,
     super.key,
   });
 
   final bool isLoading;
   final Widget child;
   final double size;
+
+  /// An explicit colour for actions with their own surface palette.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,7 @@ class ActionProgress extends StatelessWidget {
         ),
         // Disabled button foregrounds can be too faint (or white on grey).
         // Use the branded indicator's primary colour for visible progress.
-        StitchProgressIndicator(size: size),
+        StitchProgressIndicator(size: size, color: color),
       ],
     );
   }

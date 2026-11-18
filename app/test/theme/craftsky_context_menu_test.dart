@@ -157,6 +157,48 @@ void main() {
       expect(find.byType(BottomSheet), findsNothing);
     });
 
+    for (final count in [2, 10, 24]) {
+      testWidgets('compact sheet sizes to $count options up to 90%', (
+        tester,
+      ) async {
+        const screen = Size(390, 844);
+        var selected = false;
+        await pumpHarness(
+          tester,
+          size: screen,
+          child: CraftskyContextMenuButton(
+            groups: [
+              CraftskyContextMenuGroup(
+                items: [
+                  for (var i = 0; i < count; i++)
+                    CraftskyContextMenuItem(
+                      text: 'Option $i',
+                      icon: CraftskyIcons.link,
+                      onPressed: () => selected = true,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
+        await tester.pumpAndSettle();
+        final height = tester.getSize(find.byType(BottomSheet)).height;
+        expect(height, lessThanOrEqualTo(screen.height * .9));
+        if (count == 2) {
+          expect(height, lessThan(screen.height * .3));
+        } else {
+          expect(height, greaterThan(screen.height * .6));
+        }
+        final last = find.text('Option ${count - 1}');
+        await tester.ensureVisible(last);
+        await tester.tap(last);
+        await tester.pumpAndSettle();
+        expect(selected, isTrue);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('dark compact bottom sheet has no outer border', (
       tester,
     ) async {

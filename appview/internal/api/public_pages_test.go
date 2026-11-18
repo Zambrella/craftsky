@@ -244,7 +244,7 @@ func TestPublicPagesEnforceGuestVisibilityWithoutRepair(t *testing.T) {
 		hold   bool
 		status int
 	}{
-		{"unknown", nil, false, 404}, {"public", &public, false, 200}, {"opted out", &hidden, false, 403}, {"pending write", &public, true, 404},
+		{"unknown", nil, false, 200}, {"public", &public, false, 200}, {"opted out", &hidden, false, 403}, {"pending write", &public, true, 200}, {"pending explicit opt-out", &hidden, true, 403},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.hidden != nil {
@@ -279,6 +279,19 @@ func TestPublicPagesEnforceGuestVisibilityWithoutRepair(t *testing.T) {
 			}
 		})
 	}
+	if _, err := pool.Exec(ctx, `DELETE FROM bluesky_profiles WHERE did='did:plc:alice'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PublicProfile(ctx, "did:plc:alice"); err != nil {
+		t.Fatalf("missing shared profile must allow guests: %v", err)
+	}
+	if _, err := store.PublicPost(ctx, "did:plc:alice", "guest"); err != nil {
+		t.Fatalf("missing shared profile must allow guest posts: %v", err)
+	}
+	if page, err := store.PublicSearch(ctx, "posts", "PRIVATE_POST_CANARY", 20, ""); err != nil || len(page.(*api.PublicPostPage).Items) != 1 {
+		t.Fatalf("missing shared profile must allow guest discovery: %+v %v", page, err)
+	}
+
 }
 
 // UT-009 / NFR-002 / AC-012: bounds are validated before dependency calls.

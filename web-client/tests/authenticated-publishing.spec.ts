@@ -121,13 +121,20 @@ for (const reduced of [false, true]) {
 					)
 				};
 			});
+		// Asset readiness can precede the first browser paint on a busy runner.
+		await expect.poll(pixels).toMatchObject({ drawn: true, themed: true });
 		const first = await pixels();
-		expect(first.drawn).toBe(true);
-		expect(first.themed).toBe(true);
-		await page.waitForTimeout(250);
-		const second = await pixels();
-		if (reduced) expect(second.hash).toBe(first.hash);
-		else expect(second.hash).not.toBe(first.hash);
+		if (reduced) {
+			// Compare across rendering opportunities without assuming a frame rate.
+			await page.evaluate(
+				() =>
+					new Promise<void>((resolve) =>
+						requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+					)
+			);
+			expect((await pixels()).hash).toBe(first.hash);
+		} else
+			await expect.poll(async () => (await pixels()).hash).not.toBe(first.hash);
 		await page.keyboard.press('Escape');
 		await expect(overlay).toBeVisible();
 		await expect(page).toHaveURL(/compose$/);

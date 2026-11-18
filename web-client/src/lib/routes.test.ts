@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { authenticatedRoute } from './routes';
+import { authenticatedRoute, guestRoute } from './routes';
 import { returnPath } from './server/auth/session';
 
 it('uses the mobile route locations for shared destinations', () => {
@@ -78,4 +78,13 @@ it('uses SvelteKit matchers to leave OAuth, APIs and unknown paths outside the a
 		expect(
 			(await params.authenticated['~standard'].validate(path)).issues
 		).toBeDefined();
+});
+
+it('profile follower lists are member-only app destinations', () => {
+	for (const kind of ['followers', 'following']) {
+		const path = '/profiles/did%3Aplc%3Abob/' + kind;
+		expect(authenticatedRoute(path)).toBe(true);
+		expect(guestRoute(path)).toBe(false);
+		expect(returnPath(path)).toBe(path);
+	}
 });

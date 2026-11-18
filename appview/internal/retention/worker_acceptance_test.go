@@ -1,16 +1,21 @@
 package retention
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
+	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -50,7 +55,7 @@ func TestWorkerDeletesDueEvidenceIdempotentlyAndPreservesActiveHolds(t *testing.
 	`, holdID, held.ID, now.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	worker := NewWorker(pool, store, func() time.Time { return now })
+	worker := NewWorker(pool, store, func() time.Time { return now }, nil)
 	if count, err := worker.RunOnce(ctx, 10); err != nil || count != 1 {
 		t.Fatalf("first run count=%d err=%v", count, err)
 	}
@@ -92,12 +97,24 @@ func TestWorkerRetriesFailuresAndDeadLettersAtTheBound(t *testing.T) {
 		t.Fatal(err)
 	}
 	clock := now
-	worker := NewWorker(pool, objects, func() time.Time { return clock })
+	var diagnostics bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&diagnostics, nil))})
+	worker := NewWorker(pool, objects, func() time.Time { return clock }, observer)
 	for attempt := 1; attempt <= defaultMaxAttempts; attempt++ {
 		if _, err := worker.RunOnce(ctx, 1); err != nil {
 			t.Fatalf("attempt %d: %v", attempt, err)
 		}
 		clock = clock.Add(defaultRetryBackoff << (attempt - 1))
+	}
+	for _, want := range []string{`"operation":"safety.retention"`, `"failure_stage":"delete"`, `"result":"retry"`, `"result":"exhausted"`, `"attempt":5`, "*pgconn.PgError", "40001"} {
+		if !strings.Contains(diagnostics.String(), want) {
+			t.Fatalf("diagnostics missing %s: %s", want, diagnostics.String())
+		}
+	}
+	for _, forbidden := range []string{"PRIVATE_RETENTION_PROVIDER_CANARY", ref.ID.String(), incidentID.String(), "benign-dead-letter"} {
+		if strings.Contains(diagnostics.String(), forbidden) {
+			t.Fatalf("diagnostics leaked %s: %s", forbidden, diagnostics.String())
+		}
 	}
 	var state, category string
 	var attempts, history int
@@ -119,7 +136,7 @@ type failingEvidenceStore struct {
 }
 
 func (store *failingEvidenceStore) Delete(context.Context, safetyincident.ObjectRef) error {
-	return errors.Join(safetyincident.ErrEvidenceStoreBoundary, errors.New("synthetic object failure"))
+	return errors.Join(safetyincident.ErrEvidenceStoreBoundary, &pgconn.PgError{Code: "40001", Message: "PRIVATE_RETENTION_PROVIDER_CANARY"})
 }
 
 const retentionPreStateDDL = `

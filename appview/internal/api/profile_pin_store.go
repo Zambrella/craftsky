@@ -108,12 +108,8 @@ func (s *ProfilePinStore) requirePaidMutation(ctx context.Context, tx pgx.Tx, ow
 	}
 	var paid bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS (
-		SELECT 1 FROM billing_licenses license
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE license.assigned_did=$1 AND license.tier IN ('plus','business')
-		  AND subscription.gives_access AND subscription.environment=$2
-		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		SELECT 1 FROM appview_effective_subscription_access($2)
+		WHERE owner_did=$1 AND gives_access
 	)`, owner, s.accessEnvironment).Scan(&paid); err != nil {
 		return err
 	}
@@ -124,7 +120,7 @@ func (s *ProfilePinStore) requirePaidMutation(ctx context.Context, tx pgx.Tx, ow
 }
 
 func (s *ProfilePinStore) Read(ctx context.Context, owner syntax.DID) (ProfilePinState, error) {
-	return readProfilePinState(ctx, s.pool, owner)
+	return s.readState(ctx, s.pool, owner)
 }
 
 func (s *ProfilePinStore) ReadProfileListPin(
@@ -154,9 +150,14 @@ func (s *ProfilePinStore) ReadProfileListPin(
 		  )
 		` + postVisibleModerationPredicate + `
 		` + languageVisibilityPredicate("p", "$3", "$4")
+	args := []any{owner, slot, viewer, contentLanguages}
+	if s.requirePlus {
+		query += ` AND EXISTS (SELECT 1 FROM appview_effective_subscription_access($5) WHERE owner_did=$1 AND gives_access)`
+		args = append(args, s.accessEnvironment)
+	}
 	var token string
 	row, err := scanPostRowWithExtra(
-		s.pool.QueryRow(ctx, query, owner, slot, viewer, contentLanguages),
+		s.pool.QueryRow(ctx, query, args...),
 		&token,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -267,7 +268,7 @@ func (s *ProfilePinStore) Pin(
 		return ProfilePinMutationResult{}, fmt.Errorf("profile pin current state: %w", err)
 	}
 
-	state, err := readProfilePinState(ctx, tx, owner)
+	state, err := s.readState(ctx, tx, owner)
 	if err != nil {
 		return ProfilePinMutationResult{}, err
 	}
@@ -314,7 +315,7 @@ func (s *ProfilePinStore) Unpin(
 		return ProfilePinMutationResult{}, fmt.Errorf("profile unpin delete: %w", err)
 	}
 
-	state, err := readProfilePinState(ctx, tx, owner)
+	state, err := s.readState(ctx, tx, owner)
 	if err != nil {
 		return ProfilePinMutationResult{}, err
 	}
@@ -371,13 +372,18 @@ type profilePinQuerier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
-func readProfilePinState(ctx context.Context, q profilePinQuerier, owner syntax.DID) (ProfilePinState, error) {
-	rows, err := q.Query(ctx, `
+func (s *ProfilePinStore) readState(ctx context.Context, q profilePinQuerier, owner syntax.DID) (ProfilePinState, error) {
+	query := `
 		SELECT slot, post_uri
 		FROM profile_pins
 		WHERE owner_did = $1
-		ORDER BY slot
-	`, owner)
+	`
+	args := []any{owner}
+	if s.requirePlus {
+		query += ` AND EXISTS (SELECT 1 FROM appview_effective_subscription_access($2) WHERE owner_did=$1 AND gives_access)`
+		args = append(args, s.accessEnvironment)
+	}
+	rows, err := q.Query(ctx, query+` ORDER BY slot`, args...)
 	if err != nil {
 		return ProfilePinState{}, fmt.Errorf("profile pin read: %w", err)
 	}

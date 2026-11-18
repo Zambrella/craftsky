@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -14,52 +15,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 const _defaultFallbackHeight = 320.0;
-const _defaultMinHeight = 160.0;
-const _defaultMaxHeight = 420.0;
-const _largestResponsiveMaxHeight = 720.0;
-const _viewportHeightFraction = 0.7;
+const _defaultMaxHeight = 700.0;
+const _viewportHeightFraction = 0.65;
 
 typedef PostImageTapCallback = void Function(int index, List<Object> heroTags);
 
 double computeBoundedImageHeight({
   required double availableWidth,
   required PostImageAspectRatio? aspectRatio,
-  double minHeight = _defaultMinHeight,
   double maxHeight = _defaultMaxHeight,
   double fallbackHeight = _defaultFallbackHeight,
 }) {
   if (aspectRatio == null ||
       aspectRatio.width <= 0 ||
       aspectRatio.height <= 0) {
-    return fallbackHeight.clamp(minHeight, maxHeight);
+    return fallbackHeight.clamp(0, maxHeight);
   }
 
   final ratio = aspectRatio.width / aspectRatio.height;
   final rawHeight = availableWidth / ratio;
-  return rawHeight.clamp(minHeight, maxHeight);
+  return rawHeight.clamp(0, maxHeight);
 }
 
 double computeResponsiveCarouselMaxHeight(double viewportHeight) =>
     (viewportHeight * _viewportHeightFraction).clamp(
+      0,
       _defaultMaxHeight,
-      _largestResponsiveMaxHeight,
     );
-
-BoxFit computePostImageFit({
-  required double availableWidth,
-  required PostImageAspectRatio? aspectRatio,
-  required double maxHeight,
-}) {
-  if (aspectRatio == null ||
-      aspectRatio.width <= 0 ||
-      aspectRatio.height <= 0 ||
-      aspectRatio.width >= aspectRatio.height) {
-    return BoxFit.cover;
-  }
-  final naturalHeight =
-      availableWidth / (aspectRatio.width / aspectRatio.height);
-  return naturalHeight > maxHeight ? BoxFit.contain : BoxFit.cover;
-}
 
 class PostImageCarousel extends ConsumerStatefulWidget {
   const new({
@@ -68,11 +50,15 @@ class PostImageCarousel extends ConsumerStatefulWidget {
     this.onImageTap,
     this.onPageChanged,
     this.onImageDoubleTap,
+    this.previewBytesFor,
+    this.showOutline = true,
     super.key,
   });
 
   final List<PostImage> images;
+  final Uint8List? Function(int index)? previewBytesFor;
   final int initialIndex;
+  final bool showOutline;
   final PostImageTapCallback? onImageTap;
   final ValueChanged<int>? onPageChanged;
   final VoidCallback? onImageDoubleTap;
@@ -138,11 +124,17 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
           final maxHeight = computeResponsiveCarouselMaxHeight(
             MediaQuery.sizeOf(context).height,
           );
-          final height = computeBoundedImageHeight(
-            availableWidth: constraints.maxWidth,
-            aspectRatio: current.aspectRatio,
-            maxHeight: maxHeight,
-          );
+          // Reserve one frame for the album. Changing the selected image must
+          // not change a feed row's height underneath the reader.
+          final height = widget.images
+              .map(
+                (image) => computeBoundedImageHeight(
+                  availableWidth: constraints.maxWidth,
+                  aspectRatio: image.aspectRatio,
+                  maxHeight: maxHeight,
+                ),
+              )
+              .reduce((a, b) => a > b ? a : b);
 
           return Listener(
             behavior: HitTestBehavior.opaque,
@@ -159,9 +151,9 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     key: const Key('post-image-carousel-outline'),
                     position: DecorationPosition.foreground,
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
+                      border: widget.showOutline
+                          ? Border.all(color: theme.colorScheme.outlineVariant)
+                          : null,
                       borderRadius: borderRadius,
                     ),
                     child: SizedBox(
@@ -179,6 +171,25 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                           itemBuilder: (context, index) {
                             final image = widget.images[index];
                             final url = image.thumb ?? image.fullsize;
+                            final bytes = widget.previewBytesFor?.call(index);
+                            if (bytes != null) {
+                              return Hero(
+                                tag: _heroTags[index],
+                                child: InlinePinchZoom(
+                                  overlayContext: rootOverlayContext,
+                                  child: Semantics(
+                                    label: image.alt,
+                                    image: true,
+                                    child: Image.memory(
+                                      bytes,
+                                      fit: BoxFit.contain,
+                                      width: double.infinity,
+                                      height: height,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
                             if (url == null) {
                               final child = InlinePinchZoom(
                                 overlayContext: rootOverlayContext,
@@ -217,11 +228,7 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                                     cacheManager: ref.watch(
                                       feedImageCacheManagerProvider,
                                     ),
-                                    fit: computePostImageFit(
-                                      availableWidth: constraints.maxWidth,
-                                      aspectRatio: image.aspectRatio,
-                                      maxHeight: maxHeight,
-                                    ),
+                                    fit: BoxFit.contain,
                                     width: double.infinity,
                                     height: height,
                                   ),

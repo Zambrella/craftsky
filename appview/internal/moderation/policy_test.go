@@ -68,6 +68,11 @@ func TestEveryNamedReasonExceptOtherMayExplicitlyIssueStrike(t *testing.T) {
 				EffectStrike,
 			},
 		}
+		if reason == ReasonIllegalContent {
+			decision.LegalClassification = LegalOtherIllegalContent
+			decision.IllegalContentRationale = "reviewed offence and basis"
+			decision.UserSafeDetail = "reviewed illegal content"
+		}
 		err := ValidateDecision(decision)
 		if reason == ReasonOther {
 			if !errors.Is(err, ErrInvalidDecision) {
@@ -85,6 +90,7 @@ func TestOnlyApprovedSevereReasonsMaySuspend(t *testing.T) {
 	t.Parallel()
 
 	eligible := map[Reason]bool{
+		ReasonIllegalContent: true, ReasonFraudOrScam: true, ReasonSelfHarm: true,
 		ReasonHarassment:        true,
 		ReasonHate:              true,
 		ReasonAdultOrGraphic:    true,
@@ -101,6 +107,11 @@ func TestOnlyApprovedSevereReasonsMaySuspend(t *testing.T) {
 			Evidence:          "evidence",
 			SeverityRationale: "immediate safety risk",
 			Consequences:      []EffectType{EffectSevereSuspension},
+		}
+		if reason == ReasonIllegalContent {
+			decision.LegalClassification = LegalOtherIllegalContent
+			decision.IllegalContentRationale = "reviewed offence and basis"
+			decision.UserSafeDetail = "reviewed illegal content"
 		}
 		err := ValidateDecision(decision)
 		if eligible[reason] && err != nil {

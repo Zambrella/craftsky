@@ -1,3 +1,5 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -38,6 +40,16 @@ sealed class RecentSearchPayload {
       displayName: map['displayName'] as String?,
       avatar: map['avatar'] as String?,
       crafts: (map['crafts'] as List?)?.cast<String>() ?? const [],
+      accountType: switch (map['accountType']) {
+        'business' => AccountType.business,
+        'regular' => AccountType.regular,
+        _ => null,
+      },
+      customisation: ProfileCustomisation.fromMap(
+        map['customisation'] is Map
+            ? Map<String, dynamic>.from(map['customisation'] as Map)
+            : null,
+      ),
     ),
     RecentSearchType.post => PostRecentSearchPayload(
       q: map['q'] as String,
@@ -75,7 +87,9 @@ class HashtagRecentSearchPayload extends RecentSearchPayload
   Map<String, dynamic> toMap() => {'tag': tag};
 }
 
-@MappableClass()
+@MappableClass(
+  includeCustomMappers: [DidMapper(), ProfileCustomisationMapper()],
+)
 class ProfileRecentSearchPayload extends RecentSearchPayload
     with ProfileRecentSearchPayloadMappable {
   const new({
@@ -84,6 +98,8 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
     this.displayName,
     this.avatar,
     this.crafts = const [],
+    this.accountType,
+    this.customisation = ProfileCustomisation.defaults,
   });
 
   final Did did;
@@ -91,6 +107,11 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
   final String? displayName;
   final String? avatar;
   final List<String> crafts;
+
+  // Read-only decorations hydrated by AppView from the DID on each response.
+  // Keep them out of the private history write payload and deduplication key.
+  final AccountType? accountType;
+  final ProfileCustomisation customisation;
 
   @override
   Map<String, dynamic> toMap() => {

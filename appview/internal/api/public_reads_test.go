@@ -53,20 +53,34 @@ func TestPublicProjectsFiltersBeforePagination(t *testing.T) {
 	if err != nil || len(first.Items) != 2 || first.Cursor == "" {
 		t.Fatalf("first=%+v err=%v", first, err)
 	}
-	req.Cursor = first.Cursor
-	second, err := store.PublicProjects(ctx, req)
-	if err != nil || len(second.Items) != 2 || second.Cursor != "" {
-		t.Fatalf("second=%+v err=%v", second, err)
-	}
 	seen := map[syntax.RecordKey]bool{}
-	for _, item := range append(first.Items, second.Items...) {
-		if item.Author.DID != "did:plc:public" || seen[item.Rkey] {
-			t.Fatalf("ineligible/duplicate item=%+v", item)
+	page := first
+	counts := map[syntax.DID]int{}
+	for pages := 0; ; pages++ {
+		if pages >= 4 {
+			t.Fatal("guest pagination did not terminate")
 		}
-		seen[item.Rkey] = true
+		for _, item := range page.Items {
+			if item.Author.DID == "did:plc:hidden" || seen[item.Rkey] {
+				t.Fatalf("ineligible/duplicate item=%+v", item)
+			}
+			seen[item.Rkey] = true
+			counts[item.Author.DID]++
+		}
+		if page.Cursor == "" {
+			break
+		}
+		req.Cursor = page.Cursor
+		page, err = store.PublicProjects(ctx, req)
+		if err != nil || len(page.Items) != 2 {
+			t.Fatalf("page=%+v err=%v", page, err)
+		}
+	}
+	if len(seen) != 8 || counts["did:plc:public"] != 4 || counts["did:plc:unknown"] != 4 {
+		t.Fatalf("missing guest-visible projects: counts=%v", counts)
 	}
 	raw, _ := json.Marshal(first)
-	for _, canary := range []string{"hidden", "unknown", "viewerIsFollowing", "recordRevision", "viewerLiked", "muted"} {
+	for _, canary := range []string{"hidden", "viewerIsFollowing", "recordRevision", "viewerLiked", "muted"} {
 		if containsJSON(raw, canary) {
 			t.Fatalf("public serialization leaked %s: %s", canary, raw)
 		}
@@ -119,7 +133,7 @@ func TestPublicSearchUsesOnlyEligibleCandidates(t *testing.T) {
 				t.Fatal(err)
 			}
 			raw, _ := json.Marshal(result)
-			for _, canary := range []string{"hidden", "unknown", "viewerIsFollowing", "muted", "blocking", "recordRevision"} {
+			for _, canary := range []string{"hidden", "viewerIsFollowing", "muted", "blocking", "recordRevision"} {
 				if containsJSON(raw, canary) {
 					t.Fatalf("search leaked %q: %s", canary, raw)
 				}
@@ -131,15 +145,19 @@ func TestPublicSearchUsesOnlyEligibleCandidates(t *testing.T) {
 					t.Fatalf("eligible page=%s", raw)
 				}
 				next, err := store.PublicSearch(ctx, category, query, 2, page.Cursor)
-				if err != nil || len(next.(*api.PublicPostPage).Items) != 1 {
+				if err != nil || len(next.(*api.PublicPostPage).Items) != 2 || next.(*api.PublicPostPage).Cursor == "" {
 					t.Fatalf("next=%+v %v", next, err)
 				}
+				last, err := store.PublicSearch(ctx, category, query, 2, next.(*api.PublicPostPage).Cursor)
+				if err != nil || len(last.(*api.PublicPostPage).Items) != 2 || last.(*api.PublicPostPage).Cursor != "" {
+					t.Fatalf("last=%+v %v", last, err)
+				}
 			case "profiles":
-				if len(result.(*api.PublicProfilePage).Items) != 1 {
+				if len(result.(*api.PublicProfilePage).Items) != 2 {
 					t.Fatalf("profiles=%s", raw)
 				}
 			case "hashtags":
-				if !containsJSON(raw, `"postCount":3`) {
+				if !containsJSON(raw, `"postCount":6`) {
 					t.Fatalf("unfiltered hashtag aggregation: %s", raw)
 				}
 			}
@@ -150,7 +168,7 @@ func TestPublicSearchUsesOnlyEligibleCandidates(t *testing.T) {
 		t.Fatalf("tag page=%+v %v", tagPage, err)
 	}
 	for _, item := range tagPage.Items {
-		if item.Author.DID != "did:plc:public" {
+		if item.Author.DID == "did:plc:hidden" {
 			t.Fatalf("ineligible tagged item: %+v", item)
 		}
 	}
@@ -200,7 +218,7 @@ func TestPublicThreadPaginatesAllVisibleRepliesInCommentBranch(t *testing.T) {
 	comment := seedReplyPost(t, pool, "did:plc:public", "comment", "Top comment", root, root, now.Add(time.Minute))
 	first := seedReplyPost(t, pool, "did:plc:public", "first", "First reply", root, comment, now.Add(2*time.Minute))
 	seedReplyPost(t, pool, "did:plc:hidden", "hidden", "Hidden reply", root, first, now.Add(3*time.Minute))
-	seedReplyPost(t, pool, "did:plc:unknown", "unknown", "Unknown visibility reply", root, first, now.Add(4*time.Minute))
+	unknown := seedReplyPost(t, pool, "did:plc:unknown", "unknown", "Unknown visibility reply", root, first, now.Add(4*time.Minute))
 	second := seedReplyPost(t, pool, "did:plc:public", "second", "Reply to the first reply", root, first, now.Add(5*time.Minute))
 	seedReplyPost(t, pool, "did:plc:public", "sibling", "Separate top comment", root, root, now.Add(6*time.Minute))
 	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts`); err != nil {
@@ -218,11 +236,15 @@ func TestPublicThreadPaginatesAllVisibleRepliesInCommentBranch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Replies.Items) != 1 || page.Replies.Items[0].URI != syntax.ATURI(second) {
-		t.Fatalf("second branch page=%+v, want nested reply %s", page.Replies, second)
+	if len(page.Replies.Items) != 1 || page.Replies.Items[0].URI != syntax.ATURI(unknown) || page.Replies.Cursor == "" {
+		t.Fatalf("second branch page=%+v, want unknown-preference reply %s", page.Replies, unknown)
+	}
+	page, err = store.PublicThread(ctx, "did:plc:public", "comment", 1, page.Replies.Cursor)
+	if err != nil || len(page.Replies.Items) != 1 || page.Replies.Items[0].URI != syntax.ATURI(second) {
+		t.Fatalf("third branch page=%+v err=%v", page, err)
 	}
 	page, err = store.PublicThread(ctx, "did:plc:public", "comment", 20, "")
-	if err != nil || len(page.Replies.Items) != 2 || page.Replies.Cursor != "" {
+	if err != nil || len(page.Replies.Items) != 3 || page.Replies.Cursor != "" {
 		t.Fatalf("complete branch=%+v err=%v", page, err)
 	}
 	page, err = store.PublicThread(ctx, "did:plc:public", "root", 20, "")
@@ -256,7 +278,7 @@ func TestPublicThreadAndEmbedsRespectIndependentVisibility(t *testing.T) {
 		t.Fatalf("excluded quote=%+v", post.QuoteView)
 	}
 	thread, err := store.PublicThread(ctx, "did:plc:public", "root", 20, "")
-	if err != nil || len(thread.Replies.Items) != 1 {
+	if err != nil || len(thread.Replies.Items) != 2 {
 		t.Fatalf("thread=%+v %v", thread, err)
 	}
 	direct, err := store.PublicThread(ctx, "did:plc:public", "independent", 20, "")
@@ -269,7 +291,7 @@ func TestPublicThreadAndEmbedsRespectIndependentVisibility(t *testing.T) {
 	}
 	for _, result := range []any{post, thread, direct, comments} {
 		raw, _ := json.Marshal(result)
-		for _, canary := range []string{"hidden", "unknown", "ROOT_CANARY", "viewerHas", "recordRevision"} {
+		for _, canary := range []string{"hidden", "ROOT_CANARY", "viewerHas", "recordRevision"} {
 			if containsJSON(raw, canary) {
 				t.Fatalf("nested disclosure %s: %s", canary, raw)
 			}
@@ -336,17 +358,17 @@ func TestPublicInteractionIdentitiesAndRepostsExcludeHiddenOwners(t *testing.T) 
 			t.Fatal(err)
 		}
 		raw, _ := json.Marshal(result)
-		for _, canary := range []string{"hidden", "unknown", "viewer", "muted", "blocking"} {
+		for _, canary := range []string{"hidden", "viewer", "muted", "blocking"} {
 			if containsJSON(raw, canary) {
 				t.Fatalf("identity leak %s: %s", canary, raw)
 			}
 		}
 		if kind == "quotes" {
-			if len(result.(*api.PublicPostPage).Items) != 1 {
+			if len(result.(*api.PublicPostPage).Items) != 2 {
 				t.Fatalf("quotes=%s", raw)
 			}
 		} else {
-			if len(result.(*api.PublicProfilePage).Items) != 1 {
+			if len(result.(*api.PublicProfilePage).Items) != 2 {
 				t.Fatalf("identities=%s", raw)
 			}
 		}
@@ -388,7 +410,23 @@ func TestPublicBusinessEventsUseGuestPolicy(t *testing.T) {
 	if containsJSON(raw, "ExclusionReasons") || containsJSON(raw, "SuppressionReasons") {
 		t.Fatalf("management metadata leaked: %s", raw)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE bluesky_profiles SET guest_visibility_hidden=true WHERE did=$1`, owner); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE bluesky_profiles SET guest_visibility_hidden=NULL,guest_visibility_hold_key='018f4d5c-7a61-7d40-a1a2-777777777777' WHERE did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if event, err := store.PublicEvent(ctx, owner, "e0"); err != nil || event.Name != "Public event" {
+		t.Fatalf("unknown-preference event=%+v %v", event, err)
+	}
+	if events, err := store.PublicEvents(ctx, owner, 20, ""); err != nil || len(events.Items) != 3 {
+		t.Fatalf("unknown-preference events=%+v %v", events, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM bluesky_profiles WHERE did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if events, err := store.PublicEvents(ctx, owner, 20, ""); err != nil || len(events.Items) != 3 {
+		t.Fatalf("missing-profile events=%+v %v", events, err)
+	}
+	seedBskyProfile(t, pool, owner.String(), "Public", "")
+	if _, err := pool.Exec(ctx, `UPDATE bluesky_profiles SET guest_visibility_hidden=true,guest_visibility_revision='3m234567abc22',guest_visibility_record_cid=record_cid,guest_visibility_evidence='source' WHERE did=$1`, owner); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.PublicEvent(ctx, owner, "e0"); !errors.Is(err, api.ErrPublicAuthenticationRequired) {
@@ -414,7 +452,7 @@ func TestPublicReadCompositionNeverRepairsUnknownProfiles(t *testing.T) {
 	for restart := 0; restart < 3; restart++ {
 		store := api.NewPublicPageStore(pool, api.NewPostStore(pool), fakeResolver{}, business.NewStore(pool))
 		for request := 0; request < 3; request++ {
-			if _, err := store.PublicProfile(ctx, "did:plc:unknown"); !errors.Is(err, api.ErrProfileNotFound) {
+			if _, err := store.PublicProfile(ctx, "did:plc:unknown"); err != nil {
 				t.Fatalf("unknown profile: %v", err)
 			}
 			if _, err := store.PublicSearch(ctx, "posts", "Legacy", 20, ""); err != nil {

@@ -5,7 +5,7 @@
 - Tests: `02-acceptance-tests.md`
 - Document review: `03-document-review.md` (Approved)
 - API contract: `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
-- Architecture reference: `atproto-craft-social-app-reference.md`
+- Architecture reference: `docs/architecture.md`
 - Pinned OAuth dependency: Indigo `v0.0.0-20260417172304-7da09df6081d`
 
 ## 2. Implementation Strategy

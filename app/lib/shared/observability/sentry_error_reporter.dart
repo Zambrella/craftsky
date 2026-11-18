@@ -1,6 +1,16 @@
 import 'dart:async';
 import 'dart:convert' show utf8;
 
+import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/chat/data/chat_draft_store.dart';
+import 'package:craftsky_app/drafts/data/draft_file_store.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/data/video_draft_stream_store.dart';
+import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
+import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/service_status/data/service_status_repository.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
@@ -13,6 +23,7 @@ import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
+import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderException;
@@ -165,6 +176,19 @@ void configureDiagnosticOptions(
   // Install after the client chooses its HTTP/native transport, before other
   // integrations run. Scope attachments are assembled after beforeSend.
   <ExceptionCauseExtractor<dynamic>>[
+    // The SDK looks up extractors by exact runtime type, not by interface.
+    _DiagnosticCauseExtractor<ServerUnavailable>(),
+    _DiagnosticCauseExtractor<StorageFailure>(),
+    _DiagnosticCauseExtractor<SessionRegistryStorageException>(),
+    _DiagnosticCauseExtractor<ChatDraftStorageException>(),
+    _DiagnosticCauseExtractor<DraftFileStoreException>(),
+    _DiagnosticCauseExtractor<DraftRepositoryException>(),
+    _DiagnosticCauseExtractor<DraftManifestException>(),
+    _DiagnosticCauseExtractor<VideoDraftStreamException>(),
+    _DiagnosticCauseExtractor<ComposerSubmissionFailure>(),
+    _DiagnosticCauseExtractor<VideoTransportException>(),
+    _DiagnosticCauseExtractor<StatusNetworkFailure>(),
+    _DiagnosticCauseExtractor<RevenueCatServiceException>(),
     _DiagnosticCauseExtractor<DiagnosticFormatException>(),
     _DiagnosticCauseExtractor<PdsMutationAmbiguousException>(),
     _DiagnosticCauseExtractor<PdsMutationUnresolvedException>(),

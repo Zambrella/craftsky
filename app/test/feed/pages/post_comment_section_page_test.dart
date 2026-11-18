@@ -743,6 +743,76 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets(
+    'liking and unliking a loaded reply preserves its expanded branch',
+    (
+      tester,
+    ) async {
+      final calls = <String>[];
+      var sectionReads = 0;
+      final root = _post('did:plc:alice', 'root', 'root post');
+      final comment = _post('did:plc:bob', 'comment', 'comment', replyCount: 2);
+      final reply = _post('did:plc:carol', 'reply', 'reply');
+      final postsByRkey = {
+        root.rkey: root,
+        comment.rkey: comment,
+        reply.rkey: reply,
+      };
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async {
+          sectionReads++;
+          return PostCommentSection(
+            post: root,
+            sort: CommentSort.oldest,
+            comments: CommentPage(
+              items: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.normal,
+                  replies: const ReplyPage(
+                    loaded: false,
+                    items: [],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        onLike: (did, rkey) async {
+          calls.add('$did/$rkey');
+          return _likeResponse(postsByRkey[rkey]!);
+        },
+        onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+            ReplyPage(
+              loaded: true,
+              items: [ReplyItem(post: reply, flattened: false)],
+              cursor: 'next-replies',
+            ),
+        onUnlike: (did, rkey) async {},
+      );
+
+      await _pumpCommentSection(tester, repo: repo);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Show 2 replies'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(CraftskyIconsBold.like).last);
+      await tester.pumpAndSettle();
+      expect(find.text('reply'), findsOneWidget);
+      expect(find.text('Hide replies'), findsOneWidget);
+      expect(find.text('Load more replies'), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+      await tester.tap(find.byIcon(CraftskyIcons.liked));
+      await tester.pumpAndSettle();
+      expect(find.text('reply'), findsOneWidget);
+      expect(find.text('Hide replies'), findsOneWidget);
+      expect(find.text('Load more replies'), findsOneWidget);
+      expect(sectionReads, 1);
+      expect(calls, ['did:plc:carol/reply']);
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets('wires repost action for the root post', (tester) async {
     final calls = <String>[];
     final root = _post('did:plc:alice', 'root', 'root post');

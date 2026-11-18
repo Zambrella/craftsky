@@ -159,10 +159,10 @@ void main() {
         (
           data: <String, Object?>{
             'error': 'identity_unavailable',
-            'requestId': 'body_id',
+            'requestId': '20000000-0000-4000-8000-000000000002',
           },
           kind: 'appViewError',
-          id: 'body_id',
+          id: '20000000-0000-4000-8000-000000000002',
         ),
         (
           data: <String, Object?>{'message': 'private-body-canary'},
@@ -223,7 +223,7 @@ void main() {
             data: {
               'error': 'validation_failed',
               'message': 'validation failed',
-              'requestId': 'req_validation',
+              'requestId': '30000000-0000-4000-8000-000000000003',
               'fields': {
                 'text': 'must not be empty',
                 r'embed.video.blob.ref.$link': 'must be a canonical CID',
@@ -242,7 +242,10 @@ void main() {
         );
         expect(
           mapped.safeDiagnostics,
-          containsPair('appViewRequestId', 'req_validation'),
+          containsPair(
+            'appViewRequestId',
+            '30000000-0000-4000-8000-000000000003',
+          ),
         );
         for (final key in [
           'appViewMessage',
@@ -268,7 +271,7 @@ void main() {
               data: {
                 'error': 'internal_error',
                 'message': 'opaque private body',
-                'requestId': 'req_matrix',
+                'requestId': '40000000-0000-4000-8000-000000000004',
                 'fields': {'text': 'opaque private'},
               },
             ),
@@ -277,7 +280,10 @@ void main() {
           final mapped = AppErrorMapper.map(handler.error!);
           expect(
             mapped.safeDiagnostics,
-            containsPair('appViewRequestId', 'req_matrix'),
+            containsPair(
+              'appViewRequestId',
+              '40000000-0000-4000-8000-000000000004',
+            ),
           );
           expect(
             mapped.safeDiagnostics.toString(),
@@ -302,7 +308,11 @@ void main() {
         final mapped = AppErrorMapper.map(handler.error!);
         expect(mapped.reportable, isTrue);
         expect(mapped.sentryClassification, 'parse.failed');
-        expect(mapped.diagnosticCause, same(cause));
+        expect(mapped.diagnosticCause, same(handler.error));
+        expect(
+          (mapped.diagnosticCause! as ApiException).details.cause,
+          same(cause),
+        );
         expect(mapped.diagnosticStack, same(stack));
       },
     );
@@ -375,7 +385,7 @@ void main() {
           data: <String, dynamic>{
             'error': 'internal_error',
             'message': 'database failed for did:plc:alice',
-            'requestId': 'req_123',
+            'requestId': '50000000-0000-4000-8000-000000000005',
           },
           path: '/v1/feed/timeline?cursor=secret',
         ),
@@ -385,7 +395,7 @@ void main() {
       final error = handler.error as ApiServerError?;
       expect(error?.details.statusCode, 500);
       expect(error?.details.appViewError, 'internal_error');
-      expect(error?.details.requestId, 'req_123');
+      expect(error?.details.requestId, '50000000-0000-4000-8000-000000000005');
       expect(error?.details.method, 'GET');
       expect(error?.message, isNot(contains('database failed')));
       expect(error?.message, isNot(contains('did:plc:alice')));
@@ -408,7 +418,7 @@ void main() {
               data: <String, dynamic>{
                 'error': code,
                 'message': providerText,
-                'requestId': 'req_registration',
+                'requestId': '60000000-0000-4000-8000-000000000006',
               },
               path: '/v1/auth/registrations?code=auth-code',
             ),
@@ -417,7 +427,10 @@ void main() {
 
           final error = handler.error as ApiServerError?;
           expect(error?.details.appViewError, code);
-          expect(error?.details.requestId, 'req_registration');
+          expect(
+            error?.details.requestId,
+            '60000000-0000-4000-8000-000000000006',
+          );
           expect(
             error?.details.method,
             'GET',
@@ -439,7 +452,7 @@ void main() {
           data: <String, dynamic>{
             'error': 'internal_error',
             'message': 'failed primaryLanguage=fr contentLanguages=[fr,en,cy]',
-            'requestId': 'req_languages',
+            'requestId': '70000000-0000-4000-8000-000000000007',
           },
           path: '/v1/languages/preferences',
         ),

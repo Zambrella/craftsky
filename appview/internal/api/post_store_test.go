@@ -1582,12 +1582,18 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	seedSavedPost(t, pool, "did:plc:bob", post1, &bobFolderID, base.Add(5*time.Hour))
 	seedSavedPost(t, pool, "did:plc:alice", post2, nil, base.Add(6*time.Hour))
 
-	store := api.NewPostStore(pool)
 	// Timeline pages may contain both an authored post and a repost of the same
 	// subject. Duplicate hydration inputs must not multiply engagement counts.
+	queries := &countingQueryTracer{}
+	store := api.NewPostStore(newCountedPool(t, pool, queries))
 	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{post1, post2, post1})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
+	}
+	// Engagement hydration is a fixed batch of queries, including both account
+	// interaction kinds together. Keep the round-trip budget bounded as feeds grow.
+	if got := queries.count(); got > 6 {
+		t.Fatalf("EngagementSummaries used %d queries, want at most 6", got)
 	}
 	if got := summaries[post1]; got.LikeCount != 2 || got.RepostCount != 1 || got.QuoteCount != 2 || got.ReplyCount != 3 || !got.ViewerHasLiked || !got.ViewerHasReposted || !got.ViewerHasReplied || !got.ViewerHasSaved || got.ViewerSavedFolderID == nil || *got.ViewerSavedFolderID != bobFolderID {
 		t.Fatalf("post1 summary = %+v", got)

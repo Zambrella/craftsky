@@ -1,12 +1,19 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+
 enum DraftFileStoreFailureReason { notFound, accessDenied, ioFailure }
 
-final class DraftFileStoreException implements Exception {
-  const new(this.reason);
+final class DraftFileStoreException
+    implements Exception, DiagnosticFailureCause {
+  const new(this.reason, {this.diagnosticCause, this.diagnosticStack});
 
   final DraftFileStoreFailureReason reason;
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
 
   @override
   String toString() => 'DraftFileStoreException(${reason.name})';
@@ -136,13 +143,32 @@ final class IoDraftFileStore implements DraftFileStore {
 Future<T> _guard<T>(Future<T> Function() operation) async {
   try {
     return await operation();
-  } on PathNotFoundException {
-    throw const DraftFileStoreException(DraftFileStoreFailureReason.notFound);
-  } on PathAccessException {
-    throw const DraftFileStoreException(
-      DraftFileStoreFailureReason.accessDenied,
+  } on PathNotFoundException catch (error, stackTrace) {
+    Error.throwWithStackTrace(
+      DraftFileStoreException(
+        DraftFileStoreFailureReason.notFound,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+      ),
+      stackTrace,
     );
-  } on FileSystemException {
-    throw const DraftFileStoreException(DraftFileStoreFailureReason.ioFailure);
+  } on PathAccessException catch (error, stackTrace) {
+    Error.throwWithStackTrace(
+      DraftFileStoreException(
+        DraftFileStoreFailureReason.accessDenied,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+      ),
+      stackTrace,
+    );
+  } on FileSystemException catch (error, stackTrace) {
+    Error.throwWithStackTrace(
+      DraftFileStoreException(
+        DraftFileStoreFailureReason.ioFailure,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+      ),
+      stackTrace,
+    );
   }
 }

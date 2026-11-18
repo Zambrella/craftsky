@@ -1,4 +1,5 @@
 import { withDeadline } from '#lib/async.ts';
+import { appViewRequestId } from './request-id';
 import type { Page, PageQuery, QueryValue } from './types';
 
 export type Fetcher = typeof fetch;
@@ -189,6 +190,7 @@ export class APITransport {
 				}
 			);
 		} catch (error) {
+			if (error instanceof APIError) throw error;
 			if (key)
 				throw new MutationOutcomeUnknownError(key, 1, false, { cause: error });
 			if (error instanceof DOMException && error.name === 'AbortError')
@@ -204,14 +206,9 @@ export class APITransport {
 			);
 		}
 		const retryAfter = retrySeconds(response.headers.get('Retry-After'));
-		const rawRequestId = response.headers.get('X-Request-ID');
-		const headerRequestId =
-			rawRequestId &&
-			/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
-				rawRequestId
-			)
-				? rawRequestId
-				: undefined;
+		const headerRequestId = appViewRequestId(
+			response.headers.get('X-Request-ID')
+		);
 		let value: unknown;
 		let responseKind: APIError['responseKind'];
 		try {
@@ -299,12 +296,7 @@ export class APITransport {
 					typeof envelope.message === 'string'
 						? envelope.message
 						: 'The request could not be completed.',
-					typeof envelope.requestId === 'string' &&
-						/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
-							envelope.requestId
-						)
-						? envelope.requestId
-						: headerRequestId,
+					appViewRequestId(envelope.requestId) ?? headerRequestId,
 					fields,
 					retryAfter
 				);
@@ -355,18 +347,14 @@ export class APITransport {
 		query: Record<string, QueryValue> = {},
 		signal?: AbortSignal
 	): Promise<Page<T>> {
-		const result = await this.get<Page<T>>(path, query, signal);
-		if (
-			!Array.isArray(result.items) ||
-			(result.cursor !== undefined &&
-				result.cursor !== null &&
-				typeof result.cursor !== 'string')
-		)
-			throw new APIError(
-				200,
-				'invalid_response',
-				'CraftSky returned an incomplete page.'
-			);
-		return result;
+		return this.request<Page<T>>('GET', path, {
+			query,
+			signal,
+			validate: (value) =>
+				Array.isArray(value.items) &&
+				(value.cursor === undefined ||
+					value.cursor === null ||
+					typeof value.cursor === 'string')
+		});
 	}
 }

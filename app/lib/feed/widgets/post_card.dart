@@ -26,6 +26,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
@@ -92,6 +93,7 @@ class PostCard extends ConsumerWidget {
     super.key,
     this.onReply,
     this.onTap,
+    this.onOpenPost,
     this.onLike,
     this.onViewLikes,
     this.onRepost,
@@ -129,6 +131,9 @@ class PostCard extends ConsumerWidget {
   final Post post;
   final VoidCallback? onReply;
   final VoidCallback? onTap;
+
+  /// Opens the post with the currently selected carousel image, when present.
+  final ValueChanged<String?>? onOpenPost;
   final VoidCallback? onLike;
   final VoidCallback? onViewLikes;
   final VoidCallback? onRepost;
@@ -221,6 +226,20 @@ class PostCard extends ConsumerWidget {
     VoidCallback? onLike,
     ValueNotifier<int> imageSelection,
   ) {
+    final openPost = onOpenPost == null
+        ? onTap
+        : () {
+            final images = post.images;
+            final index = imageSelection.value;
+            final cid =
+                images != null &&
+                    images.length > 1 &&
+                    index >= 0 &&
+                    index < images.length
+                ? images[index].cid
+                : null;
+            onOpenPost!(cid);
+          };
     final guest = ref.watch(isGuestBrowsingProvider);
     void requireAccount() => unawaited(showGuestSignIn(context, ref));
     final auth = ref.watch(authSessionProvider).value;
@@ -330,7 +349,7 @@ class PostCard extends ConsumerWidget {
         collapse: collapseBody,
         showMoreLabel: l10n.postShowMore,
         showLessLabel: l10n.postShowLess,
-        onTap: onTap,
+        onTap: openPost,
         onDoubleTap: likeOnDoubleTap,
       );
     }
@@ -419,7 +438,7 @@ class PostCard extends ConsumerWidget {
         child: InkWell(
           key: const Key('post-card-tap-target'),
           borderRadius: borderRadius,
-          onTap: onTap,
+          onTap: openPost,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -460,6 +479,7 @@ class PostCard extends ConsumerWidget {
                       handle: post.author.handle.toString(),
                       displayName: post.author.displayName,
                       crafts: post.author.crafts,
+                      isBusiness: post.author.isBusiness,
                       avatar: ProfileAvatar(
                         seed: displayName,
                         avatarUrl: post.author.avatar,
@@ -480,13 +500,15 @@ class PostCard extends ConsumerWidget {
                                 displayName: displayName,
                                 handle: post.author.handle.toString(),
                                 crafts: post.author.crafts,
+                                isBusiness: post.author.isBusiness,
+                                customisation: post.author.customisation,
                                 onTap: openAuthorProfile,
                               ),
                             ),
                           ),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: post.editedAt == null ? onTap : null,
+                            onTap: post.editedAt == null ? openPost : null,
                             onDoubleTap: post.editedAt == null
                                 ? likeOnDoubleTap
                                 : null,
@@ -550,7 +572,7 @@ class PostCard extends ConsumerWidget {
                           onImageTap: (index, heroTags) =>
                               switch (imageInteractionMode) {
                                 PostCardImageInteractionMode.navigate =>
-                                  onTap?.call(),
+                                  openPost?.call(),
                                 PostCardImageInteractionMode
                                     .fullscreenGallery =>
                                   unawaited(
@@ -966,6 +988,8 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
   static const _collapsedLength = 300;
 
   bool _expanded = false;
+  final GlobalKey _visibleBodyKey = GlobalKey();
+  final GlobalKey _collapsedBodyKey = GlobalKey();
 
   @override
   void didUpdateWidget(covariant _ExpandablePostBody oldWidget) {
@@ -975,38 +999,70 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
     }
   }
 
+  void _toggleExpanded() {
+    final scrollable = _expanded
+        ? Scrollable.maybeOf(context, axis: Axis.vertical)
+        : null;
+    final position = scrollable?.position;
+    final visible = _visibleBodyKey.currentContext?.findRenderObject();
+    final collapsed = _collapsedBodyKey.currentContext?.findRenderObject();
+    final removedHeight =
+        visible is RenderBox &&
+            visible.hasSize &&
+            collapsed is RenderBox &&
+            collapsed.hasSize
+        ? visible.size.height - collapsed.size.height
+        : 0.0;
+    setState(() => _expanded = !_expanded);
+    if (_expanded ||
+        position == null ||
+        !position.hasContentDimensions ||
+        position.axisDirection != AxisDirection.down ||
+        removedHeight <= 0) {
+      return;
+    }
+    // Both changes take effect before the next layout/paint. Correcting after
+    // the frame would briefly paint the shortened post at the old offset.
+    final target = (position.pixels - removedHeight).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target != position.pixels) position.jumpTo(target);
+  }
+
   @override
   Widget build(BuildContext context) {
     final canCollapse =
         widget.collapse && widget.text.characters.length > _collapsedLength;
     final shouldCollapse = canCollapse && !_expanded;
-    var visibleText = shouldCollapse
-        ? widget.text.characters.take(_collapsedLength).toString()
-        : widget.text;
-    if (shouldCollapse) {
-      final cutoff = visibleText.length;
+    var collapsedText = widget.text.characters
+        .take(_collapsedLength)
+        .toString();
+    if (canCollapse) {
+      final cutoff = collapsedText.length;
       final crossingFacets = FacetedTextModel.fromRaw(
         text: widget.text,
         rawFacets: widget.facets,
       ).where((range) => range.charStart < cutoff && range.charEnd > cutoff);
       if (crossingFacets.isNotEmpty) {
-        visibleText = widget.text.substring(0, crossingFacets.first.charStart);
+        collapsedText = widget.text.substring(
+          0,
+          crossingFacets.first.charStart,
+        );
       }
     }
-    final body = FacetedText(
-      text: visibleText,
+    Widget textBody({required bool collapsed, required Key key}) => FacetedText(
+      key: key,
+      text: collapsed ? collapsedText : widget.text,
       facets: widget.facets,
       style: widget.style,
-      suffixText: canCollapse ? (shouldCollapse ? '… ' : ' ') : null,
+      suffixText: canCollapse ? (collapsed ? '… ' : ' ') : null,
       actionLabel: canCollapse
-          ? (shouldCollapse ? widget.showMoreLabel : widget.showLessLabel)
+          ? (collapsed ? widget.showMoreLabel : widget.showLessLabel)
           : null,
-      onAction: canCollapse
-          ? () => setState(() {
-              _expanded = !_expanded;
-            })
-          : null,
+      onAction: canCollapse ? _toggleExpanded : null,
     );
+    final body = textBody(collapsed: shouldCollapse, key: _visibleBodyKey);
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -1014,7 +1070,20 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
       onDoubleTap: widget.facets?.isNotEmpty ?? false
           ? null
           : widget.onDoubleTap,
-      child: body,
+      child: canCollapse && _expanded
+          ? Stack(
+              children: [
+                // Keep an exact, non-interactive collapsed layout ready so
+                // shrinking and its scroll correction can happen atomically.
+                ExcludeFocus(
+                  child: Offstage(
+                    child: textBody(collapsed: true, key: _collapsedBodyKey),
+                  ),
+                ),
+                body,
+              ],
+            )
+          : body,
     );
   }
 }
@@ -1122,12 +1191,16 @@ class _PostCardHeader extends StatelessWidget {
     required this.displayName,
     required this.handle,
     required this.crafts,
+    required this.isBusiness,
+    required this.customisation,
     required this.onTap,
   });
 
   final String displayName;
   final String handle;
   final List<String> crafts;
+  final bool isBusiness;
+  final ProfileCustomisation customisation;
   final VoidCallback onTap;
 
   @override
@@ -1137,6 +1210,8 @@ class _PostCardHeader extends StatelessWidget {
       handle: handle,
       displayName: displayName,
       crafts: crafts,
+      isBusiness: isBusiness,
+      customisation: customisation,
     ),
   );
 }

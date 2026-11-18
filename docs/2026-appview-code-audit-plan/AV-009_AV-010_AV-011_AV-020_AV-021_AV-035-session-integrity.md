@@ -310,7 +310,7 @@ Conditional SQL activity updates replace both maps. Memory use no longer scales 
 - [Flutter authentication design](../superpowers/specs/2026-04-21-flutter-auth-design.md)
 - [AppView API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
 - [Settings and permanent-deletion requirements](../changes/2026-08-10-settings-page/01-requirements.md)
-- [AT Protocol architecture reference](../../atproto-craft-social-app-reference.md#authentication)
+- [AT Protocol architecture reference](../architecture.md#authentication)
 - [AT Protocol OAuth specification](https://atproto.com/specs/oauth)
 - [Go `errors.Is`](https://pkg.go.dev/errors#Is)
 - [PostgreSQL advisory locks](https://www.postgresql.org/docs/16/explicit-locking.html#ADVISORY-LOCKS)

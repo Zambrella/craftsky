@@ -39,7 +39,7 @@ final class ClearImageCacheProvider
   ClearImageCache create() => ClearImageCache();
 }
 
-String _$clearImageCacheHash() => r'9e828a2db511b60e000899331879fab385896baa';
+String _$clearImageCacheHash() => r'863ebf0ae8d756812bf426cde3c6282b9528bd3f';
 
 /// Mutation that empties both image caches in parallel. Idle by default;
 /// transitions through AsyncLoading on each invocation of [clear].

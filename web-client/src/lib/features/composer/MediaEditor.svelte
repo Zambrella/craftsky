@@ -187,42 +187,45 @@
 <article class="media-card" class:native-photo={nativePhoto}>
 	{#if nativePhoto}<div class="photo-controls">
 			<span class="photo-number" class:first={index === 0}>{index + 1}</span
-			><span class="control-spacer"></span><button
-				type="button"
-				disabled={disabled || busy || index === 0}
-				onclick={() => onmove(-1)}
-				aria-label={`Move image ${index + 1} earlier`}
-				><Icon name="moveUp" bold /></button
-			><button
-				type="button"
-				disabled={disabled || busy || index === count - 1}
-				onclick={() => onmove(1)}
-				aria-label={`Move image ${index + 1} later`}
-				><span class="down-arrow"><Icon name="moveUp" bold /></span></button
-			><button
+			><span class="control-spacer"></span>{#if allowReorder}<button
+					type="button"
+					disabled={disabled || busy || index === 0}
+					onclick={() => onmove(-1)}
+					aria-label={`Move image ${index + 1} earlier`}
+					><Icon name="moveUp" bold /></button
+				><button
+					type="button"
+					disabled={disabled || busy || index === count - 1}
+					onclick={() => onmove(1)}
+					aria-label={`Move image ${index + 1} later`}
+					><span class="down-arrow"><Icon name="moveUp" bold /></span></button
+				>{/if}<button
 				type="button"
 				class="remove-photo"
 				disabled={disabled || busy}
 				onclick={onremove}
 				aria-label={`Remove image ${index + 1}`}
 				><Icon name="trash" bold /></button
-			><button
-				type="button"
-				class="photo-drag drag-handle"
-				aria-label={`Drag to reorder image ${index + 1}`}
-				disabled={disabled || busy || count < 2}
-				title="Drag to reorder, or use Alt and the up or down arrow keys."
-				onkeydown={(event) => {
-					if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
-						event.preventDefault();
-						onmove(event.key === 'ArrowUp' ? -1 : 1);
-					}
-				}}><span aria-hidden="true">⠿</span></button
-			>
+			>{#if allowReorder}<button
+					type="button"
+					class="photo-drag drag-handle"
+					aria-label={`Drag to reorder image ${index + 1}`}
+					disabled={disabled || busy || count < 2}
+					title="Drag to reorder, or use Alt and the up or down arrow keys."
+					onkeydown={(event) => {
+						if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+							event.preventDefault();
+							onmove(event.key === 'ArrowUp' ? -1 : 1);
+						}
+					}}><span aria-hidden="true">⠿</span></button
+				>{/if}
 		</div>{/if}
 	<div class="photo-preview">
 		<img
+			class="post-image-preview"
 			src={url}
+			width={media.width}
+			height={media.height}
 			alt={media.alt || `Image ${index + 1} preview`}
 			style={`transform:rotate(${editing ? rotation * 90 : 0}deg);clip-path:inset(${editing ? y : 0}% ${editing ? Math.max(0, 100 - x - width) : 0}% ${editing ? Math.max(0, 100 - y - height) : 0}% ${editing ? x : 0}%)`}
 		/>
@@ -358,11 +361,8 @@
 		gap: 12px;
 	}
 	.native-photo .photo-preview > img {
-		height: auto;
-		max-height: 420px;
-		border: 1px solid var(--ink);
-		border-radius: 0;
-		display: block;
+		outline: 1px solid var(--ink-4);
+		outline-offset: -1px;
 	}
 	.photo-controls {
 		display: flex;
@@ -484,13 +484,6 @@
 		gap: 0.7rem;
 		min-width: 0;
 	}
-	.media-card img {
-		width: 100%;
-		height: 220px;
-		object-fit: contain;
-		border-radius: 8px;
-		background: var(--paper-2);
-	}
 	.image-edit-dialog {
 		inset: 0;
 		margin: auto;
@@ -516,18 +509,19 @@
 		display: flex;
 		align-items: center;
 		gap: 16px;
-		height: 56px;
-		min-height: 56px;
-		padding: 8px 16px;
+		height: var(--app-bar-height);
+		min-height: var(--app-bar-height);
+		padding: var(--app-bar-padding);
 	}
 	.image-edit-heading h2 {
 		flex: 1;
 		margin: 0;
 		color: inherit;
 		font-family: inherit;
-		font-size: 20px;
-		font-weight: 700;
-		line-height: 1.3;
+		font-size: var(--app-bar-title-size);
+		font-weight: var(--app-bar-title-weight);
+		line-height: var(--app-bar-title-line-height);
+		letter-spacing: 0;
 	}
 	.image-edit-heading button {
 		display: grid;

@@ -110,6 +110,60 @@ void main() {
         ),
       );
     });
+
+    test('maps UTF-8 width boundaries to Dart indices', () {
+      // Use the codec as an independent oracle, including unpaired surrogates
+      // which it encodes as replacement characters.
+      for (final character in [
+        '\u0000',
+        '\u007f',
+        '\u0080',
+        '\u07ff',
+        '\u0800',
+        '\ud7ff',
+        '\ud800',
+        '\udfff',
+        '\ue000',
+        '\uffff',
+        '\u{10000}',
+        '\u{10ffff}',
+      ]) {
+        final byteLength = utf8.encode(character).length;
+        final text = 'a${character}z';
+        final ranges = FacetedTextModel.fromRaw(
+          text: text,
+          rawFacets: [
+            for (var byteStart = 1; byteStart < 1 + byteLength; byteStart++)
+              {
+                'index': {
+                  'byteStart': byteStart,
+                  'byteEnd': 1 + byteLength,
+                },
+                'features': [
+                  {'\$type': FacetFeatureType.tag, 'tag': 'boundary'},
+                ],
+              },
+            _rawFacet(text, 'z', {'\$type': FacetFeatureType.tag, 'tag': 'z'}),
+          ],
+        );
+
+        // Only whole code points survive; offsets after supplementary and
+        // malformed UTF-16 characters still point at the original Dart text.
+        expect(
+          ranges,
+          hasLength(2),
+          reason: 'code units: ${character.codeUnits}',
+        );
+        expect(
+          (ranges[0].charStart, ranges[0].charEnd),
+          (1, 1 + character.length),
+        );
+        expect(
+          (ranges[1].charStart, ranges[1].charEnd),
+          (1 + character.length, text.length),
+        );
+      }
+    });
   });
 }
 

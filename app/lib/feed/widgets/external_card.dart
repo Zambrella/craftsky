@@ -45,10 +45,7 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
     final external = widget.external;
     final uri = normalizeExternalLinkUri(external.uri);
     final host = uri == null ? '' : _displayHost(uri);
-    final youtube = switch ((uri, widget.variant)) {
-      (final uri?, ExternalCardVariant.full) => parseYouTubeExternal(uri),
-      _ => null,
-    };
+    final youtube = uri == null ? null : parseYouTubeExternal(uri);
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
     final l10n = AppLocalizations.of(context);

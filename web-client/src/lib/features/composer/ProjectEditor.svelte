@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { graphemeCount } from '#lib/text.ts';
+	import { clearFieldError, fieldError } from '#lib/field-validation.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { tick, untrack } from 'svelte';
 	import type { CraftskyAPI, Json, JsonObject } from '#lib/api/client.ts';
 	import { label, options, record, str } from './model.ts';
+	import { hashtagsInText } from './facet-input';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import FieldCounter from './FieldCounter.svelte';
 	import { recordTextLimit } from './text-limit';
@@ -19,6 +21,7 @@
 		owner,
 		disabled = false,
 		part = 'all',
+		precedingHashtags = [],
 		onchange
 	}: {
 		project: JsonObject;
@@ -26,11 +29,11 @@
 		owner: string;
 		disabled?: boolean;
 		part?: 'main' | 'details' | 'all';
+		precedingHashtags?: string[];
 		onchange: (project: JsonObject) => void;
 	} = $props();
 	let activeDetail = $state<'pattern' | 'materials' | 'craft'>();
-	let materialText = $state(''),
-		materialError = $state('');
+	let materialText = $state('');
 	let editingMaterial = $state<JsonObject>();
 	let materialEntry = $state<HTMLDivElement>();
 	$effect(() => {
@@ -38,7 +41,7 @@
 		untrack(() => {
 			activeDetail = undefined;
 			materialText = '';
-			materialError = '';
+			clearMaterialError();
 			editingMaterial = undefined;
 		});
 	});
@@ -55,6 +58,33 @@
 		additionalItems.map((value) => str(value.craftType)).filter(Boolean)
 	);
 	const pattern = $derived(record(common.pattern));
+	const tagPrefix = $derived([
+		...precedingHashtags,
+		...(Array.isArray(common.tags)
+			? common.tags.filter((tag): tag is string => typeof tag === 'string')
+			: [])
+	]);
+	const patternPrefix = $derived([
+		...tagPrefix,
+		...hashtagsInText(str(pattern.name))
+	]);
+	const publisherPrefix = $derived([
+		...patternPrefix,
+		...hashtagsInText(str(pattern.designer))
+	]);
+	const materialPrefix = $derived([
+		...publisherPrefix,
+		...hashtagsInText(str(pattern.publisher)),
+		...materialItems
+			.slice(
+				0,
+				editingMaterial
+					? materialItems.indexOf(editingMaterial)
+					: materialItems.length
+			)
+			.flatMap((item) => hashtagsInText(str(item.text)))
+	]);
+
 	const details = $derived(record(project.details));
 	const craft = $derived(str(common.craftType));
 	const shortCraft = $derived(craft.split('#').at(-1) || '');
@@ -147,6 +177,10 @@
 		);
 		return true;
 	}
+	function clearMaterialError() {
+		const input = materialEntry?.querySelector('textarea');
+		if (input) clearFieldError(input);
+	}
 	function addMaterial() {
 		if (disabled) return;
 		const text = materialText.trim();
@@ -155,12 +189,16 @@
 			graphemeCount(text) > 100 ||
 			new TextEncoder().encode(text).length > 1000
 		) {
-			materialError = 'Materials must be 100 characters or fewer.';
+			fieldError(
+				'Materials',
+				'Materials must be 100 characters or fewer.',
+				materialEntry
+			);
 			return;
 		}
 		const index = editingMaterial ? materialItems.indexOf(editingMaterial) : -1;
 		if (index < 0 && materialItems.length >= 10) {
-			materialError = 'Choose up to ten materials.';
+			fieldError('Materials', 'Choose up to ten materials.', materialEntry);
 			return;
 		}
 		const material: JsonObject = {
@@ -173,7 +211,7 @@
 		else next[index] = material;
 		updateCommon('materials', next);
 		materialText = '';
-		materialError = '';
+		clearMaterialError();
 		editingMaterial = undefined;
 		focusMaterial();
 	}
@@ -190,7 +228,7 @@
 		if (disabled || materialText) return;
 		editingMaterial = material;
 		materialText = str(material.text);
-		materialError = '';
+		clearMaterialError();
 		focusMaterial();
 	}
 	function removeMaterial(material: JsonObject) {
@@ -203,7 +241,7 @@
 			editingMaterial = undefined;
 			materialText = '';
 		}
-		materialError = '';
+		clearMaterialError();
 	}
 	function moveMaterial(material: JsonObject, direction: number) {
 		if (disabled) return;
@@ -230,7 +268,7 @@
 			return false;
 		materialText = '';
 		editingMaterial = undefined;
-		materialError = '';
+		clearMaterialError();
 		return true;
 	}
 
@@ -291,6 +329,7 @@
 			label="Pattern tag or name"
 			maximum={200}
 			maximumBytes={500}
+			precedingHashtags={tagPrefix}
 			value={str(pattern.name)}
 			allowed={['hashtag']}
 			onchange={(value) => updatePattern('name', value || undefined)}
@@ -333,6 +372,7 @@
 						maximum={200}
 						maximumBytes={500}
 						placeholder="Add pattern designer"
+						precedingHashtags={patternPrefix}
 						value={str(pattern.designer)}
 						allowed={['mention']}
 						onchange={(value) => updatePattern('designer', value || undefined)}
@@ -343,6 +383,7 @@
 						maximum={200}
 						maximumBytes={500}
 						placeholder="Add pattern publisher"
+						precedingHashtags={publisherPrefix}
 						value={str(pattern.publisher)}
 						allowed={['mention']}
 						onchange={(value) => updatePattern('publisher', value || undefined)}
@@ -434,6 +475,7 @@
 						{api}
 						{disabled}
 						label="Materials"
+						precedingHashtags={materialPrefix}
 						value={materialText}
 						placeholder="Add material"
 						onchange={(value) => {
@@ -447,9 +489,6 @@
 						onclick={addMaterial}>Add</button
 					>
 				</div>
-				{#if materialError}<p class="material-error" role="alert">
-						{materialError}
-					</p>{/if}
 			</section>
 			<MultiSelect
 				label="Colours"
@@ -775,10 +814,5 @@
 		background: transparent;
 		border: 0;
 		box-shadow: none;
-	}
-	.material-error {
-		font-size: 14px;
-		color: var(--red-ink);
-		margin: 0;
 	}
 </style>

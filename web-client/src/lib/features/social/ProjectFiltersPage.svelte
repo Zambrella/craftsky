@@ -45,7 +45,7 @@
 />
 <section class="project-filter-page" aria-labelledby="filter-title">
 	<form method="get" action="/feed" onsubmit={apply}>
-		<header>
+		<header class="page-appbar">
 			<button
 				type="button"
 				class="icon-button"
@@ -112,8 +112,8 @@
 	.project-filter-page header {
 		border-bottom: 1.5px solid var(--ink);
 		flex: none;
-		min-height: 56px;
-		padding: 4px 8px;
+		min-height: var(--app-bar-height);
+		padding: var(--app-bar-padding);
 		justify-content: flex-start;
 		gap: 8px;
 	}

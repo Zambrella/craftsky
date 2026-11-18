@@ -10,13 +10,57 @@ Browser routes use the mobile router's names: `/feed`, `/search`,
 `/profiles/@handle`), `/posts/:did/:rkey`, `/events/:did/:rkey`, `/saved`,
 `/saved/folder?folder=…`, `/scheduled`, `/drafts`, and `/settings/*`.
 `/projects` redirects to `/feed`, preserving query parameters, as on mobile.
-`/` opens `/sign-in` when signed out and `/feed` when signed in. Public post and
+`/` opens `/feed`, including guest browsing when signed out. Public post and
 profile URLs render the public view when signed out and the app view when signed
 in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
 `/feed/filters`; they also have no `/app` prefix.
 
-See [ADR 024](../adr/024-public-server-rendered-web-client.md) and
-[ADR 025](../adr/025-browser-consumer-handoff.md).
+See [ADR 024](../docs/adr/024-public-server-rendered-web-client.md) and
+[ADR 025](../docs/adr/025-browser-consumer-handoff.md).
+
+## Account subscriptions and Stripe checkout
+
+Each CraftSky DID owns a separate RevenueCat customer identified by a private
+AppView-generated UUID. The web client never accepts a customer ID from a URL or
+asks a member to choose a billing owner or assign a licence.
+
+The subscriptions page sends only the selected `plus` or `business` tier to
+`POST /v1/billing/web-paywall`. AppView checks current provider state and returns
+the account's private RevenueCat UUID, public Stripe app SDK key and offering.
+The lazily loaded Web SDK presents the same published RevenueCat paywall as
+Flutter in a large modal and handles Stripe Checkout. Managed Payments is
+preferred when available; ordinary Stripe Billing fallback is accepted.
+
+Configure `REVENUECAT_WEB_PUBLIC_API_KEY` on AppView (`strp_sb_` for sandbox,
+`strp_` for production), alongside the existing Stripe billing/catalog settings;
+see the [configuration reference](../docs/development/configuration.md). No
+provider secret belongs in the web bundle. Missing configuration hides purchase
+controls. The server and client repeat preflight before SDK purchase; account
+switches and close/disposal discard stale work, and cooperating tabs share a
+browser account lock. AppView reconciliation, never SDK success, grants access.
+
+Plus and Business are alternatives for one account. Web tier changes are deferred:
+active subscriptions, canceled paid-through periods, pending payments and
+unresolved provider states prevent a second checkout. RevenueCat owns SDK-created sessions and their retries. AppView retains pending
+operations only for older direct checkouts; these block new paywalls until
+resolved. The browser lock is not a cross-device payment fence. A member may choose another tier after the original
+subscription has ended.
+
+Apple and Google subscriptions are managed through their store pages. The
+**Manage in Stripe** button calls authenticated `POST /v1/billing/web-management`
+without a customer identifier. AppView resolves this DID's Stripe customer and
+returns a short-lived customer-specific portal session. The client permits only
+HTTPS `billing.stripe.com/p/session/…` destinations; shared email-login portal
+links are not used, because multiple DIDs can have the same payer email. If
+account-specific management is unavailable, the page directs the member to their
+Stripe receipt's management link.
+
+After returning from checkout or management, the page requests provider
+reconciliation. A success redirect or query parameter never grants paid access;
+AppView's subscription access response remains authoritative. Responses arriving
+after an account change or closing the view cannot open a billing page for the
+previous account. Checkout and portal session URLs are private capabilities and
+must not be logged or included in diagnostics.
 
 ## Instagram post imports
 
@@ -39,7 +83,10 @@ stable digest of the original date and source media paths, independent of captio
 edits; it stays private. Public records contain only the existing
 `externalImport: {source: "instagram"}` provenance and original `createdAt`.
 Historical profile ordering, search visibility, home-feed exclusion and suppressed
-source notifications follow ADR 008. Normal post creation cannot backdate posts.
+source notifications follow [ADR 008](../docs/adr/008-instagram-import-provenance.md).
+The integrated publishing boundary is recorded in
+[ADR 029](../docs/adr/029-integrated-instagram-post-imports.md). Normal post creation
+cannot backdate posts.
 
 `POST /v1/migrations/instagram/post-imports/lookup` accepts up to 100 `sourceKeys`
 and returns `{items: [{sourceKey, uri, kind}]}` for confirmed account-owned imports.
@@ -62,6 +109,16 @@ just dev-d
 just web-run
 ```
 
+The development server enables subscriptions by default; an explicit
+`SUBSCRIPTIONS_ENABLED=false` shell/profile setting overrides this. Production
+builds and the deployed Worker retain their separate disabled default. Local web
+checkout uses the Stripe sandbox through AppView, not the native RevenueCat Test
+Store dialog. Configure the sandbox Stripe bundle in AppView's ignored files;
+the server accepts HTTP return URLs only on loopback in sandbox mode. No Stripe
+secret belongs in this frontend's environment files.
+
+Optional web settings live in `web-client/config/.env.development.local`; copy `web-client/config/.env.development.local.example` as a starting point. Vite and SvelteKit both read this directory. Production builds instead read `config/.env.production.local`; copy its matching `.example` and supply public Firebase/Sentry settings, with `PUBLIC_SENTRY_ENVIRONMENT=production`. Generic `.env` and `.env.local` files are rejected; run `just config-init` to migrate an older local profile. Worker runtime settings (`APPVIEW_ORIGIN` and `SUBSCRIPTIONS_ENABLED`) remain in `wrangler.jsonc`.
+
 Start the backend separately with `just dev-d`, as for `just app-run`.
 `just web-run` (also available as `just public-app-dev`) resolves the running worktree's published AppView port
 through `scripts/compose-dev`, installs
@@ -71,7 +128,7 @@ and backend secrets are not sourced into the frontend process. An inherited or
 frontend `.env` `APPVIEW_ORIGIN` cannot override the selected worktree backend.
 
 Use `just public-app-dev --open` to also open the browser. Set
-`CRAFTSKY_PUBLIC_APP_PORT` in the shell or the root `.env.local` if the web port is
+`CRAFTSKY_PUBLIC_APP_PORT` in the shell or root `config/.env.local` if the web port is
 already occupied. `--strictPort` prevents silently moving to another worktree's
 port. Ctrl-C stops the web client; `just down` stops the worktree's Docker stack.
 
@@ -117,6 +174,14 @@ preservation of callback and association documents. They do not prove live
 AppView integration, actual search indexing, external share-card caches, real
 video playback, or device app-link resolution.
 
+Pagination uses the shared `LoadMore` text button, with a disabled button and
+accessible spinner while its request is pending. Home, craft, hashtag, profile,
+saved-post and post/project search feeds load their next page as the control
+approaches the viewport. Each page gets one automatic attempt; failures leave
+the manual button available instead of repeatedly retrying. Account lists,
+notifications, events and replies retain manual pagination. Public profile
+pagination still works through ordinary links when JavaScript is disabled.
+
 Backend tests live in `appview/internal/api/public_pages_test.go`. They exercise
 visibility/pagination against PostgreSQL, including the complete production
 migration history. With this worktree's PostgreSQL running, use the repository's
@@ -127,7 +192,7 @@ focused test wrapper (it also expects the local MinIO service):
 ```
 
 Alternatively set `TEST_DATABASE_URL` explicitly to a development/test database
-and run `GOTOOLCHAIN=go1.27.3 go -C ../appview test ./internal/api -run TestPublicPage`.
+and run `GOTOOLCHAIN=go1.27.4 go -C ../appview test ./internal/api -run TestPublicPage`.
 Never point tests at production. Unset database configuration skips integration
 tests; that is not database validation.
 
@@ -141,7 +206,10 @@ This separate, opt-in Playwright suite mirrors
 It uses real browser OAuth, this checkout's Docker AppView and the same coral/teal
 PNG fixtures. No provider, API, upload or persistence operation is mocked.
 
-Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/.env.local` using a
+`npm run test:e2e:live -- --list` discovers the journey without credentials or a
+running backend and makes no account/database changes.
+
+Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/config/.env.development.local` using a
 **dedicated disposable Bluesky-hosted account** and its full account password.
 The runner preserves `#` in an unquoted password, matching Patrol; quoted dotenv
 values also work. Do not add inline comments to the password line. App passwords
@@ -300,17 +368,24 @@ respect the published colour and texture selection.
 Motion honours `prefers-reduced-motion`. Native scrolling and focusable image
 links provide a photo carousel without client-side JavaScript. Post timestamps
 follow Flutter's seven-day compact display, with full UTC timestamps available
-to assistive technology and native tooltips. Anonymous profile navigation retains the two-tab public surface. Authenticated
-profiles offer the corresponding mobile actions and content tabs.
+to assistive technology and native tooltips. Guest profiles show projects, posts,
+comments and reposts, plus applicable business tabs. Member actions prompt guests
+to sign in; authenticated profiles offer the corresponding mobile actions.
 
 ## Public contract
 
-- `GET /v1/public/profiles/{handleOrDid}`: public profile, links and crafts.
-- `GET /v1/public/profiles/{handleOrDid}/posts?cursor=...`: root authored posts.
-- `GET /v1/public/profiles/{handleOrDid}/projects?cursor=...`: root authored projects.
-- `GET /v1/public/posts/{did}/{rkey}`: root post/project detail.
+- Project browsing and filters: `GET /v1/public/projects`.
+- Search: `GET /v1/public/search/{profiles|posts|projects|hashtags}` and hashtag post lists.
+- Profiles: public profile detail and paginated posts, projects, comments, reposts and events.
+- Posts: public post detail, threads, likes, reposts, quotes and video captions.
+- Events: public event detail.
+- Reporting: `POST` to a public profile or post's `/reports` subroute is the sole anonymous write.
 
-Lists return `{items, cursor?}`, fixed at 20 items. Cursors are opaque. API errors
+The browser and Worker share the exact route/query allowlist in
+[`public-path.ts`](src/lib/api/public-path.ts) and the report-only mutation map in
+[`public-report-path.ts`](src/lib/api/public-report-path.ts).
+
+Lists return `{items, cursor?}`, with up to 20 items per page. Cursors are opaque. API errors
 use the standard `{error, message, requestId}` envelope. Unknown/ineligible content
 returns 404; invalid identifiers/cursors return 400; exhausted admission budgets
 return 429/503 with Retry-After; unavailable dependencies return 503. No device ID
@@ -326,13 +401,13 @@ and outbound user links are marked `ugc nofollow noreferrer`.
 HTML and JSON are `no-store`; page metadata uses eligible content only. The
 Cloudflare configuration must not override these with a cache-everything rule.
 Search engines and social networks control their own copies of public content.
-This first version has no content directory/sitemap; crawlers discover pages
-through shared links and profile pagination. Cursor pages are `noindex,follow`.
+There is no content directory/sitemap; public discovery includes the guest feed,
+search, shared links and profile pagination. Cursor pages are `noindex,follow`.
 
-Images retain authored alt text and dimensions where provided. Video uses the
-existing public HLS playlist with native browser controls and a direct playlist
-link. Browsers without native HLS need a compatible player; captions and expanded
-quote/comment rendering remain available in the authenticated application.
+Images retain authored alt text and dimensions where provided. Guests reuse the
+social components for quotes, comment threads and video. Video supports native
+HLS or the bundled HLS player, public captions and a direct playlist link; hosted
+Bunny playback follows AppView's explicit provider destination.
 
 ## Dependency audit
 

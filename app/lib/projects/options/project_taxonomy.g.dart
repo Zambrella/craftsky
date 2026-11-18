@@ -3,7 +3,7 @@
 import 'package:craftsky_app/projects/options/project_option.dart';
 
 abstract final class ProjectTaxonomy {
-  static const version = 1;
+  static const version = 2;
   static const entries = <ProjectTaxonomyEntry>[
     ProjectTaxonomyEntry(id: "social.craftsky.feed.defs#knitting", family: "craft", label: "Knitting", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "social.craftsky.feed.defs#crochet", family: "craft", label: "Crochet", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
@@ -45,6 +45,9 @@ abstract final class ProjectTaxonomy {
     ProjectTaxonomyEntry(id: "yellow", family: "color", label: "Yellow", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "green", family: "color", label: "Green", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "blue", family: "color", label: "Blue", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
+    ProjectTaxonomyEntry(id: "navy", family: "color", label: "Navy", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
+    ProjectTaxonomyEntry(id: "turquoise", family: "color", label: "Turquoise", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
+    ProjectTaxonomyEntry(id: "teal", family: "color", label: "Teal", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "purple", family: "color", label: "Purple", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "pink", family: "color", label: "Pink", craft: null, parent: null, aliases: <String>[], parents: <String>[]),
     ProjectTaxonomyEntry(id: "cream", family: "color", label: "Cream", craft: null, parent: null, aliases: <String>[], parents: <String>[]),

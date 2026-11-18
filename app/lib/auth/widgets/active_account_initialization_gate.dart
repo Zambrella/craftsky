@@ -18,6 +18,7 @@ import 'package:craftsky_app/languages/providers/account_language_preferences_pr
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_identity_sync_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -43,6 +44,7 @@ class _ActiveAccountInitializationGateState
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(activeAccountSubscriptionIdentitySyncProvider);
     ref.listen(activeAccountInitializationProvider, (previous, next) {
       if (next case AsyncError(:final error, :final stackTrace)) {
         logActiveAccountInitializationFailure(
@@ -69,11 +71,11 @@ class _ActiveAccountInitializationGateState
             (activeLease != null && initialized?.lease == activeLease);
         if (isCurrent) return widget.child;
       }
-      if (initialization case AsyncError()) {
-        return _fallback(_errorScreen(registry: value));
+      if (initialization case AsyncError(:final error)) {
+        return _fallback(_errorScreen(registry: value, error: error));
       }
-    } else if (registry case AsyncError()) {
-      return _fallback(_errorScreen(registry: null));
+    } else if (registry case AsyncError(:final error)) {
+      return _fallback(_errorScreen(registry: null, error: error));
     }
 
     return _fallback(const InitializationLoadingScreen());
@@ -96,6 +98,7 @@ class _ActiveAccountInitializationGateState
 
   Widget _errorScreen({
     required registry_model.SessionRegistry? registry,
+    required Object error,
   }) {
     final hasAlternative =
         registry != null && registry.orderedSessions.length > 1;
@@ -103,6 +106,7 @@ class _ActiveAccountInitializationGateState
     final busy = _recovering || ref.watch(authControllerProvider).isLoading;
     return Builder(
       builder: (recoveryContext) => ActiveAccountInitializationErrorScreen(
+        error: error,
         busy: busy,
         isSigningOut: _recovering,
         onRetry: _retry,

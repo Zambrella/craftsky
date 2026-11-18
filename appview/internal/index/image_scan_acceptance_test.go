@@ -256,8 +256,8 @@ func testImageSafetyWorkflow(t *testing.T, autoApprove bool) {
 				URI: "at://did:plc:third-party-writer/social.craftsky.business.profile/self", CID: "business-cid", DID: actor,
 				Rkey: "self", Collection: "social.craftsky.business.profile", Action: "create",
 				Record: json.RawMessage(`{"$type":"social.craftsky.business.profile","products":[
-					{"title":"One","uri":"https://example.com/one","image":{"image":{"$type":"blob","ref":{"$link":"` + productBlob + `"},"mimeType":"image/jpeg","size":40}}},
-					{"title":"Two","uri":"https://example.com/two","image":{"image":{"$type":"blob","ref":{"$link":"` + sharedBlob + `"},"mimeType":"image/jpeg","size":10}}}
+					{"title":"One","uri":"https://example.com/one","images":[{"image":{"$type":"blob","ref":{"$link":"` + productBlob + `"},"mimeType":"image/jpeg","size":40}}]},
+					{"title":"Two","uri":"https://example.com/two","images":[{"image":{"$type":"blob","ref":{"$link":"` + sharedBlob + `"},"mimeType":"image/jpeg","size":10}}]}
 				]}`),
 			},
 		},

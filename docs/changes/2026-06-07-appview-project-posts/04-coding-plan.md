@@ -15,7 +15,7 @@
   - `appview/internal/routes/routes.go`
   - generated project lexicon types under `appview/internal/lexicon/craftsky/`
   - relevant tests under `appview/internal/index`, `appview/internal/api`, `appview/internal/routes`
-  - API/indexing references under `docs/superpowers/specs/` and `adr/001-post-lexicon-project-extensibility.md`
+  - API/indexing references under `docs/superpowers/specs/` and `docs/adr/001-post-lexicon-project-extensibility.md`
 
 ## 2. Implementation Strategy
 

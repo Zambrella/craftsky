@@ -1,7 +1,7 @@
 name: craftsky_app
 description: "CraftSky — crafting-focused social platform on AT Protocol."
 publish_to: 'none'
-version: 1.11.1+17
+version: 1.13.0+19
 
 environment:
   sdk: ^3.13.0
@@ -16,6 +16,7 @@ dependencies:
   characters: ^1.4.1
   cross_cache: 1.1.1
   crypto: ^3.0.7
+  cupertino_icons: ^2.0.0
   cupertino_ui: ^1.1.2
   dart_mappable: ^4.10.0
   device_info_plus: ^13.3.0
@@ -62,11 +63,14 @@ dependencies:
   pub_semver: ^2.2.1
   purchases_flutter: ^10.15.2
   purchases_ui_flutter: ^10.15.2
+  qr_flutter: ^4.1.0
   rive: ^0.14.11
   riverpod_annotation: ^4.0.7
   sealed_countries: ^3.4.1
+  sensors_plus: ^7.1.1
   sentry_flutter: ^10.0.0
   sentry_logging: 10.0.0
+  share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   skeletonizer: ^3.0.0
   sliver_tools: ^0.2.12
@@ -111,13 +115,17 @@ flutter:
   config:
     enable-swift-package-manager: true
   assets:
+    - assets/app-icon/app-icon-light.png
+    - assets/app-icon/android-icon-foreground.png
     - assets/atmosphere/
     - assets/animations/
     - assets/design/icons/
-    - assets/profile_backgrounds/
     - assets/profile-link-providers/
     - assets/fonts/Outfit-OFL.txt
     - assets/fonts/DMSerifDisplay-OFL.txt
+  shaders:
+    - shaders/share_card_emboss.frag
+    - shaders/profile_background.frag
   fonts:
     - family: Outfit
       fonts:

@@ -37,9 +37,9 @@ type HydratedImage struct {
 }
 
 type Product struct {
-	Title string `json:"title"`
-	URI   string `json:"uri"`
-	Image *Image `json:"image,omitempty"`
+	Title  string   `json:"title"`
+	URI    string   `json:"uri"`
+	Images []*Image `json:"images,omitempty"`
 }
 
 func ValidateProductImage(image *Image, firstParty bool) error {

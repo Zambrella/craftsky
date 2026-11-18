@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
+	import { APIError, APITransport } from '#lib/api/transport.ts';
 	import { reportFailure } from '../diagnostics/client';
+	import { expectedFailure } from '../diagnostics/privacy';
 	import { onMount, onDestroy } from 'svelte';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { goto } from '$app/navigation';
@@ -27,6 +29,7 @@
 		stop: (() => void) | undefined,
 		busy = false,
 		refreshing = false;
+	let resumeFailureReported = false;
 	async function open(target: PushTarget) {
 		if (busy) return;
 		busy = true;
@@ -37,16 +40,27 @@
 					'Sign in to the account for this notification to open it.'
 				);
 			if (accountId !== session.id) {
-				const response = await fetch('/api/auth/switch', {
-					method: 'POST',
-					credentials: 'same-origin',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ accountId })
-				});
-				if (!response.ok)
-					throw new InputError(
-						'Sign in to the account for this notification to open it.'
+				try {
+					await new APITransport(fetch, '/api/auth').request(
+						'POST',
+						'/switch',
+						{
+							body: { accountId },
+							response: 'empty'
+						}
 					);
+				} catch (cause) {
+					if (
+						cause instanceof APIError &&
+						cause.status >= 400 &&
+						cause.status < 500
+					)
+						throw new InputError(
+							'Sign in to the account for this notification to open it.',
+							{ cause }
+						);
+					throw cause;
+				}
 				if (!dead) window.location.assign(pushURL(target));
 				return;
 			}
@@ -90,7 +104,12 @@
 				if (dead) unsubscribe();
 				else stop = unsubscribe;
 			}
-		} catch {
+			resumeFailureReported = false;
+		} catch (error) {
+			const unexpected = !expectedFailure(error);
+			if (!unexpected || !resumeFailureReported)
+				void reportFailure(error, 'push.resume');
+			if (unexpected) resumeFailureReported = true;
 			/* Optional push never prevents use of CraftSky. Settings provides an explicit retry. */
 		} finally {
 			refreshing = false;

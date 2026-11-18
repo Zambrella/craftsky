@@ -27,6 +27,8 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -46,6 +48,28 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
 void main() {
+  testWidgets('returning to the app refreshes access outside billing', (
+    tester,
+  ) async {
+    var reads = 0;
+    await _pumpShell(
+      tester,
+      const Size(500, 900),
+      onSubscriptionAccess: () => reads++,
+    );
+    final initialReads = reads;
+    expect(initialReads, greaterThan(0));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+    expect(reads, initialReads);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(reads, greaterThan(initialReads));
+  });
   testWidgets('Home, Search, Messages lead bottom navigation and drawer', (
     tester,
   ) async {
@@ -1293,6 +1317,7 @@ Future<GoRouter> _pumpShell(
   bool wrapInAuthenticatedShell = false,
   VoidCallback? onFeedLoad,
   ChatRepository? chatRepository,
+  VoidCallback? onSubscriptionAccess,
 }) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -1355,10 +1380,20 @@ Future<GoRouter> _pumpShell(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        if (chatRepository != null) ...[
+        if (chatRepository != null || onSubscriptionAccess != null)
           secureSessionRegistryStorageProvider.overrideWithValue(
             _ChatStorage(),
           ),
+        if (onSubscriptionAccess != null)
+          subscriptionAccessProvider.overrideWith((ref, lease) async {
+            onSubscriptionAccess();
+            return SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.free,
+              givesAccess: false,
+            );
+          }),
+        if (chatRepository != null) ...[
           accountChatRepositoryProvider.overrideWith(
             (ref, account) async => chatRepository,
           ),

@@ -6,8 +6,8 @@ Start with the [repository README](../README.md) for the product and quick start
 
 - [Product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing) — community principles and project-post intent.
 - [Roadmap](roadmap.md) — implementation history, open work, and future ideas.
-- [Architecture reference](../atproto-craft-social-app-reference.md) — PDS/AppView split and design rationale; use later ADRs for subsequent decisions.
-- [Architecture decisions](../adr/) — recorded choices and their constraints.
+- [Architecture overview](architecture.md) — current components, data ownership, authentication, media and deployment boundaries; follow linked ADRs for decisions and exceptions.
+- [Architecture decisions](adr/) — recorded choices and their constraints.
 - [API architecture](superpowers/specs/2026-04-21-appview-api-architecture-design.md) and [wire conventions](superpowers/specs/2026-04-22-api-wire-alignment-design.md) — required reading for API changes.
 - [Lexicons](../lexicon/README.md) — public record schemas and generation rules.
 
@@ -16,9 +16,10 @@ Start with the [repository README](../README.md) for the product and quick start
 | Guide | Covers |
 | --- | --- |
 | [Flutter client](../app/README.md) | SDK, local configuration, devices, and OAuth links |
+| [SvelteKit client](../web-client/README.md) | Guest and signed-in browser UI, Worker sessions, local Instagram post imports, fixture gates and live smoke tests |
 | [AppView](../appview/README.md) | Compose, backend ownership, tests, and OAuth debugging |
 | [Website](../web/README.md) | Local serving, browser checks, and static build |
-| [Web client](../web-client/README.md) | Signed-in web app, local Instagram post imports, and composer checks |
+| [Statistics website](../stats/README.md) | Local API proxy, aggregate rendering and browser fixture checks |
 | [Service status](../service-status/README.md) | Worker checks and local status simulation |
 | [Verified links](../verified-links/README.md) | App-link hosting and OAuth fallbacks |
 | [Flutter integration tests](../app/integration_test/README.md) | Native journey coverage and its limits |
@@ -34,5 +35,10 @@ Start with the [repository README](../README.md) for the product and quick start
 - [Online safety documentation](../online-safety/README.md) — policy sources, assessments, and readiness gaps. Drafts and implementation checkboxes are not evidence of approval or full public-launch readiness.
 
 ## Design history
+
+[Search the change archive](changes/README.md) by topic, component or code symbol.
+Its [generated index](changes/INDEX.md) links concise summaries, status and open
+follow-ups. From the repository root, use `./scripts/docs search "search terms"`
+and retrieve individual historical sections as described in the archive guide.
 
 [Specs](superpowers/specs/), [plans](superpowers/plans/), and [change packages](changes/) preserve the reasoning and verification for individual changes. They are historical context, not a sequential setup guide. Start with the component README and current code, then consult the relevant package. If an older design conflicts with a later ADR or implementation, flag the mismatch and update the contributor-facing guidance.

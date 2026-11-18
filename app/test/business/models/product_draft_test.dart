@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/business/models/business_drafts.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,9 +20,38 @@ void main() {
     id: uri,
     title: 'Yarn',
     destination: uri,
-    image: image,
+    images: const [image],
     amount: amount,
     currency: currency,
+  );
+
+  test(
+    'reopening an accepted product retains local preview and alt changes',
+    () {
+      final bytes = Uint8List.fromList([1, 2, 3]);
+      final draft = ProductDraft.fromView(
+        BusinessProductView(
+          title: 'Yarn',
+          images: [
+            BusinessImageView.localPreview(
+              cid: 'bafy-image',
+              mime: 'image/png',
+              size: bytes.length,
+              alt: 'Blue yarn',
+              previewBytes: bytes,
+            ),
+          ],
+        ),
+        'saved',
+      );
+      expect(draft.image.previewBytes, same(bytes));
+      final updated = (draft.image as ExistingBusinessImageDraft).withAlt(
+        'Yarn',
+      );
+      expect(updated.previewBytes, same(bytes));
+      expect(updated.toJson()['alt'], 'Yarn');
+      expect(updated.toJson(), isNot(contains('previewBytes')));
+    },
   );
 
   test('UT-006 validates product limits and retains authored order', () {
@@ -52,7 +84,7 @@ void main() {
           id: 'invalid',
           title: ' ',
           destination: 'https://user:secret@shop.example/item',
-          image: MissingBusinessImageDraft(),
+          images: [MissingBusinessImageDraft()],
         ).validate(),
         containsAll([
           ProductDraftError.titleRequired,

@@ -21,12 +21,12 @@ describe('native settings navigation policy', () => {
 			groups
 				.find((group) => group.title === 'Business')
 				?.items.map(([slug]) => slug)
-		).toEqual(['events', 'products']);
+		).toEqual(['business', 'events', 'products']);
 		expect(
 			groups
 				.find((group) => group.title === 'General')
 				?.items.map(([slug]) => slug)
-		).toEqual(['moderation', 'account', 'about', 'feedback']);
+		).toEqual(['safety', 'moderation', 'account', 'about', 'feedback']);
 	});
 	it('does not advertise business management without authoritative Business access', () => {
 		expect(
@@ -42,6 +42,7 @@ describe('native settings navigation policy', () => {
 		expect(slugs).toEqual([
 			'muted',
 			'blocked',
+			'safety',
 			'moderation',
 			'account',
 			'about',
@@ -70,7 +71,8 @@ describe('native preference presentation contracts', () => {
 	it('labels every persisted background choice without exposing asset identifiers', () => {
 		for (const value of backgrounds)
 			expect(backgroundLabels[value]).toBeTruthy();
-		expect(backgroundLabels.dotcrossdark).toBe('Cross stitch');
-		expect(backgroundLabels.skewdark).toBe('Diagonal weave');
+		expect(backgroundLabels['craft-embroidery']).toBe('Embroidery');
+		expect(backgroundLabels['animated-textile']).toBe('Woven');
+		expect(Object.keys(backgroundLabels)).toHaveLength(backgrounds.length);
 	});
 });

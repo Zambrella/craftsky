@@ -3,16 +3,13 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending approval by Douglas Todd after specialist review |
-| Version | 0.1 |
-| Status | Draft; not effective |
-| Proposed effective date | 1 October 2026, subject to launch readiness |
-| Last reviewed | 14 September 2026 |
-| Next review | Before publication, then at least annually |
-| Publication | Public after approval |
-
-> This draft is not effective and must not be published until CraftSky's company
-> details and outstanding launch requirements are complete.
+| Approved by | Douglas Todd, 10 November 2026 (private beta publication) |
+| Version | 1.0 |
+| Status | Approved |
+| Effective date | 10 November 2026 |
+| Last reviewed | 10 November 2026 |
+| Next review | Before full public launch, then at least annually |
+| Publication | Public; approved for private beta |
 
 ## 1. Respecting Rights
 
@@ -116,3 +113,4 @@ services. This procedure is available in English.
 | Version | Date | Change | Author/approver |
 |---|---|---|---|
 | 0.1 | 14 September 2026 | Initial public draft recording the notice, response, restoration, misuse, and federation process. | Douglas Todd / approval pending |
+| 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |

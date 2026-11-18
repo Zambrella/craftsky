@@ -69,6 +69,8 @@ services:
       # TAP_WS_URL is required by LoadConfig but unused by `cli migrate`.
       # Kept here so a single compose-level config satisfies all services.
       TAP_WS_URL: ws://tap:2480/channel
+      # Migrations do not upload video or receive provider credentials.
+      VIDEO_PROVIDER: bluesky
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,20 +151,19 @@ services:
       minio-bootstrap:
         condition: service_completed_successfully
     env_file:
-      - path: ./appview/environments/dev.env
+      - path: ./appview/config/dev.env
         required: true
+      - path: ./appview/config/.env.secrets.local
+        required: false
       # Optional developer-owned secrets and local integration configuration.
-      # Copy .env.local.example to .env.local; the destination is gitignored.
-      - path: ./.env.local
+      # Copy appview/config/.env.local.example to appview/config/.env.local; the destination is gitignored.
+      - path: ./appview/config/.env.local
         required: false
     environment:
       APPVIEW_ENV: dev
       WEB_APP_ORIGIN: ${WEB_APP_ORIGIN:-https://app.craftsky.social}
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
       TAP_WS_URL: ws://tap:2480/channel
-      TAP_ACK_TIMEOUT: "10s"
-      TAP_ACK_SAFETY_MARGIN: "500ms"
-      TAP_RECONNECT_MAX: "30s"
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
       APPVIEW_PUBLISH_HOST: "${CRAFTSKY_APPVIEW_PUBLISH_HOST:-127.0.0.1}"

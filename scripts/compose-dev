@@ -6,27 +6,18 @@ cd "$repo_root"
 
 git_dir=$(git rev-parse --path-format=absolute --git-dir)
 git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
-local_env="$repo_root/.env.local"
+
+# Parse once using AppView's dotenv parser, export only wrapper-owned keys.
+# Backend credentials remain in Compose env_file inputs.
+config_shell=$(./scripts/config shell)
+eval "$config_shell"
 
 dotenv_value() {
-  local key=$1
-  local value=""
-
-  if [[ -f "$local_env" ]]; then
-    value=$(sed -n "s/^${key}=//p" "$local_env" | tail -n 1)
-  fi
-
-	printf '%s' "$value"
+  printenv "$1" 2>/dev/null || true
 }
 
 configured_value() {
-  local key=$1
-
-  if printenv "$key" >/dev/null 2>&1; then
-    printf '%s' "${!key}"
-    return
-  fi
-  dotenv_value "$key"
+  dotenv_value "$1"
 }
 
 sanitize_compose_name() {
@@ -101,7 +92,7 @@ else
 
   # Stable per-checkout ports let linked worktrees run alongside the primary
   # checkout. The small collision risk can be handled with the overrides in
-  # .env.local.
+  # appview/config/.env.local.
   checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
   port_offset=$((checkout_checksum % 1000 + 1))
   default_postgres_port=$((15432 + port_offset))
@@ -204,51 +195,19 @@ fi
 if [[ -n "$adc_path" ]]; then
   export FIREBASE_ADC_PATH="$adc_path"
   compose+=(-f "$repo_root/docker-compose.push.yml")
-  printf '%s\n' 'Firebase ADC found; push notifications enabled.' >&2
-else
-  printf '%s\n' 'Firebase ADC not found; push notifications disabled.' >&2
 fi
 
-instagram_meta_enabled=$(dotenv_value INSTAGRAM_META_ENABLED)
-instagram_meta_enabled=$(printf '%s' "$instagram_meta_enabled" | tr '[:upper:]' '[:lower:]')
-case "$instagram_meta_enabled" in
-  1 | t | true)
-    instagram_required_keys=(
-      INSTAGRAM_DATA_HMAC_KEY
-      INSTAGRAM_META_REPLIES_ENABLED
-      INSTAGRAM_META_APP_SECRET
-      INSTAGRAM_META_VERIFY_TOKEN
-      INSTAGRAM_META_ACCESS_TOKEN
-      INSTAGRAM_META_ACCOUNT_ID
-      INSTAGRAM_META_API_VERSION
-      INSTAGRAM_META_API_BASE_URL
-      INSTAGRAM_META_DM_URL
-    )
-    instagram_missing_keys=()
-    for key in "${instagram_required_keys[@]}"; do
-      if [[ -z "$(dotenv_value "$key")" ]]; then
-        instagram_missing_keys+=("$key")
-      fi
-    done
+# Startup summaries belong to backend startup, not client port discovery.
+if [[ "${1:-}" == up ]]; then
+  summary_args=(services)
+  if [[ -n "$adc_path" ]]; then
+    summary_args+=(--push-enabled)
+  fi
+  ./scripts/config "${summary_args[@]}" >&2
 
-    if (( ${#instagram_missing_keys[@]} == 0 )); then
-      printf '%s\n' 'Instagram Meta configuration found; Instagram verification enabled.' >&2
-    else
-      printf 'Instagram Meta integration enabled but configuration incomplete (missing: %s); AppView startup will fail.\n' \
-        "$(IFS=,; printf '%s' "${instagram_missing_keys[*]}")" >&2
-    fi
-    ;;
-  "" | 0 | f | false)
-    printf '%s\n' 'Instagram Meta integration disabled; Instagram verification disabled.' >&2
-    ;;
-  *)
-    printf 'Invalid INSTAGRAM_META_ENABLED value %q; AppView startup will fail.\n' \
-      "$instagram_meta_enabled" >&2
-    ;;
-esac
-
-printf 'CraftSky stack: project=%s appview-listener=http://%s:%s postgres=%s:%s minio=http://%s:%s minio-console=http://%s:%s\n' \
-  "$project_name" "$appview_publish_host" "$appview_port" "$postgres_publish_host" "$postgres_port" \
-  "$minio_publish_host" "$minio_port" "$minio_publish_host" "$minio_console_port" >&2
+  printf 'CraftSky stack: project=%s appview-listener=http://%s:%s postgres=%s:%s minio=http://%s:%s minio-console=http://%s:%s\n' \
+    "$project_name" "$appview_publish_host" "$appview_port" "$postgres_publish_host" "$postgres_port" \
+    "$minio_publish_host" "$minio_port" "$minio_publish_host" "$minio_console_port" >&2
+fi
 
 exec "${compose[@]}" "$@"

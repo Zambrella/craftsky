@@ -26,6 +26,7 @@ final _lease = ActiveAccountLease(
 final class _Flow extends OnboardingFlow {
   new(this.initial);
   final OnboardingFlowState initial;
+  @visibleForTesting
   int completionCalls = 0;
 
   @override

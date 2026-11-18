@@ -20,6 +20,7 @@ import 'package:craftsky_app/projects/providers/preferred_project_crafts_provide
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/anchored_sliver_list.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
@@ -127,6 +128,9 @@ class _FeedPageState extends ConsumerState<FeedPage>
         InlinePinchZoomScope(
           onPinchChanged: _handleImagePinchChanged,
           child: YarnRefreshScrollView(
+            scrollViewKey: keys.feed.scrollView(
+              extendedNetwork: widget.extendedNetwork,
+            ),
             notificationPredicate: (notification) =>
                 !_isPinchingImage &&
                 defaultScrollNotificationPredicate(notification),
@@ -170,6 +174,10 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   ),
                 ),
               },
+              // Keep the last post's actions reachable above the compact FAB,
+              // including when this feed is embedded in Home's scaffold.
+              if (isCompact && hasItems)
+                const SliverToBoxAdapter(child: SizedBox(height: 88)),
             ],
           ),
         ),
@@ -312,8 +320,8 @@ class _FeedLoadedSlivers extends ConsumerWidget {
             ),
           )
         else
-          SliverList.builder(
-            itemCount: items.length,
+          AnchoredSliverList(
+            identities: [for (final item in items) item.itemKey],
             itemBuilder: (context, index) {
               if (hasMore &&
                   !isLoadingMore &&
@@ -336,7 +344,8 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 allowProfilePinAction: true,
                 repostReason: item.reason,
                 followedBy: item.followedBy,
-                onTap: () => PostThreadRoute(
+                onOpenPost: (imageCid) => PostThreadRoute(
+                  imageCid: imageCid,
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),

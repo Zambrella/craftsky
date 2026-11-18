@@ -100,6 +100,90 @@ abstract class AppLocalizations {
   /// **'Use current image ({current} of {total})'**
   String postQuoteUseCurrentImage(int current, int total);
 
+  /// No description provided for @subscriptionsComplimentaryAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Complimentary access'**
+  String get subscriptionsComplimentaryAccess;
+
+  /// No description provided for @subscriptionsComplimentaryUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier} until {date}'**
+  String subscriptionsComplimentaryUntil(String tier, String date);
+
+  /// No description provided for @subscriptionsComplimentaryNoExpiry.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier} with no expiry date'**
+  String subscriptionsComplimentaryNoExpiry(String tier);
+
+  /// No description provided for @subscriptionsComplimentaryPurchaseTiming.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribing starts paid billing immediately. Remaining complimentary time is not added to your paid subscription.'**
+  String get subscriptionsComplimentaryPurchaseTiming;
+
+  /// No description provided for @subscriptionsSubscribeTier.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe to {tier}'**
+  String subscriptionsSubscribeTier(String tier);
+
+  /// No description provided for @subscriptionsPlanChangeScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Your plan change is scheduled. Your current benefits continue until renewal.'**
+  String get subscriptionsPlanChangeScheduled;
+
+  /// No description provided for @subscriptionsScheduledPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Your plan will change to {tier} at the next renewal.'**
+  String subscriptionsScheduledPlan(String tier);
+
+  /// No description provided for @subscriptionsPlanChangeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This plan change is not available yet. Your existing subscription stays active.'**
+  String get subscriptionsPlanChangeUnavailable;
+
+  /// No description provided for @subscriptionsCheckoutPendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase pending'**
+  String get subscriptionsCheckoutPendingTitle;
+
+  /// No description provided for @subscriptionsCheckoutPendingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A purchase is still pending for this account. Finish or cancel it before choosing a plan. Canceling an unpaid checkout does not cancel an active subscription.'**
+  String get subscriptionsCheckoutPendingBody;
+
+  /// No description provided for @subscriptionsCancelCheckout.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel pending purchase'**
+  String get subscriptionsCancelCheckout;
+
+  /// No description provided for @subscriptionsStoreAccountConflictKnown.
+  ///
+  /// In en, this message translates to:
+  /// **'This store purchase is linked to {account}. Switch to that CraftSky account to manage or restore it.'**
+  String subscriptionsStoreAccountConflictKnown(String account);
+
+  /// No description provided for @subscriptionsStoreAccountConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This store purchase is linked to another CraftSky account. Switch to the account that originally subscribed to manage or restore it.'**
+  String get subscriptionsStoreAccountConflict;
+
+  /// A verified existing store subscription blocked a new independent purchase before payment.
+  ///
+  /// In en, this message translates to:
+  /// **'This store already has a subscription for this CraftSky account. Refresh status or restore purchases before changing plans.'**
+  String get subscriptionsExistingStoreSubscription;
+
   /// Desktop discovery sidebar section copy.
   ///
   /// In en, this message translates to:
@@ -1006,6 +1090,12 @@ abstract class AppLocalizations {
   /// **'CraftSky is having trouble right now. Please try again.'**
   String get errorServiceUnavailable;
 
+  /// Recovery guidance when an API request is rate limited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests. Please wait a moment and try again.'**
+  String get errorRateLimited;
+
   /// Safe generic error message shown when the user's session is no longer valid.
   ///
   /// In en, this message translates to:
@@ -1083,6 +1173,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get profileSettingsAction;
+
+  /// Profile context-menu action opening the downloadable QR profile card.
+  ///
+  /// In en, this message translates to:
+  /// **'Share card'**
+  String get profileShareCardAction;
+
+  /// Heading above the profile share card overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Your share card'**
+  String get profileShareCardTitle;
+
+  /// Caption beneath the profile QR code on a share card.
+  ///
+  /// In en, this message translates to:
+  /// **'Meet me on CraftSky'**
+  String get profileShareCardScan;
+
+  /// Accessibility label for the QR image linking to the displayed profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan to open this CraftSky profile'**
+  String get profileShareCardQrLabel;
 
   /// Tooltip on the share icon button shown on a visitor profile, and on the collapsed-bar trailing action.
   ///
@@ -2560,10 +2674,16 @@ abstract class AppLocalizations {
   /// **'{describedCount} / {imageCount} described'**
   String postComposeImagesDescribed(int describedCount, int imageCount);
 
+  /// Helper below an empty multi-photo composer picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to {maxImages} photos'**
+  String postComposeChoosePhotosHelper(int maxImages);
+
   /// Helper text under the photo heading before photos are attached.
   ///
   /// In en, this message translates to:
-  /// **'Up to {maxImages} photos'**
+  /// **'{maxImages, plural, =1{One photo} other{Up to {maxImages} photos}}'**
   String postComposePhotosLimitHelper(int maxImages);
 
   /// Helper text under the photo heading once photos are attached.
@@ -3190,11 +3310,17 @@ abstract class AppLocalizations {
   /// **'Could not update follow state.'**
   String get profileFollowToggleError;
 
-  /// Snackbar shown when tapping Share while share wiring isn't implemented yet.
+  /// Share card button label while preparing or sharing the card image.
   ///
   /// In en, this message translates to:
-  /// **'Share coming soon.'**
-  String get profileShareComingSoon;
+  /// **'Loading...'**
+  String get profileShareCardLoading;
+
+  /// Retry message when creating or sharing a profile card image fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t share your card. Please try again.'**
+  String get profileShareCardFailed;
 
   /// Tooltip/action label for reporting a visitor profile.
   ///
@@ -3232,10 +3358,28 @@ abstract class AppLocalizations {
   /// **'Submitting…'**
   String get reportSubmitting;
 
-  /// Snackbar shown after a report submission succeeds.
+  /// Safety and support guide navigation or resource information.
   ///
   /// In en, this message translates to:
-  /// **'Thanks — your report was submitted.'**
+  /// **'Safety and support'**
+  String get safetyTitle;
+
+  /// Safety and support guide navigation or resource information.
+  ///
+  /// In en, this message translates to:
+  /// **'Find support'**
+  String get safetyFindSupport;
+
+  /// Safety and support guide navigation or resource information.
+  ///
+  /// In en, this message translates to:
+  /// **'Resources reviewed: {date}'**
+  String safetyResourcesReviewed(String date);
+
+  /// Confirmation after a CraftSky report succeeds; explains review, routine decision estimate and urgent prioritisation. Not used for Bluesky DM reports.
+  ///
+  /// In en, this message translates to:
+  /// **'Report received. We’ll review it and take action if needed. We aim to decide routine reports within ten UK business days. Urgent safety concerns take priority.'**
   String get reportSubmitSuccess;
 
   /// Inline error shown when a report submission fails and can be retried.
@@ -3628,6 +3772,156 @@ abstract class AppLocalizations {
   /// **'Business details'**
   String get editProfileBusinessHeading;
 
+  /// No description provided for @editProfileBusinessTypesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Business types'**
+  String get editProfileBusinessTypesHint;
+
+  /// No description provided for @editProfileBusinessOfferingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Offerings'**
+  String get editProfileBusinessOfferingsHint;
+
+  /// No description provided for @editProfileBusinessTaglineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand-dyed yarn inspired by nature'**
+  String get editProfileBusinessTaglineHint;
+
+  /// No description provided for @editProfileBusinessHoursHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Mon–Fri, 9am–5pm; Sat, 10am–2pm'**
+  String get editProfileBusinessHoursHint;
+
+  /// No description provided for @editProfileBusinessServiceAreaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'UK-wide shipping and local workshops'**
+  String get editProfileBusinessServiceAreaHint;
+
+  /// No description provided for @editProfileBusinessCountryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'GB or US'**
+  String get editProfileBusinessCountryHint;
+
+  /// No description provided for @editProfileBusinessLocalityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristol'**
+  String get editProfileBusinessLocalityHint;
+
+  /// No description provided for @editProfileBusinessActionHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose what visitors can do on your profile.'**
+  String get editProfileBusinessActionHelper;
+
+  /// No description provided for @editProfileBusinessActionSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Primary action'**
+  String get editProfileBusinessActionSearchHint;
+
+  /// No description provided for @editProfileBusinessShopUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop URL'**
+  String get editProfileBusinessShopUrlLabel;
+
+  /// No description provided for @editProfileBusinessPatternsUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Patterns URL'**
+  String get editProfileBusinessPatternsUrlLabel;
+
+  /// No description provided for @editProfileBusinessCustomOrderUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom order URL'**
+  String get editProfileBusinessCustomOrderUrlLabel;
+
+  /// No description provided for @editProfileBusinessBookingUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking URL'**
+  String get editProfileBusinessBookingUrlLabel;
+
+  /// No description provided for @editProfileBusinessCalendarUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event calendar URL'**
+  String get editProfileBusinessCalendarUrlLabel;
+
+  /// No description provided for @editProfileBusinessEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Email address'**
+  String get editProfileBusinessEmailLabel;
+
+  /// No description provided for @editProfileBusinessWebsiteUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Website URL'**
+  String get editProfileBusinessWebsiteUrlLabel;
+
+  /// No description provided for @editProfileBusinessWholesaleUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Wholesale enquiries URL'**
+  String get editProfileBusinessWholesaleUrlLabel;
+
+  /// No description provided for @editProfileBusinessPatternsUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/patterns'**
+  String get editProfileBusinessPatternsUrlHint;
+
+  /// No description provided for @editProfileBusinessCustomOrderUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/custom-orders'**
+  String get editProfileBusinessCustomOrderUrlHint;
+
+  /// No description provided for @editProfileBusinessBookingUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/book'**
+  String get editProfileBusinessBookingUrlHint;
+
+  /// No description provided for @editProfileBusinessCalendarUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/events'**
+  String get editProfileBusinessCalendarUrlHint;
+
+  /// No description provided for @editProfileBusinessWebsiteUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com'**
+  String get editProfileBusinessWebsiteUrlHint;
+
+  /// No description provided for @editProfileBusinessWholesaleUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/wholesale'**
+  String get editProfileBusinessWholesaleUrlHint;
+
+  /// No description provided for @editProfileBusinessActionUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/shop'**
+  String get editProfileBusinessActionUrlHint;
+
+  /// No description provided for @editProfileBusinessActionEmailHint.
+  ///
+  /// In en, this message translates to:
+  /// **'hello@example.com'**
+  String get editProfileBusinessActionEmailHint;
+
   /// Helper text for business-only profile fields.
   ///
   /// In en, this message translates to:
@@ -3745,7 +4039,7 @@ abstract class AppLocalizations {
   /// Label for the business primary action HTTPS or mailto destination.
   ///
   /// In en, this message translates to:
-  /// **'Action destination'**
+  /// **'Action URL'**
   String get editProfileBusinessActionDestinationLabel;
 
   /// Validation error for a malformed business action destination.
@@ -3880,53 +4174,131 @@ abstract class AppLocalizations {
   /// **'Green'**
   String get profileCustomisationColourGreen;
 
-  /// Label for the teal profile colour.
-  ///
-  /// In en, this message translates to:
-  /// **'Teal'**
-  String get profileCustomisationColourTeal;
-
   /// Label for the profile colour that uses the CraftSky theme Ink colour.
   ///
   /// In en, this message translates to:
   /// **'Ink'**
   String get profileCustomisationColourInk;
 
-  /// Label for the bayerdark profile texture.
+  /// Label for the terracotta profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Dither'**
-  String get profileCustomisationBackgroundDither;
+  /// **'Terracotta'**
+  String get profileCustomisationColourTerracotta;
 
-  /// Label for the cubedark profile texture.
+  /// Label for the denim profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Grid'**
-  String get profileCustomisationBackgroundGrid;
+  /// **'Denim'**
+  String get profileCustomisationColourDenim;
 
-  /// Label for the dotcrossdark profile texture.
+  /// Label for the forest profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Cross stitch'**
-  String get profileCustomisationBackgroundCrossStitch;
+  /// **'Forest'**
+  String get profileCustomisationColourForest;
 
-  /// Label for the scallopdark profile texture.
+  /// Label for the plum profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Scallops'**
-  String get profileCustomisationBackgroundScallops;
+  /// **'Plum'**
+  String get profileCustomisationColourPlum;
 
-  /// Label for the skewdark profile texture.
+  /// Label for the seafoam profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Diagonal weave'**
-  String get profileCustomisationBackgroundDiagonalWeave;
+  /// **'Seafoam'**
+  String get profileCustomisationColourSeafoam;
 
-  /// Label for the x2 profile texture.
+  /// Label for the dusty pink profile colour.
   ///
   /// In en, this message translates to:
-  /// **'Crosshatch'**
-  String get profileCustomisationBackgroundCrosshatch;
+  /// **'Dusty pink'**
+  String get profileCustomisationColourDustyPink;
+
+  /// Label for the chocolate profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Chocolate'**
+  String get profileCustomisationColourChocolate;
+
+  /// Label for the animated aurora gradient profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Aurora'**
+  String get profileCustomisationBackgroundFlow;
+
+  /// Label for the animated colour pools profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour pools'**
+  String get profileCustomisationBackgroundWaves;
+
+  /// Label for the animated sunset gradient profile background.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunset'**
+  String get profileCustomisationBackgroundWeave;
+
+  /// Label for the animated textured pigment gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Pigment'**
+  String get profileCustomisationBackgroundGrain;
+
+  /// Label for the animated textured marble gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Marble'**
+  String get profileCustomisationBackgroundMarble;
+
+  /// Label for the animated textured woven gradient background.
+  ///
+  /// In en, this message translates to:
+  /// **'Woven'**
+  String get profileCustomisationBackgroundTextile;
+
+  /// Label for the animated ribbon bands reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Ribbon bands'**
+  String get profileCustomisationBackgroundRibbons;
+
+  /// Label for the animated liquid silk reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Liquid silk'**
+  String get profileCustomisationBackgroundSilk;
+
+  /// Label for the animated light bloom reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Light bloom'**
+  String get profileCustomisationBackgroundBloom;
+
+  /// Label for the animated sunbeams reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunbeams'**
+  String get profileCustomisationBackgroundSunbeams;
+
+  /// Label for the animated lagoon reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Lagoon'**
+  String get profileCustomisationBackgroundLagoon;
+
+  /// Label for the animated nebula reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Nebula'**
+  String get profileCustomisationBackgroundNebula;
+
+  /// Label for the animated prism reference-inspired background.
+  ///
+  /// In en, this message translates to:
+  /// **'Prism'**
+  String get profileCustomisationBackgroundPrism;
 
   /// Display label for the 'sewing' craft option in the crafts picker.
   ///
@@ -6906,7 +7278,7 @@ abstract class AppLocalizations {
   /// Optional event venue field label.
   ///
   /// In en, this message translates to:
-  /// **'Venue (optional)'**
+  /// **'Venue'**
   String get businessEventVenueLabel;
 
   /// No description provided for @businessEventPublishedLabel.
@@ -7197,6 +7569,78 @@ abstract class AppLocalizations {
   /// **'Save event'**
   String get businessEventSave;
 
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Autumn yarn fair'**
+  String get businessEventNameHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Meet local makers, browse handmade goods and join a workshop.'**
+  String get businessEventSummaryHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristol Craft Hall'**
+  String get businessEventVenueHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'https://your-business.com/events/autumn-fair'**
+  String get businessEventUriHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'https://your-business.com/events/autumn-fair/book'**
+  String get businessEventRegistrationUriHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Timezone'**
+  String get businessEventTimeZoneHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Attendance mode'**
+  String get businessEventModeHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Status'**
+  String get businessEventStatusHint;
+
+  /// Placeholder for the event role multi-select.
+  ///
+  /// In en, this message translates to:
+  /// **'Select roles'**
+  String get businessEventRolesSearchHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 4 roles.'**
+  String get businessEventRolesHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Select date'**
+  String get businessEventDateHint;
+
+  /// Event composer field guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'End is the first date after the event, in the selected timezone.'**
+  String get businessEventAllDayHint;
+
   /// Event name field label.
   ///
   /// In en, this message translates to:
@@ -7260,19 +7704,19 @@ abstract class AppLocalizations {
   /// Optional event summary field label.
   ///
   /// In en, this message translates to:
-  /// **'Summary (optional)'**
+  /// **'Summary'**
   String get businessEventSummaryLabel;
 
   /// Optional event information link field label.
   ///
   /// In en, this message translates to:
-  /// **'Event link (optional)'**
+  /// **'Event link'**
   String get businessEventUriLabel;
 
   /// Optional event registration link field label.
   ///
   /// In en, this message translates to:
-  /// **'Registration link (optional)'**
+  /// **'Registration link'**
   String get businessEventRegistrationUriLabel;
 
   /// Optional event image alt text label.
@@ -7310,6 +7754,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check the event details and try again.'**
   String get businessEventValidationError;
+
+  /// Event boundary falls in a skipped daylight-saving time.
+  ///
+  /// In en, this message translates to:
+  /// **'This time does not exist in the selected time zone. Choose another time.'**
+  String get businessEventTimeDoesNotExist;
+
+  /// Link to the account that published an event.
+  ///
+  /// In en, this message translates to:
+  /// **'View creator profile'**
+  String get businessEventCreatorProfileAction;
+
+  /// Label explaining another account's roles at an event.
+  ///
+  /// In en, this message translates to:
+  /// **'Creator\'s roles'**
+  String get businessEventCreatorRolesLabel;
+
+  /// Event detail mutation failure message.
+  ///
+  /// In en, this message translates to:
+  /// **'The action could not be completed. Try again.'**
+  String get businessEventActionError;
 
   /// Event mutation failure message.
   ///
@@ -7545,10 +8013,10 @@ abstract class AppLocalizations {
   /// **'This post was not published because Plus access ended. Edit it to schedule again after subscribing.'**
   String get scheduledPostSubscriptionMissed;
 
-  /// Free subscription tier label.
+  /// Standard subscription tier label.
   ///
   /// In en, this message translates to:
-  /// **'Free'**
+  /// **'Standard'**
   String get subscriptionsTierFree;
 
   /// Plus subscription tier label.
@@ -7578,13 +8046,13 @@ abstract class AppLocalizations {
   /// Short Plus feature summary shown on every Plus subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.'**
+  /// **'Schedule posts, Saved folders, Profile customisation, Pinned posts, Follower growth.'**
   String get subscriptionsPlusBenefits;
 
   /// Short Business feature summary shown on every Business subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Everything in Plus, plus featured products, a profile action button, business details and events.'**
+  /// **'Everything in Plus, Featured products, Profile action button, Business details and events.'**
   String get subscriptionsBusinessBenefits;
 
   /// Open a tier paywall or its subscription management details.
@@ -7614,7 +8082,7 @@ abstract class AppLocalizations {
   /// Dormant assignment explanation.
   ///
   /// In en, this message translates to:
-  /// **'{tier} is assigned to this account but is not currently providing access.'**
+  /// **'Your {tier} subscription is currently inactive.'**
   String subscriptionsDormantAssignment(String tier);
 
   /// Privacy explanation shown to a beneficiary.
@@ -7821,6 +8289,12 @@ abstract class AppLocalizations {
   /// **'Assign license'**
   String get subscriptionsAssign;
 
+  /// Helpful empty state when no signed-in account is eligible to receive a licence assignment.
+  ///
+  /// In en, this message translates to:
+  /// **'There’s no other account available to assign this licence to. Add another account using the account switcher, then try again.'**
+  String get subscriptionsNoAssignmentTargets;
+
   /// License unassignment action.
   ///
   /// In en, this message translates to:
@@ -7836,7 +8310,7 @@ abstract class AppLocalizations {
   /// Open Customer Center action.
   ///
   /// In en, this message translates to:
-  /// **'Manage subscription'**
+  /// **'Manage'**
   String get subscriptionsManage;
 
   /// Refresh AppView subscription state.
@@ -8208,6 +8682,24 @@ abstract class AppLocalizations {
   /// Controlled moderation reason.
   ///
   /// In en, this message translates to:
+  /// **'Other illegal content'**
+  String get moderationReasonIllegalContent;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Fraud or scam'**
+  String get moderationReasonFraudOrScam;
+
+  /// Controlled moderation reason; not ordinary distress or help-seeking.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-harm policy violation'**
+  String get moderationReasonSelfHarm;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
   /// **'Other policy issue'**
   String get moderationReasonOther;
 
@@ -8421,6 +8913,18 @@ abstract class AppLocalizations {
   /// **'Copy link'**
   String get recordCopyLinkAction;
 
+  /// Opens the native share sheet for the record link.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get recordShareLinkAction;
+
+  /// No description provided for @recordShareLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open sharing options. Please try again.'**
+  String get recordShareLinkFailed;
+
   /// No description provided for @recordLinkCopied.
   ///
   /// In en, this message translates to:
@@ -8450,6 +8954,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Photo details'**
   String get postComposePhotoDetailsTitle;
+
+  /// Summary guidance for a single attached composer photo.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo, remove it or add alt text'**
+  String get postComposeEditSinglePhotoHelper;
 
   /// Hint on the attached photo thumbnail card.
   ///
@@ -9278,6 +9788,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a valid email address.'**
   String get reportContactEmailInvalid;
+
+  /// No description provided for @accountProviderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky / account provider'**
+  String get accountProviderTitle;
+
+  /// No description provided for @accountProviderExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Your handle, password and email belong to your shared AT Protocol account. Changes made with your provider also affect other apps that use this account.'**
+  String get accountProviderExplanation;
+
+  /// No description provided for @accountHandleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Handle'**
+  String get accountHandleLabel;
+
+  /// No description provided for @accountDidLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Account ID (DID)'**
+  String get accountDidLabel;
+
+  /// No description provided for @accountHostingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosting provider'**
+  String get accountHostingLabel;
+
+  /// No description provided for @accountManageProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage account with provider'**
+  String get accountManageProvider;
+
+  /// No description provided for @accountChangePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change password in Bluesky'**
+  String get accountChangePassword;
+
+  /// No description provided for @accountProviderAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Available settings vary by provider. You may need to sign in again. In Bluesky account settings, select Password to change it.'**
+  String get accountProviderAvailability;
+
+  /// No description provided for @accountProviderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosting details are unavailable. Try again to load your provider links.'**
+  String get accountProviderUnavailable;
+
+  /// No description provided for @accountCraftskyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky account'**
+  String get accountCraftskyTitle;
+
+  /// No description provided for @accountDeleteBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your CraftSky account removes your CraftSky data. It does not delete your Bluesky or AT Protocol account.'**
+  String get accountDeleteBoundary;
+
+  /// No description provided for @accountDeleteCraftskyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete CraftSky account'**
+  String get accountDeleteCraftskyAction;
+
+  /// No description provided for @accountCopyDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy account detail'**
+  String get accountCopyDetail;
+
+  /// No description provided for @accountProviderAvailabilityGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Available settings vary by provider. You may need to sign in again.'**
+  String get accountProviderAvailabilityGeneric;
+
+  /// Open the existing billing provider to upgrade the subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get subscriptionsUpgrade;
+
+  /// Open the existing billing provider to downgrade the subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Downgrade'**
+  String get subscriptionsDowngrade;
 }
 
 class _AppLocalizationsDelegate

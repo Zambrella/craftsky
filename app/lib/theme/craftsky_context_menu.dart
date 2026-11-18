@@ -194,6 +194,10 @@ Future<void> showCraftskyContextMenu(
     var selectedAction = Future<void>.value();
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      ),
       useSafeArea: true,
       useRootNavigator: true,
       backgroundColor: swatches.paper3,

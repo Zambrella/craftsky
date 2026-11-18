@@ -26,6 +26,7 @@ import '../fakes/recording_messenger.dart';
 
 class _RecordingAuthController extends AuthController {
   final List<String> signInCalls = [];
+  @visibleForTesting
   int registrationCalls = 0;
 
   @override
@@ -229,7 +230,7 @@ void main() {
   });
 
   testWidgets(
-    'an InvalidHandle error dispatches showError with the localised message',
+    'an InvalidHandle error is shown beside the handle and clears on editing',
     (tester) async {
       final messenger = RecordingMessenger();
 
@@ -254,9 +255,11 @@ void main() {
       await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
       await tester.pump();
 
-      expect(messenger.calls.length, 1);
-      expect(messenger.calls.first.$1, 'error');
-      expect(messenger.calls.first.$2, "We couldn't recognise that handle.");
+      expect(messenger.calls, isEmpty);
+      expect(find.text("We couldn't recognise that handle."), findsOneWidget);
+      await tester.enterText(find.byType(BrandTextField), 'alice.bsky.social');
+      await tester.pump();
+      expect(find.text("We couldn't recognise that handle."), findsNothing);
     },
   );
 

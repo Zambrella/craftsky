@@ -239,10 +239,15 @@
 		touch-action: none;
 		user-select: none;
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr);
 		place-items: center;
 		overflow: hidden;
 	}
 	.viewport img {
+		min-width: 0;
+		min-height: 0;
+		max-height: 100%;
 		width: 100%;
 		height: 100%;
 		object-fit: contain;

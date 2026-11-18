@@ -13,7 +13,7 @@
   - Plan recent-search persistence and search-supporting migrations deliberately with `MAN-001` in mind.
   - Keep recent searches AppView-private, DID-scoped, hard-deleted, idempotent on nonexistent/not-owned delete, excluded from PDS writes, and excluded from verbose logs.
 - Repository references inspected:
-  - `atproto-craft-social-app-reference.md`
+  - `docs/architecture.md`
   - `docs/superpowers/specs/2026-04-21-appview-api-architecture-design.md`
   - `docs/superpowers/specs/2026-04-22-api-wire-alignment-design.md`
   - `appview/internal/routes/routes.go`, `routes_test.go`

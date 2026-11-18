@@ -30,6 +30,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/safety/safety_guide_page.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/appearance_page.dart';
@@ -475,7 +476,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(500, 1400);
+    tester.view.physicalSize = const Size(500, 2000);
     final container = _container();
     addTearDown(container.dispose);
     final subscription = container.listen(
@@ -521,7 +522,7 @@ void main() {
       'Discovery',
       'Find people from Instagram',
       'General',
-      if (subscriptionsEnabled) 'View subscription',
+      if (subscriptionsEnabled) 'Your CraftSky subscription',
       'Account standing',
       'Account',
       'About',
@@ -532,7 +533,7 @@ void main() {
     expect(find.text('Clear image cache'), findsNothing);
     expect(
       find.byIcon(CraftskyIconsBold.next),
-      findsNWidgets(16),
+      findsNWidgets(17),
     );
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
@@ -769,7 +770,7 @@ final _routeCases = <_SettingsRouteCase>[
     matchesPage: (widget) => widget is NotificationSettingsPage,
   ),
   _SettingsRouteCase(
-    label: 'View subscription',
+    label: 'Your CraftSky subscription',
     location: '/settings/subscriptions',
     matchesPage: (widget) => widget is SubscriptionPage,
   ),
@@ -782,6 +783,11 @@ final _routeCases = <_SettingsRouteCase>[
     label: 'Account',
     location: '/settings/account',
     matchesPage: (widget) => widget is AccountPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Safety and support',
+    location: '/safety',
+    matchesPage: (widget) => widget is SafetyGuidePage,
   ),
   _SettingsRouteCase(
     label: 'About',

@@ -47,6 +47,39 @@ void main() {
   });
 
   test(
+    'rejects nonexistent daylight-saving times instead of shifting them',
+    () {
+      final draft = _draft(
+        timeZone: 'Europe/London',
+        startsAt: DateTime.utc(2026, 3, 29, 1, 30),
+        endsAt: DateTime.utc(2026, 3, 29, 3),
+      );
+
+      expect(draft.validate(zones), contains(EventDraftError.timeDoesNotExist));
+      expect(() => draft.utcRange(zones), throwsArgumentError);
+      expect(
+        draft
+            .copyWith(startsAt: DateTime.utc(2026, 3, 29, 2, 30))
+            .validate(zones),
+        isEmpty,
+      );
+    },
+  );
+
+  test('event wall-clock values are independent of the device timezone', () {
+    final wallTime = zones.toLocal(
+      'Asia/Tokyo',
+      DateTime.utc(2026, 3, 28, 16, 30),
+    );
+
+    expect(wallTime, DateTime.utc(2026, 3, 29, 1, 30));
+    expect(
+      zones.toUtc('Asia/Tokyo', wallTime),
+      DateTime.utc(2026, 3, 28, 16, 30),
+    );
+  });
+
+  test(
     'UT-008 rejects invalid zone, range, duration, and non-midnight day',
     () {
       expect(

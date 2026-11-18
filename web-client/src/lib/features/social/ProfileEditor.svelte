@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { notify } from './toasts.svelte';
-	import { fieldError, showFieldError } from '#lib/field-validation.ts';
+	import {
+		fieldError,
+		findField,
+		focusField,
+		showFieldError
+	} from '#lib/field-validation.ts';
 	import { reorderRow } from './reorder-row';
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
@@ -335,12 +340,22 @@
 			!validateText(description, 256) ||
 			!validateText(pronouns, 20)
 		) {
-			if (!validateText(displayName, 64))
-				fieldError('Display name', 'Use up to 64 characters for your name.');
-			if (!validateText(description, 256))
-				fieldError('Bio', 'Use up to 256 characters for your bio.');
-			if (!validateText(pronouns, 20))
-				fieldError('Pronouns', 'Use up to 20 characters for pronouns.');
+			let first: HTMLElement | undefined;
+			for (const [value, limit, label, message] of [
+				[
+					displayName,
+					64,
+					'Display name',
+					'Use up to 64 characters for your name.'
+				],
+				[pronouns, 20, 'Pronouns', 'Use up to 20 characters for pronouns.'],
+				[description, 256, 'Bio', 'Use up to 256 characters for your bio.']
+			] as const) {
+				if (validateText(value, limit)) continue;
+				const field = findField(label);
+				if (showFieldError(field, message)) first ||= field;
+			}
+			focusField(first);
 			return;
 		}
 		if (

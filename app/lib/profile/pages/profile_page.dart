@@ -26,6 +26,7 @@ import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/sharing/profile_share_card_dialog.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
@@ -321,6 +322,7 @@ class _ProfileAvatarLoadingShell extends StatelessWidget {
           handle: transition.handle,
           displayName: transition.displayName,
           crafts: transition.crafts,
+          isBusiness: transition.isBusiness,
           avatarUrl: transition.avatar.avatarUrl,
           customisation: transition.avatar.customisation,
         ),
@@ -367,9 +369,8 @@ class _ProfileBody extends ConsumerWidget {
               isFollowing: false,
               isBusy: false,
               onFollowToggle: () => unawaited(showGuestSignIn(context, ref)),
-              onShare: () => context.showInfo(
-                AppLocalizations.of(context).profileShareComingSoon,
-              ),
+              onShare: () =>
+                  shareRecordLink(context, RecordLinks.profile(profile.did)),
               onReport: () =>
                   unawaited(showProfileReportSheet(context, ref, profile.did)),
               onMuteToggle: () => unawaited(showGuestSignIn(context, ref)),
@@ -468,9 +469,11 @@ class _ProfileBody extends ConsumerWidget {
     WidgetRef ref,
     ProfileRelationship relationship,
   ) {
-    final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
+        onShareCard: () => showProfileShareCard(context, profile),
+        onShare: () =>
+            shareRecordLink(context, RecordLinks.profile(profile.did)),
         onCopyLink: () =>
             copyRecordLink(context, RecordLinks.profile(profile.did)),
         onSendViaChat: () =>
@@ -483,6 +486,16 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
+      onViewFollowers: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowersRoute(did: profile.did).push<void>(context),
+            ),
+      onViewFollowing: relationship.hasBlock
+          ? null
+          : () => unawaited(
+              ProfileFollowingRoute(did: profile.did).push<void>(context),
+            ),
       messagingAction: relationship.hasBlock
           ? null
           : ProfileMessageButton(
@@ -528,7 +541,7 @@ class _ProfileBody extends ConsumerWidget {
           }),
         );
       },
-      onShare: () => context.showInfo(l10n.profileShareComingSoon),
+      onShare: () => shareRecordLink(context, RecordLinks.profile(profile.did)),
       onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(
@@ -1119,7 +1132,13 @@ class _ProfileTabScrollView extends ConsumerWidget {
       slivers: [
         SliverPadding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.paddingOf(context).bottom,
+            bottom:
+                MediaQuery.paddingOf(context).bottom +
+                (isOwnProfile &&
+                        FormFactor.fromWidth(MediaQuery.sizeOf(context).width)
+                            .isSmall
+                    ? 88
+                    : 0),
           ),
           sliver: _sliverForTab(context, tab, profile, l10n),
         ),

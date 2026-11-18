@@ -8,6 +8,10 @@ import "github.com/bluesky-social/indigo/atproto/syntax"
 // implementations, so the wire shape is unchanged from a string-typed
 // version: each field becomes a plain JSON string.
 type WhoAmIResponse struct {
-	DID    syntax.DID    `json:"did"`
-	Handle syntax.Handle `json:"handle"`
+	DID                  syntax.DID    `json:"did"`
+	Handle               syntax.Handle `json:"handle"`
+	PDSURL               string        `json:"pdsUrl,omitempty"`
+	HostingProvider      string        `json:"hostingProvider,omitempty"`
+	AccountManagementURL string        `json:"accountManagementUrl,omitempty"`
+	PasswordChangeURL    string        `json:"passwordChangeUrl,omitempty"`
 }

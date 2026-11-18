@@ -9,7 +9,7 @@ import 'package:craftsky_app/auth/widgets/registration_action.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -29,6 +29,7 @@ class SignInPage extends ConsumerStatefulWidget {
 
 class _SignInPageState extends ConsumerState<SignInPage> {
   _SignInAction? _pendingAction;
+  String? _handleError;
   final _controller = TextEditingController();
 
   @override
@@ -43,7 +44,11 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     ref.listen(authControllerProvider, (prev, next) {
       switch ((prev, next)) {
         case (AsyncLoading(), AsyncError(:final error)):
-          context.showError(_messageFor(l10n, error));
+          if (error is HandleRequired || error is InvalidHandle) {
+            setState(() => _handleError = _messageFor(l10n, error));
+          } else {
+            context.showError(_messageFor(l10n, error));
+          }
         case _:
           break;
       }
@@ -70,49 +75,59 @@ class _SignInPageState extends ConsumerState<SignInPage> {
               : l10n.signInTitle,
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          padding: EdgeInsets.all(spacing.sp5),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: (constraints.maxHeight - spacing.sp5 * 2).clamp(
-                0,
-                double.infinity,
+      body: FormActionLayout(
+        keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+        label: l10n.signInContinueAction,
+        actionKey: const Key('sign-in-continue'),
+        onPressed: canAddAccount && !busy ? _submit : null,
+        actionChild: ActionProgress(
+          isLoading: busy && _pendingAction == _SignInAction.signIn,
+          child: Text(l10n.signInContinueAction),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: EdgeInsets.all(spacing.sp5),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - spacing.sp5 * 2).clamp(
+                  0,
+                  double.infinity,
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (widget.mode == SignInMode.addAccount) ...[
-                  Text(
-                    l10n.addAccountDescription,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  SizedBox(height: spacing.sp5),
-                ],
-                HandleTypeaheadField(
-                  controller: _controller,
-                  enabled: canAddAccount && !busy,
-                  onSubmitted: (_) => _submit(),
-                ),
-                SizedBox(height: spacing.sp5),
-                ChunkyButton(
-                  onPressed: canAddAccount && !busy ? _submit : null,
-                  child: ActionProgress(
-                    isLoading: busy && _pendingAction == _SignInAction.signIn,
-                    child: Text(l10n.signInContinueAction),
-                  ),
-                ),
-                if (widget.mode == SignInMode.addAccount) ...[
-                  SizedBox(height: spacing.sp5),
-                  RegistrationAction(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.mode == SignInMode.addAccount) ...[
+                    Text(
+                      l10n.addAccountDescription,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    SizedBox(height: spacing.sp5),
+                  ],
+                  HandleTypeaheadField(
+                    controller: _controller,
+                    errorText: _handleError,
+                    onChanged: (_) {
+                      if (_handleError != null) {
+                        setState(() => _handleError = null);
+                      }
+                    },
                     enabled: canAddAccount && !busy,
-                    isLoading: busy && _pendingAction == _SignInAction.register,
-                    onPressed: _startRegistration,
+                    onSubmitted: (_) => _submit(),
                   ),
+                  SizedBox(height: spacing.sp5),
+                  if (widget.mode == SignInMode.addAccount) ...[
+                    SizedBox(height: spacing.sp5),
+                    RegistrationAction(
+                      enabled: canAddAccount && !busy,
+                      isLoading:
+                          busy && _pendingAction == _SignInAction.register,
+                      onPressed: _startRegistration,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -122,7 +137,18 @@ class _SignInPageState extends ConsumerState<SignInPage> {
 
   void _submit() {
     if (ref.read(authControllerProvider).isLoading) return;
-    setState(() => _pendingAction = _SignInAction.signIn);
+    if (_controller.text.trim().isEmpty) {
+      setState(
+        () =>
+            _handleError = AppLocalizations.of(context)
+                .signInHandleRequiredError,
+      );
+      return;
+    }
+    setState(() {
+      _handleError = null;
+      _pendingAction = _SignInAction.signIn;
+    });
     unawaited(
       ref
           .read(authControllerProvider.notifier)

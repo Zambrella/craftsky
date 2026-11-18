@@ -64,8 +64,8 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 	}
 
 	aliceFirst := api.ProfileCustomisation{
-		Colour:     "teal",
-		Background: "x2",
+		Colour:     "seafoam",
+		Background: "craft-sewing",
 	}
 	got, err = store.Put(ctx, alice, aliceFirst)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	bobValue := api.ProfileCustomisation{
 		Colour:     "rose",
-		Background: "scallopdark",
+		Background: "craft-crochet",
 	}
 	if got, err := store.Put(ctx, bob, bobValue); err != nil || got != bobValue {
 		t.Fatalf("put Bob customisation = %+v, %v", got, err)
@@ -88,7 +88,7 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	aliceReplacement := api.ProfileCustomisation{
 		Colour:     "amber",
-		Background: "bayerdark",
+		Background: "craft-sewing",
 	}
 	now = now.Add(time.Minute)
 	if got, err := store.Put(ctx, alice, aliceReplacement); err != nil || got != aliceReplacement {
@@ -129,7 +129,7 @@ func TestProfileCustomisationStoreFallsBackPerPersistedField(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO profile_customisations (
 			owner_did, colour, profile_background
-		) VALUES ($1, 'retired-colour', 'cubedark')
+		) VALUES ($1, 'retired-colour', 'craft-quilting')
 	`, owner); err != nil {
 		t.Fatalf("seed retired customisation: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestProfileCustomisationStoreFallsBackPerPersistedField(t *testing.T) {
 	}
 	want := api.ProfileCustomisation{
 		Colour:     "cobalt",
-		Background: "cubedark",
+		Background: "craft-quilting",
 	}
 	if got != want {
 		t.Fatalf("effective stored customisation = %+v, want %+v", got, want)

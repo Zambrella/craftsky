@@ -15,6 +15,7 @@ List<RouteBase> get $appRoutes => [
   $addAccountRoute,
   $authCompleteRoute,
   $onboardingRoute,
+  $safetyRoute,
 ];
 
 RouteBase get $accountDeletionReauthCompleteRoute => GoRouteData.$route(
@@ -315,6 +316,12 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   factory: $AboutRoute._fromState,
                 ),
                 GoRouteData.$route(
+                  path: 'business',
+                  name: 'settings-business-details',
+                  hasOverriddenOnExit: false,
+                  factory: $BusinessDetailsRoute._fromState,
+                ),
+                GoRouteData.$route(
                   path: 'products',
                   name: 'settings-business-products',
                   hasOverriddenOnExit: false,
@@ -412,6 +419,18 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       hasOverriddenOnExit: false,
       factory: $UserProfileRoute._fromState,
       routes: [
+        GoRouteData.$route(
+          path: 'followers',
+          name: 'profile-followers',
+          hasOverriddenOnExit: false,
+          factory: $ProfileFollowersRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'following',
+          name: 'profile-following',
+          hasOverriddenOnExit: false,
+          factory: $ProfileFollowingRoute._fromState,
+        ),
         GoRouteData.$route(
           path: 'mutual-followers',
           name: 'profile-mutual-followers',
@@ -1028,6 +1047,27 @@ mixin $AboutRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $BusinessDetailsRoute on GoRouteData {
+  static BusinessDetailsRoute _fromState(GoRouterState state) =>
+      const BusinessDetailsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/business');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $BusinessProductsRoute on GoRouteData {
   static BusinessProductsRoute _fromState(GoRouterState state) =>
       const BusinessProductsRoute();
@@ -1405,6 +1445,60 @@ mixin $UserProfileRoute on GoRouteData {
       context.replace(location, extra: _self.$extra);
 }
 
+mixin $ProfileFollowersRoute on GoRouteData {
+  static ProfileFollowersRoute _fromState(GoRouterState state) =>
+      ProfileFollowersRoute(
+        did: _decodeDidRouteParameter(state.pathParameters['did']!),
+      );
+
+  ProfileFollowersRoute get _self => this as ProfileFollowersRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}/followers',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ProfileFollowingRoute on GoRouteData {
+  static ProfileFollowingRoute _fromState(GoRouterState state) =>
+      ProfileFollowingRoute(
+        did: _decodeDidRouteParameter(state.pathParameters['did']!),
+      );
+
+  ProfileFollowingRoute get _self => this as ProfileFollowingRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}/following',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $ProfileMutualFollowersRoute on GoRouteData {
   static ProfileMutualFollowersRoute _fromState(GoRouterState state) =>
       ProfileMutualFollowersRoute(
@@ -1610,6 +1704,34 @@ mixin $OnboardingRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+RouteBase get $safetyRoute => GoRouteData.$route(
+  path: '/safety',
+  name: 'safety',
+  hasOverriddenOnExit: false,
+  parentNavigatorKey: SafetyRoute.$parentNavigatorKey,
+  factory: $SafetyRoute._fromState,
+);
+
+mixin $SafetyRoute on GoRouteData {
+  static SafetyRoute _fromState(GoRouterState state) => const SafetyRoute();
+
+  @override
+  String get location => GoRouteData.$location('/safety');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
@@ -1621,8 +1743,8 @@ mixin $OnboardingRoute on GoRouteData {
 final goRouterProvider = GoRouterProvider._();
 
 final class GoRouterProvider
-    extends $FunctionalProvider<GoRouter, GoRouter, GoRouter>
-    with $Provider<GoRouter> {
+    extends $FunctionalProvider<Raw<GoRouter>, Raw<GoRouter>, Raw<GoRouter>>
+    with $Provider<Raw<GoRouter>> {
   GoRouterProvider._()
     : super(
         from: null,
@@ -1639,21 +1761,21 @@ final class GoRouterProvider
 
   @$internal
   @override
-  $ProviderElement<GoRouter> $createElement($ProviderPointer pointer) =>
+  $ProviderElement<Raw<GoRouter>> $createElement($ProviderPointer pointer) =>
       $ProviderElement(pointer);
 
   @override
-  GoRouter create(Ref ref) {
+  Raw<GoRouter> create(Ref ref) {
     return goRouter(ref);
   }
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(GoRouter value) {
+  Override overrideWithValue(Raw<GoRouter> value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<GoRouter>(value),
+      providerOverride: $SyncValueProvider<Raw<GoRouter>>(value),
     );
   }
 }
 
-String _$goRouterHash() => r'cb8a9aed3cf040d8c5cc4ed70ed79bbcc5e9f49d';
+String _$goRouterHash() => r'246ef567d54a6aa382bb0cb8816f03de258a5eb7';

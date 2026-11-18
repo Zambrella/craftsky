@@ -8,6 +8,7 @@
 	import Tag from '#lib/features/social/Tag.svelte';
 	import Saved from '#lib/features/social/Saved.svelte';
 	import Activity from '#lib/features/social/Activity.svelte';
+	import ConnectionsPlaceholder from '#lib/features/settings/ConnectionsPlaceholder.svelte';
 	let {
 		data
 	}: {
@@ -17,6 +18,12 @@
 	} = $props();
 	let path = $derived(data.path);
 	let section = $derived(path[0] || 'feed');
+	const connectionSection = $derived(
+		section === 'profiles' ? path[2] : path[1]
+	);
+	const connectionProfile = $derived(
+		section === 'profiles' ? path[1]?.replace(/^@/, '') : undefined
+	);
 	async function loadPage<T>(load: () => Promise<T>): Promise<T> {
 		try {
 			return await load();
@@ -48,7 +55,18 @@
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await loadPage(() => import('#lib/features/social/ProfileEditor.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'profiles' && path[2] === 'mutual-followers'}{#await loadPage(() => import('#lib/features/social/MutualFollowers.svelte'))}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if ['profiles', 'settings'].includes(section) && ['followers', 'following'].includes(connectionSection)}{#await loadPage(() => import('#lib/features/settings/ConnectionsPage.svelte'))}<ConnectionsPlaceholder
+				section={connectionSection}
+				profileId={connectionProfile}
+			/>{:then Module}<Module.default
+				{api}
+				section={connectionSection}
+				profileId={connectionProfile}
+			/>{:catch}<ConnectionsPlaceholder
+				section={connectionSection}
+				profileId={connectionProfile}
+				failed
+			/>{/await}{:else if section === 'profiles' && path[2] === 'mutual-followers'}{#await loadPage(() => import('#lib/features/social/MutualFollowers.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				id={path[1]?.replace(/^@/, '')}
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' || section === 'profiles'}{#await loadPage(() => import('#lib/features/social/Profile.svelte'))}{@render loading()}{:then Module}<Module.default
@@ -79,6 +97,18 @@
 					? ['settings', 'notifications']
 					: path}
 				session={data.session}
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose' && path[1] === 'product'}{#await loadPage(() => import('#lib/features/settings/ProductComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
+				{api}
+				session={data.session}
+				productIndex={path[2] === 'edit'
+					? page.url.searchParams.get('product') || ''
+					: undefined}
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose' && path[1] === 'event'}{#await loadPage(() => import('#lib/features/settings/EventComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
+				{api}
+				session={data.session}
+				eventRkey={path[2] === 'edit'
+					? page.url.searchParams.get('event') || ''
+					: undefined}
 			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose'}{#await loadPage(() => import('#lib/features/composer/ComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				{path}

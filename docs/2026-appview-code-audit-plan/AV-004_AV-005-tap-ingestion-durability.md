@@ -227,7 +227,7 @@ Reconciliation must be safe to run repeatedly and resumable after interruption. 
 - [Tap integration design](../superpowers/specs/2026-04-17-tap-integration-design.md)
 - [Feed post indexing design](../superpowers/specs/2026-05-04-feed-post-indexing-design.md)
 - [Profile onboarding design](../superpowers/specs/2026-04-23-profile-onboarding-design.md)
-- [CraftSky AT Protocol architecture reference](../../atproto-craft-social-app-reference.md)
+- [CraftSky AT Protocol architecture reference](../architecture.md)
 - [Indigo Tap package documentation](https://pkg.go.dev/github.com/bluesky-social/indigo/cmd/tap)
 - [PostgreSQL explicit locking](https://www.postgresql.org/docs/current/explicit-locking.html)
 - [Google Go Style Guide](https://google.github.io/styleguide/go/guide)

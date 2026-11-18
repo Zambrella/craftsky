@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
@@ -9,6 +10,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
+import 'package:craftsky_app/shared/widgets/retained_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_projects_provider.g.dart';
@@ -37,13 +39,8 @@ class UserProjects extends _$UserProjects {
     if (!ref.watch(isGuestBrowsingProvider)) {
       ref.watch(activeContentLanguagePolicyProvider);
     }
-    final accountOperation = ContentReadGuard.capture(ref);
-    final repo = ref.watch(postRepositoryProvider);
-    final page = await repo.listProjectsByAuthor(
-      did,
-      limit: userProjectsPageLimit,
-    );
-    accountOperation.requireCurrent(discarded: const ApiCanceled());
+    ref.watch(postRepositoryProvider);
+    final page = await _reload(state.value?.items.length ?? 0);
     return UserProjectsState(
       items: applyPostRecordListOverlays(
         ref,
@@ -56,6 +53,31 @@ class UserProjects extends _$UserProjects {
       ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
       cursor: page.cursor,
       pinnedPostUri: page.pinnedPostUri,
+    );
+  }
+
+  Future<PostPage> _reload(int count) async {
+    final operation = ContentReadGuard.capture(ref);
+    final repo = ref.read(postRepositoryProvider);
+    String? pinned;
+    final page = await reloadLoadedRange<Post, String>(
+      minimumItems: count,
+      key: (post) => post.uri,
+      fetch: (cursor) async {
+        final page = await repo.listProjectsByAuthor(
+          did,
+          cursor: cursor,
+          limit: userProjectsPageLimit,
+        );
+        operation.requireCurrent(discarded: const ApiCanceled());
+        if (cursor == null) pinned = page.pinnedPostUri;
+        return (items: page.items, cursor: page.cursor);
+      },
+    );
+    return PostPage(
+      items: page.items,
+      cursor: page.cursor,
+      pinnedPostUri: pinned,
     );
   }
 
@@ -79,10 +101,7 @@ class UserProjects extends _$UserProjects {
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
         accountOperation.requireCurrent(discarded: const ApiCanceled());
-        final restarted = await repo.listProjectsByAuthor(
-          did,
-          limit: userProjectsPageLimit,
-        );
+        final restarted = await _reload(current.items.length);
         accountOperation.requireCurrent(discarded: const ApiCanceled());
         return UserProjectsState(
           items: applyPostRecordListOverlays(

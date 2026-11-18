@@ -13,9 +13,12 @@ identity atomically with command preparation, and records confirmed publication
 history in the command acceptance transaction. Existing create-only PDS commands
 handle concurrent submissions and unknown-result recovery. Original timestamps
 and the existing public Instagram provenance preserve ADR 008 distribution.
-Migration `000122_instagram_post_imports` adds private history and lifecycle purge
-coverage. No Lexicon change or mobile implementation was needed for this
-explicitly web-client request. See ADR 027 and web-client/README.md.
+Migration `000128_instagram_post_imports` adds private history and lifecycle purge
+coverage. The migration was renumbered from `000122` while merging main to
+preserve main's already allocated migrations `000122`–`000127`; the historical
+validation logs below predate that merge. No Lexicon change or mobile implementation was needed for this
+explicitly web-client request. See [ADR 029](../adr/029-integrated-instagram-post-imports.md)
+and the [web client guide](../../web-client/README.md).
 
 The standalone package and its Just recipes/documentation entrypoints were
 removed. The separately named directory
@@ -23,6 +26,15 @@ removed. The separately named directory
 requested. No hosted site, DNS, production data or OAuth grants were changed.
 
 ## Validation
+
+After merging `origin/main` at `82b5d790`, the web production build, format,
+lint, type checks, 659 unit tests and 67 focused browser tests passed. The
+browser runs used isolated local fixture ports and covered Instagram import
+on the preview and Worker builds, verification, following import, composer
+validation, scheduling and publication recovery. Focused AppView
+tests passed against PostgreSQL 16 with migration `000128`, covering import
+publication and recovery, duplicate reservations, route diagnostics and owner
+purge. The documentation index and checks also passed.
 
 Passed locally:
 

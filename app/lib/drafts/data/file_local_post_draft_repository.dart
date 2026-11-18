@@ -157,9 +157,14 @@ final class FileLocalPostDraftRepository
       return next;
     } on DraftRepositoryException {
       rethrow;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.storageUnavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.storageUnavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     } finally {
       if (!manifestSwitched) {
@@ -199,9 +204,14 @@ final class FileLocalPostDraftRepository
       return await _withVerifiedMedia(draft);
     } on DraftRepositoryException {
       rethrow;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.unavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }
@@ -234,9 +244,14 @@ final class FileLocalPostDraftRepository
         return updated != 0 ? updated : left.id.compareTo(right.id);
       });
       return drafts;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.storageUnavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.storageUnavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }
@@ -260,9 +275,14 @@ final class FileLocalPostDraftRepository
       return bytes;
     } on DraftRepositoryException {
       rethrow;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.unavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }
@@ -285,9 +305,14 @@ final class FileLocalPostDraftRepository
       yield* File(path).openRead();
     } on DraftRepositoryException {
       rethrow;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.unavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }
@@ -307,9 +332,14 @@ final class FileLocalPostDraftRepository
       );
     } on DraftRepositoryException {
       rethrow;
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.unavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   }
@@ -321,9 +351,14 @@ final class FileLocalPostDraftRepository
       await _rejectSymbolicLinks([_paths.accountRoot, directory]);
       if (!await _files.directoryExists(directory)) return;
       await _files.deleteDirectory(directory);
-    } on Object {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.storageUnavailable,
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.storageUnavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
       );
     }
   });

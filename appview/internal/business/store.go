@@ -98,12 +98,8 @@ func (s *Store) ReadEvent(ctx context.Context, input EventReadInput) (EventView,
 		SELECT event.raw_record, event.uri, event.cid, event.starts_at, event.ends_at,
 		       membership.did IS NOT NULL AND appview_owner_is_active(event.owner_did),
 		       CASE WHEN EXISTS (
-		           SELECT 1 FROM billing_licenses license
-		           JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		           WHERE license.assigned_did=event.owner_did AND license.tier='business'
-		             AND subscription.gives_access AND subscription.environment=$4
-		             AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		             AND subscription.anomaly='none'
+		           SELECT 1 FROM appview_effective_subscription_access($4) AS subscription_access
+		           WHERE subscription_access.owner_did=event.owner_did AND subscription_access.tier='business' AND subscription_access.gives_access
 		       ) THEN 'business' ELSE 'regular' END,
 		       `+eventBlockedSQL+`, `+eventModerationReadSQL(input.Guest)+`
 		FROM craftsky_business_events event
@@ -160,11 +156,8 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 		       event.starts_at, event.ends_at, 'business'
 		FROM craftsky_business_events event
 		JOIN craftsky_profiles membership ON membership.did = event.owner_did
-		JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		  AND subscription.gives_access AND subscription.environment=$7
-		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		JOIN appview_effective_subscription_access($7) AS subscription_access
+		  ON subscription_access.owner_did=event.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 		WHERE event.owner_did = $2
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -234,11 +227,8 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		       'business', ` + eventModeratedSQL + `
 		FROM craftsky_business_events event
 		JOIN craftsky_profiles membership ON membership.did = event.owner_did
-		JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		  AND subscription.gives_access AND subscription.environment=$5
-		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		JOIN appview_effective_subscription_access($5) AS subscription_access
+		  ON subscription_access.owner_did=event.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 		WHERE event.owner_did = $1
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -255,11 +245,8 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			       'business', ` + eventModeratedSQL + `
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
-			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-			  AND subscription.gives_access AND subscription.environment=$6
-			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			JOIN appview_effective_subscription_access($6) AS subscription_access
+			  ON subscription_access.owner_did=event.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -278,11 +265,8 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			       'business', ` + eventModeratedSQL + `
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
-			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-			  AND subscription.gives_access AND subscription.environment=$6
-			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			JOIN appview_effective_subscription_access($6) AS subscription_access
+			  ON subscription_access.owner_did=event.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -345,13 +329,8 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 		FROM craftsky_business_profiles AS business_profile
 		JOIN craftsky_profiles AS membership
 		  ON membership.did = business_profile.owner_did
-		JOIN billing_licenses AS license
-		  ON license.assigned_did = business_profile.owner_did AND license.tier = 'business'
-		JOIN provider_subscriptions AS subscription
-		  ON subscription.id = license.provider_subscription_id
-		 AND subscription.gives_access AND subscription.environment=$2
-		 AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
-		 AND subscription.anomaly = 'none'
+		JOIN appview_effective_subscription_access($2) AS subscription_access
+		  ON subscription_access.owner_did=business_profile.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 		WHERE business_profile.owner_did = $1
 		  AND appview_owner_is_active(business_profile.owner_did)
 		  AND appview_image_subject_is_clear(business_profile.uri, business_profile.cid)
@@ -377,11 +356,8 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 			SELECT 1
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			JOIN billing_licenses license ON license.assigned_did = event.owner_did AND license.tier = 'business'
-			JOIN provider_subscriptions subscription ON subscription.id = license.provider_subscription_id
-			  AND subscription.gives_access AND subscription.environment=$3
-			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
-			  AND subscription.anomaly = 'none'
+			JOIN appview_effective_subscription_access($3) AS subscription_access
+			  ON subscription_access.owner_did=event.owner_did AND subscription_access.gives_access AND subscription_access.tier='business'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -413,12 +389,8 @@ func (s *Store) ReadAccountType(ctx context.Context, did syntax.DID) (AccountTyp
 	var active bool
 	err := s.pool.QueryRow(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM billing_licenses license
-			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-			WHERE license.assigned_did=$1 AND license.tier='business'
-			  AND subscription.gives_access AND subscription.environment=$2
-			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-			  AND subscription.anomaly='none'
+			SELECT 1 FROM appview_effective_subscription_access($2) AS subscription_access
+		           WHERE subscription_access.owner_did=$1 AND subscription_access.tier='business' AND subscription_access.gives_access
 		)
 	`, did, s.accessEnvironment).Scan(&active)
 	if err != nil {
@@ -445,13 +417,8 @@ func (s *Store) ReadAccountTypes(ctx context.Context, dids []syntax.DID) (map[sy
 		values = append(values, did.String())
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT license.assigned_did
-		FROM billing_licenses license
-		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
-		WHERE license.assigned_did=ANY($1) AND license.tier='business'
-		  AND subscription.gives_access AND subscription.environment=$2
-		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
-		  AND subscription.anomaly='none'
+		SELECT owner_did FROM appview_effective_subscription_access($2)
+		WHERE owner_did=ANY($1) AND tier='business' AND gives_access
 	`, values, s.accessEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("read account types: %w", err)
@@ -481,6 +448,6 @@ func guestEventOwnerSQL(guest bool) string {
 	if !guest {
 		return ""
 	}
-	return `AND EXISTS (SELECT 1 FROM bluesky_profiles guest_profile WHERE guest_profile.did=event.owner_did AND guest_profile.guest_visibility_hidden IS FALSE AND guest_profile.guest_visibility_hold_key IS NULL)
+	return `AND NOT EXISTS (SELECT 1 FROM bluesky_profiles guest_profile WHERE guest_profile.did=event.owner_did AND guest_profile.guest_visibility_hidden IS TRUE)
  AND NOT EXISTS (SELECT 1 FROM moderation_account_standings standing WHERE standing.owner_did=event.owner_did AND standing.effective_suspended)`
 }

@@ -21,7 +21,7 @@
 		focusField,
 		presentFieldErrors
 	} from '#lib/field-validation.ts';
-	import { getContext, onDestroy, onMount, untrack } from 'svelte';
+	import { getContext, onDestroy, onMount, tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
 	import {
@@ -64,6 +64,7 @@
 	import ProjectEditor from './ProjectEditor.svelte';
 	import PhotoAttachments from './PhotoAttachments.svelte';
 	import VideoAttachment from './VideoAttachment.svelte';
+	import { hashtagsInText } from './facet-input';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
 	import ComposerTarget from './ComposerTarget.svelte';
@@ -112,7 +113,7 @@
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
 	let existingDraft = $state(false);
-	let closeDestination = $state('/feed');
+	let closeDestination = $state(origin || '/feed');
 	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
 	let context = $state<Post>();
@@ -374,6 +375,17 @@
 									: '';
 			const did = query.get(`${mode}Did`) || query.get('did');
 			const rkey = query.get(`${mode}Rkey`) || query.get('rkey');
+			// Closing remains available while initialization is pending or fails.
+			closeDestination =
+				origin ||
+				(saved
+					? '/drafts'
+					: scheduled
+						? '/scheduled'
+						: did && rkey
+							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+							: '/feed');
+			closeTarget = closeDestination;
 			if (saved) {
 				const value = await drafts.get(owner, saved);
 				if (!value)
@@ -495,7 +507,10 @@
 					throw new InputError('Choose a post to reply to or quote.');
 				const [target, preferences] = await Promise.all([
 					ownedApi.posts.get(did, rkey),
-					ownedApi.languages.get().catch(() => undefined)
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					})
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
 				if (!('author' in target))
@@ -517,9 +532,15 @@
 				}
 			} else {
 				const [preferences, profile] = await Promise.all([
-					ownedApi.languages.get().catch(() => undefined),
+					ownedApi.languages.get().catch((error) => {
+						void reportFailure(error, 'composer.languages');
+						return undefined;
+					}),
 					next.kind === 'project'
-						? ownedApi.profiles.me().catch(() => undefined)
+						? ownedApi.profiles.me().catch((error) => {
+								void reportFailure(error, 'composer.profile');
+								return undefined;
+							})
 						: Promise.resolve(undefined)
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
@@ -549,7 +570,7 @@
 						if (seq === generation && !destroyed)
 							scheduleFull = !next.scheduleId && capacity.items.length >= 3;
 					})
-					.catch(() => {});
+					.catch((error) => void reportFailure(error, 'composer.capacity'));
 			}
 			if (next.kind === 'project' && !next.project)
 				next.project = defaultProject();
@@ -558,17 +579,10 @@
 				notice =
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
-			closeDestination =
-				(next.instagramImport ? '/settings/instagram' : undefined) ||
-				origin ||
-				(saved
-					? '/drafts'
-					: scheduled
-						? '/scheduled'
-						: did && rkey
-							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-							: '/feed');
-			closeTarget = closeDestination;
+			if (next.instagramImport) {
+				closeDestination = '/settings/instagram';
+				closeTarget = closeDestination;
+			}
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
 			externalFrozen =
@@ -830,7 +844,8 @@
 			payload.project = await projectFacets(
 				value.project,
 				undefined,
-				async (handle) => (await api.search.resolveMention(handle, signal)).did
+				async (handle) => (await api.search.resolveMention(handle, signal)).did,
+				hashtagsInText(value.text)
 			);
 		const media: JsonObject[] = [];
 		for (const image of value.images) {
@@ -881,6 +896,7 @@
 			publicationController.signal
 		]);
 		const working = $state.snapshot(draft as unknown) as Draft;
+		working.text = working.text.trim();
 		previews?.pause();
 		busy = true;
 		error = '';
@@ -999,7 +1015,8 @@
 						working.project,
 						working.edit ? record(working.edit.editable.project) : undefined,
 						async (handle) =>
-							(await api.search.resolveMention(handle, signal)).did
+							(await api.search.resolveMention(handle, signal)).did,
+						hashtagsInText(working.text)
 					);
 				let body: JsonObject;
 				if (working.edit) {
@@ -1173,6 +1190,10 @@
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
 				await lifecycle?.rejected();
+				// Field errors belong to the editor, outside the modal progress dialog.
+				publishing = false;
+				await tick();
+				if (seq !== generation || destroyed) return;
 				if (e instanceof APIError && e.status === 409 && draft.instagramImport)
 					error =
 						'This Instagram post already has an import in progress or has been posted. Return to Instagram settings to check its status before trying again.';
@@ -1184,7 +1205,7 @@
 						(draft.videoRecovery || 0) < 2
 							? 'The video could not be retrieved. Try publishing again to upload a fresh copy.'
 							: 'The video could not be restored. Remove it and choose the file again.';
-				else error = message(e, 'composer.perform');
+				else if (!presentFieldErrors(e)) error = message(e, 'composer.perform');
 			}
 		}
 	}
@@ -1215,7 +1236,7 @@
 />
 <svelte:window onbeforeunload={beforeLeave} />
 <section class="composer">
-	<header class="composer-heading">
+	<header class="composer-heading page-appbar">
 		<a
 			class="close-composer"
 			href={closeDestination}
@@ -1288,6 +1309,7 @@
 							{api}
 							owner={session.id + ':' + session.did}
 							disabled={locked}
+							precedingHashtags={hashtagsInText(draft.text)}
 							project={draft.project}
 							part="main"
 							onchange={(value) => (draft.project = value)}
@@ -1444,6 +1466,7 @@
 							{api}
 							owner={session.id + ':' + session.did}
 							disabled={locked}
+							precedingHashtags={hashtagsInText(draft.text)}
 							project={draft.project}
 							part="details"
 							onchange={(value) => (draft.project = value)}

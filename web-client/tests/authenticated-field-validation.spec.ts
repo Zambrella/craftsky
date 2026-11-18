@@ -106,9 +106,7 @@ test('business country validation uses its field rather than the page error', as
 	await page.goto('/settings/business');
 	const country = page.getByLabel('Country code', { exact: true });
 	await country.fill('X');
-	await page
-		.getByRole('button', { name: 'Save business profile', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(country).toHaveAttribute('aria-invalid', 'true');
 	await expect(page.locator('.field-error')).toContainText('two-letter');
 	await country.fill('GB');
@@ -124,8 +122,10 @@ test('event native required fields all show inline errors before any write', asy
 	});
 	await page.goto('/settings/events');
 	await page.getByRole('button', { name: 'Create event', exact: true }).click();
-	const dialog = page.locator('.event-dialog');
-	await dialog.getByRole('button', { name: 'Save event', exact: true }).click();
+	const dialog = page.locator('.event-composer-form');
+	await dialog
+		.getByRole('button', { name: 'Create event', exact: true })
+		.click();
 	await expect(
 		dialog.getByLabel('Event name', { exact: true })
 	).toHaveAttribute('aria-invalid', 'true');
@@ -190,4 +190,135 @@ test('empty sign-in marks the handle without starting authentication', async ({
 	await expect(input).toHaveAttribute('aria-invalid', 'true');
 	await expect(input).toBeFocused();
 	expect(requests).toBe(0);
+});
+
+test('event server time validation is shown at Start instead of a generic failure', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/events', (route) =>
+		route.fulfill({
+			status: 422,
+			json: {
+				error: 'validation_failed',
+				message: 'invalid business event',
+				fields: {
+					startsAt: 'startsAt and endsAt must form a valid event time range'
+				}
+			}
+		})
+	);
+	await page.goto('/compose/event');
+	await page.getByLabel('Event name', { exact: true }).fill('Maker fair');
+	await page.getByLabel('Start', { exact: true }).fill('2026-12-01T10:00');
+	await page.getByLabel('End', { exact: true }).fill('2026-12-01T12:00');
+	await page.getByLabel('Your role', { exact: true }).click();
+	await page.getByRole('checkbox', { name: 'Organizer', exact: true }).click();
+	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page.getByLabel('Start', { exact: true })).toHaveAttribute(
+		'aria-invalid',
+		'true'
+	);
+	await expect(page.getByLabel('Start', { exact: true })).toBeFocused();
+	await expect(
+		page.getByText('startsAt and endsAt must form a valid event time range', {
+			exact: true
+		})
+	).toBeVisible();
+	await expect(
+		page.getByText("That didn't work. Please try again.", { exact: true })
+	).toHaveCount(0);
+});
+
+test('publication field errors stay inline while uncertain writes retain recovery', async ({
+	page
+}) => {
+	let uncertain = false;
+	await page.route('**/api/appview/v1/posts', (route) =>
+		route.fulfill({
+			status: uncertain ? 503 : 422,
+			json: uncertain
+				? { error: 'unavailable', message: 'Temporarily unavailable' }
+				: {
+						error: 'validation_error',
+						message: 'Invalid post',
+						fields: { text: 'Update the post text before publishing.' }
+					}
+		})
+	);
+	await page.goto('/compose');
+	const input = page.getByRole('textbox', {
+		name: 'What would you like to share?',
+		exact: true
+	});
+	await input.fill('A post ready to publish');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(input).toBeFocused();
+	await expect(page.locator('.field-error')).toHaveText(
+		'Update the post text before publishing.'
+	);
+	await expect(page.locator('.snackbar')).toHaveCount(0);
+	await expect(input).toBeEnabled();
+
+	uncertain = true;
+	await input.fill('A corrected post ready to publish');
+	await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Check the same action', exact: true })
+	).toBeVisible();
+	await expect(input).toBeDisabled();
+	await expect(
+		page
+			.getByRole('alert')
+			.filter({ hasText: 'This action is still being confirmed.' })
+	).toBeVisible();
+});
+
+test('material validation uses shared field errors and clears after correction', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	await page
+		.getByRole('button', { name: 'Materials and style', exact: true })
+		.click();
+	const detail = page.getByRole('region', {
+		name: 'Materials and style',
+		exact: true
+	});
+	const input = detail.getByRole('textbox', { name: 'Materials', exact: true });
+	await input.fill('a'.repeat(101));
+	await detail.getByRole('button', { name: 'Add', exact: true }).click();
+	await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(input).toBeFocused();
+	const error = detail.locator('.field-error');
+	await expect(error).toHaveText('Materials must be 100 characters or fewer.');
+	expect(await input.getAttribute('aria-describedby')).toContain(
+		await error.getAttribute('id')
+	);
+	await input.fill('Cotton yarn');
+	await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+	await expect(error).toHaveCount(0);
+	await detail.getByRole('button', { name: 'Add', exact: true }).click();
+	await expect(input).toHaveValue('');
+	await expect(
+		detail.locator('.material-chip').getByText('Cotton yarn', { exact: true })
+	).toBeVisible();
+});
+
+test('multiple profile validation errors focus the first invalid input', async ({
+	page
+}) => {
+	await page.goto('/profile/edit');
+	const name = page.getByRole('textbox', { name: 'Display name', exact: true });
+	const pronouns = page.getByRole('textbox', { name: 'Pronouns', exact: true });
+	const bio = page.getByRole('textbox', { name: 'Bio', exact: true });
+	await name.fill('a'.repeat(65));
+	await pronouns.fill('b'.repeat(21));
+	await bio.fill('c'.repeat(257));
+	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+	for (const input of [name, pronouns, bio])
+		await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(page.locator('.field-error')).toHaveCount(3);
+	await expect(name).toBeFocused();
 });

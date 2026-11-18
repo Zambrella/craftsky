@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { nativeIconPaths } from '../src/lib/features/shell/native-icons';
 const fixture = 'http://127.0.0.1:19847';
 const account = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
@@ -163,7 +164,15 @@ for (const width of [402, 1376]) {
 	}) => {
 		await page.setViewportSize({ width, height: 874 });
 		await page.goto('/messages/conversations/visual-accepted');
+		await expect(
+			page.getByRole('link', { name: 'Safety and support', exact: true })
+		).toHaveCount(0);
 		await page.getByLabel('Conversation actions', { exact: true }).click();
+		await expect(
+			page
+				.getByRole('link', { name: 'Report conversation', exact: true })
+				.locator('svg path')
+		).toHaveAttribute('d', nativeIconPaths.flag.regular);
 		const actions = page.locator('.conversation-actions .menu-items');
 		await expect(actions).toBeVisible();
 		await expect(actions.locator('button,a')).toHaveText([

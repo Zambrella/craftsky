@@ -1,4 +1,8 @@
 <script lang="ts">
+	import ProfileShaderBackground from '../social/ProfileShaderBackground.svelte';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	const premium = useSubscriptionFeature();
+	import { profileShaderStyle } from '../social/profile-background-shader.ts';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
 
@@ -65,13 +69,14 @@
 		}
 	);
 	let pattern = $derived(
-		background === 'none'
+		background === 'none' || profileShaderStyle(background) !== undefined
 			? ''
 			: background.startsWith('craft-')
 				? `/profile_backgrounds/${background}.svg`
 				: `/profile_backgrounds/${background}.png`
 	);
-	let allowsPlus = $state(false);
+	let loadedPlus = $state(false);
+	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
 	let canSetPolicy = $state(false),
 		chatState = $state('disabled');
 	let incoming = $state<'everyone' | 'following' | 'nobody'>('everyone'),
@@ -100,7 +105,11 @@
 			);
 		if (section === 'customisation')
 			return work.load(
-				() => Promise.all([api.profiles.me(), api.billing.access()]),
+				() =>
+					Promise.all([
+						api.profiles.me(),
+						premium.readAccess(() => api.billing.access())
+					]),
 				([profile, access]) => {
 					loaded = true;
 					const custom = effectiveCustomisation(profile.customisation);
@@ -110,7 +119,7 @@
 					savedBackground = background;
 					profileAvatar = profile.avatar || '';
 					profileName = profile.displayName || '';
-					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
+					loadedPlus = access.givesAccess && access.effectiveTier !== 'free';
 				},
 				'settings.Preferences.load'
 			);
@@ -328,7 +337,6 @@
 			>{/each}
 	</div>
 {:else if section === 'privacy'}
-	<LoggedOutVisibility {api} />
 	<div class="native-list">
 		<label class="switch-row native-option"
 			><SettingsIcon name="errorReporting" /><span class="tile-copy"
@@ -351,6 +359,7 @@
 			/></label
 		>
 	</div>
+	<LoggedOutVisibility {api} />
 {:else if !work.loading && loaded && section === 'languages'}
 	<section class="panel stack">
 		<SingleSelect
@@ -458,10 +467,10 @@
 			<h2>Make your profile your own</h2>
 			<p>
 				Profile colours and backgrounds are included with CraftSky Plus and
-				Business. Manage purchases in the mobile app.
+				Business.
 			</p>
-			<a class="action" href="/settings/subscriptions"
-				>View subscription access</a
+			<button class="action" onclick={() => premium.require('Customisation')}
+				>Learn about subscriptions</button
 			>
 		</section>
 	{:else}<form class="stack customisation-form" onsubmit={saveCustomisation}>
@@ -472,6 +481,10 @@
 					aria-label="Profile customisation preview"
 					style={`--chosen-colour:${colours[colour]}`}
 				>
+					{#if profileShaderStyle(background) !== undefined}<ProfileShaderBackground
+							style={profileShaderStyle(background)!}
+							{colour}
+						/>{/if}
 					{#if pattern}<div
 							class="preview-pattern"
 							aria-hidden="true"
@@ -498,7 +511,11 @@
 									name="colour"
 									bind:group={colour}
 									{value}
-								/>{value === 'lime' ? 'Green' : title(value)}</label
+								/>{value === 'lime'
+									? 'Green'
+									: value === 'dusty-pink'
+										? 'Dusty pink'
+										: title(value)}</label
 							>{/each}
 					</div>
 				</fieldset>
@@ -603,7 +620,9 @@
 <style>
 	.profile-preview {
 		height: 160px;
-		position: relative;
+		position: sticky;
+		top: var(--app-bar-height);
+		z-index: 2;
 		overflow: hidden;
 		display: flex;
 		align-items: center;

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/services/subscription_diagnostics.dart';
 
 enum ReconciliationIntent { purchase, restore }
 
@@ -89,33 +90,39 @@ final class ReconciliationTracker {
     BillingState baseline,
     BillingState current,
   ) {
-    final baselineLicenseIds = baseline.licenses
-        .map((value) => value.id)
-        .toSet();
-    final tierLicenses = current.licenses.where(
-      (value) => expectedTier == null || value.tier == expectedTier,
-    );
+    if (expectedTier != null &&
+        current.subscriptions.any(
+          (subscription) =>
+              subscription.givesAccess &&
+              !subscription.pendingPayment &&
+              !isBillingAnomaly(subscription.anomaly) &&
+              subscription.pendingTier == expectedTier &&
+              subscription.autoRenewalStatus == 'will_change_product',
+        )) {
+      return true;
+    }
+    final previousLicenses = {
+      for (final value in baseline.licenses) value.id: value,
+    };
+    final previousSubscriptions = {
+      for (final value in baseline.subscriptions) value.id: value,
+    };
     final subscriptions = {
       for (final value in current.subscriptions) value.id: value,
     };
-    if (tierLicenses.any(
-      (value) =>
-          !baselineLicenseIds.contains(value.id) &&
-          (subscriptions[value.subscriptionId]?.givesAccess ?? false),
-    )) {
-      return true;
-    }
-    final baselineSubscriptions = {
-      for (final value in baseline.subscriptions) value.id: value,
-    };
-    final tierSubscriptionIds = tierLicenses
-        .map((value) => value.subscriptionId)
-        .toSet();
-    return current.subscriptions.any((value) {
-      if (!tierSubscriptionIds.contains(value.id)) return false;
-      final previous = baselineSubscriptions[value.id];
-      return previous != null && !previous.givesAccess && value.givesAccess;
-    });
+    return current.licenses
+        .where((value) => expectedTier == null || value.tier == expectedTier)
+        .any((license) {
+          final subscription = subscriptions[license.subscriptionId];
+          if (subscription == null || !subscription.givesAccess) return false;
+          final previousLicense = previousLicenses[license.id];
+          final previous = previousSubscriptions[license.subscriptionId];
+          return previousLicense == null ||
+              previous == null ||
+              !previous.givesAccess ||
+              previousLicense.tier != license.tier ||
+              previous.productId != subscription.productId;
+        });
   }
 
   bool _hasInvalidNewPurchaseLicense(
@@ -146,6 +153,7 @@ final class ReconciliationCoordinator {
     ReconciliationWait? wait,
     bool Function()? isCurrent,
     this.maxAttempts = 30,
+    this.diagnostics = const SubscriptionDiagnostics(),
   }) : wait = wait ?? _defaultWait,
        isCurrent = isCurrent ?? _alwaysCurrent {
     if (maxAttempts < 1) throw ArgumentError.value(maxAttempts, 'maxAttempts');
@@ -156,6 +164,7 @@ final class ReconciliationCoordinator {
   final ReconciliationWait wait;
   final bool Function() isCurrent;
   final int maxAttempts;
+  final SubscriptionDiagnostics diagnostics;
 
   Future<ReconciliationResult> reconcile({
     required BillingState baseline,
@@ -166,7 +175,8 @@ final class ReconciliationCoordinator {
     if (!isCurrent()) return _result(ReconciliationOutcome.cancelled, null);
     try {
       await requestReconciliation();
-    } on Object {
+    } on Object catch (error, stack) {
+      diagnostics.report(error, stack, operation: 'reconciliation.request');
       return _result(
         isCurrent()
             ? ReconciliationOutcome.failed
@@ -181,6 +191,8 @@ final class ReconciliationCoordinator {
       comparisonBaseline: comparisonBaseline,
       expectedTier: expectedTier,
     );
+    Object? lastFailure;
+    StackTrace? lastStack;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       if (!isCurrent()) {
         return _result(
@@ -190,6 +202,8 @@ final class ReconciliationCoordinator {
       }
       try {
         final evaluation = tracker.evaluate(await readBillingState());
+        lastFailure = null;
+        lastStack = null;
         if (!isCurrent()) {
           return _result(
             ReconciliationOutcome.cancelled,
@@ -205,7 +219,9 @@ final class ReconciliationCoordinator {
             state: evaluation.state,
           );
         }
-      } on Object {
+      } on Object catch (error, stack) {
+        lastFailure = error;
+        lastStack = stack;
         if (!isCurrent()) {
           return _result(
             ReconciliationOutcome.cancelled,
@@ -216,6 +232,13 @@ final class ReconciliationCoordinator {
       if (attempt + 1 < maxAttempts) {
         await wait(const Duration(seconds: 1));
       }
+    }
+    if (lastFailure != null) {
+      diagnostics.report(
+        lastFailure,
+        lastStack!,
+        operation: 'reconciliation.poll',
+      );
     }
     return _result(ReconciliationOutcome.timedOut, tracker.targetGeneration);
   }

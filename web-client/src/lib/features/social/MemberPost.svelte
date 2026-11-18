@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportConfirmation } from '../moderation/report-confirmation';
 	import {
 		signInContext,
 		protectAccountAction,
@@ -7,13 +8,17 @@
 	import { reportFailure } from '../diagnostics/client';
 	import type { DiagnosticOperation } from '../diagnostics/privacy';
 	import { userErrorMessage } from '#lib/user-facing-error.ts';
+	import { presentFieldErrors } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import Snackbar from './Snackbar.svelte';
 	import { notify } from './toasts.svelte';
 	import { Publications, publicationsContext } from './publications.svelte';
 	import { contextMenu } from './context-menu';
-	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
+	import { subscriptionsEnabled } from '../shell/release-config';
+	import { useSubscriptionFeature } from '../shell/subscription-feature';
+	import PlusActionIcon from '../shell/PlusActionIcon.svelte';
+	const premium = useSubscriptionFeature();
 	import { goto } from '$app/navigation';
 	import { onDestroy, untrack, getContext } from 'svelte';
 	import { profilePins } from './pins.svelte';
@@ -24,11 +29,10 @@
 		newOperationKey,
 		type PostPresentation,
 		type Post,
-		type SavedFolder,
-		type SubscriptionAccess
+		type SavedFolder
 	} from '#lib/api/client.ts';
 	import PostCard from '#lib/PostCard.svelte';
-	import { allFolders } from './saved-model';
+	import { allFolders, normalizeSavedFolderName } from './saved-model';
 	import ReportForm from '../moderation/ReportForm.svelte';
 	import type { ReportSubmission, Author } from '#lib/api/types.ts';
 	import RichText from './RichText.svelte';
@@ -39,7 +43,7 @@
 	import LikeReaction from './LikeReaction.svelte';
 	import PostSummary from './PostSummary.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
-	import { compactDate } from '#lib/public.ts';
+	import { compactDate, fullTimestamp } from '#lib/public.ts';
 	import {
 		visible,
 		publicPost,
@@ -60,6 +64,7 @@
 		flat = false,
 		initialImageCid,
 		savedAt,
+		savedFolderId,
 		onRemove = () => {},
 		onMoved = () => {}
 	}: {
@@ -72,6 +77,7 @@
 		flat?: boolean;
 		initialImageCid?: string;
 		savedAt?: string;
+		savedFolderId?: string | null;
 		onRemove?: () => void;
 		onMoved?: () => void;
 	} = $props();
@@ -81,13 +87,7 @@
 		publicationsContext
 	);
 	const dialogId = $props.id();
-	const access =
-		getContext<() => SubscriptionAccess | undefined>('craftsky-access');
-	const plus = $derived(
-		subscriptionsEnabled() &&
-			access?.()?.effectiveTier !== 'free' &&
-			!!access?.()?.givesAccess
-	);
+	const plus = $derived(premium.allowed());
 	const pins = profilePins(untrack(() => api));
 	let post = $state<Post | undefined>(
 		untrack(() => (visible(value) ? value : undefined))
@@ -101,6 +101,12 @@
 	let reportOpen = $state(false);
 	let confirmation = $state<'delete' | 'block'>();
 	let folderDialog = $state<HTMLDialogElement>(null!);
+	let folderOpen = $state(false);
+	let foldersLoading = $state(false);
+	let foldersError = $state('');
+	let folderRead = 0;
+	let createdFolderIds = new Set<string>();
+	let createAfterUnlock = false;
 	let selectedFolder = $state('');
 	let folderMode = $state<'save' | 'move'>('save');
 	let creatingFolder = $state(false),
@@ -108,9 +114,27 @@
 	let relationshipNotice = $state<'muted' | 'blocked' | ''>('');
 	let useCurrentImage = $state(false);
 	let folders = $state<SavedFolder[]>([]);
+	const savedAddress = $derived(postAddress(post?.uri || value.uri || ''));
+	const savedHref = $derived.by(() => {
+		if (!post) return undefined;
+		const root = post.reply && postAddress(post.reply.root.uri);
+		return root
+			? `/posts/${encodeURIComponent(root.did)}/${encodeURIComponent(root.rkey)}?focus=${encodeURIComponent(post.uri)}`
+			: postRoute(post);
+	});
 	let galleryOpen = $state(false);
 	let imageIndex = $state(0);
 	let inlineImageIndex = $state(0);
+	const detailHref = $derived.by(() => {
+		if (!post) return undefined;
+		const cid =
+			post.images && post.images.length > 1
+				? post.images[inlineImageIndex]?.cid
+				: undefined;
+		return (
+			postRoute(post) + (cid ? '?imageCid=' + encodeURIComponent(cid) : '')
+		);
+	});
 	let cardElement = $state<HTMLElement>();
 	let heart = $state<{ play: () => void; cancel: () => void }>();
 	let revision = 0;
@@ -128,10 +152,30 @@
 		relationshipNotice = '';
 		confirmation = undefined;
 		useCurrentImage = false;
+		untrack(() => folderDialog?.close());
+		folderOpen = false;
 	});
 	$effect(() => {
 		if (plus && post && post.author.did === did && pinSlot(post))
 			void pins.load().catch(() => {});
+	});
+	$effect(() => {
+		const open = folderOpen;
+		const allowed = plus;
+		untrack(() => {
+			folderRead++;
+			foldersLoading = false;
+			foldersError = '';
+			if (open && allowed) {
+				if (createAfterUnlock) creatingFolder = true;
+				createAfterUnlock = false;
+				void loadFolders();
+			} else {
+				folders = [];
+				creatingFolder = false;
+				if (open) selectedFolder = '';
+			}
+		});
 	});
 	onDestroy(() => {
 		dead = true;
@@ -155,6 +199,7 @@
 		} catch (error) {
 			if (dead || captured !== revision) return;
 			heart?.cancel();
+			if (presentFieldErrors(error)) return;
 			messageError = true;
 			void reportFailure(error, operation);
 			message = userErrorMessage(error);
@@ -205,55 +250,94 @@
 		);
 	}
 	async function save(folderId?: string, move = false) {
-		if (!post) return;
+		if (!savedAddress || (!post && !savedAt)) return;
 		const p = post;
+		const address = savedAddress;
+		const wasSaved = !!savedAt || !!p?.viewerHasSaved;
+		const isSaved = !!folderId || move || !wasSaved;
 		await action<unknown>(
 			'post.save',
 			() =>
-				p.viewerHasSaved && !folderId && !move
-					? api.saved.unsave(p.author.did, p.rkey)
-					: api.saved.save(p.author.did, p.rkey, folderId),
+				!isSaved
+					? api.saved.unsave(address.did, address.rkey)
+					: api.saved.save(address.did, address.rkey, folderId),
 			() => {
-				post = {
-					...p,
-					viewerHasSaved: folderId || move ? true : !p.viewerHasSaved,
-					viewerSavedFolderId: folderId
-				};
+				if (p)
+					post = {
+						...p,
+						viewerHasSaved: isSaved,
+						viewerSavedFolderId: folderId
+					};
 				folderDialog?.close();
-				notify(
-					post.viewerHasSaved ? 'Post saved.' : 'Post removed from saved posts.'
-				);
+				notify(isSaved ? 'Post saved.' : 'Post removed from saved posts.');
 				if (savedAt && move) onMoved();
 			}
 		);
 	}
 	async function chooseFolder() {
-		if (!post || busy || retry) return;
-		folderMode = post.viewerHasSaved ? 'move' : 'save';
-		selectedFolder = post.viewerSavedFolderId || '';
+		if (!savedAddress || busy || retry) return;
+		folderMode = savedAt || post?.viewerHasSaved ? 'move' : 'save';
+		selectedFolder =
+			savedAt && savedFolderId !== undefined
+				? savedFolderId || ''
+				: post?.viewerSavedFolderId || '';
 		creatingFolder = false;
 		folderName = '';
-		await action(
-			'post.chooseFolder',
-			() => (plus ? allFolders(api) : Promise.resolve([])),
-			(result) => {
-				folders = result;
-				folderDialog.showModal();
-			}
-		);
+		folders = [];
+		createdFolderIds = new Set();
+		createAfterUnlock = false;
+		message = '';
+		messageError = false;
+		folderDialog.showModal();
+		folderOpen = true;
+	}
+	async function loadFolders() {
+		if (!folderOpen || !plus) return;
+		const captured = revision;
+		const read = ++folderRead;
+		foldersLoading = true;
+		foldersError = '';
+		try {
+			const result = await allFolders(api);
+			if (dead || captured !== revision || read !== folderRead) return;
+			const ids = new Set(result.map((folder) => folder.id));
+			folders = [
+				...result,
+				...folders.filter(
+					(folder) => createdFolderIds.has(folder.id) && !ids.has(folder.id)
+				)
+			];
+		} catch (error) {
+			if (dead || captured !== revision || read !== folderRead) return;
+			void reportFailure(error, 'post.chooseFolder');
+			foldersError = "Folders couldn't load.";
+		} finally {
+			if (!dead && captured === revision && read === folderRead)
+				foldersLoading = false;
+		}
 	}
 	function createFolder() {
-		const name = folderName.trim();
-		if (!name || !plus) return;
+		if (!folderName.trim() || !plus) return;
+		const name = folderName;
 		void action(
 			'post.createFolder',
-			() => api.saved.createFolder(name),
+			() => api.saved.createFolder(normalizeSavedFolderName(name)),
 			(folder) => {
+				createdFolderIds.add(folder.id);
 				folders = [...folders, folder];
 				selectedFolder = folder.id;
 				creatingFolder = false;
 				folderName = '';
 			}
+		);
+	}
+	function unsave() {
+		if (!savedAddress) return;
+		const address = savedAddress;
+		void action(
+			'post.unsave',
+			() => api.saved.unsave(address.did, address.rkey),
+			onRemove
 		);
 	}
 	function canonicalLink() {
@@ -276,6 +360,19 @@
 			if (!dead && captured === revision) {
 				messageError = true;
 				message = 'The link could not be copied. Please try again.';
+			}
+		}
+	}
+	async function shareLink() {
+		if (!navigator.share) return share();
+		const captured = revision;
+		try {
+			await navigator.share({ url: canonicalLink() });
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') return;
+			if (!dead && captured === revision) {
+				messageError = true;
+				message = 'The link could not be shared. Please try again.';
 			}
 		}
 	}
@@ -345,7 +442,7 @@
 			!detail &&
 			post &&
 			!element.closest(
-				'.quote-card,.external-card,.post-actions,.post-images,.notice'
+				'dialog,.quote-card,.external-card,.post-actions,.post-images,.notice'
 			) &&
 			!element.closest('a,button,input,textarea,select,summary') &&
 			!window.getSelection()?.toString() &&
@@ -355,7 +452,7 @@
 			!event.shiftKey &&
 			!event.altKey
 		) {
-			void goto(postRoute(post));
+			void goto(savedAt ? savedHref! : detailHref!);
 			return;
 		}
 		const target = (event.target as HTMLElement).closest<HTMLAnchorElement>(
@@ -385,12 +482,12 @@
 			() => api.posts.report(p.author.did, p.rkey, submission),
 			() => {
 				reportOpen = false;
-				message = 'Report submitted.';
+				message = reportConfirmation;
 			}
 		);
 	}
-	function togglePin() {
-		if (!post) return;
+	async function togglePin() {
+		if (!post || !(await premium.require('Pin'))) return;
 		const p = post,
 			was = pins.isPinned(p);
 		void action(
@@ -443,7 +540,80 @@
 	}
 </script>
 
-{#if !post}<article class="panel protected-post">
+{#snippet savedActions()}
+	{#if savedAt}<time
+			class="saved-date"
+			datetime={savedAt}
+			title={fullTimestamp(savedAt)}>{compactDate(savedAt)}</time
+		><span class="action-spacer"></span>
+		{#if savedAddress}<details class="post-overflow" use:contextMenu>
+				<summary aria-label="Saved post actions"
+					><Icon name="more" size={22} /></summary
+				>
+				<button
+					class="menu-backdrop"
+					type="button"
+					tabindex="-1"
+					aria-label="Close post menu"
+					onclick={(event) => {
+						event.currentTarget.closest('details')!.open = false;
+					}}
+				></button>
+				<div class="menu-items">
+					{#if post}<button data-public-action onclick={share}
+							><Icon name="link" />Copy link</button
+						><button data-public-action onclick={shareLink}
+							><Icon name="share" />Share link</button
+						><a
+							href={'/messages/new?link=' + encodeURIComponent(canonicalLink())}
+							><Icon name="send" />Send via chat</a
+						>
+						<div class="menu-divider"></div>{/if}
+					<button
+						disabled={busy || !!retry}
+						onclick={async () => {
+							const captured = revision;
+							if (await premium.require('Folders'))
+								if (!dead && captured === revision) await chooseFolder();
+						}}><PlusActionIcon name="moveToFolder" locked={!plus} />Move</button
+					><button
+						class="delete-action"
+						disabled={busy || !!retry}
+						onclick={unsave}><Icon name="saved" />Unsave</button
+					>
+				</div>
+			</details>{/if}
+	{/if}
+{/snippet}
+
+{#snippet feedback()}
+	{#if message}<Snackbar
+			{message}
+			warning={messageError}
+			support={message === reportConfirmation && !messageError}
+			onDismiss={() => {
+				message = '';
+				messageError = false;
+			}}
+		>
+			{#if retry}<button type="button" disabled={busy} onclick={() => retry?.()}
+					>Retry the same action</button
+				>{/if}
+		</Snackbar>{/if}
+	{#if !message && retry}<p class="action-recovery">
+			This action still needs confirmation. <button
+				type="button"
+				disabled={busy}
+				onclick={() => retry?.()}>Retry the same action</button
+			>
+		</p>{/if}
+{/snippet}
+
+{#if !post}<article
+		class="panel protected-post"
+		class:member-post={!!savedAt}
+		class:flat-saved={!!savedAt}
+	>
 		<p>
 			This content is {relationshipNotice ||
 				value.availability ||
@@ -454,6 +624,15 @@
 				onclick={revealPost}
 				disabled={busy || !!retry}>Show post</button
 			>{/if}
+		{#if savedAt}<nav
+				class="post-actions"
+				aria-label="Post actions"
+				onclickcapture={(event) =>
+					protectAccountAction(guest, requestSignIn, event)}
+			>
+				{@render savedActions()}
+			</nav>{/if}
+		{@render feedback()}
 	</article>{:else}
 	<div
 		class="member-post"
@@ -481,10 +660,15 @@
 				<p>Content warning. This post has been marked by moderation.</p>
 				<button onclick={() => (revealed = true)}>Show content</button>
 			</div>{:else}
-			{#if savedAt}<PostSummary {post} href={postRoute(post)} />{:else}<PostCard
+			{#if savedAt}<PostSummary
+					{post}
+					href={savedHref!}
+					saved
+				/>{:else}<PostCard
 					post={publicPost(post)}
 					{detail}
 					member
+					{detailHref}
 					initialImageIndex={Math.max(
 						0,
 						post.images?.findIndex((image) => image.cid === initialImageCid) ??
@@ -538,48 +722,7 @@
 				onclickcapture={(event) =>
 					protectAccountAction(guest, requestSignIn, event)}
 			>
-				{#if savedAt}<time class="saved-date" datetime={savedAt}
-						>{compactDate(savedAt)}</time
-					><span class="action-spacer"></span>
-					<details class="post-overflow" use:contextMenu>
-						<summary aria-label="Saved post actions"
-							><Icon name="more" size={22} /></summary
-						>
-						<button
-							class="menu-backdrop"
-							type="button"
-							tabindex="-1"
-							aria-label="Close post menu"
-							onclick={(event) => {
-								event.currentTarget.closest('details')!.open = false;
-							}}
-						></button>
-						<div class="menu-items">
-							<button data-public-action onclick={share}
-								><Icon name="link" />Copy link</button
-							><a
-								href={'/messages/new?link=' +
-									encodeURIComponent(canonicalLink())}
-								><Icon name="send" />Send via chat</a
-							>
-							<div class="menu-divider"></div>
-							{#if plus}<button
-									disabled={busy || !!retry}
-									onclick={chooseFolder}
-									><Icon name="folder" />Move to folder</button
-								>{/if}<button
-								disabled={busy || !!retry}
-								onclick={() => {
-									const current = post!;
-									void action(
-										'post.unsave',
-										() => api.saved.unsave(current.author.did, current.rkey),
-										onRemove
-									);
-								}}><Icon name="saved" />Remove from saved posts</button
-							>
-						</div>
-					</details>{:else}
+				{#if savedAt}{@render savedActions()}{:else}
 					<button
 						class="reaction"
 						class:liked={post.viewerHasLiked}
@@ -705,7 +848,7 @@
 										? 'Unblock account'
 										: 'Block account'}</button
 								><button data-public-action onclick={() => (reportOpen = true)}
-									><Icon name="report" />Report {post.reply
+									><Icon name="flag" />Report {post.reply
 										? post.reply.parent.uri === post.reply.root.uri
 											? 'comment'
 											: 'reply'
@@ -715,10 +858,12 @@
 									href={`/compose/edit?did=${encodeURIComponent(post.author.did)}&rkey=${encodeURIComponent(post.rkey)}`}
 									><Icon name="edit" />Edit</a
 								>
-								{#if plus && pinSlot(post) && pins.value}<button
+								{#if pinSlot(post) && (!plus || pins.value)}<button
 										disabled={busy || !!retry || pins.busy}
 										onclick={togglePin}
-										><Icon name="pin" />{pins.isPinned(post)
+										><PlusActionIcon name="pin" locked={!plus} />{pins.isPinned(
+											post
+										)
 											? 'Unpin'
 											: 'Pin'}</button
 									>{/if}
@@ -758,34 +903,21 @@
 				onSubmit={report}
 				onCancel={() => (reportOpen = false)}
 			/>{/if}
-		{#if message}<Snackbar
-				{message}
-				warning={messageError}
-				onDismiss={() => {
-					message = '';
-					messageError = false;
-				}}
-			>
-				{#if retry}<button
-						type="button"
-						disabled={busy}
-						onclick={() => retry?.()}>Retry the same action</button
-					>{/if}
-			</Snackbar>{/if}
-		{#if !message && retry}<p class="action-recovery">
-				This action still needs confirmation. <button
-					type="button"
-					disabled={busy}
-					onclick={() => retry?.()}>Retry the same action</button
-				>
-			</p>{/if}
+		{@render feedback()}
 	</div>
+{/if}
+{#if post || savedAt}
 	<dialog
 		bind:this={folderDialog}
 		class="save-dialog"
 		aria-labelledby={dialogId + '-save-title'}
 		oncancel={(event) => {
 			if (busy) event.preventDefault();
+		}}
+		onclose={() => {
+			folderOpen = false;
+			createAfterUnlock = false;
+			folderRead++;
 		}}
 	>
 		<form
@@ -798,40 +930,58 @@
 			<h2 id={dialogId + '-save-title'}>
 				{folderMode === 'move' ? 'Move saved post' : 'Save post'}
 			</h2>
-			<SingleSelect
-				label="Folder"
-				value={selectedFolder}
-				showRequired={false}
-				options={[
-					{ id: '', label: 'No folder' },
-					...folders.map((folder) => ({ id: folder.id, label: folder.name }))
-				]}
-				disabled={busy}
-				onchange={(value) => (selectedFolder = value)}
-			/>
-			{#if plus}{#if creatingFolder}<label
-						>Folder name<input
-							name="folderName"
-							bind:value={folderName}
-							maxlength="80"
+			<div class="folder-fields stack">
+				<SingleSelect
+					label="Folder"
+					value={selectedFolder}
+					showRequired={false}
+					options={[
+						{ id: '', label: 'No folder' },
+						...folders.map((folder) => ({ id: folder.id, label: folder.name }))
+					]}
+					disabled={busy}
+					onchange={(value) => (selectedFolder = value)}
+				/>
+				{#if plus && foldersLoading}<p class="folder-loading" role="status">
+						Loading folders…
+					</p>{/if}
+				{#if plus && foldersError}<div class="folder-error" role="alert">
+						<p>{foldersError}</p>
+						<button
+							type="button"
+							class="new-folder"
+							onclick={() => void loadFolders()}>Retry</button
+						>
+					</div>{/if}
+				{#if plus}{#if creatingFolder}<label
+							>Folder name<input
+								name="folderName"
+								bind:value={folderName}
+								disabled={busy}
+							/></label
+						><button
+							type="button"
+							disabled={busy || !folderName.trim()}
+							class="button"
+							onclick={createFolder}>Create folder</button
+						>{:else}<button
+							type="button"
 							disabled={busy}
-						/></label
-					><button
+							class="new-folder"
+							onclick={() => (creatingFolder = true)}>New folder</button
+						>{/if}{:else}<button
 						type="button"
-						disabled={busy || !folderName.trim()}
-						class="button"
-						onclick={createFolder}>Create folder</button
-					>{:else}<button
-						type="button"
-						disabled={busy}
 						class="new-folder"
-						onclick={() => (creatingFolder = true)}>New folder</button
-					>{/if}{:else if !subscriptionsEnabled()}<button
-					type="button"
-					class="new-folder"
-					aria-label="New folder is coming soon"
-					onclick={() => comingSoon('New folder')}>New folder</button
-				>{/if}
+						disabled={busy}
+						aria-label={subscriptionsEnabled()
+							? 'New folder'
+							: 'New folder is coming soon'}
+						onclick={() => {
+							createAfterUnlock = true;
+							void premium.require('Folders');
+						}}><PlusActionIcon name="newFolder" locked />New folder</button
+					>{/if}
+			</div>
 			{#if message}<p role="status">
 					{message}{#if retry}<button
 							type="button"
@@ -850,7 +1000,7 @@
 			</div>
 		</form>
 	</dialog>
-	{#if galleryOpen && post.images?.length}<ImageGallery
+	{#if galleryOpen && post?.images?.length}<ImageGallery
 			images={post.images}
 			initialIndex={imageIndex}
 			onclose={() => (galleryOpen = false)}
@@ -993,6 +1143,30 @@
 		font-size: 16px;
 		font-weight: 700;
 	}
+	.folder-fields {
+		max-height: 360px;
+		overflow-y: auto;
+		padding-bottom: 4px;
+	}
+	.save-dialog .dialog-actions > button:first-child {
+		background: transparent;
+		border: 0;
+		box-shadow: none;
+		color: var(--primary);
+	}
+	.folder-loading {
+		margin: 0;
+		color: var(--ink-2);
+		font-size: 14px;
+	}
+	.folder-error {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.folder-error p {
+		margin: 0;
+	}
 	.save-dialog .new-folder {
 		border: 0;
 		background: transparent;
@@ -1051,7 +1225,7 @@
 
 	.member-post.flat-saved {
 		margin: 0;
-		padding: 0 12px;
+		padding: 0;
 		border: 0;
 		border-bottom: 1px solid var(--hairline);
 		border-radius: 0;
@@ -1063,11 +1237,27 @@
 		border-radius: 0;
 	}
 	.flat-saved .post-actions {
-		margin: 0 -4px;
+		margin: 0 8px;
 		border-top: 0;
+	}
+	.flat-saved .post-actions summary {
+		width: 48px;
+		height: 48px;
+	}
+	.protected-post.flat-saved {
+		display: block;
+		min-height: 0;
+	}
+	.protected-post.flat-saved > p {
+		margin: 0;
+		padding: 12px;
+	}
+	.protected-post.flat-saved > .secondary-button {
+		margin: 0 12px 12px;
 	}
 	.saved-date {
 		color: var(--ink-2);
 		font-size: 12px;
+		line-height: 1.45;
 	}
 </style>

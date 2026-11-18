@@ -25,7 +25,7 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t)+string(subscriptionMigration))
+	pool := testdb.WithSubscriptionAccessSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t)+string(subscriptionMigration))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	visitor := syntax.DID("did:plc:event-visitor")

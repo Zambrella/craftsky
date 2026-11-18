@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "equivalenceGroups": [
     [
       "work in progress",
@@ -383,6 +383,33 @@
       "family": "color",
       "labels": {
         "en": "Blue"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "navy",
+      "family": "color",
+      "labels": {
+        "en": "Navy"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "turquoise",
+      "family": "color",
+      "labels": {
+        "en": "Turquoise"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "teal",
+      "family": "color",
+      "labels": {
+        "en": "Teal"
       },
       "aliases": [],
       "parents": []

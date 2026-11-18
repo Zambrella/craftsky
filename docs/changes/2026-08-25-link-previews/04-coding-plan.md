@@ -134,7 +134,7 @@ type PayloadExternalThumbnail struct {
 ### 4.1 Lexicon Governance
 
 - Invoke and record the `atproto-lexicon` review.
-- Create `adr/009-standard-external-embed.md` following existing ADR structure.
+- Create `docs/adr/009-standard-external-embed.md` following existing ADR structure.
 - Add `app.bsky.embed.external` to the open union in `lexicon/social/craftsky/feed/post.json`.
 - Keep the existing `app.bsky` package mapping in `appview/cmd/lexgen/build.json`; add Indigo's `app/bsky/embed/external.json` to the `--external-lexicons` inputs in `justfile`.
 - Run `just lexgen`; commit generated `appview/internal/lexicon/craftsky/` output rather than hand-editing it.

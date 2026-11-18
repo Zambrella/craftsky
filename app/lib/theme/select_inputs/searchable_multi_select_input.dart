@@ -7,6 +7,7 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
     super.key,
     this.values = const [],
     this.helperText,
+    this.required = false,
     this.errorText,
     this.enabled = true,
     this.isLoading = false,
@@ -19,6 +20,7 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
   });
 
   final String label;
+  final bool required;
   final List<CraftskySelectOption<T>> options;
   final List<T> values;
   final String? helperText;
@@ -240,6 +242,7 @@ class _CraftskySearchableMultiSelectInputState<T>
     final errorText = widget.errorText ?? _limitText;
     return CraftskyFieldScaffold(
       label: widget.label,
+      required: widget.required,
       focusNode: _searchFocusNode,
       helperText: errorText == null ? widget.helperText : null,
       errorText: errorText,

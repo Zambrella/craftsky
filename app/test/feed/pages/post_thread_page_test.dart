@@ -925,8 +925,10 @@ void main() {
             find.byType(PostInteractionSummary),
           )
           .post,
-      tester.widget<PostCard>(find.byType(PostCard).first).post,
+      section.post.copyWith(likeCount: 1, viewerHasLiked: true),
     );
+    expect(find.text('1 Like'), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
     await tester.pump(const Duration(seconds: 31));
     await tester.pumpAndSettle();
   });
@@ -1075,6 +1077,8 @@ void main() {
         final repository = FakePostRepository(
           onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
               section,
+          onListCommentBranchReplies: (did, rkey, {cursor, limit}) async =>
+              throw const ApiNetworkError('offline'),
           onDelete: (did, rkey) => pending.future,
         );
         await _pumpThreadRoute(

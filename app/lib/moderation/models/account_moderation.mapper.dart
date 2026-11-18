@@ -47,10 +47,16 @@ class ModerationReasonMapper extends EnumMapper<ModerationReason> {
         return ModerationReason.intellectualProperty;
       case r'other':
         return ModerationReason.other;
+      case 'illegal_content':
+        return ModerationReason.illegalContent;
+      case 'fraud_or_scam':
+        return ModerationReason.fraudOrScam;
+      case 'self_harm':
+        return ModerationReason.selfHarm;
       case r'unknown':
         return ModerationReason.unknown;
       default:
-        return ModerationReason.values[10];
+        return ModerationReason.values[13];
     }
   }
 
@@ -77,6 +83,12 @@ class ModerationReasonMapper extends EnumMapper<ModerationReason> {
         return 'intellectual_property';
       case ModerationReason.other:
         return r'other';
+      case ModerationReason.illegalContent:
+        return 'illegal_content';
+      case ModerationReason.fraudOrScam:
+        return 'fraud_or_scam';
+      case ModerationReason.selfHarm:
+        return 'self_harm';
       case ModerationReason.unknown:
         return r'unknown';
     }

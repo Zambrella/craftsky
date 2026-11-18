@@ -31,7 +31,7 @@ production and requires auto-approval mode.
 
 ## Testing the full image-safety flow
 
-Set this in the checkout's optional `.env.local` file:
+Set this in the checkout's optional `appview/config/.env.local` file:
 
 ```dotenv
 IMAGE_SAFETY_SCANNER_MODE=stub

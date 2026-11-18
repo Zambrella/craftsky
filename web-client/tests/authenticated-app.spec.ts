@@ -82,7 +82,7 @@ test('publishes through AppView, returns to the feed and edits with the observed
 			name: 'What would you like to share?',
 			exact: true
 		})
-		.fill('My new handknitted scarf #knitting');
+		.fill(' \nMy new handknitted scarf #knitting\n\t ');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 	await expect(page).toHaveURL('/feed');
 	await expect(
@@ -92,14 +92,18 @@ test('publishes through AppView, returns to the feed and edits with the observed
 		(call) => call.method === 'POST' && call.path === '/v1/posts'
 	);
 	expect(create?.key).toMatch(/^[0-9a-f-]{36}$/);
-	expect(create?.body).toMatchObject({ langs: ['en'], sponsored: false });
+	expect(create?.body).toMatchObject({
+		text: 'My new handknitted scarf #knitting',
+		langs: ['en'],
+		sponsored: false
+	});
 	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=created-1');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
 			exact: true
 		})
-		.fill('My edited scarf');
+		.fill(' \nMy edited scarf\n\t ');
 	await page.getByRole('button', { name: 'Save changes' }).click();
 	await expect(page).toHaveURL(/\/posts\//);
 	await expect(
@@ -306,9 +310,9 @@ test('home interactions and profile navigation use the authenticated account', a
 	await expect(page).toHaveURL(/\/posts\/did%3Aplc%3Aalice\/first/);
 	await page.locator('.post-card .author a').first().click();
 	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice/);
-	await expect(
-		page.getByRole('heading', { name: 'Alice Maker', exact: true })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+		'Alice Maker'
+	);
 	await page
 		.getByRole('navigation', { name: 'Profile content' })
 		.getByRole('link', { name: 'Posts', exact: true })
@@ -396,9 +400,12 @@ test('compact quote previews derive their route from AT URI and show safe select
 	await expect(
 		quote.getByRole('heading', { name: 'Quoted linen dress' })
 	).toBeVisible();
-	await expect(
-		quote.getByText('Sponsored / commercial relationship', { exact: true })
-	).toBeVisible();
+	const sponsored = quote.getByText('Sponsored', { exact: true });
+	await expect(sponsored).toBeVisible();
+	await expect(sponsored).toHaveAttribute(
+		'title',
+		'The creator marked this post as sponsored because they received money, products, or another benefit.'
+	);
 	await expect(
 		quote.getByRole('img', { name: 'Selected quote image' })
 	).toHaveAttribute('src', 'https://cdn.example/quote-selected.png');
@@ -1018,4 +1025,33 @@ test('root opens the mobile feed route and navigation uses canonical paths', asy
 		).toHaveAttribute('href', path);
 	await page.goto('/projects?craft=knitting');
 	await expect(page).toHaveURL('/feed?craft=knitting');
+});
+
+test('project submission trims its description and preserves internal newlines', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	await page
+		.getByRole('combobox', { name: 'Primary craft required', exact: true })
+		.click();
+	await page.getByRole('option', { name: 'Sewing', exact: true }).click();
+	await page
+		.getByRole('textbox', { name: 'Project description', exact: true })
+		.fill(' \nA linen dress\nwith #sewing details\n\t ');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(page).toHaveURL('/feed');
+	const create = (await calls()).find(
+		(call) => call.method === 'POST' && call.path === '/v1/posts'
+	);
+	expect(create?.body.text).toBe('A linen dress\nwith #sewing details');
+	const facets = create?.body.facets as {
+		index: { byteStart: number; byteEnd: number };
+	}[];
+	expect(facets).toHaveLength(1);
+	const bytes = new TextEncoder().encode(create?.body.text as string);
+	expect(
+		new TextDecoder().decode(
+			bytes.slice(facets[0].index.byteStart, facets[0].index.byteEnd)
+		)
+	).toBe('#sewing');
 });

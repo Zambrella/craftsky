@@ -54,12 +54,23 @@ func (service *WorkflowService) OpenIntimateImage(ctx context.Context, command I
 	}
 	id := uuid.New()
 	now := service.now().UTC()
+	receivedAt := command.ReceivedAt.UTC()
 	err = pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
+		if command.IntakeID != uuid.Nil {
+			if err := tx.QueryRow(ctx, `SELECT received_at FROM external_safety_intakes WHERE id=$1 FOR SHARE`, command.IntakeID).Scan(&receivedAt); err != nil {
+				return fmt.Errorf("read intimate-image intake receipt: %w", err)
+			}
+			var err error
+			deadline, err = service.deadlines.Calculate(WorkflowIntimateImage, receivedAt)
+			if err != nil {
+				return err
+			}
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO safety_workflows(
 			id,intake_id,workflow_class,state,urgency,responsible_actor,received_at,target_seconds,deadline_at,created_at,updated_at
 		) VALUES($1,$2,'intimateImage','inProgress','priority',$3,$4,$5,$6,$7,$7)`,
-			id, nullableUUID(command.IntakeID), command.Actor.ID, command.ReceivedAt.UTC(),
-			int64(deadline.DueAt.Sub(command.ReceivedAt.UTC()).Seconds()), deadline.DueAt, now); err != nil {
+			id, nullableUUID(command.IntakeID), command.Actor.ID, receivedAt,
+			int64(deadline.DueAt.Sub(receivedAt).Seconds()), deadline.DueAt, now); err != nil {
 			return fmt.Errorf("open intimate-image workflow: %w", err)
 		}
 		for index, event := range []struct{ kind, detail string }{

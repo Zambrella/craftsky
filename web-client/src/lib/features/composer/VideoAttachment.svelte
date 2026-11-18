@@ -113,7 +113,7 @@
 		aria-label="Video details"
 		use:mountComposerPage
 	>
-		<header>
+		<header class="page-appbar">
 			<button type="button" aria-label="Back to post" {disabled} onclick={close}
 				><Icon name="back" /></button
 			>
@@ -219,13 +219,7 @@
 		overflow: hidden;
 	}
 	header {
-		display: flex;
-		align-items: center;
-		gap: 16px;
-		height: 56px;
-		flex: none;
-		border-bottom: 1.5px solid var(--ink);
-		padding: 0 8px;
+		justify-content: flex-start;
 	}
 	header button {
 		width: 48px;
@@ -235,11 +229,6 @@
 		background: transparent;
 		box-shadow: none;
 		border-radius: 50%;
-	}
-	h2 {
-		font-size: 20px;
-		font-weight: 600;
-		margin: 0;
 	}
 	.video-details-scroll {
 		overflow: auto;

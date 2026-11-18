@@ -1,9 +1,16 @@
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
+import { loadEnv } from 'vite';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import {
+	assertModeSpecificEnv,
+	developmentSubscriptions
+} from './scripts/env-files.mjs';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { webRelease } from './scripts/sentry-build.mjs';
+assertModeSpecificEnv(fileURLToPath(new URL('./config/', import.meta.url)));
 const sentryBuildPlugin = () =>
 	sentryVitePlugin({
 		telemetry: false,
@@ -18,46 +25,67 @@ const sentryBuildPlugin = () =>
 			deploy: false
 		}
 	});
-export default defineConfig({
-	build: { sourcemap: 'hidden' },
-	worker: { plugins: () => [sentryBuildPlugin()] },
-	define: {
-		__CRAFTSKY_WEB_RELEASE__: JSON.stringify(webRelease),
-		__CRAFTSKY_VERSION__: JSON.stringify(
-			readFileSync(new URL('./VERSION', import.meta.url), 'utf8').trim()
-		)
-	},
-	plugins: [
-		sveltekit({
-			adapter: adapter(),
-			files: { params: 'src/params.ts' },
-			serviceWorker: { register: false },
-			csp: {
-				mode: 'hash',
-				directives: {
-					'default-src': ['self'],
-					'script-src': [
-						'self',
-						'wasm-unsafe-eval',
-						'https://www.youtube.com',
-						'https://s.ytimg.com'
-					],
-					'style-src': ['self', 'unsafe-inline'],
-					'img-src': ['self', 'https:', 'blob:', 'data:'],
-					'media-src': ['self', 'https:', 'blob:'],
-					'connect-src': ['self', 'https:'],
-					'base-uri': ['none'],
-					'form-action': ['self'],
-					'frame-ancestors': ['none'],
-					'frame-src': [
-						'https://player.mediadelivery.net',
-						'https://www.youtube-nocookie.com'
-					],
-					'object-src': ['none']
+export default defineConfig(({ command, mode }) => {
+	const flag = developmentSubscriptions(
+		command,
+		mode,
+		process.env.SUBSCRIPTIONS_ENABLED,
+		loadEnv(mode, 'config', '').SUBSCRIPTIONS_ENABLED
+	);
+	if (flag !== undefined) process.env.SUBSCRIPTIONS_ENABLED = flag;
+	return {
+		envDir: 'config',
+		build: { sourcemap: 'hidden' },
+		worker: { plugins: () => [sentryBuildPlugin()] },
+		define: {
+			__CRAFTSKY_WEB_RELEASE__: JSON.stringify(webRelease),
+			__CRAFTSKY_VERSION__: JSON.stringify(
+				readFileSync(new URL('./VERSION', import.meta.url), 'utf8').trim()
+			)
+		},
+		plugins: [
+			sveltekit({
+				adapter: adapter(),
+				env: { dir: 'config' },
+				files: { params: 'src/params.ts' },
+				serviceWorker: { register: false },
+				csp: {
+					mode: 'hash',
+					directives: {
+						'default-src': ['self'],
+						'script-src': [
+							'self',
+							'wasm-unsafe-eval',
+							'https://www.youtube.com',
+							'https://s.ytimg.com',
+							'https://js.stripe.com'
+						],
+						'style-src': ['self', 'unsafe-inline'],
+						'font-src': [
+							'self',
+							'https://assets.pawwalls.com',
+							'https://fonts.pawwalls.com',
+							'https://fonts.gstatic.com',
+							'data:'
+						],
+						'img-src': ['self', 'https:', 'blob:', 'data:'],
+						'media-src': ['self', 'https:', 'blob:'],
+						'connect-src': ['self', 'https:'],
+						'base-uri': ['none'],
+						'form-action': ['self'],
+						'frame-ancestors': ['none'],
+						'frame-src': [
+							'https://player.mediadelivery.net',
+							'https://www.youtube-nocookie.com',
+							'https://js.stripe.com',
+							'https://hooks.stripe.com'
+						],
+						'object-src': ['none']
+					}
 				}
-			}
-		}),
-		sentryBuildPlugin()
-	],
-	test: { include: ['src/**/*.test.ts'] }
+			}),
+			sentryBuildPlugin()
+		],
+		test: { include: ['src/**/*.test.ts'] }
+	};
 });

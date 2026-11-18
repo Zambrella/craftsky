@@ -27,7 +27,7 @@ void main() {
         (server) => server.reply(500, {
           'error': 'internal_error',
           'message': 'could not resolve mention',
-          'requestId': 'facet-request-123',
+          'requestId': '90000000-0000-4000-8000-000000000009',
         }),
         queryParameters: {'q': 'private search canary', 'limit': 10},
       );
@@ -46,7 +46,10 @@ void main() {
       expect(reporter.errors, hasLength(1));
       expect(selected['operation'], 'facet.mentions.search');
       expect(selected['failureStage'], 'request');
-      expect(selected['appViewRequestId'], 'facet-request-123');
+      expect(
+        selected['appViewRequestId'],
+        '90000000-0000-4000-8000-000000000009',
+      );
       expect(selected.toString(), contains('ApiServerError'));
       expect(selected.toString(), isNot(contains('private search canary')));
     },

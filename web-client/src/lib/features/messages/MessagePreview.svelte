@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { excerpt } from '#lib/text.ts';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import type { Profile, CraftskyAPI } from '#lib/api/client.ts';
@@ -86,7 +87,8 @@
 					};
 				}
 				if (!canceled) preview = value;
-			} catch {
+			} catch (error) {
+				if (!canceled) void reportFailure(error, 'messages.preview');
 				/* Preview failures leave the original message link usable. */
 			}
 		}

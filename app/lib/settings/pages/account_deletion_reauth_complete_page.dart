@@ -4,8 +4,8 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,50 +68,55 @@ class _AccountDeletionReauthCompletePageState
     return _guardIntent(
       Scaffold(
         appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
-        body: _BoundedConfirmationContent(
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Text.rich(
-                TextSpan(
-                  children: didOffset < 0
-                      ? [TextSpan(text: confirmationPrompt)]
-                      : [
-                          TextSpan(
-                            text: confirmationPrompt.substring(0, didOffset),
-                          ),
-                          TextSpan(
-                            text: confirmationDid,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          TextSpan(
-                            text: confirmationPrompt.substring(
-                              didOffset + confirmationDid.length,
+        body: FormActionLayout(
+          keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+          label: l10n.deleteAccountAction,
+          actionKey: const Key('account-delete-confirm'),
+          actionStyle: ButtonStyle(
+            backgroundColor: WidgetStatePropertyAll(colors.error),
+            foregroundColor: WidgetStatePropertyAll(colors.onError),
+          ),
+          onPressed: !_busy && matches ? () => _confirm(confirmationDid) : null,
+          actionChild: _busy
+              ? StitchProgressIndicator(size: 18, color: colors.onError)
+              : null,
+          child: _BoundedConfirmationContent(
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                Text.rich(
+                  TextSpan(
+                    children: didOffset < 0
+                        ? [TextSpan(text: confirmationPrompt)]
+                        : [
+                            TextSpan(
+                              text: confirmationPrompt.substring(0, didOffset),
                             ),
-                          ),
-                        ],
+                            TextSpan(
+                              text: confirmationDid,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            TextSpan(
+                              text: confirmationPrompt.substring(
+                                didOffset + confirmationDid.length,
+                              ),
+                            ),
+                          ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              BrandTextField(
-                label: l10n.deleteAccountTypeDidLabel,
-                controller: _controller,
-                autocorrect: false,
-                enableSuggestions: false,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 24),
-              ChunkyButton(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-                onPressed: !_busy && matches
-                    ? () => _confirm(confirmationDid)
-                    : null,
-                child: _busy
-                    ? StitchProgressIndicator(size: 18, color: colors.onError)
-                    : Text(l10n.deleteAccountAction),
-              ),
-            ],
+                const SizedBox(height: 16),
+                BrandTextField(
+                  label: l10n.deleteAccountTypeDidLabel,
+                  controller: _controller,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),

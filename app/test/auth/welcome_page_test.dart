@@ -28,6 +28,7 @@ import 'package:material_ui/material_ui.dart';
 import '../fakes/recording_messenger.dart';
 
 class _RecordingAuthController extends AuthController {
+  @visibleForTesting
   int registrationCalls = 0;
   final List<String> signInCalls = [];
 
@@ -94,6 +95,7 @@ void main() {
     await tester.ensureVisible(find.text('Explore CraftSky'));
     await tester.tap(find.text('Explore CraftSky'));
     expect(explored, true);
+    expect(find.text('Safety and support'), findsNothing);
   });
 
   testWidgets('renders the craft icon scaffold background', (tester) async {

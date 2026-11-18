@@ -27,6 +27,7 @@ void main() {
       );
 
       expect(find.text('Our community guidelines'), findsOneWidget);
+      expect(find.text('Safety and support'), findsNothing);
       expect(find.text('Be kind and keep CraftSky safe'), findsOneWidget);
       expect(
         find.textContaining('materially created by generative AI'),

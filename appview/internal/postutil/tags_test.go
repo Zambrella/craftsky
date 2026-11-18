@@ -211,3 +211,14 @@ func TestExtractProjectTagsAndMentions(t *testing.T) {
 		t.Fatalf("ExtractProjectMentionDIDs = %#v", mentions)
 	}
 }
+
+func TestLimitTags_DeduplicatesBeforeSharedBudget(t *testing.T) {
+	got := postutil.LimitTags([]string{" A ", "a", "B", "c", "d", "e", "f", "g", "h"}, []string{"A", "i", "J", "overflow"})
+	want := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("tags = %v, want %v", got, want)
+	}
+	if got := postutil.LimitTags(nil); got == nil || len(got) != 0 {
+		t.Fatalf("empty tags = %#v", got)
+	}
+}

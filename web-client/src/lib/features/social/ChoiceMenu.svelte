@@ -4,6 +4,7 @@
 	let {
 		label,
 		appBar = false,
+		triggerIcon,
 		value,
 		options,
 		disabled = false,
@@ -12,8 +13,14 @@
 	}: {
 		label: string;
 		appBar?: boolean;
+		triggerIcon?: string;
 		value: string;
-		options: { value: string; label: string; icon: string }[];
+		options: {
+			value: string;
+			label: string;
+			icon: string;
+			description?: string;
+		}[];
 		disabled?: boolean;
 		onchange?: (value: string) => void;
 		url?: { href: string };
@@ -36,7 +43,7 @@
 			if (disabled) event.preventDefault();
 		}}
 		><Icon
-			name={selected.icon}
+			name={triggerIcon || selected.icon}
 			size={appBar ? 24 : 20}
 		/>{#if !appBar}{selected.label}{/if}</summary
 	>
@@ -45,7 +52,10 @@
 			{#if url}<a
 					href={href(option.value)}
 					aria-current={value === option.value ? 'page' : undefined}
-					><Icon name={option.icon} /><span>{option.label}</span
+					><Icon name={option.icon} /><span
+						>{option.label}{#if option.description}<small
+								>{option.description}</small
+							>{/if}</span
 					>{#if value === option.value}<Icon name="check" />{/if}</a
 				>
 			{:else}<button
@@ -53,7 +63,10 @@
 					{disabled}
 					aria-pressed={value === option.value}
 					onclick={() => onchange?.(option.value)}
-					><Icon name={option.icon} /><span>{option.label}</span
+					><Icon name={option.icon} /><span
+						>{option.label}{#if option.description}<small
+								>{option.description}</small
+							>{/if}</span
 					>{#if value === option.value}<Icon name="check" />{/if}</button
 				>{/if}
 		{/each}
@@ -97,6 +110,12 @@
 	}
 	.menu-items span {
 		flex: 1;
+	}
+	.menu-items small {
+		display: block;
+		font-size: 12px;
+		font-weight: 400;
+		color: var(--ink-2);
 	}
 	.menu-items :is([aria-current='page'], [aria-pressed='true']) {
 		background: color-mix(in srgb, var(--primary) 4%, var(--surface));

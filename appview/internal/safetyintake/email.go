@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 
 var (
 	ErrInvalidEmailMetadata         = errors.New("invalid external safety email metadata")
+	ErrInvalidSubject               = fmt.Errorf("invalid external safety subject: %w", ErrInvalidEmailMetadata)
 	ErrUnsafeAttachment             = errors.New("media attachment was not safely rejected or quarantined")
 	ErrAppealOwnerMismatch          = errors.New("external appeal does not match the case owner")
 	ErrCorrespondenceIntakeMismatch = errors.New("external correspondence belongs to another intake")
@@ -82,10 +82,15 @@ func NewStore(pool dbx.DB, now func() time.Time) *Store {
 
 func (store *Store) AcceptEmail(ctx context.Context, metadata EmailMetadata) (Intake, error) {
 	if store == nil || store.pool == nil || strings.TrimSpace(metadata.ProviderMessageReference) == "" ||
-		metadata.ReceivedAt.IsZero() || !validCanonicalSubject(metadata.CanonicalSubject, metadata.Kind) ||
+		metadata.ReceivedAt.IsZero() ||
 		strings.TrimSpace(metadata.OwnerActorID) == "" || !validKind(metadata.Kind) || !validUrgency(metadata.Urgency) {
 		return Intake{}, ErrInvalidEmailMetadata
 	}
+	subject, err := CanonicalSubject(metadata.CanonicalSubject, metadata.Kind)
+	if err != nil {
+		return Intake{}, err
+	}
+	metadata.CanonicalSubject = subject
 	if metadata.HasMediaAttachment && metadata.AttachmentStatus != AttachmentRejected && metadata.AttachmentStatus != AttachmentQuarantined {
 		return Intake{}, ErrUnsafeAttachment
 	}
@@ -228,23 +233,6 @@ func validUrgency(urgency Urgency) bool {
 
 func validAttachmentStatus(status AttachmentStatus) bool {
 	return status == AttachmentNone || status == AttachmentRejected || status == AttachmentQuarantined
-}
-
-func validCanonicalSubject(subject string, kind Kind) bool {
-	subject = strings.TrimSpace(subject)
-	if _, err := syntax.ParseATURI(subject); err == nil {
-		return true
-	}
-	if kind == KindAppeal && strings.HasPrefix(subject, "case:") {
-		_, err := uuid.Parse(strings.TrimPrefix(subject, "case:"))
-		return err == nil
-	}
-	parsed, err := url.Parse(subject)
-	if err != nil || parsed.Scheme != "https" || parsed.User != nil || parsed.RawFragment != "" || parsed.Path == "" || parsed.Path == "/" {
-		return false
-	}
-	host := strings.ToLower(parsed.Hostname())
-	return host == "craftsky.social" || host == "www.craftsky.social"
 }
 
 func nullableString(value string) any {

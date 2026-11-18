@@ -6,6 +6,15 @@ emulator or iOS simulator with an English UI. Android requires Chrome as the
 default browser with its first-run prompts completed; iOS uses Safari. Web and
 physical-device runners are not configured.
 
+If Chrome opens blank pages and its error log reports `GrContext creation failed`
+or `Failed to initialize Skia`, repair the emulator renderer before running the
+OAuth journey. Android's [emulator troubleshooting guide](https://developer.android.com/studio/run/emulator-troubleshooting)
+recommends disabling Vulkan for Chrome rendering failures. For launchers that do
+not expose emulator feature flags, set `Vulkan = off` in
+`~/.android/advancedFeatures.ini` and cold-boot the emulator. This is a local
+emulator setting, not an application setting; it applies to subsequent emulator
+launches on that host.
+
 ## Run locally
 
 From the repository root:

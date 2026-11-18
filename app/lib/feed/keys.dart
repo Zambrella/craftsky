@@ -10,5 +10,7 @@ class FeedKeys {
   final menu = const ValueKey<String>('feed-menu');
   ValueKey<String> post(AtUri uri) => ValueKey('feed-post-$uri');
   final regularPost = const ValueKey<String>('feed-regular-post');
+  ValueKey<String> scrollView({required bool extendedNetwork}) =>
+      ValueKey('feed-scroll-$extendedNetwork');
   final submit = const ValueKey<String>('post-composer-primary-action');
 }

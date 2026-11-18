@@ -208,7 +208,12 @@ func TestDefaultRateLimitsKeepLinkPreviewQuotaIndependent(t *testing.T) {
 // would cause Load to skip the file's value — the opposite of what we want.
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
-	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
+	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID", "SAFETY_EMAIL_ENABLED", "BREVO_API_KEY", "SAFETY_EMAIL_CONSOLE_ORIGIN",
+		"REVENUECAT_WEB_PUBLIC_API_KEY", "REVENUECAT_ENABLED", "REVENUECAT_API_KEY", "REVENUECAT_PROJECT_ID", "REVENUECAT_ENVIRONMENT", "REVENUECAT_API_BASE_URL",
+		"REVENUECAT_APP_IDS", "REVENUECAT_PRODUCT_MAPPINGS", "REVENUECAT_WEBHOOK_AUTHORIZATION", "REVENUECAT_WEBHOOK_SIGNING_SECRET", "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE",
+		"REVENUECAT_RECONCILIATION_SCHEDULE_INTERVAL", "REVENUECAT_RECONCILIATION_POLL_INTERVAL",
+		"STRIPE_SECRET_KEY", "STRIPE_ACCOUNT_ID", "STRIPE_PLUS_PRICE_ID", "STRIPE_BUSINESS_PRICE_ID",
+		"STRIPE_CHECKOUT_SUCCESS_URL", "STRIPE_CHECKOUT_CANCEL_URL", "STRIPE_BILLING_RETURN_URL", "STRIPE_PORTAL_CONFIGURATION_ID",
 		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_ACK_SAFETY_MARGIN", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
@@ -242,8 +247,6 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SENTRY_DSN", "SENTRY_RELEASE", "RENDER_GIT_COMMIT", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
-		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
-		"INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES",
 		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS",
@@ -468,9 +471,6 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		if cfg.SentryTapTracesSampleRate != 0 {
 			t.Fatalf("SentryTapTracesSampleRate = %v, want 0", cfg.SentryTapTracesSampleRate)
 		}
-		if cfg.UnsafeLogResponseBodies {
-			t.Fatal("UnsafeLogResponseBodies = true, want false")
-		}
 	})
 
 	t.Run("dsn only enables errors and panics but not logs tracing metrics or tap traces", func(t *testing.T) {
@@ -612,38 +612,6 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("prod forces unsafe response body logging off", func(t *testing.T) {
-		path := testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_UNSAFE_LOG_RESPONSE_BODIES=true\n"))
-		cfg, err := LoadConfig(EnvProd, path)
-		if err != nil {
-			t.Fatalf("LoadConfig: %v", err)
-		}
-		if cfg.UnsafeLogResponseBodies {
-			t.Fatal("UnsafeLogResponseBodies = true in prod, want forced false")
-		}
-	})
-
-	t.Run("unsafe Instagram webhook logging is opt-in in dev", func(t *testing.T) {
-		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n")
-		cfg, err := LoadConfig(EnvDev, path)
-		if err != nil {
-			t.Fatalf("LoadConfig: %v", err)
-		}
-		if !cfg.UnsafeLogInstagramWebhookBodies {
-			t.Fatal("UnsafeLogInstagramWebhookBodies = false, want true")
-		}
-	})
-
-	t.Run("prod forces unsafe Instagram webhook logging off", func(t *testing.T) {
-		path := testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\nINSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES=true\n"))
-		cfg, err := LoadConfig(EnvProd, path)
-		if err != nil {
-			t.Fatalf("LoadConfig: %v", err)
-		}
-		if cfg.UnsafeLogInstagramWebhookBodies {
-			t.Fatal("UnsafeLogInstagramWebhookBodies = true in prod, want forced false")
-		}
-	})
 }
 
 func TestLoadConfig_DevModerationRequiresTokenWhenEnabled(t *testing.T) {
@@ -1586,22 +1554,9 @@ func TestLoadConfigScheduledImageDecodeLimits(t *testing.T) {
 }
 
 func TestProductionDeploymentImageGeometryMatchesApplicationCeiling(t *testing.T) {
-	productionEnv, err := os.ReadFile("../../environments/prod.env.example")
-	if err != nil {
-		t.Fatal(err)
-	}
 	blueprint, err := os.ReadFile("../../../render.yaml")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	for _, expected := range []string{
-		"SCHEDULED_IMAGE_MAX_WIDTH=4000",
-		"SCHEDULED_IMAGE_MAX_HEIGHT=4000",
-	} {
-		if !strings.Contains(string(productionEnv), expected) {
-			t.Fatalf("production environment is missing %q", expected)
-		}
 	}
 	for _, expected := range []string{
 		"SCHEDULED_IMAGE_MAX_WIDTH\n                value: \"4000\"",
@@ -1736,11 +1691,14 @@ func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
 }
 
 func TestCheckedInDevVideoUploadBudget(t *testing.T) {
-	contents, err := os.ReadFile("../../environments/dev.env")
+	contents, err := os.ReadFile("../../config/dev.env")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := LoadConfig(EnvDev, testConfigFile(t, string(contents)))
+	path := testConfigFile(t, string(contents))
+	// This tests the video budget without needing billing provider credentials.
+	t.Setenv("REVENUECAT_ENABLED", "false")
+	cfg, err := LoadConfig(EnvDev, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1754,5 +1712,89 @@ func TestCheckedInDevVideoUploadBudget(t *testing.T) {
 	}
 	if cfg.PDSEffectTimeout != 10*time.Second {
 		t.Fatal("ordinary PDS effect budget changed")
+	}
+}
+
+func TestLoadConfigSafetyEmailRequiresCompleteConfiguration(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, tc := range []struct {
+		name, extra string
+		wantError   bool
+	}{
+		{"disabled", "", false},
+		{"missing credentials", "SAFETY_EMAIL_ENABLED=true\n", true},
+		{"admin disabled", "SAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n", true},
+		{"invalid flag", "SAFETY_EMAIL_ENABLED=invalid\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadConfig(EnvDev, testConfigFile(t, base+tc.extra))
+			if (err != nil) != tc.wantError {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if err != nil && strings.Contains(err.Error(), "credential-canary") {
+				t.Fatal("credential leaked")
+			}
+			if err == nil && cfg.SafetyEmailEnabled {
+				t.Fatal("email enabled by default")
+			}
+		})
+	}
+}
+
+func TestLoadConfigSafetyEmailProduction(t *testing.T) {
+	base := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\nSAFETY_EMAIL_CONSOLE_ORIGIN=https://console.example.org\n")
+	cfg, err := LoadConfig(EnvProd, testConfigFile(t, base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SafetyEmailConsoleOrigin != "https://console.example.org" || !cfg.SafetyEmailEnabled || cfg.BrevoAPIKey.Reveal() != "credential-canary" {
+		t.Fatal("email configuration unavailable")
+	}
+	if strings.Contains(fmt.Sprintf("%+v", cfg), "credential-canary") {
+		t.Fatal("credential exposed in config diagnostics")
+	}
+}
+
+func TestLoadConfigSafetyEmailConsoleOrigin(t *testing.T) {
+	const credentials = "MODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\nSAFETY_EMAIL_ENABLED=true\nBREVO_API_KEY=credential-canary\n"
+	for _, tc := range []struct {
+		name, origin, want string
+		env                Env
+		wantError          bool
+	}{
+		{"dev default follows callback port", "", "http://127.0.0.1:18444", EnvDev, false},
+		{"dev explicit loopback", "http://localhost:18080/", "http://localhost:18080", EnvDev, false},
+		{"dev separate HTTPS console", "https://console.example.org", "https://console.example.org", EnvDev, false},
+		{"dev rejects LAN HTTP", "http://192.168.1.50:18080", "", EnvDev, true},
+		{"prod requires explicit console origin", "", "", EnvProd, true},
+		{"prod rejects loopback HTTP", "http://127.0.0.1:18080", "", EnvProd, true},
+		{"prod independent HTTPS console", "https://console.example.org/", "https://console.example.org", EnvProd, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			base := "DATABASE_URL=postgres://test\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n" + credentials
+			if tc.env == EnvProd {
+				base = withProductionOAuth(strings.Replace(base, "ALLOWED_ORIGINS=*", "ALLOWED_ORIGINS=https://craftsky.social", 1))
+			} else {
+				base += "OAUTH_CALLBACK_URL=http://127.0.0.1:18444/oauth/callback\n"
+			}
+			if tc.origin != "" {
+				base += "SAFETY_EMAIL_CONSOLE_ORIGIN=" + tc.origin + "\n"
+			}
+			cfg, err := LoadConfig(tc.env, testConfigFile(t, base))
+			if (err != nil) != tc.wantError {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if err == nil && cfg.SafetyEmailConsoleOrigin != tc.want {
+				t.Fatalf("console origin = %q", cfg.SafetyEmailConsoleOrigin)
+			}
+		})
+	}
+}
+
+func TestLoadConfigMalformedDotenvDoesNotExposeValues(t *testing.T) {
+	path := testConfigFile(t, "SECRET=\"protected-value-canary\n")
+	_, err := LoadConfig(EnvDev, path)
+	if err == nil || strings.Contains(err.Error(), "protected-value-canary") {
+		t.Fatal("malformed dotenv must fail without exposing source values")
 	}
 }

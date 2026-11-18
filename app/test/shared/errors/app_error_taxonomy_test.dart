@@ -7,6 +7,7 @@ void main() {
       expect(AppErrorKind.values, [
         AppErrorKind.networkUnavailable,
         AppErrorKind.serviceUnavailable,
+        AppErrorKind.rateLimited,
         AppErrorKind.sessionExpired,
         AppErrorKind.permissionDenied,
         AppErrorKind.contentUnavailable,
@@ -31,6 +32,7 @@ void main() {
     test('expected routine states are not reportable by default', () {
       for (final kind in [
         AppErrorKind.networkUnavailable,
+        AppErrorKind.rateLimited,
         AppErrorKind.sessionExpired,
         AppErrorKind.permissionDenied,
         AppErrorKind.contentUnavailable,

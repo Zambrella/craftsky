@@ -140,25 +140,65 @@ class MessagingStatus extends _$MessagingStatus {
   }
 }
 
+// Select synchronous status fields so closing a pending dependency does not
+// leave selectAsync delivering an error into an already closed subscription.
+// Dispose the listener with its consumer, and cancel its pending result.
+// Callers still fence acquisition and dispatch to the active account.
+Future<T> _watchChatStatus<T>(
+  Ref ref,
+  AccountKey account,
+  T Function(ChatStatus) select,
+) {
+  final result = Completer<T>();
+  T? selected;
+  var hasValue = false;
+  ref.listen(chatStatusProvider(account), (_, next) {
+    if (!ref.mounted || next.isLoading) return;
+    if (next.hasError) {
+      hasValue = false;
+      if (!result.isCompleted) {
+        result.completeError(next.error!, next.stackTrace);
+      } else {
+        ref.invalidateSelf();
+      }
+      return;
+    }
+    final value = select(next.requireValue);
+    if (!result.isCompleted) {
+      hasValue = true;
+      selected = value;
+      result.complete(value);
+    } else if (!hasValue || value != selected) {
+      ref.invalidateSelf();
+    }
+  }, fireImmediately: true);
+  ref.onDispose(() {
+    if (!result.isCompleted) {
+      result.completeError(const AccountOperationDiscarded());
+    }
+  });
+  return result.future;
+}
+
 Future<void> _requireMessaging(
   Ref ref,
   AccountKey account,
   ActiveAccountOperation operation,
 ) async {
   final status = await operation.step(
-    () => ref.watch(
-      chatStatusProvider(account).selectAsync(
-        (value) => (
-          enabled: value.enabled,
-          generation: value.generation,
-          // Retain already-loaded state while eligibility is transiently
-          // unavailable under the same live grant and messaging generation.
-          // Every server operation still rechecks current eligibility.
-          state: value.state == ChatConnectionState.unavailable && value.canRead
-              ? ChatConnectionState.ready
-              : value.state,
-          canRead: value.canRead,
-        ),
+    () => _watchChatStatus(
+      ref,
+      account,
+      (value) => (
+        enabled: value.enabled,
+        generation: value.generation,
+        // Retain already-loaded state while eligibility is transiently
+        // unavailable under the same live grant and messaging generation.
+        // Every server operation still rechecks current eligibility.
+        state: value.state == ChatConnectionState.unavailable && value.canRead
+            ? ChatConnectionState.ready
+            : value.state,
+        canRead: value.canRead,
       ),
     ),
   );
@@ -245,8 +285,10 @@ ChatUnreadCounts? displayedChatUnreadCounts(Ref ref, AccountKey account) {
   });
 }
 
+// Widgets listen to these controllers directly. Raw preserves the async
+// provider state with explicit manual listening and onDispose ownership.
 @riverpod
-Future<ChatConversationController> chatConversationController(
+Future<Raw<ChatConversationController>> chatConversationController(
   Ref ref,
   AccountKey account,
   ChatConversationId id,
@@ -320,7 +362,7 @@ Future<ChatConversationController> chatConversationController(
 }
 
 @riverpod
-Future<ChatInboxController> chatInboxController(
+Future<Raw<ChatInboxController>> chatInboxController(
   Ref ref,
   AccountKey account,
   ChatBucket bucket,
@@ -344,21 +386,21 @@ Future<ChatInboxController> chatInboxController(
 }
 
 @riverpod
-Future<ChatSettingsController> chatSettingsController(
+Future<Raw<ChatSettingsController>> chatSettingsController(
   Ref ref,
   AccountKey account,
 ) async {
   final operation = chatAccountOperation(ref, account);
   await operation.step(
-    () => ref.watch(
-      chatStatusProvider(account).selectAsync(
-        (value) => (
-          generation: value.generation,
-          enabled: value.enabled,
-          state: value.state,
-          canRead: value.canRead,
-          canSetPolicy: value.canSetPolicy,
-        ),
+    () => _watchChatStatus(
+      ref,
+      account,
+      (value) => (
+        generation: value.generation,
+        enabled: value.enabled,
+        state: value.state,
+        canRead: value.canRead,
+        canSetPolicy: value.canSetPolicy,
       ),
     ),
   );
@@ -386,7 +428,7 @@ Future<ChatSettingsController> chatSettingsController(
 }
 
 @riverpod
-Future<ChatRecipientController> chatRecipientController(
+Future<Raw<ChatRecipientController>> chatRecipientController(
   Ref ref,
   AccountKey account,
 ) async {
@@ -410,7 +452,7 @@ Future<ChatRecipientController> chatRecipientController(
 }
 
 @riverpod
-Future<ChatReportController> chatReportController(
+Future<Raw<ChatReportController>> chatReportController(
   Ref ref,
   AccountKey account,
   ChatConversationId id,
@@ -419,9 +461,7 @@ Future<ChatReportController> chatReportController(
   final operation = chatAccountOperation(ref, account);
   await _requireMessaging(ref, account, operation);
   final canReport = await operation.step(
-    () => ref.watch(
-      chatStatusProvider(account).selectAsync((value) => value.canReport),
-    ),
+    () => _watchChatStatus(ref, account, (value) => value.canReport),
   );
   if (!canReport) throw const AccountOperationDiscarded();
   final repository = await operation.step(
@@ -476,7 +516,7 @@ Future<ChatConversationId> chatNotificationOpen(
 }
 
 @riverpod
-Future<ChatSyncCoordinator> chatSyncCoordinator(
+Future<Raw<ChatSyncCoordinator>> chatSyncCoordinator(
   Ref ref,
   AccountKey account,
 ) async {

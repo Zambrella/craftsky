@@ -6,6 +6,7 @@ import globals from 'globals';
 export default ts.config(
 	{
 		ignores: [
+			'.deployments/**',
 			'.wrangler/**',
 			'.svelte-kit/**',
 			'.sentry-artifacts/**',

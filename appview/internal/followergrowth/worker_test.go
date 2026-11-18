@@ -77,7 +77,18 @@ type workerObservation struct {
 }
 
 type recordingWorkerObserver struct {
-	calls chan workerObservation
+	calls    chan workerObservation
+	failures []workerFailure
+}
+
+type workerFailure struct {
+	cause error
+
+	attempt int
+}
+
+func (o *recordingWorkerObserver) FollowerGrowthFailure(_ context.Context, cause error, attempt int) {
+	o.failures = append(o.failures, workerFailure{cause, attempt})
 }
 
 func (o *recordingWorkerObserver) FollowerGrowthCapture(
@@ -221,5 +232,50 @@ func receiveControlledTimer(t *testing.T, timers <-chan *controlledTimer) *contr
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for timer")
 		return nil
+	}
+}
+
+func TestWorkerRetainsCaptureCausesAndResetsFailureEpisode(t *testing.T) {
+	clock := &controlledClock{now: growthDate(2026, time.August, 25)}
+	timers := &controlledTimerFactory{created: make(chan *controlledTimer, 1)}
+	capturer := &scriptedCapturer{calls: make(chan captureCall, 1)}
+	observer := &recordingWorkerObserver{calls: make(chan workerObservation, 1)}
+	worker := NewWorker(capturer, WithObserver(observer), withWorkerTime(clock.Now, timers.New))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- worker.Run(ctx) }()
+	original := errors.New("private database failure canary")
+	for attempt := 1; attempt <= 7; attempt++ {
+		call := receiveCaptureCall(t, capturer.calls)
+		if attempt == 6 {
+			call.respond(CaptureResult{}, nil)
+		} else {
+			call.respond(CaptureResult{}, original)
+		}
+		select {
+		case <-observer.calls:
+		case <-time.After(time.Second):
+			t.Fatal("missing worker observation")
+		}
+		timer := receiveControlledTimer(t, timers.created)
+		if attempt < 7 {
+			timer.Fire()
+		}
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if len(observer.failures) != 6 {
+		t.Fatalf("failures = %+v", observer.failures)
+	}
+	for i, failure := range observer.failures {
+		wantAttempt := i + 1
+		if i == 5 {
+			wantAttempt = 1
+		}
+		if failure.cause != original || failure.attempt != wantAttempt {
+			t.Fatalf("failure %d = %+v, want original cause and attempt %d", i, failure, wantAttempt)
+		}
 	}
 }

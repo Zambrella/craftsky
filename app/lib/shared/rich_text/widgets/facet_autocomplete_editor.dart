@@ -8,6 +8,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
+import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -27,7 +28,22 @@ class FacetTextEditingController extends TextEditingController {
     required bool withComposing,
     TextStyle? style,
   }) {
-    final ranges = _editableFacetTokenRanges(value.text);
+    final prefix =
+        context.dependOnInheritedWidgetOfExactType<_HashtagPrefix>()?.tags ??
+        const <String>[];
+    final accepted = acceptedHashtags([
+      ...prefix,
+      ...hashtagsInText(value.text),
+    ]);
+    final ranges = _editableFacetTokenRanges(value.text)
+        .where(
+          (range) =>
+              !value.text.substring(range.start, range.end).startsWith('#') ||
+              accepted.contains(
+                value.text.substring(range.start + 1, range.end).toLowerCase(),
+              ),
+        )
+        .toList();
     if (ranges.isEmpty) {
       return super.buildTextSpan(
         context: context,
@@ -137,6 +153,13 @@ int _editableTokenEnd(String text, int start, String trigger) {
   return index;
 }
 
+class _HashtagPrefix extends InheritedWidget {
+  const new({required this.tags, required super.child});
+  final List<String> tags;
+  @override
+  bool updateShouldNotify(_HashtagPrefix oldWidget) => true;
+}
+
 /// Reusable editor with mention/hashtag autocomplete support.
 class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Creates an autocomplete editor around the app's branded text field.
@@ -162,6 +185,7 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.onSubmitted,
     this.onChanged,
     this.allowedTokenKinds,
+    this.precedingHashtags,
     this.required = false,
     this.requiredLabel = 'required',
   });
@@ -222,6 +246,8 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
   /// Autocomplete token kinds this editor should respond to.
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
+
+  final List<String> Function()? precedingHashtags;
 
   /// Whether the label should display the required marker.
   final bool required;
@@ -547,34 +573,37 @@ class _FacetAutocompleteEditorState
   @override
   Widget build(BuildContext context) {
     if (_hasSuggestionSurface) _updateSuggestionOverlay();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        BrandTextField(
-          label: widget.label,
-          textFieldKey: _textFieldKey,
-          controller: widget.controller,
-          focusNode: _focusNode,
-          hintText: widget.hintText,
-          minLines: widget.minLines,
-          maxLines: widget.maxLines,
-          maxLength: widget.maxLength,
-          maxBytes: widget.maxBytes,
-          enabled: widget.enabled,
-          errorText: widget.errorText,
-          helperText: widget.helperText,
-          betweenLabelAndField: widget.betweenLabelAndField,
-          helperAlignment: widget.helperAlignment,
-          suffixIcon: widget.suffixIcon,
-          required: widget.required,
-          requiredLabel: widget.requiredLabel,
-          keyboardType: widget.keyboardType,
-          textInputAction: widget.textInputAction,
-          textCapitalization: widget.textCapitalization,
-          onSubmitted: widget.onSubmitted,
-          onChanged: _onChanged,
-        ),
-      ],
+    return _HashtagPrefix(
+      tags: widget.precedingHashtags?.call() ?? const [],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BrandTextField(
+            label: widget.label,
+            textFieldKey: _textFieldKey,
+            controller: widget.controller,
+            focusNode: _focusNode,
+            hintText: widget.hintText,
+            minLines: widget.minLines,
+            maxLines: widget.maxLines,
+            maxLength: widget.maxLength,
+            maxBytes: widget.maxBytes,
+            enabled: widget.enabled,
+            errorText: widget.errorText,
+            helperText: widget.helperText,
+            betweenLabelAndField: widget.betweenLabelAndField,
+            helperAlignment: widget.helperAlignment,
+            suffixIcon: widget.suffixIcon,
+            required: widget.required,
+            requiredLabel: widget.requiredLabel,
+            keyboardType: widget.keyboardType,
+            textInputAction: widget.textInputAction,
+            textCapitalization: widget.textCapitalization,
+            onSubmitted: widget.onSubmitted,
+            onChanged: _onChanged,
+          ),
+        ],
+      ),
     );
   }
 }

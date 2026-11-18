@@ -251,6 +251,9 @@ func hasAdvisoryWaiter(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ke
 			  AND classid=(($1::bigint >> 32) & 4294967295)::oid
 			  AND objid=($1::bigint & 4294967295)::oid
 			  AND NOT granted
+			  AND pid IN (SELECT pid FROM pg_stat_activity
+			              WHERE datname=current_database()
+			                AND application_name=current_setting('application_name'))
 		)
 	`, key).Scan(&waiting); err != nil {
 		t.Fatal(err)

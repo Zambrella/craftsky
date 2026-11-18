@@ -260,7 +260,7 @@ All operational durations use semantic positive/bounded parsers and a complete c
 - [AppView OAuth BFF design](../superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
 - [AppView server scaffold design](../superpowers/specs/2026-04-16-appview-server-scaffold-design.md)
 - [AppView API architecture](../superpowers/specs/2026-04-21-appview-api-architecture-design.md)
-- [AT Protocol architecture reference](../../atproto-craft-social-app-reference.md#authentication)
+- [AT Protocol architecture reference](../architecture.md#authentication)
 - [AT Protocol OAuth specification](https://atproto.com/specs/oauth)
 - [Go `net/url`](https://pkg.go.dev/net/url)
 - [Go `crypto/subtle`](https://pkg.go.dev/crypto/subtle)

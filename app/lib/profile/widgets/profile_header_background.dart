@@ -1,16 +1,8 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_shader_background.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:material_ui/material_ui.dart';
-
-const profileBackgroundAssets = <String, String>{
-  'bayerdark': 'assets/profile_backgrounds/bayerdark.png',
-  'cubedark': 'assets/profile_backgrounds/cubedark.png',
-  'dotcrossdark': 'assets/profile_backgrounds/dotcrossdark.png',
-  'scallopdark': 'assets/profile_backgrounds/scallopdark.png',
-  'skewdark': 'assets/profile_backgrounds/skewdark.png',
-  'x2': 'assets/profile_backgrounds/x2.png',
-};
 
 /// A bounded local texture layer for compact and full profile headers.
 class ProfileHeaderBackground extends StatelessWidget {
@@ -30,7 +22,6 @@ class ProfileHeaderBackground extends StatelessWidget {
     final bundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
-    final asset = profileBackgroundAssets[customisation.background];
     final craft = profileCraftBackgrounds[customisation.background];
     final tint = profileColour(
       bundle.textureTint,
@@ -39,20 +30,19 @@ class ProfileHeaderBackground extends StatelessWidget {
       child: ColoredBox(
         key: backgroundKey,
         color: profileColour(bundle.base),
-        child: switch ((asset, craft)) {
-          (final asset?, _) => Image.asset(
-            asset,
-            key: textureKey,
-            fit: BoxFit.none,
-            repeat: ImageRepeat.repeat,
-            color: tint,
-            colorBlendMode: BlendMode.srcIn,
-            filterQuality: FilterQuality.none,
-          ),
-          (_, final craft?) => _CraftIconTile(
+        child: switch ((
+          craft,
+          profileShaderBackgrounds[customisation.background],
+        )) {
+          (final craft?, _) => _CraftIconTile(
             key: textureKey,
             craft: craft,
             color: tint,
+          ),
+          (_, final style?) => ProfileShaderBackground(
+            key: textureKey,
+            style: style,
+            accent: profileColour(bundle.base),
           ),
           _ => null,
         },

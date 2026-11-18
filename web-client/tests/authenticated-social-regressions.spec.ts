@@ -1,5 +1,89 @@
 import { test, expect } from '@playwright/test';
 const base = 'http://127.0.0.1:19846';
+
+test('compact feeds reserve FAB clearance and show sponsored tooltips', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	await page.route('**/api/appview/v1/feed/timeline*', (route) =>
+		route.fulfill({
+			json: {
+				items: [{ itemKey: 'only', post: { ...post(), sponsored: true } }]
+			}
+		})
+	);
+	await page.goto('/feed');
+	await expect(page.getByRole('button', { name: 'Create post' })).toBeVisible();
+	await expect(page.getByText('Sponsored', { exact: true })).toHaveAttribute(
+		'title',
+		'The creator marked this post as sponsored because they received money, products, or another benefit.'
+	);
+	expect(
+		await page
+			.locator('main')
+			.evaluate((node) => parseFloat(getComputedStyle(node).paddingBottom))
+	).toBeGreaterThanOrEqual(88);
+});
+
+test('liking and unliking a reply keeps its branch expanded', async ({
+	page
+}) => {
+	const root = post(),
+		comment = { ...post('comment', 'Parent comment'), replyCount: 2 },
+		reply = post('reply', 'Expanded reply');
+	await page.route('**/api/appview/v1/posts/*/*', (route) =>
+		route.fulfill({ json: root })
+	);
+	await page.route('**/api/appview/v1/posts/*/*/comments*', (route) =>
+		route.fulfill({
+			json: {
+				post: root,
+				sort: 'oldest',
+				comments: {
+					items: [
+						{
+							post: comment,
+							placement: 'normal',
+							replies: { loaded: false, items: [] }
+						}
+					]
+				}
+			}
+		})
+	);
+	await page.route('**/api/appview/v1/posts/*/*/replies*', (route) =>
+		route.fulfill({
+			json: { loaded: true, items: [{ post: reply, flattened: false }] }
+		})
+	);
+	await page.route('**/api/appview/v1/posts/*/*/likes', (route) =>
+		route.request().method() === 'DELETE'
+			? route.fulfill({ status: 204 })
+			: route.fulfill({
+					status: 201,
+					json: {
+						uri: 'at://did:plc:alice/social.craftsky.feed.like/test',
+						cid: 'like-cid'
+					}
+				})
+	);
+	await page.goto('/posts/did%3Aplc%3Aalice/root');
+	await page.getByRole('button', { name: /Show 2 replies/ }).click();
+	const branch = page
+		.locator('.member-post')
+		.filter({ hasText: 'Expanded reply' });
+	await branch.getByRole('button', { name: 'Like', exact: true }).click();
+	await expect(
+		branch.getByRole('button', { name: 'Like', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
+	await branch.getByRole('button', { name: 'Like', exact: true }).click();
+	await expect(
+		branch.getByRole('button', { name: 'Like', exact: true })
+	).toHaveAttribute('aria-pressed', 'false');
+	await expect(
+		page.getByRole('button', { name: 'Hide replies', exact: true })
+	).toBeVisible();
+});
 const alice = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
 	did: 'did:plc:alice',

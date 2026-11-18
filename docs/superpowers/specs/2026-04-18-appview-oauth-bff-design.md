@@ -15,7 +15,7 @@ finding-level plan is
 
 ## 1. Core rules
 
-The operator console addition in [ADR 018](../../../adr/018-atmosphere-operator-console-sessions.md)
+The operator console addition in [ADR 018](../../adr/018-atmosphere-operator-console-sessions.md)
 uses a separate identity-only OAuth client, pending-attempt storage and local
 cookie session. It does not run the consumer onboarding/handoff lifecycle
 described below or require consumer membership. Globally terminal DIDs remain

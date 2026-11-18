@@ -33,6 +33,7 @@ void main() {
       SettingsRowId.findPeopleFromInstagram,
     ]);
     expect(settingsSections[3].rows.map((row) => row.id), [
+      SettingsRowId.safety,
       SettingsRowId.accountStanding,
       SettingsRowId.account,
       SettingsRowId.about,

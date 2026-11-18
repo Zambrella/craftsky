@@ -65,3 +65,26 @@ func (c *Catalog) Authorize(projectID, environment, productID string) (ProductMa
 	}
 	return mapping, true
 }
+
+// AuthorizePromotional maps trusted project entitlements, not store products.
+// The shared paid marker does not specify a capability tier by itself.
+func (c *Catalog) AuthorizePromotional(environment string, entitlements []ProviderEntitlementSnapshot) (Tier, bool) {
+	if c == nil || environment != "production" || environment != c.environment {
+		return TierFree, false
+	}
+	tier := TierFree
+	for _, entitlement := range entitlements {
+		if entitlement.ID == "" || entitlement.ProjectID != c.projectID {
+			continue
+		}
+		switch entitlement.LookupKey {
+		case "business":
+			tier = TierBusiness
+		case "plus":
+			if tier == TierFree {
+				tier = TierPlus
+			}
+		}
+	}
+	return tier, tier.Paid()
+}

@@ -8,6 +8,7 @@ die() {
 
 command -v git >/dev/null 2>&1 || die "required command not found: git"
 command -v flutter >/dev/null 2>&1 || die "required command not found: flutter"
+command -v dart >/dev/null 2>&1 || die "required command not found: dart"
 [[ $# == 2 ]] || die "usage: scripts/app-release-preflight <ipa|apk|appbundle> CONFIG"
 target=$1
 config=$2
@@ -81,6 +82,6 @@ printf 'Running Flutter release checks for %s.\n' "$tag"
 (
   cd app
   flutter pub get
-  flutter analyze
+  dart analyze --fatal-infos
 )
 [[ -z $(git status --porcelain) ]] || die "Flutter release checks changed tracked files"

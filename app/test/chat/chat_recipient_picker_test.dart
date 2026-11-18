@@ -335,7 +335,11 @@ void main() {
         context,
         'https://app.craftsky.social/example',
       );
-      expect(items.map((item) => item.text), ['Copy link', 'Send via chat']);
+      expect(items.map((item) => item.text), [
+        'Copy link',
+        'Share',
+        'Send via chat',
+      ]);
     },
   );
 }

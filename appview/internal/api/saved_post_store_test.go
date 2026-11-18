@@ -1202,6 +1202,7 @@ func waitForSavedPostDeleteTrigger(t *testing.T, pool *pgxpool.Pool) {
 			SELECT EXISTS (
 				SELECT 1 FROM pg_stat_activity
 				WHERE datname=current_database()
+				  AND application_name=current_setting('application_name')
 				  AND wait_event='PgSleep'
 				  AND query LIKE '%DELETE FROM saved_posts%'
 			)

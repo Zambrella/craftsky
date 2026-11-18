@@ -27,7 +27,11 @@ class ScaffoldMessengerImpl implements AppMessenger {
 
   final GlobalKey<ScaffoldMessengerState> _key;
 
-  static const Duration _infoDuration = Duration(seconds: 4);
+  static Duration _infoDuration(String message) {
+    final words = message.trim().split(RegExp(r'\s+')).length;
+    return Duration(milliseconds: (words * 300).clamp(4000, 30000));
+  }
+
   static const Duration _stickyDuration = Duration(days: 365);
 
   @override
@@ -36,7 +40,7 @@ class ScaffoldMessengerImpl implements AppMessenger {
       MessageSeverity.info,
       message,
       action,
-      _infoDuration,
+      _infoDuration(message),
       sticky: false,
     );
   }

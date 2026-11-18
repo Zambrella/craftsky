@@ -3,7 +3,7 @@ import { options, type Action, type Field } from './ActionForm'
 
 export const received:Field={key:'receivedAt',label:'Received at',type:'date',required:true,default:'now',hint:'Times use your local timezone.'}
 export const attachment:Field={key:'attachmentStatus',label:'Attachment handling',type:'select',options:options(['none','rejected','quarantined']),hint:'Record handling already performed in the approved intake channel. This form does not upload media.'}
-export const message:Field={key:'providerMessageReference',label:'Message reference',required:true,maxLength:512}
+export const message:Field={key:'providerMessageReference',label:'Message reference',required:true,maxLength:512,hint:'Use the email’s unique Message-ID or a stable mailbox reference, rather than its subject line.'}
 export const contact:Field={key:'senderContact',label:'Sender contact (optional)',hint:'The server retains a minimized contact reference.'}
 export function intakeBody(body:Record<string,unknown>){return {...body,hasMediaAttachment:body.attachmentStatus!=='none',...(body.kind==='appeal'&&typeof body.canonicalSubject==='string'&&body.canonicalSubject.startsWith('MOD-')?{canonicalSubject:'case:'+body.canonicalSubject.slice(4)}:{})}}
 export function creationActions(area:string,operator:Operator):Action[]{
@@ -25,7 +25,7 @@ export function detailActions(area:string,id:string,record:Data,operator:Operato
   actions.push({title:'Correspondence',heading:'Add correspondence',path:path+'/correspondence',help:'Attach a follow-up message reference to this intake. Record attachment handling separately from the message content.',fields:[message,received,contact,attachment],prepare:intakeBody})
   if(record.kind==='appeal')actions.push({title:'Appeal link',heading:'Link verified appeal',path:path+'/appeal-link',help:'Verify the sender is the case owner before linking this appeal. The server also checks the case owner and intake subject.',fields:[{key:'caseId',label:'Case reference',required:true,hint:'MOD-… or its UUID.'},{key:'verifiedOwnerDid',label:'Verified owner DID',required:true},received],prepare:b=>({...b,caseId:String(b.caseId).replace(/^MOD-/, '')})})
   if(operator.permissions['moderation.manage'])actions.push(caseAction(id))
-  if(operator.permissions['workflow.manage'])actions.push(intimateAction(id))
+  if(operator.permissions['workflow.manage'])actions.push(intimateAction(id,record.receivedAt))
  }
  if(area==='holds'&&operator.permissions['hold.manage']&&!record.releasedAt&&Date.parse(String(record.expiresAt))>Date.now())actions.push({title:'Hold release',heading:'Release legal hold',path:'/v1/admin/safety/holds/'+id+'/releases',help:'Release this hold after approval. Expired evidence may then be deleted by retention processing; other active holds still apply.',fields:[{key:'reason',label:'Release reason',type:'textarea',maxLength:512,required:true}]})
  if(area==='incidents'){
@@ -65,4 +65,4 @@ export function detailActions(area:string,id:string,record:Data,operator:Operato
  }
  return actions
 }
-function intimateAction(intakeId?:string):Action{return {title:'Intimate image review',heading:'Start intimate image review',path:'/v1/admin/safety/workflows/intimate-images',expectedRevision:null,help:'Record standing and declarations for an intimate image review. Keep media in its approved restricted channel.',body:intakeId?{intakeId}:{},fields:[received,assessment('standingCode','Standing assessment'),assessment('declarationsCode','Declarations assessment')]}}
+function intimateAction(intakeId?:string,receivedAt?:unknown):Action{const original=typeof receivedAt==='string'?receivedAt:undefined;return {title:'Intimate image review',heading:'Start intimate image review',path:'/v1/admin/safety/workflows/intimate-images',expectedRevision:null,help:'Record standing and declarations for an intimate image review. Keep media in its approved restricted channel. The clock starts at the original report receipt; linked reviews use the saved intake receipt time.',body:intakeId?{intakeId}:{},fields:[original?{...received,default:original,readOnly:true,hint:'Original receipt saved on the linked intake. This determines the deadline.'}: {...received,default:undefined,hint:'Enter the original report receipt time, not the time you open this review.'},assessment('standingCode','Standing assessment'),assessment('declarationsCode','Declarations assessment')]}}

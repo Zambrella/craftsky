@@ -15,6 +15,40 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/image_cache_fakes.dart';
 
 void main() {
+  testWidgets(
+    'shared budget paints excess tags as prose and frees deleted slots',
+    (tester) async {
+      final controller = FacetTextEditingController(
+        text: '#tenth #overflow #TAG0',
+      );
+      addTearDown(controller.dispose);
+      var prefix = List.generate(9, (index) => 'tag$index');
+      Future<void> render() => tester.pumpWidget(
+        _wrap(
+          overrides: [],
+          child: FacetAutocompleteEditor(
+            label: 'Pattern',
+            controller: controller,
+            precedingHashtags: () => prefix,
+          ),
+        ),
+      );
+      await render();
+      final context = tester.element(find.byType(TextField));
+      List<String?> colored() => controller
+          .buildTextSpan(context: context, withComposing: false)
+          .children!
+          .whereType<TextSpan>()
+          .where((span) => span.style?.color != null)
+          .map((span) => span.text)
+          .toList();
+      expect(colored(), ['#tenth', '#TAG0']);
+      prefix = [];
+      await render();
+      expect(colored(), ['#tenth', '#overflow', '#TAG0']);
+    },
+  );
+
   testWidgets('autocomplete cannot bypass text limits', (tester) async {
     final controller = FacetTextEditingController();
     addTearDown(controller.dispose);

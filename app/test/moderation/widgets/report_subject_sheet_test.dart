@@ -4,6 +4,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,12 +57,12 @@ void main() {
         );
         await tester.ensureVisible(input);
         await tester.enterText(input, 'not an email');
-        await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
         await tester.pump();
         expect(submitted, isNull);
         expect(find.text('Enter a valid email address.'), findsOneWidget);
         await tester.enterText(input, email.isEmpty ? '' : ' $email ');
-        await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
         await tester.pump();
         expect(submitted?.reasonType, 'spam');
         expect(submitted?.contactEmail, email.isEmpty ? null : email);
@@ -99,7 +100,7 @@ void main() {
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
             .onPressed,
         isNotNull,
       );
@@ -126,12 +127,12 @@ void main() {
       expect(find.text('Something else'), findsOneWidget);
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
             .onPressed,
         isNotNull,
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
 
       expect(submitted, isNull);
@@ -145,7 +146,7 @@ void main() {
       );
       await tester.tap(find.text('Spam, misleading or off-topic content'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
       expect(submitted, isNull);
       expect(
@@ -163,12 +164,12 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
             .onPressed,
         isNotNull,
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
 
       expect(submitted?.reasonType, ReportReason.spam.reasonType);
@@ -199,12 +200,12 @@ void main() {
       );
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Submit'))
             .onPressed,
         isNotNull,
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
 
       expect(submissions, 0);
@@ -308,7 +309,7 @@ void main() {
         ),
       );
 
-      expect(find.widgetWithText(TextButton, 'Submit'), findsNothing);
+      expect(find.widgetWithText(ChunkyButton, 'Submit'), findsNothing);
       expect(find.byType(StitchProgressIndicator), findsOneWidget);
       expect(find.text('Submitting…'), findsNothing);
     });
@@ -330,7 +331,7 @@ void main() {
       await tester.tap(find.text('Spam'));
       await tester.enterText(find.byType(TextField), 'private details');
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(calls, 1);
@@ -350,7 +351,7 @@ void main() {
       );
       expect(find.text('private details'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -391,7 +392,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('not an emergency service'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
       expect(submitted?.reasonType, 'immediateDanger');
     });
@@ -416,7 +417,7 @@ void main() {
       await tester.tap(find.text('Copyright or trade marks'));
       await tester.pump();
       expect(find.textContaining('dedicated email process'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Submit'));
       await tester.pump();
 
       expect(submissions, 0);

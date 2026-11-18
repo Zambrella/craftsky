@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LoadMore from '#lib/LoadMore.svelte';
 	import { userErrorMessage } from '#lib/user-facing-error.ts';
 	import { fieldError } from '#lib/field-validation.ts';
 	import { usePrompt } from '../social/prompt';
@@ -29,6 +30,8 @@
 	let { api, session }: { api: CraftskyAPI; session: Session } = $props();
 	const work = new Work('settings.Instagram.action');
 	let loaded = $state(false);
+	let loadingImports = $state(false),
+		loadingSuggestions = $state(false);
 	let disposed = false;
 	const archiveAbort = new AbortController();
 	type Account = {
@@ -237,12 +240,19 @@
 	}
 	function moreImports() {
 		const next = importCursor;
-		if (next)
+		if (next && !work.busy && !work.retry)
 			void work.run(
-				() =>
-					transport.page<Import>('/v1/migrations/instagram/imports', {
-						cursor: next
-					}),
+				async () => {
+					loadingImports = true;
+					try {
+						return await transport.page<Import>(
+							'/v1/migrations/instagram/imports',
+							{ cursor: next }
+						);
+					} finally {
+						loadingImports = false;
+					}
+				},
 				(page) => {
 					imports = [...imports, ...page.items];
 					importCursor = page.cursor || null;
@@ -253,12 +263,19 @@
 	}
 	function moreSuggestions() {
 		const next = suggestionCursor;
-		if (next)
+		if (next && !work.busy && !work.retry)
 			void work.run(
-				() =>
-					transport.page<Suggestion>('/v1/migrations/instagram/suggestions', {
-						cursor: next
-					}),
+				async () => {
+					loadingSuggestions = true;
+					try {
+						return await transport.page<Suggestion>(
+							'/v1/migrations/instagram/suggestions',
+							{ cursor: next }
+						);
+					} finally {
+						loadingSuggestions = false;
+					}
+				},
 				(page) => {
 					suggestions = [...suggestions, ...page.items];
 					suggestionCursor = page.cursor || null;
@@ -433,19 +450,19 @@
 			Complete Instagram verification and resolve any account conflict to import
 			posts and projects.
 		</p>{/if}
-	<a
-		class="button import-help"
-		href="https://craftsky.social/instagram-import"
-		target="_blank"
-		rel="noopener noreferrer"
-		>How to export your Instagram following <SettingsIcon
-			name="external"
-			size={16}
-		/></a
-	>
 	{#if !account}<p class="muted">
 			Complete verification to import the accounts you follow.
 		</p>{:else}
+		<a
+			class="button import-help"
+			href="https://craftsky.social/instagram-import"
+			target="_blank"
+			rel="noopener noreferrer"
+			>How to export your Instagram following <SettingsIcon
+				name="external"
+				size={16}
+			/></a
+		>
 		<section class="panel stack">
 			<h2 class="section-heading">
 				<SettingsIcon name="followers" />Import accounts you follow
@@ -573,10 +590,13 @@
 					</div>
 				</div>{:else}<p class="empty">
 					No following lists imported yet.
-				</p>{/each}{#if importCursor}<button
-					disabled={work.busy}
-					onclick={moreImports}>Load more imports</button
-				>{/if}{#if selectedImport}{@const detail = record(
+				</p>{/each}{#if importCursor}<LoadMore
+					loading={loadingImports}
+					disabled={work.busy || !!work.retry}
+					label="Load more imports"
+					loadingLabel="Loading more imports"
+					onclick={moreImports}
+				/>{/if}{#if selectedImport}{@const detail = record(
 					selectedImport.import || selectedImport
 				)}
 				<div class="notice">
@@ -631,10 +651,13 @@
 					</div>
 				</div>{:else}<p class="empty">
 					No possible CraftSky accounts yet.
-				</p>{/each}{#if suggestionCursor}<button
-					disabled={work.busy}
-					onclick={moreSuggestions}>Load more matches</button
-				>{/if}
+				</p>{/each}{#if suggestionCursor}<LoadMore
+					loading={loadingSuggestions}
+					disabled={work.busy || !!work.retry}
+					label="Load more matches"
+					loadingLabel="Loading more matches"
+					onclick={moreSuggestions}
+				/>{/if}
 		</section>{/if}
 	{#if account}<button
 			class="danger revoke-verification"

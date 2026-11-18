@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/business/pages/business_details_settings_page.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
@@ -37,6 +38,7 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/safety/safety_guide_page.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
@@ -126,7 +128,7 @@ class _RouterRefresh extends ChangeNotifier {
 }
 
 @riverpod
-GoRouter goRouter(Ref ref) {
+Raw<GoRouter> goRouter(Ref ref) {
   final refresh = _RouterRefresh();
   void refreshRouter(Object? _, Object? _) => refresh.fire();
 
@@ -136,13 +138,15 @@ GoRouter goRouter(Ref ref) {
     ..listen(sessionRegistryProvider, refreshRouter)
     ..listen(activeAccountInitializationProvider, refreshRouter);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: RouteLocations.feed,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     observers: [diagnosticNavigationObserver()],
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      // Public safety help remains reachable during onboarding and restriction.
+      if (loc == RouteLocations.safety) return null;
       const unauthenticatedRoutes = [
         RouteLocations.welcome,
         RouteLocations.signIn,
@@ -203,10 +207,13 @@ GoRouter goRouter(Ref ref) {
     errorBuilder: (context, state) =>
         ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
+  ref.onDispose(router.dispose);
+  return router;
 }
 
 @visibleForTesting
 bool isRestrictedAccountRetainedLocation(String location) =>
+    location == RouteLocations.safety ||
     location == RouteLocations.accountEligibility ||
     location == const AccountStandingRoute().location ||
     location == const AccountRoute().location ||
@@ -405,6 +412,10 @@ class AccountEligibilityRoute extends GoRouteData
                   path: RouteLocations.aboutChild,
                   name: 'settings-about',
                 ),
+                TypedGoRoute<BusinessDetailsRoute>(
+                  path: RouteLocations.businessChild,
+                  name: 'settings-business-details',
+                ),
                 TypedGoRoute<BusinessProductsRoute>(
                   path: RouteLocations.productsChild,
                   name: 'settings-business-products',
@@ -473,6 +484,14 @@ class AccountEligibilityRoute extends GoRouteData
       path: '${RouteLocations.profiles}/:did',
       name: 'user-profile',
       routes: [
+        TypedGoRoute<ProfileFollowersRoute>(
+          path: RouteLocations.followersChild,
+          name: 'profile-followers',
+        ),
+        TypedGoRoute<ProfileFollowingRoute>(
+          path: RouteLocations.followingChild,
+          name: 'profile-following',
+        ),
         TypedGoRoute<ProfileMutualFollowersRoute>(
           path: RouteLocations.mutualFollowersChild,
           name: 'profile-mutual-followers',
@@ -780,6 +799,18 @@ class AboutRoute extends GoRouteData with $AboutRoute {
   Widget build(BuildContext context, GoRouterState state) => const AboutPage();
 }
 
+class BusinessDetailsRoute extends GoRouteData with $BusinessDetailsRoute {
+  const new();
+
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+      _businessOwnerRouteRedirect(context);
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const BusinessDetailsSettingsPage();
+}
+
 class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
   const new();
 
@@ -810,12 +841,18 @@ Future<String?> _businessOwnerRouteRedirect(BuildContext context) async {
     final registry = await container.read(sessionRegistryProvider.future);
     final lease = registry.activeLease?.session;
     if (lease == null) return const SettingsRoute().location;
-    final access = await container.read(
-      subscriptionAccessProvider(lease).future,
-    );
-    return access.did == lease.account.did && access.allowsBusiness
-        ? null
-        : const SettingsRoute().location;
+    final provider = subscriptionAccessProvider(lease);
+    // The destination cannot watch access until this redirect finishes. Own
+    // the auto-dispose lookup across frames while its request is pending.
+    final subscription = container.listen(provider, (_, _) {});
+    try {
+      final access = await container.read(provider.future);
+      return access.did == lease.account.did && access.allowsBusiness
+          ? null
+          : const SettingsRoute().location;
+    } finally {
+      subscription.close();
+    }
   } on Object {
     return const SettingsRoute().location;
   }
@@ -1128,6 +1165,34 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
       );
 }
 
+class ProfileFollowersRoute extends GoRouteData with $ProfileFollowersRoute {
+  const new({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+  });
+  final Did did;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      FollowListPage(kind: FollowListKind.followers, targetDid: did);
+}
+
+class ProfileFollowingRoute extends GoRouteData with $ProfileFollowingRoute {
+  const new({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+  });
+  final Did did;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      FollowListPage(kind: FollowListKind.following, targetDid: did);
+}
+
 class ProfileMutualFollowersRoute extends GoRouteData
     with $ProfileMutualFollowersRoute {
   const new({
@@ -1224,4 +1289,14 @@ class ChatConversationRoute extends GoRouteData with $ChatConversationRoute {
     destination: MessagingDestination.conversation,
     conversationId: conversationId,
   );
+}
+
+@TypedGoRoute<SafetyRoute>(path: RouteLocations.safety, name: 'safety')
+class SafetyRoute extends GoRouteData with $SafetyRoute {
+  const new();
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SafetyGuidePage();
 }

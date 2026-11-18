@@ -4,6 +4,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 enum AppErrorKind {
   networkUnavailable,
   serviceUnavailable,
+  rateLimited,
   sessionExpired,
   permissionDenied,
   contentUnavailable,
@@ -67,6 +68,11 @@ extension AppErrorKindMetadata on AppErrorKind {
         reportableByDefault: false,
         sentryClassification: 'service.unavailable',
       ),
+      AppErrorKind.rateLimited => const AppErrorMetadata(
+        severity: AppErrorSeverity.warning,
+        reportableByDefault: false,
+        sentryClassification: 'request.rate_limited',
+      ),
       AppErrorKind.sessionExpired => const AppErrorMetadata(
         severity: AppErrorSeverity.warning,
         reportableByDefault: false,
@@ -121,6 +127,7 @@ extension AppErrorPresentation on AppError {
     return switch (kind) {
       AppErrorKind.networkUnavailable => l10n.errorNetworkUnavailable,
       AppErrorKind.serviceUnavailable => l10n.errorServiceUnavailable,
+      AppErrorKind.rateLimited => l10n.errorRateLimited,
       AppErrorKind.sessionExpired => l10n.errorSessionExpired,
       AppErrorKind.permissionDenied => l10n.errorPermissionDenied,
       AppErrorKind.contentUnavailable => l10n.errorContentUnavailable,

@@ -1,4 +1,8 @@
 <script lang="ts">
+	import LoadMore from '#lib/LoadMore.svelte';
+	import { captureScrollAnchor } from '#lib/scroll-anchor.ts';
+	let inboxNode = $state<HTMLElement>();
+
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
@@ -73,6 +77,9 @@
 	);
 	const requestCount = $derived(viewState?.counts.requests ?? 0);
 	let search = $state('');
+	let recipientPagination = $state.raw<
+		{ query: string; cursor: string } | undefined
+	>();
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 	let reportReason = $state<string>(reportReasons[0][1]);
 	let reportExplanation = $state('');
@@ -116,6 +123,7 @@
 		controller = next;
 		viewState = next.state;
 		search = '';
+		recipientPagination = undefined;
 		preselected = false;
 		clipboardNotice = '';
 		deleteTarget = undefined;
@@ -272,8 +280,29 @@
 	}
 	function searchRecipients(value: string) {
 		search = value;
+		recipientPagination = undefined;
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => void controller?.search(value), 250);
+	}
+	async function moreRecipients() {
+		const owner = controller;
+		const query = search.trim();
+		const cursor = viewState?.recipientCursor;
+		if (
+			!owner ||
+			!query ||
+			!cursor ||
+			(recipientPagination?.query === query &&
+				recipientPagination.cursor === cursor)
+		)
+			return;
+		const request = { query, cursor };
+		recipientPagination = request;
+		try {
+			await owner.search(query, cursor);
+		} finally {
+			if (recipientPagination === request) recipientPagination = undefined;
+		}
 	}
 	async function start(did: string) {
 		const owner = controller,
@@ -361,6 +390,12 @@
 			}
 		}
 	}
+	$effect.pre(() => {
+		void viewState?.conversations;
+		if (!inboxNode) return;
+		const restore = untrack(() => captureScrollAnchor(inboxNode!));
+		void tick().then(restore);
+	});
 </script>
 
 <section
@@ -643,8 +678,10 @@
 						: 'No messages yet.'}
 				</p>
 			</div>{/if}
-		<ul class="conversation-list">
-			{#each viewState.conversations as conversation (conversation.id)}<li>
+		<ul bind:this={inboxNode} class="conversation-list">
+			{#each viewState.conversations as conversation (conversation.id)}<li
+					data-scroll-anchor={conversation.id}
+				>
 					<a class="conversation-row" href={conversationURL(conversation.id)}
 						><span class="avatar"
 							>{#if safeAvatar(conversation.peer.avatar)}<img
@@ -680,12 +717,11 @@
 					>
 				</li>{/each}
 		</ul>
-		{#if viewState.cursor}<button
-				class="load-more"
-				disabled={viewState.loadingMore}
+		{#if viewState.cursor}<LoadMore
+				loading={viewState.loadingMore}
+				loadingLabel="Loading more conversations"
 				onclick={() => controller?.more()}
-				>{viewState.loadingMore ? 'Loading…' : 'Load more'}</button
-			>{/if}
+			/>{/if}
 		{#if viewState.bucket === 'accepted' && viewState.status.capabilities.canSend}<a
 				class="compose-message button"
 				href="/messages/new"><Icon name="edit" />New message</a
@@ -703,6 +739,7 @@
 			class="recipient-search"
 			onsubmit={(event) => {
 				event.preventDefault();
+				recipientPagination = undefined;
 				controller?.search(search);
 			}}
 		>
@@ -745,14 +782,17 @@
 			</ul>
 			{#if !viewState.recipients.length}<p class="disclosure">
 					No profiles found.
-				</p>{/if}{#if viewState.recipientCursor}<button
-					class="load-more"
-					onclick={() => controller?.search(search, viewState?.recipientCursor)}
-					>Load more profiles</button
-				>{/if}
+				</p>{/if}{#if viewState.recipientCursor}<LoadMore
+					loading={recipientPagination?.query === search.trim()}
+					label="Load more profiles"
+					loadingLabel="Loading more profiles"
+					onclick={() => void moreRecipients()}
+				/>{/if}
 		{:else}<h2 class="list-heading">Recent conversations</h2>
 			<ul class="conversation-list">
-				{#each viewState.conversations as conversation (conversation.id)}<li>
+				{#each viewState.conversations as conversation (conversation.id)}<li
+						data-scroll-anchor={conversation.id}
+					>
 						{#if sharedLink}<button
 								class="conversation-row recipient"
 								disabled={viewState.busy}
@@ -863,14 +903,12 @@
 				aria-live="polite"
 				aria-relevant="additions text"
 			>
-				{#if viewState.historyCursor}<button
-						class="load-more"
-						disabled={viewState.loadingMore}
+				{#if viewState.historyCursor}<LoadMore
+						loading={viewState.loadingMore}
+						label="Load older messages"
+						loadingLabel="Loading older messages"
 						onclick={() => controller?.more()}
-						>{viewState.loadingMore
-							? 'Loading older messages…'
-							: 'Load older messages'}</button
-					>{/if}
+					/>{/if}
 				{#if !viewState.messages.length}<p class="history-empty">
 						This is the start of your conversation.
 					</p>{/if}
@@ -914,7 +952,8 @@
 											>{:else if viewState.status?.capabilities.canReport}<a
 												href={conversationURL(viewState.id) +
 													'/report/' +
-													encodeURIComponent(message.id)}>Report message</a
+													encodeURIComponent(message.id)}
+												><Icon name="flag" />Report message</a
 											>{/if}<button
 											onclick={() => copyMessage(message.text || '')}
 											>Copy text</button
@@ -1118,7 +1157,7 @@
 	.messages-workspace {
 		position: relative;
 		min-height: 100dvh;
-		max-width: 800px;
+		max-width: var(--app-content-max-width);
 		margin: auto;
 		background: var(--paper);
 	}
@@ -1134,17 +1173,17 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
-		padding: 8px 16px;
+		padding: var(--app-bar-padding);
 		min-height: 56px;
 		background: var(--paper);
 		flex: none;
 		z-index: 3;
 	}
 	.message-header h1 {
-		font-size: 20px;
+		font-size: var(--app-bar-title-size);
 		font-family: inherit;
-		font-weight: 700;
-		line-height: 1.35;
+		font-weight: var(--app-bar-title-weight);
+		line-height: var(--app-bar-title-line-height);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1526,18 +1565,6 @@
 	}
 	.muted-label {
 		font-size: 12px;
-	}
-	.load-more {
-		display: block;
-		margin: 12px auto;
-		padding: 10px 16px;
-		background: var(--paper);
-		color: var(--primary);
-		border: 0;
-		border-radius: 20px;
-		cursor: pointer;
-		font: inherit;
-		font-size: 14px;
 	}
 	.compose-message {
 		display: inline-flex;

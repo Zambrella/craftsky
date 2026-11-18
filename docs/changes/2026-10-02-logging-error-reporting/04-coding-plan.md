@@ -38,7 +38,7 @@ Implement in order SIM-T01 → SIM-T02 → SIM-T03 → SIM-T04 → SIM-T05 → S
 - Requirements: `01-requirements.md`, Reviewed; user-confirmed public/private boundary and grilling decisions.
 - Tests: `02-acceptance-tests.md`, reviewed together with the requirements; 49 proposed cases covering 25 requirements and 24 acceptance criteria.
 - Document review: `03-document-review.md`, Approved with notes; DR-001–DR-005 addressed below.
-- Architecture: root `AGENTS.md`, `atproto-craft-social-app-reference.md` public-PDS/private-AppView split and server-side OAuth boundary, and the AppView API architecture spec. This plan changes diagnostics, not record ownership or API behavior.
+- Architecture: root `AGENTS.md`, `docs/architecture.md` public-PDS/private-AppView split and server-side OAuth boundary, and the AppView API architecture spec. This plan changes diagnostics, not record ownership or API behavior.
 - Status: Draft for approval to implement. Risk: High. This stage performed read-only inspection and wrote this plan only. No source/tests/dependencies/configuration changed, application tests run, commit created or production action performed.
 
 ## 2. Implementation Strategy

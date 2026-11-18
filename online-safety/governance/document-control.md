@@ -81,6 +81,12 @@ The accountable owner must record:
 - implementation tickets for incomplete safeguards; and
 - the approval decision and date.
 
+The owner requested an owner-led launch review on 9 November 2026; see
+[launch approval record](launch-approval.md). Existing references to pending
+specialist review do not constitute completed external review. Document-specific
+approvals remain pending until their evidence and approval decisions are
+recorded; any separately required regulatory consultation remains applicable.
+
 Approval must not erase uncertainty. Assumptions, low-confidence ratings, and
 missing usage data remain visible until evidence resolves them.
 

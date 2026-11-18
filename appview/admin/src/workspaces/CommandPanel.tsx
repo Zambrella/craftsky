@@ -55,7 +55,7 @@ export function CommandPanel({ basePath, reference, revision, title, resourceLab
         if (error.status === 409) {
           setNotice(`${resourceLabel} changed or command conflicted. Review fresh data and confirm a new command.` + support)
           setSettling(true); await refresh().catch(() => {})
-        } else setNotice((error.code === 'deadline_target_not_configured' ? 'An approved response target must be configured before this workflow can start. Ask a maintainer to configure it.' : error.code === 'last_admin_required' ? 'Keep another active administrator before disabling or demoting this account.' : 'The command was not accepted. Check the selected values and current resource state before reviewing again.') + support)
+        } else setNotice((error.code === 'invalid_external_intake_subject' ? 'The reported subject is not a supported CraftSky link. Use a post, profile or event link from app.craftsky.social, an AT URI, or an appeal case reference.' : error.code === 'deadline_target_not_configured' ? 'An approved response target must be configured before this workflow can start. Ask a maintainer to configure it.' : error.code === 'last_admin_required' ? 'Keep another active administrator before disabling or demoting this account.' : 'The command was not accepted. Check the selected values and current resource state before reviewing again.') + support)
       } else setNotice('The outcome is uncertain. Keep this page open and retry the exact command to safely recover its result.')
     } finally { inFlight.current = false; setRunning(false); setSettling(false) }
   }

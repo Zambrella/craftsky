@@ -6,7 +6,7 @@ Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atpro
 
 - **Reads:** `app` → `appview` HTTP API → Postgres index
 - **Writes:** `app` → `appview` (which holds PDS OAuth tokens) → user's PDS → Relay → firehose → `appview` indexes it
-- **Image upload exception:** immediate images may upload directly to the session-authorized PDS endpoint using the temporary, memory-only service JWT constrained by [ADR 017](../adr/017-direct-image-upload-service-token-handoff.md)
+- **Image upload exception:** immediate images may upload directly to the session-authorized PDS endpoint using the temporary, memory-only service JWT constrained by [ADR 017](../docs/adr/017-direct-image-upload-service-token-handoff.md)
 - **Video upload exception:** `app` streams to the exact configured Bluesky video endpoint with the ephemeral, memory-only service JWT constrained by ADR 012; AppView still verifies and creates the post
 
 The app never holds OAuth access/refresh tokens or DPoP keys. It persists only a
@@ -57,6 +57,14 @@ Initialize local app config once:
 just app-env-init
 ```
 
+Development profiles enable subscriptions and RevenueCat's synthetic Test Store
+by default, with the public Test Store SDK key. No Apple/Google tester account
+is needed for this mode. Sign in to CraftSky, open subscriptions and choose a
+test purchase outcome. AppView must have its development RevenueCat API key and
+webhook credentials configured; it remains the access authority. Production
+profiles keep subscriptions disabled and never select the synthetic Test Store.
+Fully stop and relaunch the app after changing these build settings.
+
 Then run from the repo root:
 
 ```bash
@@ -70,14 +78,14 @@ just app-run-device <device-id>
 ```
 
 Under the hood these recipes call Flutter with
-`--dart-define-from-file=app/config/<env>.env`. They discover the current
+`--dart-define-from-file=app/config/.env.<environment>.local`. They discover the current
 worktree stack's published AppView port and override `CRAFTSKY_API_BASE_URL`
 for that run; the remaining local settings still come from the config file.
 Release builds **require** a config file with `CRAFTSKY_API_BASE_URL`; the app
 throws on first API call if it's missing.
 
 To keep initial loading UI visible for inspection, add a delay in milliseconds
-to `config/local.env` and `config/local-android.env` as needed:
+to `config/.env.development.local` and `config/.env.development-android.local` as needed:
 
 ```env
 CRAFTSKY_API_DELAY_MS=3000
@@ -131,6 +139,24 @@ fvm exec just app-test
 tests, including after `flutter clean`. For repeated focused runs after setup,
 you can run `flutter test <test-path>` directly from `app/`.
 
+Riverpod checks use the pinned `riverpod_lint` analyzer plugin in
+[`analysis_options.yaml`](analysis_options.yaml), so `app-analyze` also checks
+provider parameters, scope declarations and supported notifier usage. See the
+[official lint setup](https://riverpod.dev/docs/introduction/getting_started#enabling-riverpod_lint).
+Local, CI and release checks use `dart analyze --fatal-infos` to include plugin
+diagnostics in terminal runs.
+
+Provider builds watch dependencies they own. Temporary asynchronous operations
+retain auto-dispose dependencies with a subscription and close it in `finally`.
+Capture the initiating `Ref` and account operation before awaiting work: a
+notifier can survive a dependency rebuild while its original `Ref` is disposed.
+Reject stale completions before publishing state or dispatching another request.
+Disposal errors stay reportable so genuine lifecycle misuse remains visible.
+Providers that expose `ChangeNotifier` controllers use `Raw<T>`: consumers listen
+directly, and the provider registers their cleanup with `ref.onDispose`.
+Provider tests should listen while exercising an observed lifetime and explicitly
+close that listener when testing disposal or navigation away.
+
 Use [native integration tests](integration_test/README.md) for applicable device journeys. UI contributions should include screenshots or recordings and state which platforms were inspected. Production signing and symbol upload credentials are only needed for the maintainer release workflow, not debug development or unit/widget tests.
 
 ## Deep links
@@ -144,6 +170,8 @@ longer registers a production custom `craftsky://` scheme. The accepted routes a
 - `https://app.craftsky.social/account-deletion/reauth-complete?job-id=…&proof=…`
   for account-deletion reauthentication. The proof is single use and the URL
   never carries the ordinary CraftSky session bearer.
+- `https://app.craftsky.social/posts/<did>/<rkey>` for shared posts and projects.
+- `https://app.craftsky.social/profiles/<did>` for shared profiles.
 
 Smoke tests (synthetic values should open the app and then fail closed):
 
@@ -166,7 +194,8 @@ Publishing the domain-association files is a release gate:
   must not be replaced with a debug-keystore fingerprint.
 - `https://app.craftsky.social/.well-known/apple-app-site-association` must
   authorize application ID `B6YZZCUZWS.social.craftsky.app` for exactly
-  `/auth/complete` and `/account-deletion/reauth-complete`. The Apple App ID
+  `/auth/complete`, `/account-deletion/reauth-complete`, `/posts/*` and
+  `/profiles/*`. The Apple App ID
   and release provisioning profile must also enable Associated Domains.
 
 The files must be served directly by the canonical HTTPS host with the content

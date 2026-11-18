@@ -1,10 +1,13 @@
 import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/sharing/native_share_origin.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show Theme;
+import 'package:share_plus/share_plus.dart';
 
 List<CraftskyContextMenuItem> linkSharingMenuItems(
   BuildContext context,
@@ -13,6 +16,7 @@ List<CraftskyContextMenuItem> linkSharingMenuItems(
   VoidCallback? onSendViaChat,
 }) => [
   copyLinkMenuItem(context, url),
+  shareLinkMenuItem(context, url),
   if (canSendViaChat)
     CraftskyContextMenuItem(
       text: AppLocalizations.of(context).chatSendViaChat,
@@ -39,4 +43,28 @@ Future<void> copyRecordLink(BuildContext context, String url) async {
     return;
   }
   if (context.mounted) context.showInfo(l10n.recordLinkCopied);
+}
+
+CraftskyContextMenuItem shareLinkMenuItem(BuildContext context, String url) {
+  return CraftskyContextMenuItem(
+    text: AppLocalizations.of(context).recordShareLinkAction,
+    icon: CraftskyIconsBold.shareForPlatform(Theme.of(context).platform),
+    onPressed: () => shareRecordLink(context, url),
+  );
+}
+
+/// Shares the same canonical URL as Copy link, including any reply focus.
+/// Results describe the chooser interaction, not confirmed delivery, so neither
+/// completion nor cancellation produces a success message.
+Future<void> shareRecordLink(BuildContext context, String url) async {
+  if (!context.mounted) return;
+  final l10n = AppLocalizations.of(context);
+  final origin = nativeShareOrigin(context);
+  try {
+    await SharePlus.instance.share(
+      ShareParams(uri: Uri.parse(url), sharePositionOrigin: origin),
+    );
+  } on PlatformException {
+    if (context.mounted) context.showError(l10n.recordShareLinkFailed);
+  }
 }

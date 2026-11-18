@@ -1,3 +1,6 @@
+import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/form_action_layout.dart';
+import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -62,36 +65,44 @@ class ProjectComposerDetailPage extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
-    return Scaffold(
-      backgroundColor: swatches.paper,
-      appBar: AppBar(title: Text(title, style: theme.textTheme.titleLarge)),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4 + MediaQuery.paddingOf(context).bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (errorText case final message?) ...[
-                  Text(
-                    message,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                  SizedBox(height: spacing.sp4),
-                ],
-                child,
-              ],
+    return FormKeyboardScope(
+      child: Scaffold(
+        backgroundColor: swatches.paper,
+        appBar: AppBar(title: Text(title, style: theme.textTheme.titleLarge)),
+        body: FormActionLayout(
+          keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
+          label: AppLocalizations.of(context).postComposeDone,
+          actionKey: const Key('composer-details-done'),
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: SafeArea(
+              top: false,
+              bottom: false,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.sp4,
+                  spacing.sp4,
+                  spacing.sp4,
+                  spacing.sp4 + MediaQuery.paddingOf(context).bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (errorText case final message?) ...[
+                      Text(
+                        message,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                      SizedBox(height: spacing.sp4),
+                    ],
+                    child,
+                  ],
+                ),
+              ),
             ),
           ),
         ),

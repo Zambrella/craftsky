@@ -186,8 +186,6 @@ func suspensionClassFor(policy RoutePolicy) SuspensionClass {
 var retainedSuspendedMutations = map[string]bool{
 	"PUT /v1/billing/account":                                        true,
 	"POST /v1/billing/reconciliation":                                true,
-	"PUT /v1/billing/licenses/{licenseId}/assignment":                true,
-	"DELETE /v1/billing/licenses/{licenseId}/assignment":             true,
 	"POST /v1/auth/logout":                                           true,
 	"POST /v1/account-deletion/intents":                              true,
 	"DELETE /v1/account-deletion/intents/{jobId}":                    true,
@@ -228,6 +226,10 @@ var retainedSuspendedMutations = map[string]bool{
 // Denied mutations are explicit so a new authenticated mutation cannot silently
 // inherit policy; an absent classification prevents catalogue construction.
 var deniedSuspendedMutations = map[string]bool{
+	"POST /v1/billing/web-paywall":                                         true,
+	"POST /v1/billing/web-checkout/cancel":                                 true,
+	"POST /v1/billing/web-checkout":                                        true,
+	"POST /v1/billing/web-management":                                      true,
 	"PUT /v1/preferences/logged-out-visibility":                            true,
 	"POST /v1/chat/sync":                                                   true,
 	"PUT /v1/chat/push-preferences":                                        true,
@@ -376,9 +378,12 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/subscriptions/access", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "PUT", PathPattern: "/v1/billing/account", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/billing/account", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/billing/web-prices", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-checkout", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-checkout/cancel", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-paywall", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/billing/web-management", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/billing/reconciliation", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
-		{Method: "PUT", PathPattern: "/v1/billing/licenses/{licenseId}/assignment", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
-		{Method: "DELETE", PathPattern: "/v1/billing/licenses/{licenseId}/assignment", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/authorization", RateClass: RateClassUpload, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/{jobId}/cancel", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/blobs/videos/{jobId}/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
@@ -416,6 +421,8 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "PUT", PathPattern: "/v1/profiles/me/customisation", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "PUT", PathPattern: "/v1/profiles/me/business", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/profiles/me/business", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/followers", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/following", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/mutual-followers", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/events", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/profiles/{handleOrDid}/follows", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

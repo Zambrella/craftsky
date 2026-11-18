@@ -29,7 +29,9 @@
 			</p>{/if}{#if location}<p class="business-location">
 				<Icon name="location" size={18} />{location}
 			</p>{/if}{/if}
-	{#if full}{#if business.businessTypes?.length}<div>
+	{#if full}{#if business.businessTypes?.length}<div
+				class="business-detail-section"
+			>
 				<h3>Business types</h3>
 				<div class="business-chips">
 					{#each business.businessTypes as item}<span
@@ -37,8 +39,8 @@
 						>{/each}
 				</div>
 			</div>{/if}
-		{#if business.offerings?.length}<div>
-				<h3>What we offer</h3>
+		{#if business.offerings?.length}<div class="business-detail-section">
+				<h3>Offerings</h3>
 				<div class="business-chips">
 					{#each business.offerings as item}<span
 							>{businessLabels(item.value)}</span
@@ -97,24 +99,35 @@
 	}
 	.full h3 {
 		font-size: 12px;
+		line-height: 1.2;
+		letter-spacing: 1.68px;
 		color: var(--ink-2);
-		font-weight: 500;
-		margin: 0 0 8px;
+		font-weight: 600;
+		margin: 0 0 4px;
+	}
+	.business-detail-section h3 {
+		margin-bottom: 8px;
 	}
 	.full p {
 		margin: 0;
-		font-size: 15px;
+		font-size: 14px;
+		line-height: 1.5;
+		white-space: pre-wrap;
 	}
 	.business-chips {
 		display: flex;
-		gap: 8px;
+		gap: 4px 8px;
 		flex-wrap: wrap;
 	}
 	.business-chips span {
+		display: inline-flex;
+		align-items: center;
 		background: var(--surface);
-		border: 1px solid var(--hairline);
-		padding: 4px 10px;
-		border-radius: 20px;
-		font-size: 14px;
+		border: 1.5px solid var(--ink);
+		padding: 8px 12px;
+		border-radius: 999px;
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.3;
 	}
 </style>

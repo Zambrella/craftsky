@@ -1,4 +1,7 @@
 <script lang="ts">
+	import LoadMore from '#lib/LoadMore.svelte';
+	import SearchSupportNotice from '../safety/SearchSupportNotice.svelte';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -191,7 +194,9 @@
 		if (term && !guest)
 			void api.search
 				.saveRecent({ type: 'query', displayLabel: term, payload: { q: term } })
-				.catch(() => {});
+				.catch(
+					(error) => void reportFailure(error, 'social.Search.saveRecent')
+				);
 	});
 	$effect(() => {
 		// Even selecting the active/default tab can create a new history entry.
@@ -266,7 +271,7 @@
 					crafts: author.crafts ?? []
 				}
 			})
-			.catch(() => {});
+			.catch((error) => void reportFailure(error, 'social.Search.saveRecent'));
 	}
 </script>
 
@@ -344,6 +349,7 @@
 						</div>
 						{#each suggestions.profiles.items as author}<a
 								class="suggestion-profile account-row"
+								style={profileStyle(author.customisation)}
 								href={'/profiles/' + encodeURIComponent(author.did)}
 								onclick={() => remember(author)}
 								><Avatar author={authorValue(author)} /><CompactIdentity
@@ -382,6 +388,7 @@
 		</div>
 	{/if}
 </form>
+{#key q}<SearchSupportNotice query={q} />{/key}
 {#if !showSuggestions}
 	{#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
 			{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
@@ -418,7 +425,9 @@
 					{/snippet}
 					{#if author}
 						<div class="recent-row">
-							<a href={recentDestination(item)}
+							<a
+								href={recentDestination(item)}
+								style={profileStyle(author.customisation)}
 								><Avatar author={authorValue(author)} /><CompactIdentity
 									{author}
 								/></a
@@ -485,11 +494,13 @@
 			detail="Try another search."
 			icon="search"
 		/>{/if}
-	{#if cursor}<button
-			class="button next"
-			disabled={work.busy}
-			onclick={() => load(true)}>Load more</button
-		>{/if}
+	{#if cursor}<LoadMore
+			loading={work.busy}
+			autoLoad={(tab === 'posts' || tab === 'projects') && !work.error}
+			pageKey={JSON.stringify([q, tab, cursor])}
+			loadingLabel="Loading more results"
+			onclick={() => load(true)}
+		/>{/if}
 {/if}
 
 <style>

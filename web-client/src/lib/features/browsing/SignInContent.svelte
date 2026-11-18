@@ -51,11 +51,6 @@
 </script>
 
 <div class="welcome-scaffold" class:embedded>
-	<div class="welcome-crafts" aria-hidden="true">
-		{#each ['knitting', 'sewing', 'crochet', 'quilting', 'embroidery'] as craft}<span
-				style={'--craft-mask:url(/craft_icons/' + craft + '.svg)'}
-			></span>{/each}
-	</div>
 	<section class="auth-card">
 		<h1>Join CraftSky</h1>
 		<p class="welcome-subtitle">
@@ -144,43 +139,6 @@
 	.explore-button:hover {
 		background: transparent;
 		text-decoration: underline;
-	}
-	.welcome-crafts {
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-	}
-	.welcome-crafts span {
-		position: absolute;
-		width: 112px;
-		height: 112px;
-		background: var(--primary);
-		opacity: 0.07;
-		mask: var(--craft-mask) center/contain no-repeat;
-		transform: rotate(-14deg);
-	}
-	.welcome-crafts span:nth-child(1) {
-		top: 3%;
-		left: 3%;
-	}
-	.welcome-crafts span:nth-child(2) {
-		top: 24%;
-		right: -20px;
-		transform: rotate(18deg);
-	}
-	.welcome-crafts span:nth-child(3) {
-		top: 53%;
-		left: -30px;
-		transform: rotate(30deg);
-	}
-	.welcome-crafts span:nth-child(4) {
-		bottom: 3%;
-		left: 12%;
-		transform: rotate(10deg);
-	}
-	.welcome-crafts span:nth-child(5) {
-		bottom: 16%;
-		right: -16px;
 	}
 	.auth-card {
 		position: relative;

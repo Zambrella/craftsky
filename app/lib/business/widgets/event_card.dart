@@ -75,7 +75,10 @@ class EventCard extends StatelessWidget {
                             child: action,
                           )
                         else
-                          const Icon(CraftskyIconsBold.next),
+                          Icon(
+                            CraftskyIconsBold.next,
+                            color: theme.colorScheme.primary,
+                          ),
                       ],
                     ),
                     SizedBox(height: spacing.sp2),
@@ -130,9 +133,8 @@ class _EventCardLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18),
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
         SizedBox(width: spacing.sp2),
         Expanded(child: Text(text)),
       ],

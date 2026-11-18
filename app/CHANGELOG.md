@@ -1,5 +1,98 @@
 # App Changelog
 
+## 1.13.0+19 - 2026-11-17
+
+- feat(social): link plain text profile bios
+- feat(profile): add visitor follower and following lists
+- fix(instagram-migration): show export help after verification
+- fix(feed): preserve post anchor when collapsing body
+- fix(posts): preserve selected carousel image in details
+- fix(media): preserve image framing across clients
+- feat(catalog): add navy, turquoise, and teal colors
+- feat(app): add native sharing for profile and record links
+- test(app): update navigation callback assertions
+- feat(profile): add animated profile share card mockup
+- feat(profile): add tilt-lit craft foil share cards
+- feat(profile): share animated profile cards as PNG
+- fix(composer): trim submitted text before generating facets
+- feat(composer): limit posts to ten hashtags
+- test(profile): verify share card error reporting
+- fix(feed): preserve scroll position during refresh
+- fix: preserve loaded content during background refreshes
+- feat(subscriptions): add custom Plus tier icon
+- fix(subscriptions): clarify tier benefit summaries
+- fix(subscriptions): keep plus action icon within its size
+- feat(subscriptions): refine active billing and assignment UI
+- feat(settings): show account hosting provider details
+- feat(profile): add colour options and shader backgrounds
+- feat(profile): add reference-inspired shader backgrounds
+- chore(repo): optimize checks and client performance
+- chore(app): harden Riverpod lifecycles and enable linting
+- feat(subscriptions): support independent billing accounts
+- fix(observability): report consumed failures across app flows
+- feat(docs): add searchable change archive
+- fix(subscriptions): guard purchases by store ownership
+- feat(subscriptions): add complimentary access grants
+- feat(subscriptions): add embedded checkout and web paywalls
+- feat(subscriptions): open paywalls from locked features
+- feat(subscriptions): expand cross-client subscription and business parit
+- feat(business): add product photo carousels
+- feat(profile): show business identity icons across clients
+- fix(subscriptions): harden billing lifecycle and access handling
+- feat(profile): retire textures and decorate recent searches
+- test(ci): stabilize business and subscription regression checks
+- test: stabilize timezone and timestamp assertions
+- fix(app): improve form and composer keyboard actions
+
+## 1.12.0+18 - 2026-11-10
+
+- fix(notifications): retain cold-start DM lookups
+- feat(web): add server-rendered public pages
+- feat(web-client): add authenticated browser app parity
+- feat(web-client): align app interactions with native references
+- feat(web-client): add preview upload and manual promotion workflow
+- fix(ci): resolve Flutter lint and Go module checks
+- feat(web-client): move authenticated routes to root
+- feat(web-client): add tagged release and preview promotion flow
+- feat(video): add Bunny Stream development integration
+- feat(video): accept QuickTime MOV uploads via Bunny
+- fix(web-client): harden recovery and restore release checks
+- feat(stats): add public CraftSky statistics page
+- fix(video): show previews in quotes and saved posts
+- feat(composer): enable local video previews
+- fix(video): extend upload finalization deadlines
+- feat(video): cancel Bunny uploads safely
+- test(video): tidy Bunny and video test formatting
+- feat(guest-browsing): enable public content exploration
+- feat(feed): add extended network timeline
+- feat(browsing): expand logged-out content exploration
+- feat(moderation): allow guests to submit content reports
+- fix(profile): localize craft chips from lexicon IDs
+- chore(app): remove Flutter web support
+- fix(search): align recent and hashtag result rows
+- fix(observability): preserve actionable production diagnostics
+- test(app): align Sentry config checks with mobile targets
+- feat(instagram-import): style help links as buttons
+- fix(profile): overlay stats for accepted publications
+- feat(profile): add likes links to comment menus
+- fix(links): route canonical CraftSky links internally
+- feat(profile): show avatar in navigation
+- test: scope discovery avatar count to member section
+- chore(test): reorder profile comment test imports
+- feat(video): enforce PDS blob limits for Bunny uploads
+- feat(auth): show Atmosphere logos beside handle fields
+- feat(auth): display full-color Atmosphere icons
+- feat(safety): add go-live safety and moderation controls
+- test(app): align launch safety expectations
+- chore(config): centralize AppView secret management
+- feat(config): separate local credentials from app settings
+- refactor(config): move local env files into component config dirs
+- feat(config): isolate client settings by build mode
+- chore(docs): reorganize project documentation
+- fix(app): stabilize chat and feed journeys
+- fix(social): preserve replies and improve feed media labels
+- test(web): assert sponsored post tooltip copy
+
 ## 1.11.1+17 - 2026-11-01
 
 - fix(chat): refresh unread state after reads and pushes

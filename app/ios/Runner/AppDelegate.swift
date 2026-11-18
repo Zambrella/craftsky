@@ -1,6 +1,7 @@
 import AVFoundation
 import Flutter
 import UIKit
+import StoreKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -13,6 +14,124 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let ownershipChannel = FlutterMethodChannel(
+      name: "social.craftsky/store_ownership",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    ownershipChannel.setMethodCallHandler { call, result in
+      if call.method == "canChangePlan" {
+        guard #available(iOS 15.0, *),
+              let arguments = call.arguments as? [String: Any],
+              let oldID = arguments["oldProductId"] as? String,
+              let newID = arguments["newProductId"] as? String,
+              oldID != newID else {
+          result(false)
+          return
+        }
+        Task {
+          do {
+            let products = try await Product.products(for: [oldID, newID])
+            let oldGroup = products.first { $0.id == oldID }?.subscription?.subscriptionGroupID
+            let newGroup = products.first { $0.id == newID }?.subscription?.subscriptionGroupID
+            let allowed = oldGroup != nil && oldGroup == newGroup
+            await MainActor.run { result(allowed) }
+          } catch {
+            await MainActor.run { result(false) }
+          }
+        }
+        return
+      }
+      guard call.method == "check" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let arguments = call.arguments as? [String: Any],
+            let appUserId = arguments["appUserId"] as? String,
+            let expected = UUID(uuidString: appUserId) else {
+        result(["status": "unverified"])
+        return
+      }
+      guard #available(iOS 15.0, *) else {
+        result(["status": "unverified"])
+        return
+      }
+      Task {
+        // Include expired subscriptions: RevenueCat's original-customer receipt
+        // association can survive expiry. Never sync or transfer a receipt here.
+        var status = "allowed"
+        var conflictingOwner: UUID?
+        var hasActiveSubscription = false
+        for await verification in StoreKit.Transaction.all {
+          switch verification {
+          case .verified(let transaction):
+            guard transaction.productType == .autoRenewable else { continue }
+            guard let owner = transaction.appAccountToken else {
+              status = "unverified"
+              continue
+            }
+            if owner != expected {
+              status = "conflict"
+              conflictingOwner = owner
+              break
+            }
+          case .unverified:
+            status = "unverified"
+          }
+          if status == "conflict" { break }
+        }
+        // Current entitlements are store evidence independent of RevenueCat
+        // indexing. Unfinished purchases also prevent a second independent
+        // subscription while the first transaction is still being delivered.
+        if status != "conflict" {
+          for await verification in StoreKit.Transaction.currentEntitlements {
+            switch verification {
+            case .verified(let transaction):
+              guard transaction.productType == .autoRenewable else { continue }
+              hasActiveSubscription = true
+              guard let owner = transaction.appAccountToken else {
+                status = "unverified"
+                continue
+              }
+              if owner != expected {
+                status = "conflict"
+                conflictingOwner = owner
+              }
+            case .unverified:
+              status = "unverified"
+            }
+            if status == "conflict" { break }
+          }
+        }
+        if status != "conflict" {
+          for await verification in StoreKit.Transaction.unfinished {
+            switch verification {
+            case .verified(let transaction):
+              guard transaction.productType == .autoRenewable else { continue }
+              hasActiveSubscription = true
+              guard let owner = transaction.appAccountToken else {
+                status = "unverified"
+                continue
+              }
+              if owner != expected {
+                status = "conflict"
+                conflictingOwner = owner
+              }
+            case .unverified:
+              status = "unverified"
+            }
+            if status == "conflict" { break }
+          }
+        }
+        await MainActor.run {
+          var response: [String: Any] = [
+            "status": status,
+            "hasActiveSubscription": hasActiveSubscription
+          ]
+          if let owner = conflictingOwner { response["ownerAppUserId"] = owner.uuidString.lowercased() }
+          result(response)
+        }
+      }
+    }
     let channel = FlutterMethodChannel(
       name: "social.craftsky/local_video",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()

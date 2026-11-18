@@ -56,7 +56,7 @@ final class AccountLanguagePreferencesProvider
 }
 
 String _$accountLanguagePreferencesHash() =>
-    r'539c49b131147cb7376c40b03e5eddc251a06640';
+    r'b0819fec2737046f318edd072cad1e4e210af98c';
 
 final class AccountLanguagePreferencesFamily extends $Family
     with

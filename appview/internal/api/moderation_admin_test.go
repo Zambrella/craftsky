@@ -292,3 +292,22 @@ func TestModerationAdminCommandMapsCuratedDomainErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestModerationAdminDecisionPassesSeparateIllegalContentRationale(t *testing.T) {
+	reference, _ := moderation.FormatCaseReference(uuid.New())
+	commander := &moderationCommanderStub{}
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/admin/moderation/cases/{caseReference}/decisions", ModerationAdminCommandHandler(commander, syntax.DID("did:plc:moderation"), "decision"))
+	request := httptest.NewRequest(http.MethodPost, "/v1/admin/moderation/cases/"+reference+"/decisions", strings.NewReader(`{"expectedRevision":0,"disposition":"violation","reason":"illegal_content","evidenceNotes":"factual evidence","userSafeDetail":"safe explanation","legalClassification":"otherIllegalContent","illegalContentRationale":"private offence and basis","consequences":["strike"]}`))
+	request.Header.Set(moderationIdempotencyKeyHeader, "illegal-content-request")
+	request = request.WithContext(ctxkeys.WithModerator(request.Context(), ctxkeys.Moderator{ActorID: "trusted-actor", SourceSystem: "admin-api"}))
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	d := commander.decision.Decision
+	if response.Code != http.StatusOK || d.Reason != moderation.ReasonIllegalContent || d.IllegalContentRationale != "private offence and basis" || d.Evidence != "factual evidence" || d.UserSafeDetail != "safe explanation" || d.LegalClassification != moderation.LegalOtherIllegalContent {
+		t.Fatalf("status=%d decision=%+v", response.Code, d)
+	}
+	if strings.Contains(response.Body.String(), "private offence") {
+		t.Fatal("command response leaked rationale")
+	}
+}

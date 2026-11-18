@@ -2,10 +2,32 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCheckedInDevelopmentEnablesSandboxSubscriptions(t *testing.T) {
+	contents, err := os.ReadFile("../../config/dev.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := testConfigFile(t, string(contents))
+	t.Setenv("REVENUECAT_API_KEY", revenueCatTestAPIKey)
+	t.Setenv("REVENUECAT_WEBHOOK_AUTHORIZATION", revenueCatTestAuthorization)
+	t.Setenv("REVENUECAT_WEBHOOK_SIGNING_SECRET", revenueCatTestSigningSecret)
+	config, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !config.RevenueCat.Enabled() || config.RevenueCat.environment != "sandbox" || config.RevenueCat.reconciliationSchedule != time.Minute {
+		t.Fatalf("unexpected development billing state: enabled=%t environment=%s schedule=%v", config.RevenueCat.Enabled(), config.RevenueCat.environment, config.RevenueCat.reconciliationSchedule)
+	}
+	if len(config.RevenueCat.appIDs) != 2 || len(config.RevenueCat.products) != 4 {
+		t.Fatal("development must include Test Store and Stripe sandbox catalogs")
+	}
+}
 
 const (
 	revenueCatTestAPIKey        = "rc-api-key-private-canary"
@@ -14,7 +36,7 @@ const (
 )
 
 func TestRevenueCatConfigIsDisabledByDefaultAndRequiresCompleteConfiguration(t *testing.T) {
-	for _, key := range []string{"REVENUECAT_ENABLED", "REVENUECAT_API_BASE_URL", "REVENUECAT_API_KEY", "REVENUECAT_PROJECT_ID", "REVENUECAT_ENVIRONMENT", "REVENUECAT_WEBHOOK_AUTHORIZATION", "REVENUECAT_WEBHOOK_SIGNING_SECRET", "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE", "REVENUECAT_APP_IDS", "REVENUECAT_PRODUCT_MAPPINGS"} {
+	for _, key := range []string{"REVENUECAT_ENABLED", "REVENUECAT_API_BASE_URL", "REVENUECAT_API_KEY", "REVENUECAT_PROJECT_ID", "REVENUECAT_ENVIRONMENT", "REVENUECAT_WEBHOOK_AUTHORIZATION", "REVENUECAT_WEBHOOK_SIGNING_SECRET", "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE", "REVENUECAT_APP_IDS", "REVENUECAT_PRODUCT_MAPPINGS", "REVENUECAT_WEB_PUBLIC_API_KEY"} {
 		t.Setenv(key, "")
 	}
 	disabled, err := loadRevenueCatConfig(EnvDev)
@@ -87,5 +109,47 @@ func TestRevenueCatConfigRejectsSignatureBypassOutsideDevelopmentWhenDisabled(t 
 
 	if _, err := loadRevenueCatConfig(EnvProd); err == nil || !strings.Contains(err.Error(), "REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE") {
 		t.Fatalf("production webhook signature bypass error = %v", err)
+	}
+}
+
+func TestStripeCheckoutConfigurationIsAtomicEnvironmentBoundAndRedacted(t *testing.T) {
+	t.Setenv("REVENUECAT_ENABLED", "true")
+	t.Setenv("REVENUECAT_API_KEY", revenueCatTestAPIKey)
+	t.Setenv("REVENUECAT_PROJECT_ID", "project_test")
+	t.Setenv("REVENUECAT_ENVIRONMENT", "sandbox")
+	t.Setenv("REVENUECAT_WEBHOOK_AUTHORIZATION", revenueCatTestAuthorization)
+	t.Setenv("REVENUECAT_WEBHOOK_SIGNING_SECRET", revenueCatTestSigningSecret)
+	t.Setenv("REVENUECAT_APP_IDS", "app_stripe")
+	t.Setenv("REVENUECAT_PRODUCT_MAPPINGS", `{"rc_plus":{"appId":"app_stripe","tier":"plus"},"rc_business":{"appId":"app_stripe","tier":"business"}}`)
+	for _, key := range []string{"STRIPE_SECRET_KEY", "STRIPE_ACCOUNT_ID", "STRIPE_PLUS_PRICE_ID", "STRIPE_BUSINESS_PRICE_ID", "STRIPE_CHECKOUT_SUCCESS_URL", "STRIPE_CHECKOUT_CANCEL_URL", "STRIPE_BILLING_RETURN_URL", "STRIPE_PORTAL_CONFIGURATION_ID"} {
+		t.Setenv(key, "")
+	}
+	initial, err := loadRevenueCatConfig(EnvDev)
+	if err != nil || initial.stripeSecretKey.Reveal() != "" {
+		t.Fatal("Stripe was not optional")
+	}
+	values := map[string]string{"STRIPE_SECRET_KEY": "sk_test_stripe_secret_canary", "STRIPE_ACCOUNT_ID": "acct_merchant", "STRIPE_PLUS_PRICE_ID": "price_plus", "STRIPE_BUSINESS_PRICE_ID": "price_business", "STRIPE_CHECKOUT_SUCCESS_URL": "https://app.example/settings/subscriptions", "STRIPE_CHECKOUT_CANCEL_URL": "https://app.example/settings/subscriptions", "STRIPE_BILLING_RETURN_URL": "https://app.example/settings/subscriptions"}
+	t.Setenv("STRIPE_SECRET_KEY", values["STRIPE_SECRET_KEY"])
+	if _, err := loadRevenueCatConfig(EnvDev); err == nil {
+		t.Fatal("partial Stripe configuration allowed")
+	}
+	for key, value := range values {
+		t.Setenv(key, value)
+	}
+	config, err := loadRevenueCatConfig(EnvDev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(fmt.Sprintf("%v %+v %#v", config, config, config), values["STRIPE_SECRET_KEY"]) {
+		t.Fatal("Stripe secret leaked")
+	}
+	t.Setenv("REVENUECAT_ENVIRONMENT", "production")
+	if _, err := loadRevenueCatConfig(EnvDev); err == nil {
+		t.Fatal("sandbox key allowed in production")
+	}
+	t.Setenv("REVENUECAT_ENVIRONMENT", "sandbox")
+	t.Setenv("STRIPE_CHECKOUT_SUCCESS_URL", "https://user:password@app.example/return")
+	if _, err := loadRevenueCatConfig(EnvDev); err == nil {
+		t.Fatal("credential-bearing return accepted")
 	}
 }

@@ -1195,7 +1195,7 @@ void main() {
         await tester.ensureVisible(craft);
         await tester.tap(craft);
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.tap(find.byKey(const Key('profile-save')));
         await tester.pumpAndSettle();
         expect(
           find.byKey(const Key('discovery-craft-knitting')),

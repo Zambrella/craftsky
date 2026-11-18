@@ -11,16 +11,15 @@ void main() {
           did: 'did:plc:alice',
           handle: 'alice.test',
         )
-        .reserveBillingOwner('did:plc:alice')
-        .completeBillingOwner(
+        .setBillingCustomer(
           'did:plc:alice',
           '20000000-0000-4000-8000-000000000001',
         );
 
     final removed = registry.remove('did:plc:alice');
 
-    expect(removed.billingOwner, same(registry.billingOwner));
-    expect(removed.billingOwner?.did.value, 'did:plc:alice');
+    expect(removed.billingCustomers, registry.billingCustomers);
+    expect(removed.billingCustomers, hasLength(1));
   });
 
   test('REG-005 account boundary invalidates subscription projections', () {

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
+import 'package:craftsky_app/shared/widgets/business_identity_icon.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -11,17 +12,19 @@ class ProfileCraftChips extends StatelessWidget {
   const new({
     required this.crafts,
     this.alignment = WrapAlignment.start,
+    this.isBusiness = false,
     super.key,
   });
 
   final List<String> crafts;
+  final bool isBusiness;
   final WrapAlignment alignment;
 
   static const double iconSize = 16;
 
   @override
   Widget build(BuildContext context) {
-    if (crafts.isEmpty) return const SizedBox.shrink();
+    if (crafts.isEmpty && !isBusiness) return const SizedBox.shrink();
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final animatedCrafts = <String>{};
     return Wrap(
@@ -29,6 +32,8 @@ class ProfileCraftChips extends StatelessWidget {
       spacing: spacing.sp2,
       runSpacing: spacing.sp2,
       children: [
+        if (isBusiness)
+          const _CraftChip(label: '', animate: false, isBusiness: true),
         for (final craft in crafts)
           _CraftChip(
             label: craft,
@@ -41,10 +46,15 @@ class ProfileCraftChips extends StatelessWidget {
 
 /// A single craft pill using the active profile colour theme.
 class _CraftChip extends StatelessWidget {
-  const new({required this.label, required this.animate});
+  const new({
+    required this.label,
+    required this.animate,
+    this.isBusiness = false,
+  });
 
   final String label;
   final bool animate;
+  final bool isBusiness;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +63,9 @@ class _CraftChip extends StatelessWidget {
     final radii = theme.extension<RadiusTheme>()!;
     final id = ProfileCraftHero.idFor(label);
     final craft = Craft.fromId(id);
-    final display = craft == null
+    final display = isBusiness
+        ? AppLocalizations.of(context).businessProfileLabel
+        : craft == null
         ? _toSentenceCase(id)
         : craftLabel(craft, AppLocalizations.of(context));
     final chip = Container(
@@ -62,16 +74,33 @@ class _CraftChip extends StatelessWidget {
         color: theme.colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(radii.rPill),
       ),
-      child: CraftIconLabel(
-        craft: label,
-        label: display,
-        iconSize: ProfileCraftChips.iconSize,
-        gap: spacing.sp1,
-        flexibleLabel: true,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onPrimaryContainer,
-        ),
-      ),
+      child: isBusiness
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusinessIdentityIcon(
+                  size: ProfileCraftChips.iconSize,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+                SizedBox(width: spacing.sp1),
+                Text(
+                  display,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            )
+          : CraftIconLabel(
+              craft: label,
+              label: display,
+              iconSize: ProfileCraftChips.iconSize,
+              gap: spacing.sp1,
+              flexibleLabel: true,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
     );
     return animate
         ? ProfileCraftHero.destination(

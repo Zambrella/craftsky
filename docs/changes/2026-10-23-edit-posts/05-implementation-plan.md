@@ -85,7 +85,7 @@ Order follows the first occurrence of IDs in the approved coding-plan section 9.
 ### Startup: ADR prerequisite
 
 - Confirmed failure: no test failure claimed. The missing required skill is a workflow prerequisite.
-- Resolution: maintainer authorized existing ADR format; read project Lexicon skill and wrote `adr/022-published-post-editing.md`.
+- Resolution: maintainer authorized existing ADR format; read project Lexicon skill and wrote `docs/adr/022-published-post-editing.md`.
 - First test after resolution: IT-001, proposed `TestEditPostUpdatesExistingRecord`, proving same-URI owner caption update and no create effect.
 - Run command: focused `go test` with `TEST_DATABASE_REQUIRED=true` and the checked-in compose-derived environment, or root `just test` until focused setup is available; a skipped integration fixture is not red/green evidence.
 - No generators, migrations, runtime tests or live services were run at startup.

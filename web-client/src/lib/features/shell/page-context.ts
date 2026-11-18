@@ -68,6 +68,12 @@ export function routeTitle(pathname: string): string {
 					schedule: 'Edit scheduled post'
 				} as Record<string, string>
 			)[child] ?? title;
+	if (section === 'compose' && child === 'event') {
+		title = pathname.split('/')[3] === 'edit' ? 'Edit event' : 'Create event';
+	}
+	if (section === 'compose' && child === 'product') {
+		title = pathname.split('/')[3] === 'edit' ? 'Edit product' : 'Add product';
+	}
 	if (section === 'profile' && child === 'edit') title = 'Edit profile';
 	if (section === 'feed' && child === 'filters') title = 'Feed filters';
 	if (section === 'notifications' && child === 'settings')

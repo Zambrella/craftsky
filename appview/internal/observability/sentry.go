@@ -324,6 +324,19 @@ func WithCaptureMarker(ctx context.Context) context.Context {
 	return context.WithValue(ctx, captureMarkerKey{}, &captureMarker{})
 }
 
+// WithDiagnosticOccurrence starts an independent worker job/attempt. Unlike the
+// idempotent HTTP marker, it isolates sibling jobs even within the same batch.
+// Lower dependency and consuming job boundaries still share this one marker.
+func WithDiagnosticOccurrence(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, captureMarkerKey{}, &captureMarker{})
+	if hub := sentry.GetHubFromContext(ctx); hub != nil {
+		jobHub := hub.Clone()
+		jobHub.Scope().ClearBreadcrumbs()
+		ctx = sentry.SetHubOnContext(ctx, jobHub)
+	}
+	return ctx
+}
+
 // claimCapture assigns one owner to this occurrence even without a backend.
 // Contexts without a marker represent independent standalone occurrences.
 func claimCapture(ctx context.Context) bool {

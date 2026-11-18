@@ -469,7 +469,7 @@ export interface BusinessProfile {
 	products?: {
 		title: string;
 		uri?: string;
-		image?: Image;
+		images: Image[];
 		price?: JsonObject;
 	}[];
 }
@@ -554,6 +554,10 @@ export interface EligibilityStatus {
 export interface WhoAmI {
 	did: DID;
 	handle: string;
+	pdsUrl?: string;
+	hostingProvider?: string;
+	accountManagementUrl?: string;
+	passwordChangeUrl?: string;
 	[key: string]: Json | undefined;
 }
 export interface LoginResponse {
@@ -584,6 +588,8 @@ export interface BillingSubscription {
 	currentPeriodEndsAt?: string;
 	endsAt?: string;
 	anomaly: string;
+	tier?: 'plus' | 'business';
+	pendingTier?: 'plus' | 'business';
 }
 export interface BillingLicense {
 	id: string;
@@ -594,6 +600,18 @@ export interface BillingLicense {
 	assignable: boolean;
 	anomaly: string;
 }
+export interface BillingPromotionalGrant {
+	id: string;
+	tier: 'plus' | 'business';
+	givesAccess: boolean;
+	expiresAt?: string | null;
+}
+export interface WebSubscriptionPrice {
+	tier: 'plus' | 'business';
+	amount: number;
+	currency: string;
+	taxBehavior: string;
+}
 export interface BillingState {
 	billingAccountId: string;
 	revenueCatAppUserId: string;
@@ -602,13 +620,13 @@ export interface BillingState {
 	reconciliationRequestedAt?: string;
 	reconciledAt?: string;
 	reconciliationStale: boolean;
+	webCheckoutAvailable?: boolean;
+	/** An unresolved direct checkout blocks new SDK purchases until provider recovery. */
+	webCheckoutPending?: boolean;
+	/** Actual paid subscriptions and their projections, excluding complimentary grants. */
 	subscriptions: BillingSubscription[];
 	licenses: BillingLicense[];
-}
-export interface BillingAssignment {
-	licenseId: string;
-	targetDid: DID;
-	assignedAt: string;
+	promotionalGrants?: BillingPromotionalGrant[];
 }
 export interface ChatActor {
 	did: DID;
