@@ -17,11 +17,12 @@
   "evidence": [
     "docs/changes/2026-11-20-project-craft-schema/01-requirements.md",
     "docs/changes/2026-11-20-project-craft-schema/02-acceptance-tests.md",
-    "docs/changes/2026-11-20-project-craft-schema/03-document-review.md"
+    "docs/changes/2026-11-20-project-craft-schema/03-document-review.md",
+    "docs/changes/2026-11-20-project-craft-schema/04-coding-plan.md"
   ],
   "supersededBy": [],
   "followUps": [
-    "Use the revised acceptance test specification for coding planning once the maintainer requests it.",
+    "Generate both phases' Lexicons and the local Project Schema explorer for maintainer confirmation before behaviour implementation.",
     "Verify scalar-size publishing and editing with legacy mobile and web builds before enabling plural-list writes."
   ]
 }
@@ -33,4 +34,4 @@ Phase 1 retains shared design tags, adds craft-specific suggestions and techniqu
 
 The [requirements](../2026-11-20-project-craft-schema/01-requirements.md) record the maintainer's decisions, starter vocabulary and remaining rollout checks. Scheduling covers the current authoring and publication flow. The scalar-size compatibility requirement applies to public posts and saved local drafts. The [acceptance test specification](../2026-11-20-project-craft-schema/02-acceptance-tests.md) maps those decisions to client scenarios, AppView integration coverage and rollout checks.
 
-The [document review](../2026-11-20-project-craft-schema/03-document-review.md) identified five gaps. The revised acceptance test specification adds the assertions and maps each finding to its updated test.
+The [document review](../2026-11-20-project-craft-schema/03-document-review.md) records the verified resolution of five gaps. The [coding plan](../2026-11-20-project-craft-schema/04-coding-plan.md) starts with a local Project Schema explorer review of both phases. AppView legacy size compatibility is the first behaviour test after the maintainer confirms the schema. Knitting records Hand and Machine as independent optional selections.
