@@ -55,7 +55,8 @@ final class ChatDraft {
         !ChatDraftSendState.values.any((value) => value.name == state)) {
       throw const FormatException('Invalid local messaging attempt');
     }
-    // Older records may also contain unsent edits. Restore only the submitted message.
+    // Older records may also contain unsent edits.
+    // Restore only the submitted message.
     return ChatDraft._(
       text: submitted,
       revision: revision,
