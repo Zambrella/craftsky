@@ -7,6 +7,7 @@ import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/composer/composer_ownership.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 
 /// Shared draft revision, recovery snapshot and media persistence rules.
@@ -17,6 +18,24 @@ final class ComposerDraftSession {
   final DraftSubmissionOrigin _origin;
 
   LocalPostDraft? get draft => _origin.draft;
+
+  Future<void> setInstagramPublication({
+    required InstagramPublicationDraftRepository repository,
+    required InstagramImportPublication? publication,
+  }) async {
+    final current = draft;
+    if (current == null || current.instagramImport == null) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    final saved = await repository.setInstagramPublication(
+      draftId: current.id,
+      expectedRevision: current.revision,
+      publication: publication,
+    );
+    _origin.acceptSnapshot(saved);
+  }
 
   Future<void> saveOriginSnapshot({
     required ActiveAccountLease? expectedOwner,
@@ -47,6 +66,18 @@ final class ComposerDraftSession {
     final repository = await repositoryFor(original.owner);
     await repository.delete(original.id);
     await refresh(original.owner);
+  }
+
+  bool videoChanged({
+    required LocalVideoSelection? selection,
+    required bool useStoredVideo,
+    required bool restoring,
+  }) {
+    if (restoring) return false;
+    final stored = draft?.video;
+    if (stored == null) return selection != null;
+    if (selection == null || !useStoredVideo) return true;
+    return selection.altText != stored.altText;
   }
 
   DraftVideoWrite? videoWrite({

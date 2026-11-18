@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -6,9 +7,15 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/data/api_post_repository.dart';
+import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -31,6 +38,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -196,6 +204,196 @@ void main() {
         expectCounts(await container.read(provider.future));
       });
     }
+
+    test('imports resolve with no optimistic new-post overlay', () async {
+      final source = InstagramPostImportSource(
+        sourceKey: 'abcdef0123456789abcdef0123456789',
+        createdAt: DateTime.utc(2021, 8, 4, 12),
+      );
+      final accepted = _post(rkey: 'imported').copyWith(
+        createdAt: source.createdAt,
+        externalImport: const ExternalImport(source: 'instagram'),
+      );
+      final fake = FakePostRepository(
+        onCreate: ({required text, reply, images}) async => accepted,
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      )..listen(createPostProvider, (_, _) {});
+      final result = await container
+          .read(createPostProvider.notifier)
+          .create(
+            text: 'Imported caption',
+            langs: _langs,
+            sponsored: false,
+            project: _project,
+            instagramImport: source,
+          );
+      expect(result?.externalImport?.source, 'instagram');
+      expect(result?.project, _project);
+      expect(fake.lastCreateInstagramImport, same(source));
+      expect(
+        container.read(pdsRecordOperationControllerProvider).activeOverlays,
+        isEmpty,
+      );
+    });
+
+    test('restarts and replays an imported video with its exact request and '
+        'operation key', () async {
+      final directory = await Directory.systemTemp.createTemp();
+      addTearDown(() => directory.delete(recursive: true));
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: _aliceDid,
+        handle: 'alice.test',
+      );
+      final lease = registry.activeLease!;
+      final owner = lease.session.account;
+      final source = InstagramPostImportSource(
+        sourceKey: 'abcdef0123456789abcdef0123456789',
+        createdAt: DateTime.utc(2021, 8, 4, 12),
+      );
+      const draftId = '00000000-0000-4000-8000-000000000001';
+      DraftWriteRequest draftWrite([int? revision]) => DraftWriteRequest(
+        id: draftId,
+        owner: owner,
+        kind: LocalPostDraftKind.project,
+        content: const ProjectDraftContent(
+          body: 'Original imported caption',
+          languages: _langs,
+          knownProjectFieldValues: {},
+        ),
+        schedule: const DraftScheduleIntent.now(),
+        orderedMedia: const [],
+        expectedRevision: revision,
+        instagramImport: revision == null ? source : null,
+      );
+      FileLocalPostDraftRepository store() => FileLocalPostDraftRepository(
+        documentsRoot: directory.path,
+        owner: owner,
+      );
+      final requests = <RequestOptions>[];
+      ProviderContainer openApp({required bool accepted}) {
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (request, handler) {
+              requests.add(request);
+              handler.resolve(
+                Response<Object?>(
+                  requestOptions: request,
+                  statusCode: accepted ? 201 : 202,
+                  headers: Headers.fromMap({
+                    'retry-after': ['1'],
+                  }),
+                  data: accepted
+                      ? {
+                          ..._postMap(rkey: 'imported', project: _project),
+                          'createdAt': source.createdAt.toIso8601String(),
+                          'externalImport': {'source': 'instagram'},
+                        }
+                      : {'status': 'ambiguous'},
+                ),
+              );
+            },
+          ),
+        );
+        return ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              ApiPostRepository(PostApiClient(dio)),
+            ),
+            pdsMutationDelayProvider.overrideWithValue((_) async {}),
+            pdsMutationJitterProvider.overrideWithValue((_) => 0),
+          ],
+        )..listen(createPostProvider, (_, _) {});
+      }
+
+      final firstStore = store();
+      var draft = await firstStore.save(draftWrite());
+      final firstApp = openApp(accepted: false);
+      await firstApp.read(sessionRegistryProvider.future);
+      var checkpointed = false;
+      expect(
+        await firstApp
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'Original imported caption',
+              langs: _langs,
+              sponsored: false,
+              project: _project,
+              instagramImport: source,
+              ownership: lease,
+              video: const CreatePostVideo(
+                jobId: 'video-job',
+                blob: CreatePostVideoBlob(
+                  cid: 'bafy-video',
+                  mimeType: 'video/mp4',
+                  size: 1409,
+                ),
+                alt: 'A spinning wheel',
+              ),
+              checkpointInstagramPublication: (publication) async {
+                expect(requests, isEmpty);
+                draft = await firstStore.setInstagramPublication(
+                  draftId: draftId,
+                  expectedRevision: draft.revision,
+                  publication: publication,
+                );
+                checkpointed = true;
+              },
+            ),
+        isNull,
+      );
+      expect(checkpointed, isTrue);
+      expect(
+        firstApp.read(createPostProvider).error,
+        isA<PdsMutationUnresolvedException>(),
+      );
+      final original = requests.first;
+      expect(requests.length, greaterThan(1));
+      for (final request in requests) {
+        expect(request.path, '/v1/posts');
+        expect(request.data, original.data);
+        expect(
+          request.headers['Idempotency-Key'],
+          original.headers['Idempotency-Key'],
+        );
+      }
+      firstApp.dispose();
+
+      final restartedStore = store();
+      final reopened = await restartedStore.get(draftId);
+      await expectLater(
+        restartedStore.save(draftWrite(reopened.revision)),
+        throwsA(isA<DraftRepositoryException>()),
+      );
+      final pending = reopened.instagramPublication!;
+      final restartedApp = openApp(accepted: true);
+      await restartedApp.read(sessionRegistryProvider.future);
+      final accepted = await restartedApp
+          .read(createPostProvider.notifier)
+          .retryInstagramPublication(
+            pending,
+            ownership: lease,
+            clearCheckpoint: () async => fail('The command was accepted'),
+          );
+      expect(accepted?.externalImport?.source, 'instagram');
+      expect(accepted?.project, _project);
+      expect(requests.last.path, '/v1/posts');
+      expect(requests.last.data, original.data);
+      expect(
+        requests.last.headers['Idempotency-Key'],
+        original.headers['Idempotency-Key'],
+      );
+      expect(
+        restartedApp.read(pdsRecordOperationControllerProvider).activeOverlays,
+        isEmpty,
+      );
+    });
 
     test('retries ambiguity with one immutable operation key', () async {
       var calls = 0;

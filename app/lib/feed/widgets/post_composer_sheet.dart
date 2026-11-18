@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/instagram_publication_recovery.dart';
 import 'package:craftsky_app/drafts/composer/save_composer_snapshot.dart';
 import 'package:craftsky_app/drafts/composer/standard_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
@@ -30,6 +31,7 @@ import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -228,6 +230,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   VideoPublicationProgress? _videoProgress;
   Object? _videoFailure;
   var _usesStoredDraftVideo = false;
+  var _restoringDraftVideo = false;
   var _isSubmitting = false;
   var _isSavingDraft = false;
   var _isDeletingSchedule = false;
@@ -237,6 +240,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _submissionSucceeded = false;
   Post? _pendingPublishedDraftPost;
   late final ComposerDraftSession _origin;
+  InstagramPostImportSource? get _instagramImport =>
+      _origin.draft?.instagramImport;
   List<ComposerImageDraft> _publishedImages = const [];
   late final PublishedPostEmbedEdit? _publishedEmbed;
   Future<void> Function()? _retryPublishedEdit;
@@ -258,6 +263,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       widget.scheduledPost,
     );
     _origin = ComposerDraftSession(widget.draftSeed?.draft);
+    _restoringDraftVideo =
+        _origin.draft?.video != null && widget.draftOwner != null;
     _publishedEmbed = widget.publishedEdit == null
         ? null
         : PublishedPostEmbedEdit(
@@ -391,6 +398,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   Widget build(BuildContext context) {
     ref.watch(publishingAnimationFileProvider);
     final l10n = AppLocalizations.of(context);
+    final recoveringPublication =
+        !_isSubmitting && _origin.draft?.instagramPublication != null;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
@@ -400,7 +409,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ? null
         : ref.watch(editPostProvider);
     final controlsBusy =
-        _isSubmitting || editState?.error is PdsMutationUnresolvedException;
+        _isSubmitting ||
+        _restoringDraftVideo ||
+        editState?.error is PdsMutationUnresolvedException;
     final editUnresolved = editState?.error is PdsMutationUnresolvedException;
     final editUnavailable = switch (editState?.error) {
       ApiBadRequest(code: 'post_not_found') => true,
@@ -423,7 +434,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         widget.quoteTarget != null ||
         widget.publishedEdit?.seed.post.quote != null;
     final isSchedulable =
-        !isResponse && !isQuote && widget.publishedEdit == null;
+        !isResponse &&
+        !isQuote &&
+        widget.publishedEdit == null &&
+        _instagramImport == null;
     final registry = ref.watch(sessionRegistryProvider);
     final activeLease = registry.value?.activeLease;
     if (widget.publishedEdit case final edit?) {
@@ -439,6 +453,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     if (_videoPublicationOwner != null &&
         activeLease != _videoPublicationOwner) {
       _videoPublication?.cancel();
+    }
+    if (_instagramImport != null &&
+        registry.hasValue &&
+        activeLease != widget.draftOwner) {
+      final route = ModalRoute.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && route?.isCurrent == true) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const SizedBox.shrink();
     }
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
@@ -505,7 +530,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     if (account != null) {
       ref.listen(draftSaveControllerProvider(account), (_, _) {});
     }
-    final scheduledCount = account == null
+    final scheduledCount = account == null || _instagramImport != null
         ? 0
         : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
     final capacity = ScheduleCapacityState.derive(
@@ -516,6 +541,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final trimmedText = _text.trim();
     final tooLong = !RecordTextLimits.post.accepts(_text);
     final canSubmit =
+        !_restoringDraftVideo &&
         !editUnavailable &&
         (widget.publishedEdit == null ||
             activeLease == widget.publishedEdit!.ownership) &&
@@ -553,6 +579,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
 
     ref
       ..listen(createPostProvider, (previous, next) {
+        if (recoveringPublication) return;
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(:final value?)):
             if (_origin.draft != null) {
@@ -573,8 +600,23 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             }
             context.showInfo(l10n.postCreateSuccess);
             ref.read(createPostProvider.notifier).reset();
-          case (AsyncLoading(), AsyncError()):
-            context.showError(l10n.postCreateError);
+          case (AsyncLoading(), AsyncError(:final error)):
+            if (_origin.draft?.instagramPublication != null &&
+                error is PdsMutationUnresolvedException) {
+              ref.read(createPostProvider.notifier).reset();
+              break;
+            }
+            context.showError(
+              _instagramImport == null
+                  ? l10n.postCreateError
+                  : switch (error) {
+                      ApiBadRequest(code: 'instagram_verification_required') =>
+                        l10n.instagramPostImportVerificationRequired,
+                      ApiBadRequest(code: 'instagram_post_already_imported') =>
+                        l10n.instagramPostImportAlreadyPublished,
+                      _ => l10n.postCreateError,
+                    },
+            );
             ref.read(createPostProvider.notifier).reset();
           case _:
             break;
@@ -594,16 +636,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ref.read(imagesProvider.notifier).clearNotice(notice.id);
       });
 
-    return PopScope<Post?>(
+    final composer = PopScope<Post?>(
       canPop:
-          !_isSavingDraft &&
-          !_isDeletingSchedule &&
-          !_isSubmitting &&
-          (_pendingPublishedDraftPost != null ||
-              !hasDraft ||
-              createState.isLoading),
+          recoveringPublication ||
+          (!_isSavingDraft &&
+              !_isDeletingSchedule &&
+              !_isSubmitting &&
+              (_pendingPublishedDraftPost != null ||
+                  !hasDraft ||
+                  createState.isLoading)),
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || recoveringPublication) return;
         if (_isSubmitting || _isSavingDraft || _isDeletingSchedule) return;
         final shouldClose = await _confirmClose(imagesState);
         if (!shouldClose) return;
@@ -721,6 +764,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             previewController?.updateText(_previewText(value));
                           },
                         ),
+                        if (_instagramImport != null)
+                          Text(l10n.instagramPostImportHistoricalNote),
                         ComposerMetadataControls(
                           languages: _languages!,
                           onLanguagesChanged:
@@ -1018,14 +1063,35 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ],
       ),
     );
+    if (_instagramImport == null || widget.draftOwner == null) return composer;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(
+          offstage: recoveringPublication,
+          child: ExcludeFocus(
+            excluding: recoveringPublication,
+            child: composer,
+          ),
+        ),
+        if (recoveringPublication)
+          InstagramPublicationRecovery(
+            session: _origin,
+            owner: widget.draftOwner!,
+            onCleared: () => setState(() {}),
+          ),
+      ],
+    );
   }
 
   String _previewText(String text) =>
-      widget.publishedEdit != null &&
-          (text == _initialText ||
-              _publishedEmbed?.hasExternal == true ||
-              _publishedEmbed?.hasRetainedVideo == true ||
-              widget.publishedEdit!.seed.editable['unsupportedEmbed'] == true)
+      (_instagramImport != null && text == _initialText) ||
+          widget.publishedEdit != null &&
+              (text == _initialText ||
+                  _publishedEmbed?.hasExternal == true ||
+                  _publishedEmbed?.hasRetainedVideo == true ||
+                  widget.publishedEdit!.seed.editable['unsupportedEmbed'] ==
+                      true)
       ? ''
       : text;
 
@@ -1093,7 +1159,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         _scheduledAtLocal != _initialScheduledAtLocal ||
         _sponsored != _initialSponsored ||
         mediaChanged ||
-        _videoController.selection != null;
+        _origin.videoChanged(
+          selection: _videoController.selection,
+          useStoredVideo: _usesStoredDraftVideo,
+          restoring: _restoringDraftVideo,
+        );
   }
 
   Future<void> _editImage(String imageId) async {
@@ -1116,7 +1186,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   }
 
   Future<void> _saveDraft(ComposerImagesState imagesState) async {
-    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+    if (_restoringDraftVideo ||
+        ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
       return;
     }
     final active = ref.read(sessionRegistryProvider).value?.activeLease;
@@ -1183,13 +1254,29 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ).future,
       );
       final video = await _origin.restoreVideo(seed, repository);
-      if (!mounted || video == null) return;
+      if (!mounted) return;
+      if (video == null) {
+        if (_instagramImport != null) {
+          context.showError(
+            AppLocalizations.of(context).postVideoSelectionFailed,
+          );
+        }
+        return;
+      }
       setState(() {
         _videoController.restoredSelection = video;
         _usesStoredDraftVideo = true;
       });
     } on Object {
-      // Damaged drafts remain editable after the missing video is replaced.
+      if (mounted && _instagramImport != null) {
+        context.showError(
+          AppLocalizations.of(context).postVideoSelectionFailed,
+        );
+      }
+    } finally {
+      if (mounted && _restoringDraftVideo) {
+        setState(() => _restoringDraftVideo = false);
+      }
     }
   }
 
@@ -1214,6 +1301,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       widget.publishedEdit == null &&
       (hasDraft ?? _hasDraft(imagesState)) &&
       imagesState.canSaveDraftMedia() &&
+      !_restoringDraftVideo &&
       !_isSavingDraft &&
       !_isSubmitting;
 
@@ -1248,7 +1336,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _unsavedRegistration,
       owner: owner,
       isDirty: () =>
-          mounted && _hasDraft(ref.read(composerImagesProvider(_composerId))),
+          mounted &&
+          _origin.draft?.instagramPublication == null &&
+          _hasDraft(ref.read(composerImagesProvider(_composerId))),
       confirmAndClose: () async {
         if (!mounted) return true;
         final imagesState = ref.read(composerImagesProvider(_composerId));
@@ -1278,9 +1368,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       if (quota != null) {
         context.showInfo(quota);
       }
-      setState(() => _usesStoredDraftVideo = false);
       final selected = _videoController.selection;
       if (selected != null && !identical(previous, selected)) {
+        setState(() => _usesStoredDraftVideo = false);
         await showComposerVideoDetails(
           context,
           selection: selected,
@@ -1312,6 +1402,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       final created = await ref
           .read(createPostProvider.notifier)
           .create(
+            instagramImport: _instagramImport,
+            checkpointInstagramPublication: instagramPublicationCheckpoint(
+              ref,
+              _origin,
+              owner,
+            ),
             text: trimmedText,
             langs: _languages!.values,
             sponsored: _sponsored,
@@ -1331,6 +1427,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         final created = await ref
             .read(createPostProvider.notifier)
             .create(
+              instagramImport: _instagramImport,
+              checkpointInstagramPublication: instagramPublicationCheckpoint(
+                ref,
+                _origin,
+                owner,
+              ),
               text: trimmedText,
               langs: _languages!.values,
               sponsored: _sponsored,
@@ -1628,6 +1730,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       final created = await ref
           .read(createPostProvider.notifier)
           .create(
+            instagramImport: _instagramImport,
+            checkpointInstagramPublication: instagramPublicationCheckpoint(
+              ref,
+              _origin,
+              submissionOwner,
+            ),
             text: trimmedText,
             langs: _languages!.values,
             sponsored: widget.replyTarget == null && _sponsored,
@@ -1647,7 +1755,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     ActiveAccountLease? submissionOwner,
     Future<void> Function() operation,
   ) async {
-    if (_submissionCoordinator.isRunning) return;
+    if (_submissionCoordinator.isRunning ||
+        _origin.draft?.instagramPublication != null) {
+      return;
+    }
     _submissionSucceeded = false;
     _pendingPublishedDraftPost = null;
     _videoFailure = null;
@@ -1677,6 +1788,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         if (mounted) setState(() => _isSubmitting = running);
       },
       onFailure: (_) {
+        if (_origin.draft?.instagramPublication != null) return;
         if (mounted &&
             (widget.publishedEdit == null ||
                 _submissionOwnershipIsCurrent(submissionOwner))) {

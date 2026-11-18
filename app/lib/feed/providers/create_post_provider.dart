@@ -3,9 +3,13 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/feed/data/post_api_client.dart';
+import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
@@ -31,6 +35,10 @@ import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'create_post_provider.g.dart';
+
+typedef InstagramPublicationCheckpoint = Future<void> Function(
+  InstagramImportPublication? publication,
+);
 
 final _diagnosticLog = Logger('CreatePostMutation');
 
@@ -58,16 +66,11 @@ class CreatePost extends _$CreatePost {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
+    InstagramPostImportSource? instagramImport,
     ActiveAccountLease? ownership,
     bool allowVideoBlobRecovery = false,
+    InstagramPublicationCheckpoint? checkpointInstagramPublication,
   }) async {
-    final reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
-    final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
-    final accountOperation = ActiveAccountOperation.fromLease(
-      ref,
-      operationOwnership,
-    );
-    if (!accountOperation.isCurrent) return null;
     final frozenLangs = List<String>.unmodifiable(langs);
     final frozenImages = images == null
         ? null
@@ -77,55 +80,40 @@ class CreatePost extends _$CreatePost {
         : (jsonDecode(jsonEncode(facets)) as List)
               .map((item) => Map<String, dynamic>.from(item as Map))
               .toList(growable: false);
-    const endpoint = '/v1/posts';
-    final immutableBody = jsonEncode({
-      'text': text,
-      'langs': frozenLangs,
-      'sponsored': sponsored,
-      'reply': reply?.toMap(),
-      'quote': quote?.toMap(),
-      'quoteImageCid': quoteImageCid,
-      'project': project?.toCreateMap(),
-      'images': frozenImages?.map((image) => image.toMap()).toList(),
-      'external': external?.toMap(),
-      'video': video?.toMap(),
-      'facets': frozenFacets,
-    });
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final token = controller.beginOrRetry(
-      scope: postCreateOperationScope(operationOwnership),
-      endpoint: endpoint,
-      immutableBody: immutableBody,
+    final request = PostApiClient.createRequestBody(
+      text: text,
+      langs: frozenLangs,
+      sponsored: sponsored,
+      reply: reply,
+      quote: quote,
+      quoteImageCid: quoteImageCid,
+      project: project,
+      images: frozenImages,
+      external: external,
+      video: video,
+      facets: frozenFacets,
+      instagramImport: instagramImport,
+    );
+    InstagramImportPublication? frozenImport;
+    return await _publish(
+      ownership: ownership,
+      instagramImport: instagramImport,
+      immutableBody: jsonEncode(request),
       newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    final retry = PdsMutationRetry(
-      ref: ref,
-      controller: controller,
-      token: token,
-      isCurrent: () => accountOperation.isCurrent,
-      requireCurrentToken: false,
-    );
-
-    state = const AsyncLoading<Post?>();
-    late final repository = ref.read(postRepositoryProvider);
-    while (true) {
-      late Post created;
-      try {
-        final repo = repository;
+      send: (repository, operationKey) {
         assert(
           project == null || reply == null,
           'Project posts cannot be replies',
         );
-        assert(
-          quote == null || reply == null,
-          'Quote posts cannot be replies',
-        );
+        assert(quote == null || reply == null, 'Quote posts cannot be replies');
         assert(
           quote == null || project == null,
           'Project posts cannot be quote posts',
         );
-        created = await repo.create(
+        if (frozenImport case final pending?) {
+          return repository.publishPreparedInstagramImport(pending);
+        }
+        return repository.create(
           operationKey: operationKey,
           text: text,
           langs: frozenLangs,
@@ -138,7 +126,95 @@ class CreatePost extends _$CreatePost {
           external: external,
           video: video,
           facets: frozenFacets,
+          instagramImport: instagramImport,
         );
+      },
+      beforeSend: checkpointInstagramPublication == null
+          ? null
+          : (key) async {
+              final pending = InstagramImportPublication(
+                operationKey: key,
+                request: request,
+              );
+              await checkpointInstagramPublication(pending);
+              frozenImport = pending;
+            },
+      clearCheckpoint: checkpointInstagramPublication == null
+          ? null
+          : () => checkpointInstagramPublication(null),
+      reply: reply,
+      quote: quote,
+      project: project,
+      langs: frozenLangs,
+      allowVideoBlobRecovery: allowVideoBlobRecovery,
+    );
+  }
+
+  Future<Post?> retryInstagramPublication(
+    InstagramImportPublication pending, {
+    required ActiveAccountLease ownership,
+    required Future<void> Function() clearCheckpoint,
+  }) => _publish(
+    ownership: ownership,
+    instagramImport: pending.source,
+    immutableBody: pending.encodedRequest,
+    newOperationKey: () => pending.operationKey,
+    send: (repository, _) => repository.publishPreparedInstagramImport(pending),
+    clearCheckpoint: clearCheckpoint,
+  );
+
+  Future<Post?> _publish({
+    required ActiveAccountLease? ownership,
+    required InstagramPostImportSource? instagramImport,
+    required String immutableBody,
+    required String Function() newOperationKey,
+    required Future<Post> Function(PostRepository, String) send,
+    Future<void> Function(String operationKey)? beforeSend,
+    Future<void> Function()? clearCheckpoint,
+    PostReply? reply,
+    PostRef? quote,
+    Project? project,
+    List<String>? langs,
+    bool allowVideoBlobRecovery = false,
+  }) async {
+    final reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
+    final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.fromLease(
+      ref,
+      operationOwnership,
+    );
+    if (!accountOperation.isCurrent) return null;
+    final controller = ref.read(pdsRecordOperationControllerProvider);
+    final token = controller.beginOrRetry(
+      scope: postCreateOperationScope(
+        operationOwnership,
+        instagramImport: instagramImport,
+      ),
+      endpoint: '/v1/posts',
+      immutableBody: immutableBody,
+      newOperationKey: newOperationKey,
+    );
+    final operationKey = token.operationKey;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
+
+    state = const AsyncLoading<Post?>();
+    late final repository = ref.read(postRepositoryProvider);
+    var needsCheckpoint = beforeSend != null;
+    while (true) {
+      late Post created;
+      try {
+        if (needsCheckpoint) {
+          await beforeSend!(operationKey);
+          needsCheckpoint = false;
+          if (!accountOperation.isCurrent) return null;
+        }
+        created = await send(repository, operationKey);
       } on PdsMutationAmbiguousException catch (error, stackTrace) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return null;
@@ -202,6 +278,19 @@ class CreatePost extends _$CreatePost {
           return null;
         }
         controller.markFailed(token);
+        if (!needsCheckpoint &&
+            clearCheckpoint != null &&
+            _canEditAfterRejection(error)) {
+          try {
+            await clearCheckpoint();
+          } on Object catch (checkpointError, checkpointStack) {
+            if (accountOperation.isCurrent) {
+              state = AsyncError<Post?>(checkpointError, checkpointStack);
+            }
+            return null;
+          }
+          if (!accountOperation.isCurrent) return null;
+        }
         if (allowVideoBlobRecovery &&
             error is ApiException &&
             error.details.appViewError == 'video_blob_missing') {
@@ -225,14 +314,14 @@ class CreatePost extends _$CreatePost {
       if (project != null && post.project == null) {
         post = post.copyWith(project: project);
       }
-      if (post.langs.isEmpty) {
-        post = post.copyWith(langs: frozenLangs);
+      if (post.langs.isEmpty && langs != null) {
+        post = post.copyWith(langs: langs);
       }
       if (!accountOperation.isCurrent) {
         return null;
       }
 
-      final accepted = reply == null
+      final accepted = reply == null && instagramImport == null
           ? controller.markAccepted(
               token,
               overlayScope: postRecordMutationScope(ref, post),
@@ -250,11 +339,31 @@ class CreatePost extends _$CreatePost {
       if (!accepted) {
         return null;
       }
-      publishProfilePostStats(ref, post);
+      if (instagramImport == null) {
+        publishProfilePostStats(ref, post);
+      } else {
+        // AppView indexes historical imports in profile and search order. The
+        // ordinary publication overlay would show them as new home feed posts.
+        _invalidatePostMutationReads(ref, post);
+      }
       state = AsyncData<Post?>(post);
       return post;
     }
   }
+
+  bool _canEditAfterRejection(Object error) => switch (error) {
+    ApiBadRequest(
+      code: 'instagram_verification_required' || 'idempotency_conflict',
+    ) =>
+      false,
+    ApiBadRequest(details: ApiFailureDetails(statusCode: 403 || 429)) => false,
+    ApiBadRequest() => true,
+    ApiServerError(
+      details: ApiFailureDetails(appViewError: 'video_blob_missing'),
+    ) =>
+      true,
+    _ => false,
+  };
 
   /// Resets the notifier to its idle state. Call after consuming a
   /// success/failure transition so a re-entry doesn't see prior result.

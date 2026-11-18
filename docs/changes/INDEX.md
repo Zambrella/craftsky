@@ -185,7 +185,7 @@ These are package-specific historical limits and questions. Check later evidence
 | --- | --- | --- | --- | --- |
 | [Instagram ownership verification and private follow suggestions](catalog/2026-07-11-instagram-dm-verification.md) | implemented | archived | verification, relationships | Records Instagram DM ownership verification and its later replacement of background follows with private member-accepted suggestions. |
 | [Retired standalone Instagram archive importer](catalog/2026-07-23-instagram-post-importer.md) | superseded | archived | imports, provenance | This is the historical design and verification record for the standalone Instagram archive-import website, which was removed on 13 November 2026 after client implementation. |
-| [Integrated Instagram post and project imports](catalog/2026-11-09-integrated-instagram-imports.md) | implemented | archived | imports, provenance | Replaced the standalone importer with verified web-client archive review, standard/project composer handoff, and private durable duplicate tracking. |
+| [Integrated Instagram post and project imports](catalog/2026-11-09-integrated-instagram-imports.md) | implemented | archived | imports, provenance | Replaced the standalone importer with verified web and Flutter archive review, standard/project composer handoff, and shared private duplicate tracking. |
 
 ## languages
 

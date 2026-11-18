@@ -2652,11 +2652,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsLoadError => 'Projects didn\'t load.';
 
   @override
-  String get instagramMigrationTitle => 'Find people from Instagram';
+  String get instagramMigrationTitle => 'Instagram';
 
   @override
   String get instagramMigrationSettingsSubtitle =>
-      'Verify your account or privately import handles.';
+      'Verify your account and import posts or accounts you follow.';
 
   @override
   String get instagramMigrationLoadError =>
@@ -2789,6 +2789,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramAccountTitle => 'Instagram account';
 
   @override
+  String get instagramPostImportAlreadyPublished =>
+      'This Instagram post has already been imported. Return to the import list to check its status.';
+
+  @override
+  String get instagramPostImportHistoricalNote =>
+      'This post keeps its original Instagram date and appears on your profile and in search.';
+
+  @override
+  String get instagramPostImportPendingPublication =>
+      'CraftSky couldn’t confirm whether this Instagram post was published. Retrying uses your original submission.';
+
+  @override
+  String get instagramPostImportRetryPublication => 'Retry publication';
+
+  @override
   String instagramLinkedAs(String username) {
     return 'Verified as @$username';
   }
@@ -2834,6 +2849,201 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramImportHelp => 'How to export your Instagram following';
+
+  @override
+  String get instagramPostImportTitle => 'Import posts and projects';
+
+  @override
+  String get instagramPostImportIntro =>
+      'Review your Instagram posts and choose which ones to publish on CraftSky.';
+
+  @override
+  String get instagramPostImportInstructions =>
+      'In your Instagram export, select Posts and Reels, JSON format, and All time. Then choose the downloaded ZIP.';
+
+  @override
+  String get instagramPostImportPrivacy =>
+      'Your archive stays on this device. CraftSky checks a reference for each post to identify duplicates. Only the posts you publish share their caption, selected media and original date.';
+
+  @override
+  String get instagramPostImportVerificationRequired =>
+      'Verify or reactivate your Instagram account to import posts and projects.';
+
+  @override
+  String get instagramPostImportChooseZip => 'Choose Instagram ZIP';
+
+  @override
+  String get instagramPostImportClear => 'Clear export';
+
+  @override
+  String get instagramPostImportReading => 'Reading your export…';
+
+  @override
+  String get instagramPostImportPreparing => 'Preparing your post…';
+
+  @override
+  String get instagramPostImportChecking => 'Checking previous imports…';
+
+  @override
+  String get instagramPostImportLookupError =>
+      'Couldn\'t check previous imports. Try again before opening a composer.';
+
+  @override
+  String get instagramPostImportOpenError =>
+      'Couldn\'t prepare this post. Check your export or choose different media.';
+
+  @override
+  String get instagramPostImportReadError =>
+      'Couldn\'t read this posts export. Choose an Instagram JSON export that includes Posts and Reels.';
+
+  @override
+  String get instagramPostImportEmpty =>
+      'No supported posts were found in this export.';
+
+  @override
+  String get instagramPostImportNoCaption => 'No caption';
+
+  @override
+  String get instagramPostImportCreatePost => 'Create post';
+
+  @override
+  String get instagramPostImportCreateProject => 'Create project';
+
+  @override
+  String get instagramPostImportPosted => 'Posted';
+
+  @override
+  String get instagramPostImportProjectCreated => 'Project created';
+
+  @override
+  String get instagramPostImportViewPost => 'View post';
+
+  @override
+  String get instagramPostImportViewProject => 'View project';
+
+  @override
+  String get instagramPostImportMore => 'Show more posts';
+
+  @override
+  String get instagramPostImportMediaTitle => 'Choose media';
+
+  @override
+  String get instagramPostImportMediaHelp =>
+      'Choose up to eight photos or one video. Only the selected media will be added.';
+
+  @override
+  String get instagramPostImportPhotos => 'Photos';
+
+  @override
+  String get instagramPostImportVideo => 'One video';
+
+  @override
+  String get instagramPostImportContinue => 'Open composer';
+
+  @override
+  String get instagramPostImportMediaRecoveryTitle =>
+      'Some media couldn\'t be added';
+
+  @override
+  String get instagramPostImportMediaRecoveryMessage =>
+      'You can add replacement media in the composer.';
+
+  @override
+  String get instagramPostImportContinueWithoutMedia =>
+      'Continue without media';
+
+  @override
+  String instagramPostImportContinueWithPhotos(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Continue with $count photos',
+      one: 'Continue with 1 photo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get instagramPostImportContinueWithVideo => 'Continue with video';
+
+  @override
+  String instagramPostImportPhotoLabel(int number) {
+    return 'Photo $number';
+  }
+
+  @override
+  String instagramPostImportVideoLabel(int number) {
+    return 'Video $number';
+  }
+
+  @override
+  String instagramPostImportCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count posts',
+      one: '1 post',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramPostImportSkipped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unsupported or invalid entries skipped',
+      one: '1 unsupported or invalid entry skipped',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String instagramPostImportMediaSummary(
+    int photos,
+    int videos,
+    int characters,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      photos,
+      locale: localeName,
+      other: '$photos photos',
+      one: '1 photo',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      videos,
+      locale: localeName,
+      other: '$videos videos',
+      one: '1 video',
+    );
+    String _temp2 = intl.Intl.pluralLogic(
+      characters,
+      locale: localeName,
+      other: '$characters characters',
+      one: '1 character',
+    );
+    return '$_temp0 · $_temp1 · $_temp2';
+  }
+
+  @override
+  String get instagramPostImportCaptionLimit =>
+      'Shorten the caption to 2,000 characters or fewer before publishing.';
+
+  @override
+  String get instagramPostImportPhotoLimit =>
+      'Choose up to eight photos for this post.';
+
+  @override
+  String get instagramPostImportMultipleVideos =>
+      'Choose one video for this post.';
+
+  @override
+  String get instagramPostImportMixedMedia =>
+      'This post contains photos and videos. Choose one type to import.';
+
+  @override
+  String get instagramPostImportUnavailableMedia =>
+      'Some media is missing, unsupported or too large to import.';
 
   @override
   String get instagramImportHandles => 'Instagram handles';

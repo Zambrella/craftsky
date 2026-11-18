@@ -270,11 +270,11 @@ void main() {
       );
       expect(find.text('Following'), findsOneWidget);
       await tester.scrollUntilVisible(
-        find.text('Find people from Instagram'),
+        find.text('Instagram'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('Find people from Instagram'), findsOneWidget);
+      expect(find.text('Instagram'), findsOneWidget);
       expect(find.text('Saved posts'), findsNothing);
       expect(find.text('Scheduled posts'), findsNothing);
       expect(find.text('Drafts'), findsNothing);
@@ -415,16 +415,16 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Find people from Instagram'),
+      find.text('Instagram'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await Scrollable.ensureVisible(
-      tester.element(find.text('Find people from Instagram')),
+      tester.element(find.text('Instagram')),
       alignment: 0.5,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Find people from Instagram'));
+    await tester.tap(find.text('Instagram'));
     await tester.pumpAndSettle();
 
     expect(router.state.uri.path, '/settings/instagram');

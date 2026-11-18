@@ -2,6 +2,7 @@ import 'package:craftsky_app/instagram_migration/data/instagram_migration_api_cl
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 
@@ -69,6 +70,11 @@ final class ApiInstagramMigrationRepository
 
   @override
   Future<void> deleteImport(String importId) => _api.deleteImport(importId);
+
+  @override
+  Future<List<InstagramPublishedImport>> lookupPostImports(
+    List<String> sourceKeys,
+  ) => _api.lookupPostImports(sourceKeys);
 
   @override
   Future<InstagramSuggestionPage> listSuggestions({

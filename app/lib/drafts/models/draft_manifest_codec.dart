@@ -6,6 +6,8 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 
 export 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 
@@ -16,6 +18,11 @@ abstract final class DraftManifestCodec {
   static String encode(LocalPostDraft draft) {
     _validateMediaList(draft.media);
     draft.video?.validate();
+    _validateImportSchedule(draft.instagramImport, draft.schedule);
+    _validateInstagramPublication(
+      draft.instagramImport,
+      draft.instagramPublication,
+    );
     return jsonEncode({
       'schemaVersion': schemaVersion,
       'id': draft.id,
@@ -31,6 +38,8 @@ abstract final class DraftManifestCodec {
           'scheduledAtUtc': scheduledAt.toUtc().toIso8601String(),
         'savedOffsetMinutes': ?draft.schedule.savedOffsetMinutes,
       },
+      'instagramImport': ?draft.instagramImport?.toMap(),
+      'instagramPublication': ?draft.instagramPublication?.toMap(),
       'media': draft.media.map(_encodeMedia).toList(growable: false),
       if (draft.video case final video?) 'video': _encodeVideo(video),
     });
@@ -45,7 +54,23 @@ abstract final class DraftManifestCodec {
         );
       }
       final content = manifest['content']! as Map<String, Object?>;
-      final schedule = manifest['schedule']! as Map<String, Object?>;
+      final schedule = _decodeSchedule(
+        manifest['schedule']! as Map<String, Object?>,
+      );
+      final rawImport = manifest['instagramImport'];
+      final instagramImport = rawImport == null
+          ? null
+          : InstagramPostImportSource.fromMap(
+              rawImport as Map<String, Object?>,
+            );
+      _validateImportSchedule(instagramImport, schedule);
+      final rawPublication = manifest['instagramPublication'];
+      final publication = rawPublication == null
+          ? null
+          : InstagramImportPublication.fromMap(
+              rawPublication as Map<String, Object?>,
+            );
+      _validateInstagramPublication(instagramImport, publication);
       final media = manifest['media']! as List<Object?>;
 
       return LocalPostDraft(
@@ -56,7 +81,9 @@ abstract final class DraftManifestCodec {
         updatedAt: DateTime.parse(manifest['updatedAt']! as String).toUtc(),
         revision: manifest['revision']! as int,
         content: _decodeContent(content),
-        schedule: _decodeSchedule(schedule),
+        schedule: schedule,
+        instagramImport: instagramImport,
+        instagramPublication: publication,
         media: _decodeMediaList(media),
         video: _decodeVideo(manifest['video']),
       );
@@ -71,6 +98,24 @@ abstract final class DraftManifestCodec {
         ),
         stackTrace,
       );
+    }
+  }
+
+  static void _validateInstagramPublication(
+    InstagramPostImportSource? source,
+    InstagramImportPublication? publication,
+  ) {
+    if (publication != null && !publication.matchesSource(source)) {
+      throw const DraftManifestException(DraftManifestFailureReason.corrupt);
+    }
+  }
+
+  static void _validateImportSchedule(
+    InstagramPostImportSource? instagramImport,
+    DraftScheduleIntent schedule,
+  ) {
+    if (instagramImport != null && schedule.choice != DraftScheduleChoice.now) {
+      throw const DraftManifestException(DraftManifestFailureReason.corrupt);
     }
   }
 

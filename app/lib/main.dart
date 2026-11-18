@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/application_startup.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_post_import_workspace.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
     () async {
       final binding = WidgetsFlutterBinding.ensureInitialized();
       FlutterNativeSplash.preserve(widgetsBinding: binding);
+      unawaited(recoverInstagramPostImportWorkspace());
       var preferencesConfigured = false;
       await runApplicationStartup(
         removeSplash: FlutterNativeSplash.remove,

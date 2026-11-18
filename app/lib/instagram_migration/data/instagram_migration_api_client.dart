@@ -1,10 +1,12 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 
 final class InstagramMigrationApiClient {
@@ -162,6 +164,59 @@ final class InstagramMigrationApiClient {
     );
     _requireStatus(response, 204);
   });
+
+  Future<List<InstagramPublishedImport>> lookupPostImports(
+    List<String> sourceKeys,
+  ) async {
+    if (sourceKeys.isEmpty) return const [];
+    if (sourceKeys.length > 100 ||
+        !sourceKeys.every(InstagramPublishedImport.isSourceKey)) {
+      throw ArgumentError('Expected up to 100 Instagram source keys.');
+    }
+    final requested = sourceKeys.toSet();
+    return await unwrapApi(() async {
+      final response = await _dio.post<Object?>(
+        '/v1/migrations/instagram/post-imports/lookup',
+        data: {'sourceKeys': requested.toList()},
+      );
+      _requireStatus(response, 200);
+      try {
+        final data = response.data;
+        if (data is! Map<String, dynamic> || data['items'] is! List<dynamic>) {
+          throw const FormatException('invalid_instagram_import_lookup');
+        }
+        final items = <InstagramPublishedImport>[];
+        for (final entry in data['items'] as List<dynamic>) {
+          if (entry is! Map<String, dynamic>) {
+            throw const FormatException('invalid_instagram_import_lookup_item');
+          }
+          final item = InstagramPublishedImport.fromMap(entry);
+          if (!requested.remove(item.sourceKey)) {
+            throw const FormatException(
+              'unexpected_instagram_import_lookup_item',
+            );
+          }
+          items.add(item);
+        }
+        return List.unmodifiable(items);
+      } on Object catch (error, stack) {
+        Error.throwWithStackTrace(
+          ApiServerError(
+            'invalid_instagram_response',
+            details: ErrorMappingInterceptor.detailsFor(
+              DioException(
+                requestOptions: response.requestOptions,
+                response: response,
+                error: error,
+                stackTrace: stack,
+              ),
+            ),
+          ),
+          stack,
+        );
+      }
+    });
+  }
 
   Future<InstagramSuggestionPage> listSuggestions({
     int? limit,

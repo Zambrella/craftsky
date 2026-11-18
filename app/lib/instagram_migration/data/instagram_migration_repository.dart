@@ -1,5 +1,6 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 
@@ -41,6 +42,10 @@ abstract interface class InstagramMigrationRepository {
   );
 
   Future<void> deleteImport(String importId);
+
+  Future<List<InstagramPublishedImport>> lookupPostImports(
+    List<String> sourceKeys,
+  );
 
   Future<InstagramSuggestionPage> listSuggestions({
     int? limit,

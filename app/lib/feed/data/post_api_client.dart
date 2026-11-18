@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -174,7 +176,8 @@ class PostApiClient {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
-  }) => unwrapPdsMutationApi(() async {
+    InstagramPostImportSource? instagramImport,
+  }) async {
     assertProjectCreateIsTopLevel(project: project, reply: reply);
     assert(
       quote == null || reply == null,
@@ -201,26 +204,69 @@ class PostApiClient {
               reply == null),
       'Video conflicts with other media and replies',
     );
+    return await _sendPostCreate(
+      operationKey,
+      createRequestBody(
+        text: text,
+        langs: langs,
+        sponsored: sponsored,
+        project: project,
+        reply: reply,
+        quote: quote,
+        quoteImageCid: quoteImageCid,
+        external: external,
+        video: video,
+        images: images,
+        facets: facets,
+        instagramImport: instagramImport,
+      ),
+    );
+  }
+
+  static Map<String, Object?> createRequestBody({
+    required String text,
+    required List<String> langs,
+    required bool sponsored,
+    PostReply? reply,
+    PostRef? quote,
+    String? quoteImageCid,
+    Project? project,
+    List<CreatePostImage>? images,
+    CreatePostExternal? external,
+    CreatePostVideo? video,
+    List<Map<String, dynamic>>? facets,
+    InstagramPostImportSource? instagramImport,
+  }) => {
+    'text': text,
+    'langs': langs,
+    'sponsored': sponsored,
+    'project': ?project?.toCreateMap(),
+    'reply': ?reply?.toMap(),
+    'embed': ?switch ((quote, external, video)) {
+      (final quote?, _, _) => {
+        'quote': quote.toMap(),
+        'imageCid': ?quoteImageCid,
+      },
+      (_, final external?, _) => {'external': external.toMap()},
+      (_, _, final video?) => {'video': video.toMap()},
+      _ => null,
+    },
+    'images': ?images?.map((image) => image.toMap()).toList(),
+    'facets': ?facets,
+    'instagramImport': ?instagramImport?.toMap(),
+  };
+
+  Future<Post> publishPreparedInstagramImport(
+    InstagramImportPublication pending,
+  ) => _sendPostCreate(pending.operationKey, pending.request);
+
+  Future<Post> _sendPostCreate(
+    String operationKey,
+    Map<String, Object?> body,
+  ) => unwrapPdsMutationApi(() async {
     final res = await _dio.post<Object?>(
       '/v1/posts',
-      data: {
-        'text': text,
-        'langs': langs,
-        'sponsored': sponsored,
-        'project': ?project?.toCreateMap(),
-        'reply': ?reply?.toMap(),
-        'embed': ?switch ((quote, external, video)) {
-          (final quote?, _, _) => {
-            'quote': quote.toMap(),
-            'imageCid': ?quoteImageCid,
-          },
-          (_, final external?, _) => {'external': external.toMap()},
-          (_, _, final video?) => {'video': video.toMap()},
-          _ => null,
-        },
-        'images': ?images?.map((image) => image.toMap()).toList(),
-        'facets': ?facets,
-      },
+      data: body,
       options: Options(
         headers: {'Idempotency-Key': operationKey},
         validateStatus: (status) =>

@@ -520,7 +520,7 @@ void main() {
       'Muted accounts',
       'Blocked accounts',
       'Discovery',
-      'Find people from Instagram',
+      'Instagram',
       'General',
       if (subscriptionsEnabled) 'Your CraftSky subscription',
       'Account standing',
@@ -800,7 +800,7 @@ final _routeCases = <_SettingsRouteCase>[
     matchesPage: (widget) => widget is LanguagesPage,
   ),
   _SettingsRouteCase(
-    label: 'Find people from Instagram',
+    label: 'Instagram',
     location: '/settings/instagram',
     matchesPage: (widget) => widget is InstagramMigrationPage,
   ),

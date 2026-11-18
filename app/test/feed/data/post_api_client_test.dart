@@ -2,6 +2,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/api_post_repository.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
@@ -241,6 +242,45 @@ void main() {
       expect(post.rkey, '3lf2abc');
       expect(post.viewerHasReplied, isTrue);
     });
+
+    test(
+      'sends the private Instagram source with the original timestamp',
+      () async {
+        final dio = buildDio();
+        const fingerprint = 'abcdef0123456789abcdef0123456789';
+        const createdAt = '2021-08-04T12:00:00.000Z';
+        DioAdapter(dio: dio).onPost(
+          '/v1/posts',
+          (server) => server.reply(201, {
+            ...samplePost(text: 'Imported caption'),
+            'createdAt': createdAt,
+            'externalImport': {'source': 'instagram'},
+          }),
+          data: {
+            'text': 'Imported caption',
+            'langs': createLangs,
+            'sponsored': false,
+            'instagramImport': {
+              'sourceKey': fingerprint,
+              'createdAt': createdAt,
+            },
+          },
+        );
+
+        final post = await PostApiClient(dio).createPost(
+          operationKey: createOperationKey,
+          text: 'Imported caption',
+          langs: createLangs,
+          sponsored: false,
+          instagramImport: InstagramPostImportSource(
+            sourceKey: fingerprint,
+            createdAt: DateTime.parse(createdAt),
+          ),
+        );
+        expect(post.createdAt, DateTime.parse(createdAt));
+        expect(post.externalImport?.source, 'instagram');
+      },
+    );
 
     test('omits reply for top-level posts', () async {
       final dio = buildDio();

@@ -7,6 +7,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
+import 'package:craftsky_app/instagram_migration/pages/instagram_post_import_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_imports_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
@@ -147,6 +148,26 @@ class _InstagramMigrationBody extends ConsumerWidget {
                   ),
                 ),
                 SizedBox(height: spacing.sp4),
+                if (canImportInstagramPosts(account.value?.account)) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ChunkyButton(
+                      key: const Key('instagram-post-import-open'),
+                      onPressed: () =>
+                          Navigator.of(context, rootNavigator: true).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => InstagramPostImportPage(
+                                lease: lease,
+                              ),
+                            ),
+                          ),
+                      child: Text(
+                        AppLocalizations.of(context).instagramPostImportTitle,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: spacing.sp4),
+                ],
                 account.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, _) => const SizedBox.shrink(),

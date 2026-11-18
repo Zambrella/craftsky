@@ -1,6 +1,8 @@
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -33,7 +35,12 @@ abstract interface class PostRepository {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
+    InstagramPostImportSource? instagramImport,
   });
+
+  Future<Post> publishPreparedInstagramImport(
+    InstagramImportPublication pending,
+  );
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> fetch(Did did, RecordKey rkey);

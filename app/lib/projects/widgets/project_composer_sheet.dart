@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/instagram_publication_recovery.dart';
 import 'package:craftsky_app/drafts/composer/save_composer_snapshot.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
@@ -28,6 +29,7 @@ import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
@@ -278,6 +280,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   VideoPublicationProgress? _videoProgress;
   Object? _videoFailure;
   var _usesStoredDraftVideo = false;
+  var _restoringDraftVideo = false;
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
   bool _sponsored = false;
@@ -285,6 +288,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   bool _submissionSucceeded = false;
   Post? _pendingPublishedDraftPost;
   late final ComposerDraftSession _origin;
+  InstagramPostImportSource? get _instagramImport =>
+      _origin.draft?.instagramImport;
   late final PublishedPostEmbedEdit? _publishedEmbed;
   Future<void> Function()? _retryPublishedEdit;
   List<ComposerImageDraft> _publishedImages = const [];
@@ -298,6 +303,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _origin = ComposerDraftSession(widget.draftSeed?.draft);
+    _restoringDraftVideo =
+        _origin.draft?.video != null && widget.draftOwner != null;
     _publishedEmbed = widget.publishedEdit == null
         ? null
         : PublishedPostEmbedEdit(
@@ -316,6 +323,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         : hydrateScheduledProjectComposer(
             project is Map<String, dynamic> ? project : null,
           );
+    if (draftContent is ProjectDraftContent) {
+      _initialFormValues.putIfAbsent(
+        ProjectComposerFields.status,
+        () => ProjectOptionCatalogs.finishedStatusToken,
+      );
+    }
     if (widget.draftSeed == null &&
         widget.scheduledPost == null &&
         widget.publishedEdit == null) {
@@ -491,6 +504,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   Widget build(BuildContext context) {
     ref.watch(publishingAnimationFileProvider);
     final l10n = AppLocalizations.of(context);
+    final recoveringPublication =
+        !_isSubmitting && _origin.draft?.instagramPublication != null;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
@@ -513,10 +528,22 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final selectedVideo = _videoController.selection;
-    final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    final registry = ref.watch(sessionRegistryProvider);
+    final activeLease = registry.value?.activeLease;
     if (_videoPublicationOwner != null &&
         activeLease != _videoPublicationOwner) {
       _videoPublication?.cancel();
+    }
+    if (_instagramImport != null &&
+        registry.hasValue &&
+        activeLease != widget.draftOwner) {
+      final route = ModalRoute.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && route?.isCurrent == true) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const SizedBox.shrink();
     }
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
@@ -531,8 +558,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       });
     }
     if (widget.publishedEdit case final edit?) {
-      if (ref.read(sessionRegistryProvider).hasValue &&
-          activeLease != edit.ownership) {
+      if (registry.hasValue && activeLease != edit.ownership) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -552,7 +578,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (account != null) {
       ref.listen(draftSaveControllerProvider(account), (_, _) {});
     }
-    final scheduledCount = account == null
+    final scheduledCount = account == null || _instagramImport != null
         ? 0
         : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
     final capacity = ScheduleCapacityState.derive(
@@ -561,6 +587,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       ownsExistingSlot: widget.scheduledPost != null,
     );
     final controlsEnabled =
+        !_restoringDraftVideo &&
         !editUnresolved &&
         !_isSavingDraft &&
         !createState.isLoading &&
@@ -571,6 +598,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final trimmedBody = _bodyText.trim();
     final tooLong = !RecordTextLimits.post.accepts(_bodyText);
     final canSubmit =
+        !_restoringDraftVideo &&
         !editUnresolved &&
         !editUnavailable &&
         (widget.publishedEdit == null ||
@@ -615,16 +643,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _scheduleChoice != _initialScheduleChoice ||
         _scheduledAtLocal != _initialScheduledAtLocal ||
         _sponsored != _initialSponsored;
-    final canSaveDraft =
-        widget.scheduledPost == null &&
-        widget.publishedEdit == null &&
-        hasDraft &&
-        imagesState.canSaveDraftMedia() &&
-        !_isSavingDraft &&
-        !_isSubmitting;
+    final canSaveDraft = _canSaveDraft(imagesState, hasDraft: hasDraft);
     _ensureUnsavedWorkRegistration();
     ref
       ..listen(createPostProvider, (previous, next) {
+        if (recoveringPublication) return;
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(:final value?)):
             if (_origin.draft != null) {
@@ -634,8 +657,23 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             }
             context.showInfo(l10n.postCreateSuccess);
             ref.read(createPostProvider.notifier).reset();
-          case (AsyncLoading(), AsyncError()):
-            context.showError(l10n.postCreateError);
+          case (AsyncLoading(), AsyncError(:final error)):
+            if (_origin.draft?.instagramPublication != null &&
+                error is PdsMutationUnresolvedException) {
+              ref.read(createPostProvider.notifier).reset();
+              break;
+            }
+            context.showError(
+              _instagramImport == null
+                  ? l10n.postCreateError
+                  : switch (error) {
+                      ApiBadRequest(code: 'instagram_verification_required') =>
+                        l10n.instagramPostImportVerificationRequired,
+                      ApiBadRequest(code: 'instagram_post_already_imported') =>
+                        l10n.instagramPostImportAlreadyPublished,
+                      _ => l10n.postCreateError,
+                    },
+            );
             ref.read(createPostProvider.notifier).reset();
           case _:
             break;
@@ -661,16 +699,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       });
     }
 
-    return PopScope<Post?>(
+    final composer = PopScope<Post?>(
       canPop:
-          !_isSavingDraft &&
-          !_isDeletingSchedule &&
-          !_isSubmitting &&
-          (_pendingPublishedDraftPost != null ||
-              !hasDraft ||
-              createState.isLoading),
+          recoveringPublication ||
+          (!_isSavingDraft &&
+              !_isDeletingSchedule &&
+              !_isSubmitting &&
+              (_pendingPublishedDraftPost != null ||
+                  !hasDraft ||
+                  createState.isLoading)),
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || recoveringPublication) return;
         if (_isSubmitting || _isSavingDraft || _isDeletingSchedule) return;
         final shouldClose = await _confirmProjectClose(imagesState);
         if (!shouldClose || !context.mounted) return;
@@ -783,6 +822,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   controlsEnabled: controlsEnabled,
                                   bodyErrorText: bodyErrorText,
                                 ),
+                                if (_instagramImport != null)
+                                  Text(l10n.instagramPostImportHistoricalNote),
                                 ComposerMetadataControls(
                                   languages: _languages!,
                                   onLanguagesChanged: controlsEnabled
@@ -794,7 +835,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                       ? (value) =>
                                             setState(() => _sponsored = value)
                                       : null,
-                                  showSchedule: widget.publishedEdit == null,
+                                  showSchedule:
+                                      widget.publishedEdit == null &&
+                                      _instagramImport == null,
                                   scheduledAtLocal: _scheduledAtLocal,
                                   scheduleAccess: scheduleAccess,
                                   onScheduleAccessRetry: activeLease == null
@@ -804,7 +847,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                             activeLease.session,
                                           ),
                                         ),
-                                  onSchedulePressed: controlsEnabled
+                                  onSchedulePressed:
+                                      controlsEnabled &&
+                                          _instagramImport == null
                                       ? (menuContext) => _chooseWhen(
                                           menuContext,
                                           scheduleEnabled:
@@ -1002,6 +1047,25 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ],
       ),
     );
+    if (_instagramImport == null || widget.draftOwner == null) return composer;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(
+          offstage: recoveringPublication,
+          child: ExcludeFocus(
+            excluding: recoveringPublication,
+            child: composer,
+          ),
+        ),
+        if (recoveringPublication)
+          InstagramPublicationRecovery(
+            session: _origin,
+            owner: widget.draftOwner!,
+            onCleared: () => setState(() {}),
+          ),
+      ],
+    );
   }
 
   Future<bool> _confirmDiscard() {
@@ -1032,9 +1096,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       if (quota != null) {
         context.showInfo(quota);
       }
-      setState(() => _usesStoredDraftVideo = false);
       final selected = _videoController.selection;
       if (selected != null && !identical(previous, selected)) {
+        setState(() => _usesStoredDraftVideo = false);
         await showComposerVideoDetails(
           context,
           selection: selected,
@@ -1052,6 +1116,18 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     }
   }
 
+  bool _canSaveDraft(
+    ComposerImagesState imagesState, {
+    bool? hasDraft,
+  }) =>
+      widget.scheduledPost == null &&
+      widget.publishedEdit == null &&
+      !_restoringDraftVideo &&
+      (hasDraft ?? _hasUnsavedProject()) &&
+      imagesState.canSaveDraftMedia() &&
+      !_isSavingDraft &&
+      !_isSubmitting;
+
   Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
     if (widget.scheduledPost != null || widget.publishedEdit != null) {
       return await _confirmDiscard();
@@ -1059,7 +1135,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final choice = await showDraftCloseDialog(
       context,
       existingDraft: widget.draftSeed != null,
-      canSave: imagesState.canSaveDraftMedia() && _hasUnsavedProject(),
+      canSave: _canSaveDraft(imagesState),
     );
     switch (choice) {
       case DraftCloseChoice.save:
@@ -1098,13 +1174,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     return false;
   }
 
-  bool _draftVideoChanged() {
-    final baseline = widget.draftSeed?.draft.video;
-    final selection = _videoController.selection;
-    if (baseline == null) return selection != null;
-    if (selection == null || !_usesStoredDraftVideo) return true;
-    return selection.altText != baseline.altText;
-  }
+  bool _draftVideoChanged() => _origin.videoChanged(
+    selection: _videoController.selection,
+    useStoredVideo: _usesStoredDraftVideo,
+    restoring: _restoringDraftVideo,
+  );
 
   Future<void> _editImage(String imageId) async {
     final lease = ref.read(sessionRegistryProvider).value?.activeLease;
@@ -1126,7 +1200,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _saveProjectDraft(ComposerImagesState imagesState) async {
-    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+    if (_restoringDraftVideo ||
+        ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
       return;
     }
     final active = ref.read(sessionRegistryProvider).value?.activeLease;
@@ -1198,13 +1273,29 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ).future,
       );
       final video = await _origin.restoreVideo(seed, repository);
-      if (!mounted || video == null) return;
+      if (!mounted) return;
+      if (video == null) {
+        if (_instagramImport != null) {
+          context.showError(
+            AppLocalizations.of(context).postVideoSelectionFailed,
+          );
+        }
+        return;
+      }
       setState(() {
         _videoController.restoredSelection = video;
         _usesStoredDraftVideo = true;
       });
     } on Object {
-      // Damaged drafts remain editable after the missing video is replaced.
+      if (mounted && _instagramImport != null) {
+        context.showError(
+          AppLocalizations.of(context).postVideoSelectionFailed,
+        );
+      }
+    } finally {
+      if (mounted && _restoringDraftVideo) {
+        setState(() => _restoringDraftVideo = false);
+      }
     }
   }
 
@@ -1229,7 +1320,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   bool _hasUnsavedProject() {
-    if (!mounted) return false;
+    if (!mounted || _origin.draft?.instagramPublication != null) return false;
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final formValues = _combinedFormValues();
     return (_publishedEmbed?.changes.isNotEmpty ?? false) ||
@@ -2508,6 +2599,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       final created = await ref
           .read(createPostProvider.notifier)
           .create(
+            instagramImport: _instagramImport,
+            checkpointInstagramPublication: instagramPublicationCheckpoint(
+              ref,
+              _origin,
+              submissionOwner,
+            ),
             text: args.text,
             langs: args.langs,
             sponsored: _sponsored,
@@ -2536,6 +2633,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       final created = await ref
           .read(createPostProvider.notifier)
           .create(
+            instagramImport: _instagramImport,
+            checkpointInstagramPublication: instagramPublicationCheckpoint(
+              ref,
+              _origin,
+              owner,
+            ),
             text: text,
             langs: _languages!.values,
             sponsored: _sponsored,
@@ -2556,6 +2659,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         final created = await ref
             .read(createPostProvider.notifier)
             .create(
+              instagramImport: _instagramImport,
+              checkpointInstagramPublication: instagramPublicationCheckpoint(
+                ref,
+                _origin,
+                owner,
+              ),
               text: text,
               langs: _languages!.values,
               sponsored: _sponsored,
@@ -2591,7 +2700,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ActiveAccountLease? submissionOwner,
     Future<void> Function() operation,
   ) async {
-    if (_submissionCoordinator.isRunning) return;
+    if (_submissionCoordinator.isRunning ||
+        _origin.draft?.instagramPublication != null) {
+      return;
+    }
     _submissionSucceeded = false;
     _pendingPublishedDraftPost = null;
     _videoFailure = null;
@@ -2622,6 +2734,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         if (mounted) setState(() => _isSubmitting = running);
       },
       onFailure: (_) {
+        if (_origin.draft?.instagramPublication != null) return;
         if (mounted &&
             (widget.publishedEdit == null ||
                 _submissionOwnershipIsCurrent(submissionOwner))) {

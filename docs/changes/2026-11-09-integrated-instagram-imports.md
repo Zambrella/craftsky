@@ -15,9 +15,9 @@ handle concurrent submissions and unknown-result recovery. Original timestamps
 and the existing public Instagram provenance preserve ADR 008 distribution.
 Migration `000128_instagram_post_imports` adds private history and lifecycle purge
 coverage. The migration was renumbered from `000122` while merging main to
-preserve main's already allocated migrations `000122`–`000127`; the historical
-validation logs below predate that merge. No Lexicon change or mobile implementation was needed for this
-explicitly web-client request. See [ADR 029](../adr/029-integrated-instagram-post-imports.md)
+preserve main's already allocated migrations `000122`–`000127`. The original
+release-gate logs below predate that merge. The initial work covered the web
+client and AppView. See [ADR 029](../adr/029-integrated-instagram-post-imports.md)
 and the [web client guide](../../web-client/README.md).
 
 The standalone package and its Just recipes/documentation entrypoints were
@@ -84,7 +84,31 @@ Successful backend evidence:
 - Artifacts: `/var/folders/zl/ymtyvzvn6510ld99pymykhy80000gn/T/tmp.pMPGY6Umd3`
 
 The earlier disk-space failure is resolved. All release-gate disposable services
-were cleaned up; unrelated Docker data was left untouched.
+were cleaned up.
+
+## Flutter extension
+
+The verified Instagram settings now offer the same post and project import on
+iOS and Android. Flutter reads the ZIP on the device and keeps a temporary copy
+while the review is open. Existing composers reuse saved draft edits, and copy
+only the selected photos or video into draft storage. The shared AppView lookup
+surfaces publication history from either client, and the composer uses the
+existing immediate publication endpoint with the private import reference.
+
+The full Flutter suite passed locally with 4,371 tests and 50 skips. Dart
+analysis and the documentation checks passed. Tests cover archive extraction,
+matching web source keys, the verified settings entry point, synthetic ZIP
+review and duplicate status, draft reuse and publication handoff. The Android
+debug APK built and reached the sign-in screen on an emulator. The device file
+picker, video playback and upload, and live publication remain unverified. This
+extension required no AppView or Lexicon changes.
+
+After the follow-up fixes, the full Flutter suite passed with 4,380 tests and
+50 skips. Regression checks cover replaying the original publication request
+after reopening a pending draft, saving or removing restored videos, continuing
+after unusable attachments, and checking only new rows or failed lookups. Dart
+analysis passed. The Android emulator reclaimed a synthetic orphaned archive at
+startup, reached the sign-in screen, and hot-reloaded successfully.
 
 ## Boundaries
 

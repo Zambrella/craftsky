@@ -16,6 +16,64 @@ void main() {
   )..interceptors.add(const ErrorMappingInterceptor());
 
   group('InstagramMigrationApiClient', () {
+    test('looks up published sources without sending archive data', () async {
+      const sourceKey = '0123456789abcdef0123456789abcdef';
+      const uri = 'at://did:plc:alice/social.craftsky.feed.post/3post';
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/migrations/instagram/post-imports/lookup',
+        (server) => server.reply(200, {
+          'items': [
+            {'sourceKey': sourceKey, 'uri': uri, 'kind': 'project'},
+          ],
+        }),
+        data: {
+          'sourceKeys': [sourceKey],
+        },
+      );
+
+      final published = await InstagramMigrationApiClient(
+        dio,
+      ).lookupPostImports([sourceKey]);
+
+      expect(published.single.sourceKey, sourceKey);
+      expect(published.single.uri, uri);
+      expect(published.single.isProject, isTrue);
+      expect(published.single.toString(), isNot(contains(sourceKey)));
+    });
+
+    test('rejects lookup responses for a source that was not sent', () async {
+      const sourceKey = '0123456789abcdef0123456789abcdef';
+      const unexpectedKey = 'fedcba9876543210fedcba9876543210';
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/migrations/instagram/post-imports/lookup',
+        (server) => server.reply(200, {
+          'items': [
+            {
+              'sourceKey': unexpectedKey,
+              'uri': 'at://did:plc:alice/social.craftsky.feed.post/3post',
+              'kind': 'standard',
+            },
+          ],
+        }),
+        data: {
+          'sourceKeys': [sourceKey],
+        },
+      );
+
+      await expectLater(
+        InstagramMigrationApiClient(dio).lookupPostImports([sourceKey]),
+        throwsA(
+          isA<ApiServerError>().having(
+            (error) => error.details.cause,
+            'decode failure',
+            isA<FormatException>(),
+          ),
+        ),
+      );
+    });
+
     test(
       'IT-014 creates a verification using the exact wire contract',
       () async {

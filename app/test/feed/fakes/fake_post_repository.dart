@@ -2,6 +2,8 @@ import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -38,6 +40,7 @@ class FakePostRepository implements PostRepository {
     this.onEdit,
     this.onCreate,
     this.onCreateWithFacets,
+    this.onPublishPreparedInstagramImport,
     this.onFetch,
     this.onDelete,
     this.onProfilePins,
@@ -62,6 +65,15 @@ class FakePostRepository implements PostRepository {
   });
 
   final Future<PostEditSeed> Function(Did, RecordKey)? onFetchEdit;
+  final Future<Post> Function(InstagramImportPublication)?
+  onPublishPreparedInstagramImport;
+
+  @override
+  Future<Post> publishPreparedInstagramImport(
+    InstagramImportPublication pending,
+  ) =>
+      onPublishPreparedInstagramImport?.call(pending) ??
+      (throw UnimplementedError('publishPreparedInstagramImport'));
   final Future<PostEditResult> Function(
     Did,
     RecordKey, {
@@ -195,6 +207,7 @@ class FakePostRepository implements PostRepository {
   CreatePostVideo? lastCreateVideo;
   List<String>? lastCreateLangs;
   bool? lastCreateSponsored;
+  InstagramPostImportSource? lastCreateInstagramImport;
   String? lastCreateOperationKey;
   String? lastDeleteOperationKey;
   String? lastDeleteExpectedCid;
@@ -224,6 +237,7 @@ class FakePostRepository implements PostRepository {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
+    InstagramPostImportSource? instagramImport,
   }) {
     lastCreateOperationKey = operationKey;
     createOperationKeys.add(operationKey);
@@ -233,6 +247,7 @@ class FakePostRepository implements PostRepository {
     lastCreateVideo = video;
     lastCreateLangs = List.unmodifiable(langs);
     lastCreateSponsored = sponsored;
+    lastCreateInstagramImport = instagramImport;
     return onCreateWithFacets?.call(
           text: text,
           reply: reply,

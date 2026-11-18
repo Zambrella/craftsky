@@ -1,28 +1,43 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
+import 'package:craftsky_app/instagram_migration/widgets/instagram_post_import_row.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as image;
 import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
@@ -69,7 +84,8 @@ void main() {
       description: 'the unavailable verification state',
     );
 
-    expect(find.text('Find people from Instagram'), findsOneWidget);
+    expect(find.text('Instagram'), findsOneWidget);
+    expect(find.byKey(const Key('instagram-post-import-open')), findsNothing);
     expect(find.byType(Card), findsNothing);
     expect(find.byType(CraftskyCard), findsWidgets);
     expect(
@@ -100,6 +116,356 @@ void main() {
     );
     semantics.dispose();
   });
+
+  testWidgets(
+    'verified users review a local ZIP and check new rows once per page',
+    (
+      tester,
+    ) async {
+      final initial = registry.SessionRegistry.empty().upsertAndActivate(
+        token: 'token-a',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final directory = Directory.systemTemp.createTempSync(
+        'instagram-review-',
+      );
+      final selected = InstagramPostExportFile(
+        directory: directory,
+        name: 'example.zip',
+      );
+      addTearDown(selected.dispose);
+      final json = utf8.encode(
+        jsonEncode([
+          for (var index = 0; index < 21; index++)
+            {
+              'title': index == 0 ? 'First finished quilt' : 'Post $index',
+              'creation_timestamp': 1660000000 + index,
+              'media': [
+                {'uri': 'media/posts/photo-$index.jpg'},
+              ],
+            },
+        ]),
+      );
+      final zip = Archive()
+        ..addFile(
+          ArchiveFile(
+            'your_instagram_activity/media/posts_1.json',
+            json.length,
+            json,
+          ),
+        );
+      File(selected.archivePath)
+          .writeAsBytesSync(ZipEncoder().encodeBytes(zip));
+      final lookups = <List<String>>[];
+      final repository = _Repository(
+        status: InstagramAccountStatus(
+          integrationAvailable: true,
+          account: InstagramAccountLink(
+            state: InstagramAccountLinkState.active,
+            username: 'alice_instagram',
+            discoverable: false,
+            conflictPending: false,
+            reactivationRequired: false,
+            verifiedAt: DateTime.utc(2026, 7, 19),
+          ),
+        ),
+        imports: InstagramImportPage(items: const [], cursor: null),
+        onLookupPostImports: (keys) async {
+          lookups.add(keys);
+          if (lookups.length == 2) {
+            throw const ApiNetworkError('offline');
+          }
+          if (lookups.length > 1) return [];
+          return [
+            InstagramPublishedImport(
+              sourceKey: keys.first,
+              uri: AtUri.parse(
+                'at://did:plc:alice/social.craftsky.feed.post/3key',
+              ),
+              isProject: true,
+            ),
+          ];
+        },
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(initial),
+            ),
+            instagramMigrationRepositoryProvider.overrideWith(
+              (ref, _) async => repository,
+            ),
+            instagramVerificationStorageProvider.overrideWithValue(
+              _EmptyVerificationStorage(),
+            ),
+            instagramPostExportFilePickerProvider.overrideWithValue(
+              () async => selected,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const InstagramMigrationPage(),
+          ),
+        ),
+      );
+      final open = find.byKey(const Key('instagram-post-import-open'));
+      await pumpUntilFound(
+        tester,
+        open,
+        description: 'the post importer entry',
+      );
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      final choose = find.byKey(const Key('instagram-post-import-select-zip'));
+      await tester.tap(choose);
+      // The archive isolate and file operations run outside the fake clock.
+      final projectCreated = find.text('Project created');
+      for (var i = 0; i < 100 && projectCreated.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(lookups.single, hasLength(20));
+      expect(lookups.single, everyElement(matches(RegExp(r'^[0-9a-f]{32}$'))));
+      await tester.pumpAndSettle();
+      expect(find.text('First finished quilt'), findsOneWidget);
+      expect(find.text('Project created'), findsOneWidget);
+      expect(find.text('View project'), findsOneWidget);
+      final publishedRow = find.ancestor(
+        of: projectCreated,
+        matching: find.byType(InstagramPostImportRow),
+      );
+      expect(
+        find.descendant(of: publishedRow, matching: find.text('Create post')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: publishedRow,
+          matching: find.text('Create project'),
+        ),
+        findsNothing,
+      );
+
+      final more = find.byKey(const Key('instagram-post-import-more'));
+      await tester.scrollUntilVisible(more, 500);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(lookups.map((keys) => keys.length), [20, 1]);
+      expect(lookups.first, isNot(contains(lookups.last.single)));
+
+      final clear = find.byKey(const Key('instagram-post-import-clear'));
+      await tester.scrollUntilVisible(clear, -500);
+      final retry = find.text('Try again');
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(lookups.map((keys) => keys.length), [20, 1, 1]);
+      expect(lookups[1], lookups[2]);
+      expect(retry, findsNothing);
+      await tester.scrollUntilVisible(clear, -400);
+      await tester.tap(clear);
+      await tester.runAsync(() async {
+        for (var i = 0; i < 100 && directory.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(directory.existsSync(), isFalse);
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('First finished quilt'), findsNothing);
+      expect(choose, findsOneWidget);
+    },
+  );
+
+  for (final hasVideo in [false, true]) {
+    testWidgets(
+      hasVideo
+          ? 'an overlong import video can be replaced in the composer'
+          : 'selected import photos survive other attachment failures',
+      (tester) async {
+        final initial = registry.SessionRegistry.empty().upsertAndActivate(
+          token: 'token-a',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+        final account = initial.activeLease!.session.account;
+        final directory = Directory.systemTemp.createTempSync(
+          'instagram-review-media-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final selected = InstagramPostExportFile(
+          directory: directory.createTempSync(),
+          name: 'example.zip',
+        );
+        final drafts = FileLocalPostDraftRepository(
+          documentsRoot: directory.path,
+          owner: account,
+        );
+        final png = image.encodePng(image.Image(width: 12, height: 12));
+        final files = hasVideo
+            ? {
+                'media/posts/long.mp4': [0, 0, 0, 20, ...'ftypisom'.codeUnits],
+              }
+            : {
+                'media/posts/valid.png': png,
+                'media/posts/corrupt.png': [1, 2, 3],
+                'media/posts/too-wide.png': image.encodePng(
+                  image.Image(width: 128, height: 1),
+                ),
+              };
+        if (hasVideo) {
+          const channel = MethodChannel('social.craftsky/local_video');
+          final messenger =
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+                ..setMockMethodCallHandler(
+                  channel,
+                  (_) async => {
+                    'width': 1080,
+                    'height': 1920,
+                    'durationMs': 601000,
+                    'posterBytes': png,
+                  },
+                );
+          addTearDown(() {
+            messenger.setMockMethodCallHandler(channel, null);
+          });
+        }
+
+        const caption = 'Keep my original caption';
+        final json = utf8.encode(
+          jsonEncode([
+            {
+              'title': caption,
+              'creation_timestamp': 1660000000,
+              'media': [
+                for (final path in files.keys) {'uri': path},
+              ],
+            },
+          ]),
+        );
+        final zip = Archive()
+          ..addFile(
+            ArchiveFile.bytes(
+              'your_instagram_activity/media/posts_1.json',
+              json,
+            ),
+          );
+        for (final entry in files.entries) {
+          zip.addFile(ArchiveFile.bytes(entry.key, entry.value));
+        }
+        File(selected.archivePath)
+            .writeAsBytesSync(ZipEncoder().encodeBytes(zip));
+
+        final repository = _verifiedImportRepository([]);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(initial),
+              ),
+              instagramMigrationRepositoryProvider.overrideWith(
+                (ref, _) async => repository,
+              ),
+              instagramVerificationStorageProvider.overrideWithValue(
+                _EmptyVerificationStorage(),
+              ),
+              instagramPostExportFilePickerProvider.overrideWithValue(
+                () async => selected,
+              ),
+              accountLocalPostDraftRepositoryProvider(
+                account,
+              ).overrideWith((ref) async => drafts),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: const InstagramMigrationPage(),
+              ),
+            ),
+          ),
+        );
+
+        Future<void> waitForNativeWork(Finder finder) async {
+          for (
+            var attempt = 0;
+            attempt < 200 && finder.evaluate().isEmpty;
+            attempt++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump(const Duration(milliseconds: 10));
+          }
+          expect(finder, findsOneWidget);
+        }
+
+        final open = find.byKey(const Key('instagram-post-import-open'));
+        await pumpUntilFound(tester, open, description: 'post importer');
+        await tester.tap(open);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('instagram-post-import-select-zip')),
+        );
+        final create = find.text('Create post');
+        final enabledCreate = find.ancestor(
+          of: create,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is ChunkyButton && widget.onPressed != null,
+          ),
+        );
+        await waitForNativeWork(enabledCreate);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.ensureVisible(create);
+        await tester.tap(create);
+
+        final confirm = find.text(
+          hasVideo ? 'Continue without media' : 'Continue with 1 photo',
+        );
+        await waitForNativeWork(confirm);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(await tester.runAsync(drafts.list), isEmpty);
+        expect(find.byType(PostComposerSheet), findsNothing);
+        if (hasVideo) {
+          expect(find.textContaining('ten minutes or shorter'), findsOneWidget);
+        } else {
+          await tester.tap(find.text('Cancel'));
+          await waitForNativeWork(enabledCreate);
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(await tester.runAsync(drafts.list), isEmpty);
+          await tester.tap(create);
+          await waitForNativeWork(confirm);
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+
+        await tester.tap(confirm);
+        await waitForNativeWork(find.byType(PostComposerSheet));
+        await tester.pump(const Duration(milliseconds: 400));
+        final saved = (await tester.runAsync(drafts.list))!.single;
+        expect((saved.content as StandardDraftContent).text, caption);
+        expect(saved.media, hasLength(hasVideo ? 0 : 1));
+        expect(saved.video, isNull);
+        expect(saved.instagramImport, isNotNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+      variant: hasVideo
+          ? const TargetPlatformVariant({TargetPlatform.iOS})
+          : const DefaultTestVariant(),
+    );
+  }
 
   testWidgets('IT-023 manual and Instagram export imports stay normalized', (
     tester,
@@ -1207,6 +1573,7 @@ final class _Repository implements InstagramMigrationRepository {
       account: null,
     ),
     this.onCreateImport,
+    this.onLookupPostImports,
     this.onCreateVerification,
     this.onCancelVerification,
     this.onConfirmVerification,
@@ -1220,6 +1587,8 @@ final class _Repository implements InstagramMigrationRepository {
     InstagramImportRequest request,
   )?
   onCreateImport;
+  final Future<List<InstagramPublishedImport>> Function(List<String> keys)?
+  onLookupPostImports;
   final Future<InstagramVerificationAttempt> Function()? onCreateVerification;
   final Future<void> Function(String verificationId)? onCancelVerification;
   final Future<InstagramVerificationConfirmation> Function(
@@ -1237,6 +1606,11 @@ final class _Repository implements InstagramMigrationRepository {
   Future<InstagramImportCreateResult> createImport(
     InstagramImportRequest request,
   ) => onCreateImport!.call(request);
+
+  @override
+  Future<List<InstagramPublishedImport>> lookupPostImports(
+    List<String> keys,
+  ) => onLookupPostImports?.call(keys) ?? Future.value(const []);
 
   @override
   Future<InstagramVerificationAttempt> createVerification() =>

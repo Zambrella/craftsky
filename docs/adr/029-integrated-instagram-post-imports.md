@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-09
-- Scope: Web client, AppView publication and private import history
+- Scope: Web and Flutter clients, AppView publication and private import history
 
 ## Decision
 
@@ -53,3 +53,22 @@ public provenance and distribution rules remain in force.
 
 Removing source files does not retire an existing hosted site, DNS records or
 OAuth grants. Any such production changes require a separate requested operation.
+
+## Flutter importer
+
+Flutter exposes the same review and composer workflow under Settings → Instagram
+after verification. The app inspects a temporary, file-backed copy of the ZIP
+off the UI isolate. The review page keeps that copy while the composer is open
+and releases it on clear, exit or account change. App startup reclaims the
+workspace left by an interrupted import. Only selected media is extracted.
+When any selected attachment fails, the user can continue with the caption and
+the usable selections after confirming the omission.
+
+Both clients compute the same source fingerprint and query the same AppView
+history. Flutter checks new rows as each page loads and rechecks an
+individual source before opening its composer. The normal native post and
+project composers send the private import reference when the user publishes.
+The account-scoped draft retains the exact request and idempotency key while
+the result is uncertain, allowing a retry without changing the submission.
+AppView uses the same verification and duplicate checks, timestamps, provenance,
+and feed rules for both clients.

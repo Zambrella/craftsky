@@ -77,6 +77,7 @@ dependencies:
   smooth_page_indicator: ^3.0.0
   timeago: ^3.7.1
   timezone: ^0.11.1
+  unorm_dart: 0.3.1+1
   url_launcher: ^6.3.3
   uuid: ^4.6.0
   visibility_detector: 0.4.0+2
