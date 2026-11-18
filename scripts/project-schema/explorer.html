@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CraftSky project schema</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --ink: var(--foreground, light-dark(#22252d, #f0eef4));
+  --quiet: var(--muted-foreground, light-dark(#575d6a, #b5bac8));
+  --surface: var(--card, light-dark(#fff, #202229));
+  --line: var(--border, light-dark(#d9dce3, #3e424d));
+  --signal: var(--primary, light-dark(#3859ba, #adbdff));
+  --tint: color-mix(in srgb, var(--signal) 8%, var(--surface));
+  --corner: var(--radius, 10px);
+  --mono: var(--font-mono, "SFMono-Regular", Consolas, monospace);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; color: var(--ink); font: 14px/1.45 var(--font-sans, "Avenir Next", "Segoe UI", sans-serif); }
+main { max-width: 1000px; margin: 0 auto; padding-block: 12px 16px; }
+h1, h2, h3, p, figure { margin: 0; }
+h1 { font: 600 clamp(26px, 5.5vw, 38px)/1.12 Georgia, serif; letter-spacing: -.035em; }
+h2, h3 { font-size: 17px; line-height: 1.25; }
+code, .type, .values, .edge { font-family: var(--mono); overflow-wrap: anywhere; }
+button { color: inherit; font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.diagram { margin-top: 16px; }
+.trunk { display: grid; justify-items: center; }
+.node {
+  display: grid; gap: 2px; text-align: left; width: min(100%, 316px); padding: 8px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--corner);
+}
+.node.project { border-color: var(--signal); background: var(--tint); }
+.node strong { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 15px; }
+.node code { font-size: 11px; color: var(--quiet); }
+.node .arrow, .jump { color: var(--signal); }
+.edge { color: var(--quiet); font-size: 11px; min-height: 31px; display: grid; align-content: center; }
+.edge span { padding: 2px 8px; }
+.trunk > .edge { border-left: 1px dashed var(--quiet); transform: translateX(50%); }
+.branches {
+  position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px; align-items: start; padding-top: 13px;
+}
+.branches::before { content: ""; position: absolute; left: 50%; top: 0; height: 13px; border-left: 1px solid var(--quiet); }
+.branch { position: relative; }
+.branch::before {
+  content: ""; position: absolute; left: 50%; right: -7px; top: 0; height: 11px;
+  border-top: 1px solid var(--quiet); border-left: 1px solid var(--quiet);
+}
+.branch + .branch::before {
+  left: -7px; right: 50%; border-left: 0; border-right: 1px dashed var(--quiet);
+  border-top-style: dashed;
+}
+.branch > .edge { justify-content: center; padding-top: 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--corner); }
+.card-header { padding: 11px 12px 8px; }
+.card-header p, .hint, .caption { color: var(--quiet); font-size: 12px; }
+.card-header p { margin-top: 4px; }
+.card-header code { display: block; margin-top: 4px; font-size: 11px; color: var(--quiet); }
+.crafts { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0 11px 10px; }
+.crafts button, .control {
+  border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 3px 7px;
+  font-size: 12px;
+}
+.crafts button[aria-pressed=true] { border-color: var(--signal); background: var(--tint); font-weight: 650; }
+.field-list { list-style: none; padding: 0; margin: 0; }
+.field-list li { border-top: 1px solid var(--line); }
+.field {
+  width: 100%; border: 0; background: transparent; display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; padding: 6px 11px; text-align: left;
+}
+.field:hover, .node:hover, .control:hover, .crafts button:hover { background: var(--tint); }
+.field:focus-visible { outline-offset: -2px; }
+.field-name { font-size: 12px; font-weight: 600; }
+.required { color: var(--signal); padding-left: 3px; }
+.field-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.type { font-size: 10.5px; color: var(--quiet); }
+.count {
+  color: var(--signal); font-size: 10.5px; white-space: nowrap;
+  background: var(--tint); border-radius: 4px; padding: 1px 5px;
+}
+.caption { margin-top: 12px; }
+.caption strong { color: var(--signal); }
+#source-note { margin-top: 11px; }
+#reference, #inspection {
+  margin: auto; width: min(540px, calc(100% - 24px)); max-width: none;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--corner); box-shadow: 0 12px 40px #0004; padding: 0;
+}
+#reference { max-height: 600px; }
+#reference::backdrop { background: #10121b80; }
+#inspection {
+  position: fixed; inset: auto; margin: 0; width: min(340px, calc(100% - 16px));
+  max-height: 530px; overflow: auto;
+}
+#inspection[data-pinned="false"] { pointer-events: none; }
+.overlay-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.overlay-content { padding: 12px; }
+.overlay-content > * + * { margin-top: 8px; }
+.overlay-content p { font-size: 12px; }
+.overlay-content p code { display: block; }
+.overlay-actions { display: flex; gap: 5px; }
+.value-toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.value-list {
+  list-style: none; margin-bottom: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px;
+}
+.value-list li { border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; max-width: 100%; font-size: 11px; }
+.value-list.exact { flex-direction: column; align-items: start; }
+.related { display: flex; flex-wrap: wrap; gap: 5px; }
+@media (max-width: 500px) {
+  .branches { grid-template-columns: minmax(0, 1fr); padding: 5px 0 0 10px; border-left: 1px solid var(--line); }
+  .branches::before, .branch::before { display: none; }
+  .branch > .edge { justify-content: start; min-height: 29px; padding-top: 0; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>CraftSky project schema</h1>
+  <figure class="diagram" aria-describedby="schema-caption">
+    <div class="trunk" id="trunk"></div>
+    <div class="branches" id="branches"></div>
+    <figcaption id="schema-caption" class="caption"><strong>*</strong> Required field. Hover or focus a value count to preview the list. Select it to keep the list open. Follow references marked <span class="jump">↗</span>.</figcaption>
+  </figure>
+  <p class="hint" id="source-note">Generated from CraftSky’s public AT Protocol Lexicons.</p>
+  <noscript>Enable JavaScript to explore the schema.</noscript>
+</main>
+<dialog id="reference" aria-labelledby="reference-title"></dialog>
+<div popover="manual" id="inspection" role="region" aria-labelledby="inspection-title"></div>
+<script type="application/json" id="lexicon-data">__LEXICON_DATA__</script>
+<script>
+"use strict";
+
+const {post, definitions} = JSON.parse(document.querySelector("#lexicon-data").textContent);
+const referenceDialog = document.querySelector("#reference");
+const inspection = document.querySelector("#inspection");
+const referenceHistory = [];
+let activeField = null;
+let pinned = false;
+let hideTimer;
+let restoringFocus = false;
+
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text != null) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function button(text, action, className = "control") {
+  const node = element("button", text, className);
+  node.type = "button";
+  node.addEventListener("click", action);
+  return node;
+}
+
+function resolve(ref, owner) {
+  return ref.startsWith("#") ? owner.split("#")[0] + ref : ref.replace(/#main$/, "");
+}
+
+function fragment(id) {
+  return id.includes("#") ? id.split("#")[1] : id.split(".").at(-1);
+}
+
+function words(text) {
+  return text.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^[a-z]/, first => first.toUpperCase());
+}
+
+function nameOf(id) {
+  if (id === post) return "Post";
+  if (fragment(id) === "projectCommon") return "Shared project fields";
+  if (fragment(id) === "details") return words(id.split("#")[0].split(".").at(-1));
+  return words(fragment(id));
+}
+
+function fieldsOf(id) {
+  const {definition} = definitions[id];
+  return definition.record ?? definition;
+}
+
+function requirement(name, shape) {
+  return shape.required?.includes(name) ? "required" : "optional";
+}
+
+function typeLabel(field, owner) {
+  if (field.type === "array") return typeLabel(field.items, owner) + "[]";
+  if (field.type === "ref") {
+    const target = resolve(field.ref, owner);
+    return fragment(target);
+  }
+  if (field.type === "union") return field.closed ? "closed union" : "open union";
+  return field.format ?? field.type;
+}
+
+function optionSpec(field) {
+  if (field.enum?.length || field.knownValues?.length) return field;
+  return field.items ? optionSpec(field.items) : null;
+}
+
+function limits(field, item = false) {
+  const entries = [];
+  const unit = field.type === "array" ? "items" : "bytes";
+  if (field.minLength != null) entries.push("At least " + field.minLength + " " + unit);
+  if (field.maxLength != null) entries.push("Up to " + field.maxLength + " " + unit);
+  if (field.minGraphemes != null) entries.push("At least " + field.minGraphemes + " graphemes");
+  if (field.maxGraphemes != null) entries.push("Up to " + field.maxGraphemes + " graphemes");
+  if (field.minimum != null) entries.push("Minimum " + field.minimum);
+  if (field.maximum != null) entries.push("Maximum " + field.maximum);
+  if (field.maxSize != null) entries.push("Up to " + field.maxSize + " bytes");
+  if (field.accept?.length) entries.push("Accepts " + field.accept.join(", "));
+  if (field.default != null) entries.push("Default " + JSON.stringify(field.default));
+  if (field.const != null) entries.push("Fixed value " + JSON.stringify(field.const));
+  const label = entries.length ? (item ? "Each item · " : "") + entries.join(" · ") : null;
+  return [...(label ? [label] : []), ...(field.items ? limits(field.items, true) : [])];
+}
+
+function fieldList(id) {
+  const shape = fieldsOf(id);
+  const list = element("ul", null, "field-list");
+  for (const [name, field] of Object.entries(shape.properties)) {
+    const required = requirement(name, shape) === "required";
+    const options = optionSpec(field);
+    const leaf = field.items ?? field;
+    const target = leaf.ref ? resolve(leaf.ref, id) : null;
+    const follows = target && definitions[target]?.definition.type === "object";
+    const show = (trigger, pin) => inspectField(trigger, pin, id, name, field, shape);
+    const row = element("li");
+    const trigger = button(null, event => {
+      if (follows) {
+        openReference(target, {owner: id, name, field, shape});
+      } else {
+        show(event.currentTarget, true);
+      }
+    }, "field");
+    const fieldName = element("code", name, "field-name");
+    if (required) {
+      const mark = element("span", "*", "required");
+      mark.setAttribute("aria-label", "required");
+      fieldName.append(mark);
+    }
+    const meta = element("span", null, "field-meta");
+    const count = options ? (options.enum ?? options.knownValues).length : 0;
+    let label = typeLabel(field, id);
+    if (field.type === "array" && field.maxLength != null) label += " · ≤" + field.maxLength;
+    meta.append(element("span", label, "type"));
+    if (options) {
+      meta.append(element("span", count + (count === 1 ? " value" : " values"), "count"));
+      trigger.addEventListener("pointerenter", event => {
+        if (event.pointerType === "mouse" && !pinned) show(trigger, false);
+      });
+      trigger.addEventListener("pointerleave", scheduleHide);
+      trigger.addEventListener("focus", () => {
+        if (!pinned && !restoringFocus && trigger.matches(":focus-visible")) show(trigger, false);
+      });
+      trigger.addEventListener("blur", scheduleHide);
+    }
+    if (follows) {
+      meta.append(element("span", "↗", "jump"));
+      trigger.setAttribute("aria-haspopup", "dialog");
+    } else {
+      trigger.setAttribute("aria-controls", "inspection");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+    trigger.append(fieldName, meta);
+    row.append(trigger);
+    list.append(row);
+  }
+  return list;
+}
+
+function closeInspection(returnFocus = false) {
+  clearTimeout(hideTimer);
+  if (!activeField) return;
+  const previous = activeField;
+  activeField = null;
+  pinned = false;
+  previous.setAttribute("aria-expanded", "false");
+  inspection.hidePopover();
+  if (returnFocus && previous.isConnected) {
+    restoringFocus = true;
+    previous.focus({preventScroll: true});
+    restoringFocus = false;
+  }
+}
+
+function scheduleHide() {
+  clearTimeout(hideTimer);
+  if (!pinned) hideTimer = setTimeout(() => {
+    if (!activeField?.matches(":hover, :focus-visible")) closeInspection();
+  }, 180);
+}
+
+function placeInspection() {
+  if (!activeField) return;
+  const anchor = activeField.getBoundingClientRect();
+  const width = inspection.offsetWidth;
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
+  const gutter = 8;
+  inspection.style.maxHeight = Math.min(530, viewportHeight - gutter * 2) + "px";
+  const hasRightSpace = viewportWidth - anchor.right >= width + gutter * 2;
+  const hasLeftSpace = anchor.left >= width + gutter * 2;
+  let left = anchor.left;
+  let top = anchor.bottom;
+  if (hasRightSpace) {
+    left = anchor.right + gutter;
+    top = anchor.top;
+  } else if (hasLeftSpace) {
+    left = anchor.left - width - gutter;
+    top = anchor.top;
+  } else {
+    const below = viewportHeight - anchor.bottom - gutter;
+    const above = anchor.top - gutter;
+    const useAbove = inspection.offsetHeight > below && above > below;
+    const space = useAbove ? above : below;
+    if (space >= 140) inspection.style.maxHeight = Math.min(530, space) + "px";
+    if (useAbove) top = anchor.top - inspection.offsetHeight;
+  }
+  inspection.style.left = Math.max(gutter, Math.min(left, viewportWidth - width - gutter)) + "px";
+  inspection.style.top = Math.max(gutter, Math.min(top, viewportHeight - inspection.offsetHeight - gutter)) + "px";
+}
+
+function fieldInfo(name, field, shape) {
+  const body = element("div", null, "overlay-content");
+  const nullable = shape.nullable?.includes(name) ? " · allows null" : "";
+  body.append(element("p", words(requirement(name, shape)) + nullable, "hint"));
+  const description = field.description ?? field.items?.description;
+  if (description) body.append(element("p", description));
+  for (const limit of limits(field)) body.append(element("p", limit, "hint"));
+  return body;
+}
+
+function addOptions(body, options) {
+  const values = options.enum ?? options.knownValues;
+  const list = element("ul", null, "value-list");
+  list.setAttribute("aria-label", "Declared values");
+  const appendValues = exact => {
+    list.classList.toggle("exact", exact);
+    list.replaceChildren(...values.map(value => {
+      const label = !exact && definitions[value]?.definition.type === "token" ? fragment(value) : value;
+      const item = element("li", label, "values");
+      if (label !== value) item.title = value;
+      return item;
+    }));
+    placeInspection();
+  };
+  body.append(element("p", values.length + (options.enum
+    ? " allowed values (enum)."
+    : " known values (open suggestions). Other values may satisfy the field constraints."), "hint"));
+  if (values.some(value => definitions[value]?.definition.type === "token")) {
+    const toggle = element("label", null, "value-toggle");
+    const checkbox = element("input");
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", () => appendValues(checkbox.checked));
+    toggle.append(checkbox, "Show full token IDs");
+    body.append(toggle);
+  }
+  body.append(list);
+  appendValues(false);
+}
+
+function inspectField(trigger, pin, owner, name, field, shape) {
+  clearTimeout(hideTimer);
+  if (activeField === trigger) {
+    if (pin && pinned) {
+      closeInspection(true);
+    } else if (pin) {
+      pinned = true;
+      inspection.dataset.pinned = "true";
+      inspection.querySelector("button").focus({preventScroll: true});
+    }
+    return;
+  }
+  closeInspection();
+  const body = fieldInfo(name, field, shape);
+  const heading = element("h3", name);
+  heading.id = "inspection-title";
+  const close = button("Close", () => closeInspection(true));
+  const header = element("div", null, "overlay-header");
+  header.append(heading, close);
+  body.prepend(header);
+  const options = optionSpec(field);
+  if (options) addOptions(body, options);
+  const leaf = field.items ?? field;
+  if (leaf.ref || leaf.refs) {
+    const links = element("div", null, "related");
+    for (const ref of leaf.refs ?? [leaf.ref]) {
+      const target = resolve(ref, owner);
+      if (definitions[target]?.definition.type === "object") {
+        links.append(button(nameOf(target) + " ↗", () => openReference(target, null, trigger)));
+      } else {
+        links.append(element("code", target, "hint"));
+      }
+    }
+    body.append(links);
+  }
+  inspection.replaceChildren(body);
+  inspection.dataset.pinned = String(pin);
+  const overlayParent = trigger.closest("dialog") ?? document.body;
+  if (inspection.parentElement !== overlayParent) overlayParent.append(inspection);
+  inspection.showPopover();
+  activeField = trigger;
+  pinned = pin;
+  trigger.setAttribute("aria-expanded", "true");
+  placeInspection();
+  if (pin) close.focus({preventScroll: true});
+}
+
+function openReference(id, context = null, returnTo = document.activeElement) {
+  closeInspection();
+  referenceHistory.push({id, context, returnTo});
+  sizeReference();
+  drawReference();
+  if (!referenceDialog.open) referenceDialog.showModal();
+  referenceDialog.querySelector("h2").focus({preventScroll: true});
+}
+
+function sizeReference() {
+  referenceDialog.style.maxHeight = Math.min(600, document.documentElement.clientHeight - 24) + "px";
+}
+
+function drawReference() {
+  const {id, context} = referenceHistory.at(-1);
+  const {definition, source} = definitions[id];
+  const heading = element("h2", nameOf(id));
+  heading.id = "reference-title";
+  heading.tabIndex = -1;
+  const header = element("div", null, "overlay-header");
+  const actions = element("div", null, "overlay-actions");
+  if (referenceHistory.length > 1) actions.append(button("Back", goBack));
+  actions.append(button("Close", () => referenceDialog.close()));
+  header.append(heading, actions);
+  const intro = element("div", null, "overlay-content");
+  intro.append(header);
+  const identity = element("p", null, "hint");
+  identity.append(element("code", id));
+  if (definition.key) identity.append("Record key ", element("code", definition.key));
+  intro.append(identity);
+  if (definition.description) intro.append(element("p", definition.description));
+  if (context) {
+    const {owner, name, field, shape} = context;
+    const path = element("p", "Referenced by ", "hint");
+    path.append(element("code", nameOf(owner) + "." + name));
+    intro.append(path, fieldInfo(name, field, shape));
+  }
+  const footer = element("p", null, "overlay-content hint");
+  footer.append(element("code", source));
+  referenceDialog.replaceChildren(intro, fieldList(id), footer);
+  referenceDialog.scrollTop = 0;
+}
+
+function goBack() {
+  closeInspection();
+  const {context} = referenceHistory.pop();
+  drawReference();
+  const previousField = Array.from(referenceDialog.querySelectorAll(".field"))
+    .find(row => row.querySelector(".field-name").firstChild.textContent === context?.name);
+  (previousField ?? referenceDialog.querySelector("h2")).focus();
+}
+
+referenceDialog.addEventListener("close", () => {
+  closeInspection();
+  const original = referenceHistory[0]?.returnTo;
+  referenceHistory.length = 0;
+  original?.focus({preventScroll: true});
+});
+window.addEventListener("resize", placeInspection);
+window.addEventListener("resize", sizeReference);
+document.addEventListener("scroll", placeInspection, true);
+document.addEventListener("pointerdown", event => {
+  if (activeField && !inspection.contains(event.target) && !activeField.contains(event.target)) {
+    closeInspection();
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && activeField) {
+    event.preventDefault();
+    closeInspection(inspection.contains(document.activeElement));
+  }
+}, true);
+
+function edge(name, shape) {
+  const node = element("div", null, "edge");
+  node.append(element("span", name + " · " + requirement(name, shape) + " ↓"));
+  return node;
+}
+
+function recordNode(id, className) {
+  const trigger = button(null, () => openReference(id), className);
+  const heading = element("strong", nameOf(id));
+  heading.append(element("span", "Inspect ↗", "arrow hint"));
+  trigger.append(heading, element("code", id));
+  trigger.setAttribute("aria-haspopup", "dialog");
+  return trigger;
+}
+
+function branch(name, shape, headingText) {
+  const wrapper = element("section", null, "branch");
+  const card = element("div", null, "card");
+  const header = element("div", null, "card-header");
+  header.append(element("h2", headingText));
+  card.append(header);
+  wrapper.append(edge(name, shape), card);
+  return {wrapper, card, header};
+}
+
+const postShape = fieldsOf(post);
+const project = resolve(postShape.properties.project.ref, post);
+const projectShape = fieldsOf(project);
+const common = resolve(projectShape.properties.common.ref, project);
+const details = projectShape.properties.details;
+const detailRefs = details.refs.map(ref => resolve(ref, project));
+
+document.querySelector("#trunk").append(
+  recordNode(post, "node"), edge("project", postShape), recordNode(project, "node project")
+);
+
+const shared = branch("common", projectShape, nameOf(common));
+shared.header.append(element("code", "#" + fragment(common)));
+shared.card.append(fieldList(common));
+
+const variants = branch("details", projectShape, "Craft-specific fields");
+variants.header.append(element("p", words(typeLabel(details, project)) + " · one variant when present"));
+const craftOptions = element("div", null, "crafts");
+craftOptions.setAttribute("role", "group");
+craftOptions.setAttribute("aria-label", "Craft");
+const variantBody = element("div");
+const variantLabel = element("code");
+variantLabel.setAttribute("aria-live", "polite");
+variants.header.append(variantLabel);
+variants.card.append(craftOptions, variantBody);
+
+const crafts = detailRefs.map(id => ({id, key: id.split("#")[0].split(".").at(-1)}));
+const craftValues = optionSpec(fieldsOf(common).properties.craftType);
+for (const value of craftValues?.enum ?? craftValues?.knownValues ?? []) {
+  const key = definitions[value]?.definition.type === "token" ? fragment(value) : value;
+  if (!crafts.some(craft => craft.key === key)) crafts.push({key});
+}
+
+for (const craft of crafts) {
+  craftOptions.append(button(craft.id ? nameOf(craft.id) : words(craft.key), event => {
+    closeInspection();
+    for (const choice of craftOptions.children) {
+      choice.setAttribute("aria-pressed", String(choice === event.currentTarget));
+    }
+    variantLabel.hidden = !craft.id;
+    if (craft.id) {
+      variantLabel.textContent = craft.id;
+      variantBody.replaceChildren(fieldList(craft.id));
+    } else {
+      const note = element("p", words(craft.key) + " uses the shared project fields. The Lexicons define no dedicated details variant.", "overlay-content hint");
+      variantBody.replaceChildren(note);
+    }
+  }));
+}
+document.querySelector("#branches").append(shared.wrapper, variants.wrapper);
+craftOptions.firstElementChild?.click();
+</script>
+</body>
+</html>
