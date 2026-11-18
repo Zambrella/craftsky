@@ -896,10 +896,13 @@ export class CraftskyAPI {
 			}),
 		videoLimits: () =>
 			this.transport.get<T.VideoUploadLimits>('/v1/blobs/videos/limits'),
-		videoAuthorization: () =>
+		videoAuthorization: (thumbnail?: Blob) =>
 			this.transport.request<T.JsonObject>(
 				'POST',
-				'/v1/blobs/videos/authorization'
+				'/v1/blobs/videos/authorization',
+				thumbnail
+					? { body: thumbnail, headers: { 'Content-Type': 'image/jpeg' } }
+					: undefined
 			),
 		cancelVideo: (jobId: string, signal?: AbortSignal) =>
 			this.transport.request<void>(

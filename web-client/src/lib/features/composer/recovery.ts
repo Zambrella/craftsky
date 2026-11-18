@@ -42,7 +42,10 @@ export class ComposerRecovery {
 			item && {
 				...item,
 				uploaded: undefined,
-				blob: item.blob ? this.blobIdentity(item.blob) : undefined
+				blob: item.blob ? this.blobIdentity(item.blob) : undefined,
+				thumbnail: item.thumbnail
+					? this.blobIdentity(item.thumbnail)
+					: undefined
 			};
 		return JSON.stringify({
 			text: value.text,

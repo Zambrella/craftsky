@@ -2,13 +2,17 @@ package social.craftsky.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.graphics.Bitmap
 import android.media.AudioAttributes
+import android.media.MediaMetadataRetriever
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.StandardMethodCodec
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
@@ -17,7 +21,9 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
 import android.os.Handler
 import android.os.Looper
+import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -35,6 +41,68 @@ class MainActivity : FlutterActivity() {
                 }
                 checkStoreOwnership(appUserId, result)
             }
+
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(
+            messenger,
+            "social.craftsky/local_video",
+            StandardMethodCodec.INSTANCE,
+            messenger.makeBackgroundTaskQueue(),
+        ).setMethodCallHandler { call, result ->
+            if (call.method != "midpointFrame") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val path = call.argument<String>("path")
+            val timeUs = call.argument<Number>("timeUs")?.toLong()
+            val bytes = if (path.isNullOrEmpty() || timeUs == null || timeUs < 0) {
+                null
+            } else {
+                runCatching { readThumbnailFrame(Uri.parse(path), timeUs) }.getOrNull()
+            }
+            result.success(bytes)
+        }
+    }
+
+    private fun readThumbnailFrame(uri: Uri, timeUs: Long): ByteArray? {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(applicationContext, uri)
+            val option = MediaMetadataRetriever.OPTION_CLOSEST
+            val maxSize = 640
+            val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                retriever.getScaledFrameAtTime(timeUs, option, maxSize, maxSize)
+            } else {
+                retriever.getFrameAtTime(timeUs, option)
+            } ?: return null
+            try {
+                val scale = minOf(1.0, maxSize.toDouble() / maxOf(frame.width, frame.height))
+                val preview = if (scale < 1.0) {
+                    Bitmap.createScaledBitmap(
+                        frame,
+                        (frame.width * scale).roundToInt().coerceAtLeast(1),
+                        (frame.height * scale).roundToInt().coerceAtLeast(1),
+                        true,
+                    )
+                } else {
+                    frame
+                }
+                try {
+                    val output = ByteArrayOutputStream()
+                    return if (preview.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
+                        output.toByteArray()
+                    } else {
+                        null
+                    }
+                } finally {
+                    if (preview !== frame) preview.recycle()
+                }
+            } finally {
+                frame.recycle()
+            }
+        } finally {
+            retriever.release()
+        }
     }
 
     private fun checkStoreOwnership(appUserId: String, result: MethodChannel.Result) {

@@ -305,8 +305,11 @@ when the page is hidden, and on teardown. Each iframe has a unique URL context;
 messages must match both its window and origin. No external control script or
 new npm dependency is needed.
 
-The existing HLS player is selected automatically after a reported player
-failure. It also handles videos carrying
+The web app displays AppView's poster while the hosted player starts. A custom
+thumbnail filename alone does not change the player. A development asset
+confirmed that the hosted player can request the custom cover and report ready.
+If the hosted player fails or never reports ready, the existing HLS player
+displays AppView's poster and streams the same Bunny playlist. It also handles
 PDS caption tracks, since these have not been copied into Bunny. Captions stored
 on Bunny itself remain available in its hosted player. Full caption migration
 is outside this trial; existing post captions must not be silently dropped.
@@ -337,6 +340,26 @@ closed. Both paths keep description edits when returning and reopening, and do
 not upload video until publication. Remove remains on the attachment card; choose another video by removing and adding.
 If a browser cannot decode a MOV, it retains the existing preview-unavailable
 message and still permits a description and upload.
+
+### Video thumbnails
+
+Video details offers automatic frame previews at 0%, 25%, 50%, and 75% of
+playback. The default is 50%. The local draft stores the selected percentage.
+When the duration is available, new Bunny uploads request that timestamp using
+TUS metadata. The frame previews stay on the device.
+Video details also accepts an optional image and previews it center-cropped to
+the video's aspect ratio when dimensions are available. The image travels with
+the local draft and takes precedence over the automatic frame. AppView accepts a bounded
+JPEG with the upload authorization, crops it to the encoded video's aspect
+ratio, and applies it before the PDS video handoff. The final cover lives on
+the Bunny asset and is shared by posts that resolve to that asset. The standard
+video record carries the PDS video blob. A fresh import from the PDS generates
+a new cover.
+
+On 2026-11-18, disposable landscape and rotated portrait clips in
+`craftsky-dev` produced the requested midpoint through TUS. Bunny served
+their uploaded covers through its reported thumbnail filenames. Both assets
+were deleted after the checks.
 
 Manual device acceptance should include iPhone H.264/HEVC MOV, Android MP4,
 fullscreen, leaving the app, Back, replacement, and reopening a persisted draft.

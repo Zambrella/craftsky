@@ -69,8 +69,12 @@ List<Map<String, Object?>> selectedCauses(Object error) {
           'already_active',
           'create_error',
           'no_available_camera',
+          'no_activity',
+          'no_valid_video_uri',
+          'video_probe_failed',
           'camera_access_denied',
           'photo_access_denied',
+          'photo_access_restricted',
         }.contains(current.code)) {
       causes.last['code'] = current.code;
       final status =

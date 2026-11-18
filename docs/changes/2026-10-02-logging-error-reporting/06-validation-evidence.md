@@ -576,3 +576,13 @@ The handler fixture passed for local logs and serialized Sentry Logs with
 private-value canaries. The full AppView race and integration suite, 16 Flutter
 profile tests, and Dart analysis passed. Hosted collection remains unverified
 until release.
+
+## Android video selection diagnostics (18 November 2026)
+
+- The shared Flutter selection controller reports unexpected failures for both
+  composers. A local serialized-envelope test confirms one issue with the
+  Android platform, picker code and caught stack, and checks that the local
+  log and Sentry event exclude the selected file's name and URI.
+- The original Android preview-build failure was not reproduced. Delivery
+  from a rebuilt Android preview, hosted Sentry collection and release
+  symbolication remain unverified.

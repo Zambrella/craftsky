@@ -1,4 +1,5 @@
 import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 enum DraftVideoAvailability { available, unavailable }
@@ -20,6 +21,10 @@ final class VideoDraftDescriptor {
     required this.height,
     required this.duration,
     required this.altText,
+    this.thumbnailFrame = VideoThumbnailFrame.midpoint,
+    this.thumbnailStorageFileName,
+    this.thumbnailByteLength,
+    this.thumbnailSha256,
     this.availability = DraftVideoAvailability.available,
   });
 
@@ -32,6 +37,10 @@ final class VideoDraftDescriptor {
   final String sourceSha256;
   final int posterByteLength;
   final String posterSha256;
+  final VideoThumbnailFrame thumbnailFrame;
+  final String? thumbnailStorageFileName;
+  final int? thumbnailByteLength;
+  final String? thumbnailSha256;
   final String posterMimeType;
   final int width;
   final int height;
@@ -50,6 +59,10 @@ final class VideoDraftDescriptor {
         sourceSha256: sourceSha256,
         posterByteLength: posterByteLength,
         posterSha256: posterSha256,
+        thumbnailFrame: thumbnailFrame,
+        thumbnailStorageFileName: thumbnailStorageFileName,
+        thumbnailByteLength: thumbnailByteLength,
+        thumbnailSha256: thumbnailSha256,
         posterMimeType: posterMimeType,
         width: width,
         height: height,
@@ -59,7 +72,24 @@ final class VideoDraftDescriptor {
       );
 
   void validate() {
+    final thumbnail = (
+      thumbnailStorageFileName,
+      thumbnailByteLength,
+      thumbnailSha256,
+    );
+    final validThumbnail = switch (thumbnail) {
+      (null, null, null) => true,
+      (final String file, final int length, final String digest) =>
+        _isLeaf(file) &&
+            file != sourceStorageFileName &&
+            file != posterStorageFileName &&
+            length > 0 &&
+            length <= 1000000 &&
+            _sha256Pattern.hasMatch(digest),
+      _ => false,
+    };
     final valid =
+        validThumbnail &&
         _uuidPattern.hasMatch(storageRevision) &&
         _isLeaf(sourceStorageFileName) &&
         _isLeaf(posterStorageFileName) &&

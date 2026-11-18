@@ -25,7 +25,7 @@ func (b *Bunny) Cancel(ctx context.Context, owner syntax.DID, id string) error {
 		return nil
 	}
 	result, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs j
- SET state='failed',failure_code='video_upload_canceled',cleanup_requested_at=COALESCE(cleanup_requested_at,now()),cleanup_next_attempt_at=now(),updated_at=now()
+ SET state='failed',pending_thumbnail=NULL,failure_code='video_upload_canceled',cleanup_requested_at=COALESCE(cleanup_requested_at,now()),cleanup_next_attempt_at=now(),updated_at=now()
  WHERE id=$1 AND owner_did=$2 AND library_id=$3 AND state IN ('created','failed','ready')
  AND (state!='ready' OR lease_until<now())
  AND NOT EXISTS(SELECT 1 FROM craftsky_posts p WHERE p.did=j.owner_did AND p.record#>>'{embed,video,ref,$link}'=j.blob_cid)

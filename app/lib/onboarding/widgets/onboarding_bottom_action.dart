@@ -41,7 +41,7 @@ class OnboardingBottomAction extends StatelessWidget {
           value: !keyboardVisible && state.busy ? l10n.loading : null,
           liveRegion: !keyboardVisible && state.busy,
           onTap: keyboardVisible
-              ? () => FocusScope.of(context).unfocus()
+              ? () => dismissComposerKeyboard(context)
               : state.canSubmit
               ? onPressed
               : null,

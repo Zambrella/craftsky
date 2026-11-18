@@ -1,3 +1,7 @@
+import {
+	videoThumbnailPercent,
+	videoThumbnailTimeMs
+} from './video-thumbnail-frames';
 import { UserFacingError, InputError } from '#lib/user-facing-error.ts';
 import type { JsonObject } from '#lib/api/client.ts';
 import type { DraftMedia } from '../drafts/store.ts';
@@ -92,7 +96,16 @@ export async function uploadBunnyVideo(
 		headers: {
 			...headers,
 			'Upload-Length': String(source.size),
-			'Upload-Metadata': `filetype ${encode(media.mime)},title ${encode(title)},collection ${encode(collectionId)}`
+			'Upload-Metadata': [
+				`filetype ${encode(media.mime)}`,
+				`title ${encode(title)}`,
+				`collection ${encode(collectionId)}`,
+				...(media.durationMs && media.durationMs <= 600_000
+					? [
+							`thumbnailTime ${encode(String(videoThumbnailTimeMs(media.durationMs, videoThumbnailPercent(media.thumbnailFramePercent))))}`
+						]
+					: [])
+			].join(',')
 		}
 	});
 	if (created.status !== 201)

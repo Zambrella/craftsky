@@ -84,15 +84,18 @@ class _SignInPageState extends ConsumerState<SignInPage> {
           isLoading: busy && _pendingAction == _SignInAction.signIn,
           child: Text(l10n.signInContinueAction),
         ),
-        child: LayoutBuilder(
+        contentBuilder: (_, clearance) => LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
-            padding: EdgeInsets.all(spacing.sp5),
+            padding: EdgeInsets.all(spacing.sp5).add(
+              EdgeInsets.only(bottom: clearance),
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: (constraints.maxHeight - spacing.sp5 * 2).clamp(
-                  0,
-                  double.infinity,
-                ),
+                minHeight: (constraints.maxHeight - spacing.sp5 * 2 - clearance)
+                    .clamp(
+                      0,
+                      double.infinity,
+                    ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

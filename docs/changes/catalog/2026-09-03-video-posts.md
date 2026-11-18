@@ -17,6 +17,7 @@
   ],
   "keywords": [
     "processing poll",
+    "video thumbnail",
     "service JWT",
     "app interruption",
     "video verification",
@@ -50,5 +51,12 @@ The video foundation adds video-bearing post validation, upload authorization, p
 The final correction stops authorization-stage work on app interruption without broadening the approved user-cancellation controls, which are available during upload and processing. The review accepts the automated implementation after correction of lifecycle, verification and presentation findings.
 
 MAN-001 through MAN-005 remain explicit checks requiring supported platforms, assistive technology, device conditions and an eligible live account. Their absence does not mean local implementation is missing, but it prevents a full release-readiness claim. Bunny video was introduced later; today's provider selection and upload policy are defined by the current video guide and ADRs, not by assuming this original provider remains selected.
+
+Bunny-backed video drafts offer four automatic thumbnail choices when the source
+duration is available, with the midpoint selected by default. A custom image
+can override the frame and is center-cropped to fit the video. The web app
+displays AppView's cover while Bunny's player starts and when it falls back
+to HLS playback. See the
+[current video guide](../../development/bunny-video.md#video-thumbnails).
 
 Evidence: [05-implementation-plan.md](../2026-09-03-video-posts/05-implementation-plan.md); [06-implementation-review.md](../2026-09-03-video-posts/06-implementation-review.md#test-evidence). Current entry points are listed in the metadata; consult maintained guidance before applying historical rules.

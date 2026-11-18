@@ -9,6 +9,7 @@ import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
@@ -167,6 +168,7 @@ void main() {
       );
       final selection = LocalVideoSelection(
         displayName: 'private-camera-name.mov',
+        thumbnailFrame: VideoThumbnailFrame.start,
         mimeType: 'video/quicktime',
         byteLength: bytes.length,
         duration: const Duration(seconds: 1),
@@ -215,6 +217,7 @@ void main() {
           ),
       };
       expect(fields['filetype'], 'video/quicktime');
+      expect(fields['thumbnailTime'], '0');
       expect(fields['title'], capability().title);
       expect(fields.values.join(' '), isNot(contains('private-camera-name')));
       expect(adapter.lastBytes, bytes.sublist(3));

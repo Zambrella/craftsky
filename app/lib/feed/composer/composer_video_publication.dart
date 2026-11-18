@@ -22,7 +22,10 @@ VideoPublicationCoordinator composerVideoPublication({
     operationAccountDid: owner.session.account.did.value,
     checkEligibility: api.getVideoUploadLimits,
     authorize: () async {
-      uploadAuthorization = await api.authorizeVideoUpload();
+      final thumbnail = selection.thumbnail;
+      uploadAuthorization = thumbnail == null
+          ? await api.authorizeVideoUpload()
+          : await api.authorizeVideoUploadWithThumbnail(thumbnail);
       usesBunny = uploadAuthorization!.bunny != null;
       bunnyJobId = uploadAuthorization!.bunny?.jobId;
       return uploadAuthorization!;
@@ -38,6 +41,8 @@ VideoPublicationCoordinator composerVideoPublication({
             return await service.upload(
               source: VideoUploadSource(
                 length: selection.byteLength,
+                duration: selection.duration,
+                thumbnailFrame: selection.thumbnailFrame,
                 mimeType: selection.mimeType,
                 openRead: selection.openRead,
               ),

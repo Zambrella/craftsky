@@ -32,6 +32,7 @@ import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
@@ -273,6 +274,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         widget.videoController ??
         ComposerVideoController(
           picker: ImagePickerExistingVideo(),
+          reporter: ref.read(errorReporterProvider),
           checkEligibility: () =>
               ref.read(postApiClientProvider).getVideoUploadLimits(),
         );
@@ -896,6 +898,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           else if (selectedVideo != null)
                             ComposerVideoAttachmentCard(
                               selection: selectedVideo,
+                              onThumbnailChanged: _setVideoThumbnail,
+                              onThumbnailFrameChanged: _setVideoThumbnailFrame,
+                              checkLimits: _videoController.recheckEligibility,
                               enabled:
                                   !createState.isLoading &&
                                   !controlsBusy &&
@@ -1261,6 +1266,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     );
   }
 
+  void _setVideoThumbnailFrame(VideoThumbnailFrame value) {
+    if (mounted) setState(() => _videoController.setThumbnailFrame(value));
+  }
+
+  void _setVideoThumbnail(Uint8List? value) {
+    if (mounted) setState(() => _videoController.setThumbnail(value));
+  }
+
   Future<void> _selectVideo() async {
     final previous = _videoController.selection;
     try {
@@ -1284,6 +1297,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         await showComposerVideoDetails(
           context,
           selection: selected,
+          onThumbnailChanged: _setVideoThumbnail,
+          onThumbnailFrameChanged: _setVideoThumbnailFrame,
+          checkLimits: _videoController.recheckEligibility,
           onAltTextChanged: (value) {
             if (mounted) setState(() => _videoController.setAltText(value));
           },

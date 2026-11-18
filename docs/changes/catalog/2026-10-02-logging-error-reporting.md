@@ -62,6 +62,10 @@ This evolving package records the protected diagnostic pipeline and later mobile
 
 ## Evidence and limits
 
+The Android video selection follow-up verifies the protected error envelope
+locally. Preview-build delivery and the reported clip failure remain
+unverified.
+
 The review file is a historical correction input. Later validation sections record actual serialized SDK/local canary checks, client/browser suites and backend race coverage, including affected-package reruns. Hosted symbolication/collection and device-specific rollout proof are explicitly separate; folder date and opening verdict cannot summarize this package.
 
 Historical evidence: [latest AppView audit](../../../docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#appview-error-handling-audit-13-november-2026); [client audit](../../../docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#client-error-handling-audit-13-november-2026); [05-implementation-plan.md](../../../docs/changes/2026-10-02-logging-error-reporting/05-implementation-plan.md); [06-implementation-review.md](../../../docs/changes/2026-10-02-logging-error-reporting/06-implementation-review.md).

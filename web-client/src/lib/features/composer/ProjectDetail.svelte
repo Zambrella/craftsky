@@ -3,6 +3,7 @@
 	import { pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { mountComposerPage } from './page-layout';
+	import ComposerDetailAction from './ComposerDetailAction.svelte';
 	import Icon from '../shell/Icon.svelte';
 	let {
 		title,
@@ -127,6 +128,7 @@
 					{@render children()}
 				</fieldset>
 			</div>
+			<ComposerDetailAction ondone={() => void close()} />
 		</section>
 	</div>
 {/if}
@@ -180,8 +182,7 @@
 		left: var(--app-content-left, 0px);
 		width: var(--app-content-width, 100vw);
 		max-width: none;
-		min-height: 100dvh;
-		height: 100dvh;
+		height: var(--composer-detail-height, 100dvh);
 		margin: 0;
 		background: var(--paper);
 	}
@@ -202,7 +203,7 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
-		padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+		padding: 24px 16px calc(84px + env(safe-area-inset-bottom));
 		overscroll-behavior: contain;
 	}
 	.project-detail-fields {

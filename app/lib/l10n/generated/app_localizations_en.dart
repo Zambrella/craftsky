@@ -5084,7 +5084,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
 
   @override
+  String get postVideoThumbnailUpload => 'Add custom thumbnail';
+
+  @override
+  String postVideoThumbnailFrame(int percent) {
+    return 'Frame at $percent%';
+  }
+
+  @override
+  String get postVideoThumbnailRemove => 'Remove custom thumbnail';
+
+  @override
+  String get postVideoThumbnailPreview => 'Video thumbnail preview';
+
+  @override
+  String get postVideoThumbnailInvalid =>
+      'Could not prepare the thumbnail. Choose another image.';
+
+  @override
+  String get postVideoThumbnailUploadFailed =>
+      'Could not upload the thumbnail. Try again or remove it to use the automatic cover.';
+
+  @override
   String get postComposeVideoDetailsTitle => 'Video details';
+
+  @override
+  String get postComposeVideoPreviewHeading => 'Video';
+
+  @override
+  String get postComposeVideoThumbnailHeading => 'Thumbnail';
+
+  @override
+  String get postComposeVideoAltTextHeading => 'Alt text';
 
   @override
   String get postVideoLocalPreviewUnavailable =>

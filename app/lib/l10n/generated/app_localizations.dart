@@ -8937,11 +8937,65 @@ abstract class AppLocalizations {
   /// **'Could not copy link. Please try again.'**
   String get recordCopyLinkFailed;
 
+  /// No description provided for @postVideoThumbnailUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Add custom thumbnail'**
+  String get postVideoThumbnailUpload;
+
+  /// Screen reader label for a thumbnail choice at a percentage of the video's duration.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame at {percent}%'**
+  String postVideoThumbnailFrame(int percent);
+
+  /// No description provided for @postVideoThumbnailRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove custom thumbnail'**
+  String get postVideoThumbnailRemove;
+
+  /// No description provided for @postVideoThumbnailPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Video thumbnail preview'**
+  String get postVideoThumbnailPreview;
+
+  /// No description provided for @postVideoThumbnailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare the thumbnail. Choose another image.'**
+  String get postVideoThumbnailInvalid;
+
+  /// No description provided for @postVideoThumbnailUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upload the thumbnail. Try again or remove it to use the automatic cover.'**
+  String get postVideoThumbnailUploadFailed;
+
   /// Title of the local video inspection and description page.
   ///
   /// In en, this message translates to:
   /// **'Video details'**
   String get postComposeVideoDetailsTitle;
+
+  /// No description provided for @postComposeVideoPreviewHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get postComposeVideoPreviewHeading;
+
+  /// No description provided for @postComposeVideoThumbnailHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Thumbnail'**
+  String get postComposeVideoThumbnailHeading;
+
+  /// No description provided for @postComposeVideoAltTextHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Alt text'**
+  String get postComposeVideoAltTextHeading;
 
   /// Shown when local preview preparation fails without removing the selected attachment.
   ///

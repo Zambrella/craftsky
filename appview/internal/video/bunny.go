@@ -84,12 +84,16 @@ func (b *Bunny) libraryAPI(ctx context.Context, method, path string, input, outp
 		}
 		body = bytes.NewReader(data)
 	}
+	return b.libraryRequest(ctx, method, path, body, "application/json", output)
+}
+
+func (b *Bunny) libraryRequest(ctx context.Context, method, path string, body io.Reader, contentType string, output any) error {
 	req, err := http.NewRequestWithContext(ctx, method, "https://video.bunnycdn.com/library/"+b.library+path, body)
 	if err != nil {
 		return ErrBunnyUnavailable
 	}
 	req.Header.Set("AccessKey", b.apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	resp, err := b.client.Do(req)
 	if err != nil {
 		return ErrBunnyUnavailable
@@ -113,6 +117,15 @@ func (b *Bunny) libraryAPI(ctx context.Context, method, path string, input, outp
 
 // Allocation and per-owner quota are serialized before the billable vendor call.
 func (b *Bunny) IssueUpload(ctx context.Context, owner syntax.DID, session string) (UploadAuthorization, error) {
+	return b.IssueUploadWithThumbnail(ctx, owner, session, nil)
+}
+
+func (b *Bunny) IssueUploadWithThumbnail(ctx context.Context, owner syntax.DID, session string, thumbnail []byte) (UploadAuthorization, error) {
+	if len(thumbnail) > 0 {
+		if err := ValidateThumbnail(thumbnail); err != nil {
+			return UploadAuthorization{}, err
+		}
+	}
 	if b.sessions != nil {
 		err := b.sessions.WithActiveSession(ctx, owner, session, func(ctx context.Context, session *oauth.ClientSession) error {
 			if b.pdsLimits != nil && session != nil && session.Data != nil {
@@ -141,7 +154,7 @@ func (b *Bunny) IssueUpload(ctx context.Context, owner syntax.DID, session strin
 		return UploadAuthorization{}, ErrVideoQuota
 	}
 	job := uuid.NewString()
-	_, err = tx.Exec(ctx, "INSERT INTO bunny_video_jobs(id,owner_did,owner_generation,library_id) VALUES($1,$2,$3,$4)", job, owner, generation, b.library)
+	_, err = tx.Exec(ctx, "INSERT INTO bunny_video_jobs(id,owner_did,owner_generation,library_id,pending_thumbnail) VALUES($1,$2,$3,$4,$5)", job, owner, generation, b.library, thumbnail)
 	if err != nil {
 		return UploadAuthorization{}, err
 	}
@@ -170,7 +183,7 @@ func (b *Bunny) Get(ctx context.Context, owner syntax.DID, session string) (Uplo
 		return UploadLimits{}, err
 	}
 	remaining := max(int64(0), 20-count)
-	result := UploadLimits{CanUpload: remaining > 0, RemainingDailyVideos: &remaining}
+	result := UploadLimits{CanUpload: remaining > 0, RemainingDailyVideos: &remaining, CustomThumbnail: true}
 	if remaining == 0 {
 		result.Reason = "quota_exhausted"
 	}
@@ -243,6 +256,10 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		return pending, nil
 	}
 	var remote struct {
+		Thumbnail   string `json:"thumbnailFileName"`
+		Width       int    `json:"width"`
+		Height      int    `json:"height"`
+		Rotation    int    `json:"rotation"`
 		GUID        string `json:"guid"`
 		Library     int64  `json:"videoLibraryId"`
 		Status      int    `json:"status"`
@@ -259,7 +276,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	}
 	pending.Progress = min(99, max(0, remote.Progress))
 	if remote.Status == 5 || remote.Status == 6 || remote.Length > 600 {
-		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',updated_at=now() WHERE id=$1", id)
+		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',pending_thumbnail=NULL,updated_at=now() WHERE id=$1", id)
 		pending.State = "JOB_STATE_FAILED"
 		pending.Error = "invalid_video"
 		return pending, err
@@ -268,7 +285,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		return pending, nil
 	}
 	if j.imported {
-		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='ready',updated_at=now() WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL", id)
+		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='ready',thumbnail_filename=$2,updated_at=now() WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL", id, remote.Thumbnail)
 		return completedBunnyJob(id, j), err
 	}
 	select {
@@ -289,6 +306,32 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		defer cancel()
 		b.pool.Exec(release, "UPDATE bunny_video_jobs SET lease_until='-infinity' WHERE id=$1", id)
 	}()
+	var thumbnail []byte
+	if err = b.pool.QueryRow(ctx, "SELECT pending_thumbnail FROM bunny_video_jobs WHERE id=$1", id).Scan(&thumbnail); err != nil {
+		return pending, err
+	}
+	if len(thumbnail) > 0 {
+		width, height := remote.Width, remote.Height
+		if remote.Rotation%180 != 0 {
+			width, height = height, width
+		}
+		prepared, coverErr := prepareThumbnail(thumbnail, width, height)
+		if coverErr == nil {
+			coverErr = b.uploadThumbnail(ctx, j.video, prepared)
+		}
+		if coverErr != nil {
+			if ctx.Err() != nil {
+				return pending, ctx.Err()
+			}
+			const code = "video_thumbnail_failed"
+			_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,pending_thumbnail=NULL WHERE id=$1 AND state='created'", id, code)
+			pending.State, pending.Error = "JOB_STATE_FAILED", code
+			return pending, err
+		}
+		if err := b.api(ctx, http.MethodGet, "/"+j.video, nil, &remote); err != nil {
+			return pending, err
+		}
+	}
 	limit := maxVideoBlobBytes
 	if b.pdsLimits != nil && b.sessions != nil {
 		err = b.sessions.WithActiveSession(ctx, owner, session, func(ctx context.Context, active *oauth.ClientSession) error {
@@ -308,7 +351,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 		if limit < maxVideoBlobBytes {
 			code = "pds_blob_too_large"
 		}
-		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1 AND state='created'", id, code)
+		_, err = b.pool.Exec(ctx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,pending_thumbnail=NULL,updated_at=now() WHERE id=$1 AND state='created'", id, code)
 		pending.State = "JOB_STATE_FAILED"
 		pending.Error = code
 		return pending, err
@@ -337,7 +380,7 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 			}
 			saveCtx, saveCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer saveCancel()
-			if _, saveErr := b.pool.Exec(saveCtx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,updated_at=now() WHERE id=$1 AND state='created'", id, code); saveErr != nil {
+			if _, saveErr := b.pool.Exec(saveCtx, "UPDATE bunny_video_jobs SET state='failed',failure_code=$2,pending_thumbnail=NULL,updated_at=now() WHERE id=$1 AND state='created'", id, code); saveErr != nil {
 				return pending, saveErr
 			}
 			pending.State = "JOB_STATE_FAILED"
@@ -350,8 +393,8 @@ func (b *Bunny) Status(ctx context.Context, owner syntax.DID, session, id string
 	if err = b.setVideoMetadata(ctx, j.video, id, "upload", blob.CID); err != nil {
 		return pending, err
 	}
-	result, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs j SET state='ready',blob_cid=$2,blob_size=$3,updated_at=now()
- WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL AND EXISTS(SELECT 1 FROM owner_lifecycles o WHERE o.owner_did=j.owner_did AND o.state='active' AND o.generation=j.owner_generation)`, id, blob.CID, blob.Size)
+	result, err := b.pool.Exec(ctx, `UPDATE bunny_video_jobs j SET state='ready',blob_cid=$2,blob_size=$3,pending_thumbnail=NULL,thumbnail_filename=$4,updated_at=now()
+ WHERE id=$1 AND state='created' AND cleanup_requested_at IS NULL AND EXISTS(SELECT 1 FROM owner_lifecycles o WHERE o.owner_did=j.owner_did AND o.state='active' AND o.generation=j.owner_generation)`, id, blob.CID, blob.Size, remote.Thumbnail)
 	if err != nil {
 		return pending, err
 	}
@@ -474,10 +517,13 @@ func (b *Bunny) URLs(owner syntax.DID, cid syntax.CID) (string, string) {
 func (b *Bunny) URLsWithEmbed(owner syntax.DID, cid syntax.CID) (string, string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	var video string
-	err := b.pool.QueryRow(ctx, `SELECT video_id::text FROM bunny_video_jobs WHERE owner_did=$1 AND blob_cid=$2 AND library_id=$3 AND state='ready' ORDER BY updated_at DESC LIMIT 1`, owner, cid, b.library).Scan(&video)
+	var video, thumbnailName string
+	err := b.pool.QueryRow(ctx, `SELECT video_id::text,COALESCE(thumbnail_filename,'') FROM bunny_video_jobs WHERE owner_did=$1 AND blob_cid=$2 AND library_id=$3 AND state='ready' ORDER BY updated_at DESC LIMIT 1`, owner, cid, b.library).Scan(&video, &thumbnailName)
 	if err == nil {
-		return "https://" + b.cdn + "/" + video + "/playlist.m3u8", "https://" + b.cdn + "/" + video + "/thumbnail.jpg", "https://player.mediadelivery.net/embed/" + b.library + "/" + video
+		if !bunnyThumbnailFilename.MatchString(thumbnailName) {
+			thumbnailName = "thumbnail.jpg"
+		}
+		return "https://" + b.cdn + "/" + video + "/playlist.m3u8", "https://" + b.cdn + "/" + video + "/" + thumbnailName, "https://player.mediadelivery.net/embed/" + b.library + "/" + video
 	}
 	if errors.Is(err, pgx.ErrNoRows) && b.fallback != nil {
 		playlist, thumbnail := b.fallback.URLs(owner, cid)

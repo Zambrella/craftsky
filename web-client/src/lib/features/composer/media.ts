@@ -5,6 +5,7 @@ import type {
 	CraftskyAPI,
 	PostPayload
 } from '#lib/api/client.ts';
+import { containerDurationMs } from './video-duration.ts';
 import type { DraftMedia } from '../drafts/store.ts';
 import { uploadBunnyVideo } from './bunny-video.ts';
 
@@ -30,8 +31,10 @@ export function attachmentSelection(
 export async function prepareImage(
 	source: Blob,
 	name: string,
-	transform: ImageTransform = {}
+	transform: ImageTransform = {},
+	limits = { maxDimension: 4000, maxBytes: 2_000_000 }
 ): Promise<DraftMedia> {
+	const { maxDimension, maxBytes } = limits;
 	if (source.size > 40_000_000)
 		throw new InputError('Choose an image smaller than 40 MB.');
 	let bitmap: ImageBitmap;
@@ -63,7 +66,7 @@ export async function prepareImage(
 		const rotated = rotation % 2 === 1;
 		let width = rotated ? sh : sw,
 			height = rotated ? sw : sh;
-		const scale = Math.min(1, 4000 / width, 4000 / height);
+		const scale = Math.min(1, maxDimension / width, maxDimension / height);
 		width = Math.max(1, Math.round(width * scale));
 		height = Math.max(1, Math.round(height * scale));
 		const canvas = document.createElement('canvas');
@@ -104,13 +107,15 @@ export async function prepareImage(
 			);
 		let blob = await encode(0.88);
 		let quality = 0.78;
-		while (blob.size > 2_000_000 && quality >= 0.28) {
+		while (blob.size > maxBytes && quality >= 0.28) {
 			blob = await encode(quality);
 			quality -= 0.1;
 		}
-		if (blob.size > 2_000_000)
+		if (blob.size > maxBytes)
 			throw new InputError(
-				'Crop this image further to fit the 2 MB image limit.'
+				maxBytes === 2_000_000
+					? 'Crop this image further to fit the 2 MB image limit.'
+					: 'Choose a smaller thumbnail image.'
 			);
 		return {
 			id: crypto.randomUUID(),
@@ -133,6 +138,18 @@ export function videoSourceMime(
 	if (tag === 'ftypqt  ') return 'video/quicktime';
 	if (['ftypisom', 'ftypmp41', 'ftypmp42', 'ftypavc1'].includes(tag))
 		return 'video/mp4';
+}
+
+async function unplayableVideo(
+	result: DraftMedia,
+	file: File
+): Promise<DraftMedia> {
+	const durationMs = await containerDurationMs(file);
+	if (durationMs !== undefined && durationMs > 600_000)
+		throw new InputError(
+			'This video is too long. Videos must be ten minutes or shorter. Trim it and try again.'
+		);
+	return { ...result, previewUnavailable: true, durationMs };
 }
 
 export async function inspectVideo(file: File): Promise<DraftMedia> {
@@ -186,11 +203,10 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 			// Browsers without HEVC/QuickTime decoding can still upload a valid MOV.
 			// AppView validates duration after Bunny processing and before publication.
 			if (mime !== 'video/quicktime') throw error;
-			return { ...result, previewUnavailable: true };
+			return unplayableVideo(result, file);
 		}
 		if (!Number.isFinite(element.duration) || element.duration <= 0) {
-			if (mime === 'video/quicktime')
-				return { ...result, previewUnavailable: true };
+			if (mime === 'video/quicktime') return unplayableVideo(result, file);
 			throw new UserFacingError('Could not read this video.');
 		}
 		if (element.duration > 600)
@@ -199,6 +215,7 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 			);
 		return {
 			...result,
+			durationMs: Math.round(element.duration * 1000),
 			width: element.videoWidth || undefined,
 			height: element.videoHeight || undefined
 		};
@@ -320,7 +337,11 @@ async function uploadVideoWithinDeadline(
 		throw new UserFacingError(
 			'Video upload is unavailable for this account. Verify your PDS email or check your upload allowance.'
 		);
-	const authorization = await api.media.videoAuthorization();
+	if (media.thumbnail && limits.customThumbnail !== true)
+		throw new UserFacingError(
+			'Custom thumbnails are unavailable. Remove the image to publish.'
+		);
+	const authorization = await api.media.videoAuthorization(media.thumbnail);
 	const cancelJob =
 		authorization.provider === 'bunny' &&
 		typeof authorization.jobId === 'string' &&
@@ -348,7 +369,11 @@ async function uploadVideoWithinDeadline(
 		let bunnyJobId: string | undefined;
 		if (bunny) {
 			bunnyJobId = await uploadBunnyVideo(
-				media,
+				{
+					...media,
+					durationMs:
+						media.durationMs ?? (await containerDurationMs(media.blob))
+				},
 				authorization,
 				signal,
 				progress,
@@ -422,6 +447,10 @@ async function uploadVideoWithinDeadline(
 							: {})
 					}
 				};
+			if (status.error === 'video_thumbnail_failed')
+				throw new InputError(
+					'Could not upload the thumbnail. Try again or remove it to use the automatic cover.'
+				);
 			if (
 				status.state === 'JOB_STATE_FAILED' ||
 				(status.error && status.error !== 'already_exists')
