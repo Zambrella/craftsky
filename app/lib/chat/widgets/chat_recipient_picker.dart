@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/chat/pages/messaging_route_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
@@ -47,7 +48,10 @@ Future<void> showSendViaChat(BuildContext context, String url) async {
       id != null &&
       (container.read(sessionRegistryProvider).value?.isCurrent(lease) ??
           false)) {
-    ChatConversationRoute(conversationId: id.value).go(context);
+    ChatConversationRoute(
+      conversationId: id.value,
+      $extra: ChatLinkPrefill(lease, url),
+    ).go(context);
   }
 }
 
@@ -156,30 +160,7 @@ class _ChatRecipientPickerState extends ConsumerState<ChatRecipientPicker> {
           recipient.availability?.conversationId ??
           await operation.step(recipient.start);
       if (id == null) return;
-      final link = widget.prefillLink;
-      if (link == null) {
-        operation.publish(() => widget.onSelected(id));
-        return;
-      }
-      final family = chatConversationControllerProvider(widget.account, id);
-      final subscription = ref.listenManual(family, (_, _) {});
-      try {
-        final conversation = await operation.step(
-          () => ref.read(family.future),
-        );
-        final prepared = await operation.step(
-          () => conversation.prefillLink(link),
-        );
-        if (!prepared) {
-          if (mounted) {
-            context.showError(AppLocalizations.of(context).chatDraftSaveFailed);
-          }
-          return;
-        }
-        operation.publish(() => widget.onSelected(id));
-      } finally {
-        subscription.close();
-      }
+      operation.publish(() => widget.onSelected(id));
     } on AccountOperationDiscarded {
       return;
     } on Object catch (error, stack) {

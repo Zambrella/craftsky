@@ -9306,7 +9306,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendFailed.
   ///
   /// In en, this message translates to:
-  /// **'This message was not sent. Your draft is kept.'**
+  /// **'This message was not sent.'**
   String get chatSendFailed;
 
   /// No description provided for @chatSendUncertain.
@@ -9321,23 +9321,17 @@ abstract class AppLocalizations {
   /// **'Check status'**
   String get chatCheckStatus;
 
-  /// No description provided for @chatDiscardDraft.
+  /// No description provided for @chatDiscardMessage.
   ///
   /// In en, this message translates to:
-  /// **'Discard draft'**
-  String get chatDiscardDraft;
+  /// **'Discard message'**
+  String get chatDiscardMessage;
 
-  /// No description provided for @chatDraftSaveFailed.
+  /// No description provided for @chatRecoverySaveFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.'**
-  String get chatDraftSaveFailed;
-
-  /// No description provided for @chatSaveDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Save draft'**
-  String get chatSaveDraft;
+  /// **'Could not save delivery recovery on this device.'**
+  String get chatRecoverySaveFailed;
 
   /// No description provided for @chatMessageInvalid.
   ///
@@ -9360,7 +9354,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendAgainWarning.
   ///
   /// In en, this message translates to:
-  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.'**
+  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.'**
   String get chatSendAgainWarning;
 
   /// No description provided for @chatIncomingTitle.
@@ -9486,7 +9480,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSyncStale.
   ///
   /// In en, this message translates to:
-  /// **'Messages may be out of date. Your loaded messages and draft are kept.'**
+  /// **'Messages may be out of date. Your loaded messages and current text are kept.'**
   String get chatSyncStale;
 
   /// No description provided for @chatSyncUpdating.

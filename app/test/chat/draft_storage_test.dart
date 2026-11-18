@@ -8,8 +8,41 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // IT-017 / FR-019 / AC-028. Real storage adapter, mocked platform channel only.
+ChatDraft _attempt(String text) => const ChatDraft.empty()
+    .edit(text)
+    .beginSend(
+      ChatOperationId.parse('00000000-0000-4000-8000-000000000123'),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'legacy unsent text is ignored and only attempted text is stored',
+    () async {
+      final backend = _DelayedBackend();
+      final store = ChatDraftStore.withBackend(backend);
+      final owner = AccountKey('did:plc:owner');
+      final id = ChatConversationId.parse('conversation');
+      await store.initialize({owner});
+      final lease = store.lease(owner);
+      await store.save(
+        lease,
+        id,
+        _attempt('Submitted').edit('Newer unsent text'),
+      );
+      expect((await store.load(lease, id)).text, 'Submitted');
+      expect(
+        backend.values.values.join(),
+        isNot(contains('Newer unsent text')),
+      );
+      final key = backend.values.keys.singleWhere(
+        (key) => !key.endsWith('.index'),
+      );
+      backend.values[key] = '{"text":"Legacy unsent text","revision":1}';
+      expect((await store.load(lease, id)).text, isEmpty);
+    },
+  );
+
   test('IT-017 a queued initialization cannot restore '
       'removed-owner draft authority', () async {
     final backend = _DelayedBackend();
@@ -22,7 +55,7 @@ void main() {
     final save = store.save(
       old,
       id,
-      const ChatDraft.empty().edit('private-old'),
+      _attempt('private-old'),
     );
     final saved = expectLater(save, throwsA(isA<ChatDraftLeaseExpired>()));
     await backend.entered.future;
@@ -34,7 +67,7 @@ void main() {
     await removal;
     expect(() => store.lease(a), throwsA(isA<ChatDraftLeaseExpired>()));
     await store.initialize({a});
-    await store.save(store.lease(a), id, const ChatDraft.empty().edit('fresh'));
+    await store.save(store.lease(a), id, _attempt('fresh'));
     await expectLater(
       store.save(old, id, const ChatDraft.empty().edit('late')),
       throwsA(isA<ChatDraftLeaseExpired>()),
@@ -55,7 +88,7 @@ void main() {
     final save = store.save(
       old,
       id,
-      const ChatDraft.empty().edit('private-delayed'),
+      _attempt('private-delayed'),
     );
     final observed = expectLater(save, throwsA(isA<ChatDraftLeaseExpired>()));
     await backend.entered.future;
@@ -78,7 +111,7 @@ void main() {
     await store.save(
       store.lease(b),
       id,
-      const ChatDraft.empty().edit('private-b'),
+      _attempt('private-b'),
     );
     expect((await store.load(store.lease(a), id)).text, isEmpty);
     await expectLater(
@@ -90,7 +123,7 @@ void main() {
     expect((await store.load(store.lease(b), id)).text, 'private-b');
   });
   test(
-    'local drafts restore isolated owner state and purge only removed owner',
+    'delivery records stay isolated and purge only the removed owner',
     () async {
       FlutterSecureStorage.setMockInitialValues({});
       final a = AccountKey('did:plc:draft-owner-a');
@@ -110,7 +143,7 @@ void main() {
       await store.save(
         store.lease(b),
         id,
-        const ChatDraft.empty().edit('private-b'),
+        _attempt('private-b'),
       );
       final restarted = ChatDraftStore(const FlutterSecureStorage());
       await restarted.initialize({a, b});

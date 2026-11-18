@@ -41,7 +41,7 @@ export function validateText(text: string, report = false): string | undefined {
 	return undefined;
 }
 
-/** Drafts are private browser data, partitioned by the exact account session. */
+/** Delivery recovery is private browser data, partitioned by account session. */
 export class MessageDraftStore {
 	private observed = new Map<string, string | null>();
 	constructor(
@@ -53,53 +53,41 @@ export class MessageDraftStore {
 	}
 	load(id: string): MessageDraft {
 		const raw = this.storage.getItem(this.key(id));
-		if (!raw) {
-			this.observed.set(this.key(id), null);
-			return { text: '' };
-		}
+		this.observed.set(this.key(id), raw);
+		if (!raw) return { text: '' };
 		try {
-			if (raw.length > 50_000) throw new Error('Oversized draft');
-			const value = JSON.parse(raw) as MessageDraft;
+			if (raw.length > 50_000) throw new Error('Oversized delivery record');
+			// Older records may also contain unsent composer text. Restore only
+			// the snapshot associated with an actual send attempt.
+			const pending = (JSON.parse(raw) as MessageDraft).pending;
+			if (!pending) return { text: '' };
 			if (
-				!value ||
-				typeof value.text !== 'string' ||
-				value.text.length > 20_000
-			)
-				throw new Error('Invalid draft');
-			if (
-				value.pending &&
-				(!operationID.test(value.pending.operationId) ||
-					typeof value.pending.text !== 'string' ||
-					validateText(value.pending.text) ||
-					!states.has(value.pending.state))
+				!operationID.test(pending.operationId) ||
+				typeof pending.text !== 'string' ||
+				validateText(pending.text) ||
+				!states.has(pending.state)
 			)
 				throw new Error('Invalid attempt');
-			this.observed.set(this.key(id), raw);
 			return {
-				text: value.text,
-				...(value.pending
-					? {
-							pending: {
-								...value.pending,
-								state:
-									value.pending.state === 'pending'
-										? 'uncertain'
-										: value.pending.state
-							}
-						}
-					: {})
+				text: pending.text,
+				pending: {
+					...pending,
+					state: pending.state === 'pending' ? 'uncertain' : pending.state
+				}
 			};
 		} catch (cause) {
-			throw new Error('The saved message draft could not be read.', { cause });
+			throw new Error('The saved delivery could not be read.', { cause });
 		}
 	}
 	async save(id: string, draft: MessageDraft): Promise<void> {
 		const key = this.key(id);
-		const value = draft.text || draft.pending ? JSON.stringify(draft) : null;
+		const value = draft.pending
+			? JSON.stringify({ text: draft.pending.text, pending: draft.pending })
+			: null;
 		const write = () => {
 			if (this.storage.getItem(key) !== (this.observed.get(key) ?? null))
 				throw new InputError(
-					'This conversation has a saved draft or delivery in another tab. Your text is still here. Reopen the conversation before saving or sending.'
+					'Messaging recovery changed in another tab. Reopen the conversation before sending.'
 				);
 			if (value === null) this.storage.removeItem(key);
 			else this.storage.setItem(key, value);

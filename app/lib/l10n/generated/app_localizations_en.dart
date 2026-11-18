@@ -5287,7 +5287,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSending => 'Sending…';
 
   @override
-  String get chatSendFailed => 'This message was not sent. Your draft is kept.';
+  String get chatSendFailed => 'This message was not sent.';
 
   @override
   String get chatSendUncertain =>
@@ -5297,14 +5297,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatCheckStatus => 'Check status';
 
   @override
-  String get chatDiscardDraft => 'Discard draft';
+  String get chatDiscardMessage => 'Discard message';
 
   @override
-  String get chatDraftSaveFailed =>
-      'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.';
-
-  @override
-  String get chatSaveDraft => 'Save draft';
+  String get chatRecoverySaveFailed =>
+      'Could not save delivery recovery on this device.';
 
   @override
   String get chatMessageInvalid =>
@@ -5319,7 +5316,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSendAgainWarning =>
-      'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.';
+      'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.';
 
   @override
   String get chatIncomingTitle => 'Who can message me';
@@ -5390,7 +5387,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSyncStale =>
-      'Messages may be out of date. Your loaded messages and draft are kept.';
+      'Messages may be out of date. Your loaded messages and current text are kept.';
 
   @override
   String get chatSyncUpdating => 'Updating your shared inbox…';

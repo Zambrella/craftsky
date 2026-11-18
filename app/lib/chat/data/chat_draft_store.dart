@@ -20,7 +20,7 @@ final class ChatDraftStorageException
   @override
   final StackTrace diagnosticStack;
   @override
-  String toString() => 'Local messaging draft storage unavailable';
+  String toString() => 'Local messaging recovery storage unavailable';
 }
 
 final class ChatDraftLease {
@@ -50,7 +50,7 @@ final class _SecureDraftBackend implements ChatDraftStorageBackend {
   Future<void> delete(String key) => storage.delete(key: key);
 }
 
-/// Serialized local storage. No message transport or server draft dependency.
+/// Serialized local delivery recovery storage.
 final class ChatDraftStore {
   new(FlutterSecureStorage storage) : _backend = _SecureDraftBackend(storage);
   new withBackend(this._backend);
@@ -192,7 +192,7 @@ final class ChatDraftStore {
     final entry = _index[lease._owner] as Map<String, dynamic>;
     final keys = List<String>.from(entry['conversations'] as List);
     final key = _key(lease._owner, hash);
-    if (draft.text.isEmpty && draft.pending == null) {
+    if (draft.pending == null) {
       await _backend.delete(key);
       keys.remove(hash);
       entry['conversations'] = keys;

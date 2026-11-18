@@ -9,10 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// IT-017 / FR-016, FR-019: the actual account-removal cleanup reaches drafts.
+// IT-017 / FR-016: the actual account-removal cleanup covers delivery recovery.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  test('account cleanup awaits owner-only draft purge', () async {
+  test('account cleanup awaits owner-only delivery recovery purge', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final store = ChatDraftStore(const FlutterSecureStorage());
     final a = AccountKey('did:plc:draft-owner-a');
@@ -20,11 +20,18 @@ void main() {
     final id = ChatConversationId.parse('private-conversation');
     await store.initialize({a, b});
     final stale = store.lease(a);
-    await store.save(stale, id, const ChatDraft.empty().edit('private-a'));
+    final operation = ChatOperationId.parse(
+      '00000000-0000-4000-8000-000000000123',
+    );
+    await store.save(
+      stale,
+      id,
+      const ChatDraft.empty().edit('private-a').beginSend(operation),
+    );
     await store.save(
       store.lease(b),
       id,
-      const ChatDraft.empty().edit('private-b'),
+      const ChatDraft.empty().edit('private-b').beginSend(operation),
     );
     final container = ProviderContainer(
       overrides: [chatDraftStoreProvider.overrideWithValue(store)],

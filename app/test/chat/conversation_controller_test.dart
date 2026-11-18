@@ -95,7 +95,7 @@ void main() {
     );
   }
   test(
-    'SHARE-001 link prefill preserves and persists an existing draft',
+    'SHARE-001 link prefill appends to the composer without persisting',
     () async {
       FlutterSecureStorage.setMockInitialValues({});
       final account = AccountKey('did:plc:owner');
@@ -118,7 +118,7 @@ void main() {
       await controller.load();
       controller.edit('My draft');
       expect(
-        await controller.prefillLink(
+        controller.prefillLink(
           'https://app.craftsky.social/profiles/example',
         ),
         true,
@@ -129,7 +129,7 @@ void main() {
       );
       expect(
         (await store.load(store.lease(account), id)).text,
-        controller.draft.text,
+        isEmpty,
       );
       expect(repository.sendCalls, 0);
     },
@@ -338,7 +338,7 @@ void main() {
     );
   }
   test(
-    'UT-009 initial load overlaps combined details and draft restoration',
+    'UT-009 initial load overlaps combined details and delivery restoration',
     () async {
       final account = AccountKey('did:plc:owner');
       final id = ChatConversationId.parse('conversation');
@@ -348,7 +348,11 @@ void main() {
       await store.save(
         store.lease(account),
         id,
-        const ChatDraft.empty().edit('retained-unsent-draft'),
+        const ChatDraft.empty()
+            .edit('retained-send-attempt')
+            .beginSend(
+              ChatOperationId.parse('00000000-0000-4000-8000-000000000123'),
+            ),
       );
       final draftEntered = Completer<void>();
       final releaseDraft = Completer<void>();
@@ -401,7 +405,7 @@ void main() {
       await loading;
       expect(controller.loading, false);
       expect(controller.conversation?.id, id);
-      expect(controller.draft.text, 'retained-unsent-draft');
+      expect(controller.draft.text, 'retained-send-attempt');
       expect(remote.historyCalls, 0);
     },
   );
@@ -472,7 +476,7 @@ void main() {
       expect(controller.busy, isFalse);
       expect(
         (await store.load(store.lease(account), id)).text,
-        'private-later-edit',
+        isEmpty,
       );
     },
   );
@@ -692,7 +696,6 @@ void main() {
       final sending = controller.send();
       await remote.entered.future;
       controller.edit('newer-local-draft');
-      await controller.flush();
       final older = controller.loadOlder();
       controller.setForeground(value: true);
       final reading = controller.presented([ChatMessageId.parse('loaded')]);
@@ -738,7 +741,7 @@ void main() {
       expect(controller.outgoingMessages, isEmpty);
       expect(
         (await store.load(store.lease(account), id)).text,
-        'newer-local-draft',
+        isEmpty,
       );
     },
   );
@@ -1156,8 +1159,6 @@ void main() {
     expect(remote.sendCalls, 1);
     expect(controller.draft.text, isEmpty);
     expect(controller.draft.pending, isNull);
-    controller.edit('private-discard');
-    await controller.discardDraft();
     expect((await store.load(store.lease(account), id)).text, isEmpty);
   });
   test(
@@ -1218,59 +1219,69 @@ void main() {
       expect(countRefreshes, 2);
     },
   );
-  test('IT-017 stale load cannot publish or erase a retained draft', () async {
-    FlutterSecureStorage.setMockInitialValues({});
-    final account = AccountKey('did:plc:owner');
-    final store = ChatDraftStore(const FlutterSecureStorage());
-    await store.initialize({account});
-    final id = ChatConversationId.parse('conversation-1');
-    await store.save(
-      store.lease(account),
-      id,
-      const ChatDraft.empty().edit('private-before'),
-    );
-    final pending = Completer<ChatConversationDetails>();
-    final remote = _Repository()..detailsReader = () => pending.future;
-    var current = true;
-    final controller = ChatConversationController(
-      account: account,
-      id: id,
-      repository: remote,
-      store: store,
-      draftLease: store.lease(account),
-      operation: ActiveAccountOperation.withGuard(
-        ownership: null,
-        isCurrent: () => current,
-      ),
-    );
-    var publications = 0;
-    controller.addListener(() => publications++);
-    final loading = controller.load();
-    current = false;
-    pending.complete(
-      ChatConversationDetails(
-        conversation: _summary(id),
-        messages: ChatMessagePage.fromMap(const {
-          'items': [
-            {
-              'id': 'private-late',
-              'revision': 'r',
-              'kind': 'text',
-              'text': 'private-late-canary',
-              'senderDid': 'did:plc:peer',
-              'sentAt': '2026-10-21T12:00:00Z',
-            },
-          ],
-        }),
-      ),
-    );
-    await loading;
-    expect(controller.conversation, isNull);
-    expect(publications, 0);
-    expect(remote.historyCalls, 0);
-    controller.dispose();
-    expect((await store.load(store.lease(account), id)).text, 'private-before');
-  });
+  test(
+    'IT-017 stale load leaves a prior send attempt intact',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:owner');
+      final store = ChatDraftStore(const FlutterSecureStorage());
+      await store.initialize({account});
+      final id = ChatConversationId.parse('conversation-1');
+      await store.save(
+        store.lease(account),
+        id,
+        const ChatDraft.empty()
+            .edit('private-before')
+            .beginSend(
+              ChatOperationId.parse('00000000-0000-4000-8000-000000000123'),
+            ),
+      );
+      final pending = Completer<ChatConversationDetails>();
+      final remote = _Repository()..detailsReader = () => pending.future;
+      var current = true;
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: remote,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => current,
+        ),
+      );
+      var publications = 0;
+      controller.addListener(() => publications++);
+      final loading = controller.load();
+      current = false;
+      pending.complete(
+        ChatConversationDetails(
+          conversation: _summary(id),
+          messages: ChatMessagePage.fromMap(const {
+            'items': [
+              {
+                'id': 'private-late',
+                'revision': 'r',
+                'kind': 'text',
+                'text': 'private-late-canary',
+                'senderDid': 'did:plc:peer',
+                'sentAt': '2026-10-21T12:00:00Z',
+              },
+            ],
+          }),
+        ),
+      );
+      await loading;
+      expect(controller.conversation, isNull);
+      expect(publications, 0);
+      expect(remote.historyCalls, 0);
+      controller.dispose();
+      expect(
+        (await store.load(store.lease(account), id)).text,
+        'private-before',
+      );
+    },
+  );
   for (final newText in ['private-newer', 'private-original', '']) {
     test('UT-009 pending is durable before dispatch'
         ' and confirmation preserves later edit ($newText)', () async {
@@ -1335,8 +1346,7 @@ void main() {
       expect(controller.draft.pending, isNull);
       expect(remote.sendCalls, 1);
       expect(countRefreshes, 1);
-      await controller.flush();
-      expect((await store.load(store.lease(account), id)).text, newText);
+      expect((await store.load(store.lease(account), id)).text, isEmpty);
     });
   }
 }

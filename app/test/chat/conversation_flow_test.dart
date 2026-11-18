@@ -817,6 +817,8 @@ void main() {
         tester.widget<ChunkyButton>(sendButton).variant,
         ChunkyButtonVariant.primary,
       );
+      expect(find.textContaining('delivery recovery'), findsNothing);
+      expect((await store.load(store.lease(account), id)).text, isEmpty);
       final previousPage = await repository.history(id);
       final pendingHistory = Completer<ChatMessagePage>();
       repository.pendingHistory = pendingHistory;
@@ -853,7 +855,7 @@ void main() {
       );
       expect(
         (await store.load(store.lease(account), id)).text,
-        'private-retained',
+        isEmpty,
       );
       await tester.pump();
       expect(find.byTooltip('Report message'), findsNothing);
@@ -885,6 +887,8 @@ void main() {
       expect(repository.leaves, 1);
       expect(closed, true);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(controller.draft.composerText, isEmpty);
     },
   );
   testWidgets('UT-009 Send again warns before repeating the earlier message', (

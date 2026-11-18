@@ -7,7 +7,8 @@
   "archive": "archived",
   "components": [
     "app",
-    "appview"
+    "appview",
+    "web-client"
   ],
   "topics": [
     "chat",
@@ -20,9 +21,10 @@
     "accepted unread badge",
     "sync coordinator",
     "cached inbox",
-    "ambiguous send"
+    "ambiguous send",
+    "message drafts"
   ],
-  "summary": "This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements.",
+  "summary": "This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Both composers keep unsent text in memory while open. Only submitted attempts use device-local delivery recovery.",
   "currentDocs": [
     "docs/architecture.md",
     "app/README.md",
@@ -30,7 +32,8 @@
   ],
   "code": [
     "app/lib/chat",
-    "appview/internal/chat"
+    "appview/internal/chat",
+    "web-client/src/lib/features/messages"
   ],
   "evidence": [
     "docs/changes/2026-10-18-direct-messaging/06-validation-evidence.md#cached-inbox-on-conversation-return-2026-10-31",
@@ -48,7 +51,7 @@
 
 ## Outcome and decisions
 
-This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Chat stays on its separate provider boundary with server-owned OAuth credentials. Account/access/generation fences protect private state, accepted unread counts exclude requests, and returning from a conversation refreshes retained inbox controllers instead of destroying visible rows. Ambiguous non-idempotent sends must not be silently repeated.
+This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Chat stays on its separate provider boundary with server-owned OAuth credentials. Account/access/generation fences protect private state, accepted unread counts exclude requests, and returning from a conversation refreshes retained inbox controllers instead of destroying visible rows. Ambiguous non-idempotent sends require an explicit recovery action. The original local draft requirement (FR-019) is superseded. Both clients keep unsent text in memory while the composer is open, including shared links. Device storage supports recovery of submitted attempts.
 
 ## Evidence and limits
 

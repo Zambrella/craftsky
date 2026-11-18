@@ -435,7 +435,6 @@ void main() {
       final first = container.listen(family, (_, _) {});
       final loaded = await container.read(family.future);
       loaded.edit('still-unsent');
-      await loaded.flush();
       first.close();
       await tester.pump(const Duration(minutes: 1));
       expect(loaded.history.messages.single.text, 'private-cache-canary');
@@ -453,7 +452,7 @@ void main() {
           store.lease(account),
           ChatConversationId.parse('cached'),
         )).text,
-        'still-unsent',
+        isEmpty,
       );
       final reopened = container.listen(family, (_, _) {});
       expect(await container.read(family.future), isNot(same(loaded)));
@@ -705,7 +704,6 @@ void main() {
     addTearDown(subscription.close);
     final controller = await container.read(family.future);
     controller.edit('retained-local-draft');
-    await controller.flush();
     final settingsFamily = chatSettingsControllerProvider(a);
     final settingsSubscription = container.listen(settingsFamily, (_, _) {});
     addTearDown(settingsSubscription.close);
@@ -717,7 +715,7 @@ void main() {
     expect(status.generation, 3);
     await expectLater(container.read(family.future), throwsA(anything));
     expect(controller.history.messages, isEmpty);
-    expect((await store.load(store.lease(a), id)).text, 'retained-local-draft');
+    expect((await store.load(store.lease(a), id)).text, isEmpty);
   });
 
   for (final scenario in [
@@ -771,7 +769,6 @@ void main() {
       addTearDown(subscription.close);
       final controller = await container.read(family.future);
       controller.edit('retained-local-draft');
-      await controller.flush();
       final syncFamily = chatSyncCoordinatorProvider(a);
       final syncSubscription = container.listen(syncFamily, (_, _) {});
       addTearDown(syncSubscription.close);
@@ -802,7 +799,7 @@ void main() {
       expect(controller.history.messages, isEmpty);
       expect(
         (await store.load(store.lease(a), id)).text,
-        'retained-local-draft',
+        isEmpty,
       );
     });
   }
@@ -973,7 +970,7 @@ void main() {
     },
   );
   test(
-    'IT-017 disconnect evicts private controller but retains local draft',
+    'IT-017 disconnect evicts private controller and drops unsent text',
     () async {
       FlutterSecureStorage.setMockInitialValues({});
       final a = AccountKey('did:plc:alice');
@@ -1029,7 +1026,6 @@ void main() {
       addTearDown(subscription.close);
       final controller = await container.read(family.future);
       controller.edit('private-unsent-edit');
-      await controller.flush();
       expect(controller.history.messages, hasLength(1));
       enabled = false;
       container.invalidate(chatStatusProvider(a));
@@ -1039,7 +1035,7 @@ void main() {
       expect(controller.draft.text, isEmpty);
       expect(
         (await store.load(store.lease(a), id)).text,
-        'private-unsent-edit',
+        isEmpty,
       );
     },
   );
@@ -1107,7 +1103,7 @@ void main() {
     final reconnected = await container.read(family.future);
     expect(reconnected, isNot(same(controller)));
     expect(controller.draft.text, isEmpty);
-    expect(reconnected.draft.text, 'private-unsent-edit');
+    expect(reconnected.draft.text, isEmpty);
   });
   test(
     'IT-007 account controller refreshes the watched native aggregate',
