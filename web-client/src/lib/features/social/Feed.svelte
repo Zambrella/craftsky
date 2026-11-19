@@ -20,7 +20,7 @@
 	import MemberPost from './MemberPost.svelte';
 	import { rememberPage } from '../shell/page-history';
 	import ProjectFiltersPage from './ProjectFiltersPage.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, onNavigate } from '$app/navigation';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import { label } from '#lib/public.ts';
@@ -32,6 +32,22 @@
 	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
 	const guest = $derived(api.audience === 'guest');
+	const tabStripId = 'home-feed-tabs';
+	let tabStrip = $state<HTMLElement>();
+	onNavigate(({ from, to }) => {
+		if (
+			!tabStrip ||
+			from?.url.pathname !== '/feed' ||
+			to?.url.pathname !== '/feed'
+		)
+			return;
+		const offset = tabStrip.scrollLeft;
+		// Feed query changes remount the strip along with the feed content.
+		return () => {
+			const nextStrip = document.getElementById(tabStripId);
+			if (nextStrip) nextStrip.scrollLeft = offset;
+		};
+	});
 	type FeedItem = {
 		key: string;
 		post: PostPresentation;
@@ -240,7 +256,13 @@
 					>{/if}
 			</div>{/if}
 	</div>
-	<nav class="tabs" use:dragScroll aria-label="Home feeds">
+	<nav
+		id={tabStripId}
+		bind:this={tabStrip}
+		class="tabs"
+		use:dragScroll
+		aria-label="Home feeds"
+	>
 		<a
 			href="/feed"
 			aria-current={!craft && !extendedNetwork ? 'page' : undefined}
