@@ -47,12 +47,12 @@ test('member post controls prompt for account actions without sending member req
 	expect(privateReads).toEqual([]);
 });
 
-test('profiles default to Projects and expose the shared follow controls', async ({
+test('profiles default to Posts and expose the shared follow controls', async ({
 	page
 }) => {
 	await page.goto('/profiles/alice.test');
 	await expect(
-		page.getByRole('link', { name: 'Projects', exact: true })
+		page.getByRole('link', { name: 'Posts', exact: true })
 	).toHaveAttribute('aria-current', 'page');
 	const stats = page.getByRole('group', { name: 'Profile summary' });
 	await expect(stats.getByText('Joined', { exact: true })).toBeVisible();
