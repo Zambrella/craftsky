@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "publicationStatus": "blocked",
+  "publicationStatus": "approved",
   "generatedFrom": "online-safety/policies",
   "policies": [
     {
@@ -8,11 +8,11 @@
       "source": "online-safety/policies/terms-of-service.md",
       "artifact": "web/terms.html",
       "version": "1.1",
-      "effectiveDate": "To be set before publication",
-      "approvalStatus": "Draft",
-      "approvedBy": "Pending approval of version 1.1; version 1.0 was approved for private beta on 10 November 2026",
-      "sourceDigest": "sha256:a84c3583a5d9273dcee1bad7f61477fb9955a5f4024f7b5dea40d6a2929928c0",
-      "artifactDigest": "sha256:7394d4a76608c13ea07f6e3043981065f853524d02f332ad34bcceefd44cc442",
+      "effectiveDate": "19 November 2026",
+      "approvalStatus": "Approved",
+      "approvedBy": "Douglas Todd, 19 November 2026 (private beta publication)",
+      "sourceDigest": "sha256:8587208c0519ebbedf1a4ef4bfaad2452a4af3558b64c41dd4bdb29d6b363f55",
+      "artifactDigest": "sha256:cab68402fbfffbe04b2c8afc06954168721710d9787b6f70ad625bfdfb619018",
       "presentTenseClaims": [
         {
           "control": "BR-005",
@@ -62,8 +62,8 @@
       "effectiveDate": "10 November 2026",
       "approvalStatus": "Approved",
       "approvedBy": "Douglas Todd, 10 November 2026 (private beta publication)",
-      "sourceDigest": "sha256:0b96636435190c3987d45fe9d9678476bdadcec4c6cb7f8bd133a4d87f62cf52",
-      "artifactDigest": "sha256:0eac5e0d9a03131b0bc6c769668d9ecd0f9578b8b51f71957a029a20e68b3a9d",
+      "sourceDigest": "sha256:3ee8f0170ba043797da3281591293dc47e0834448fc8691d66f9f91ebec31bd0",
+      "artifactDigest": "sha256:a23dfcce58b036ffa36d103fb62d806928c1632884872c9141e4a4a79699cd47",
       "presentTenseClaims": [
         {
           "control": "FR-015",

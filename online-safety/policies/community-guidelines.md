@@ -81,6 +81,10 @@ otherwise meet the harmful-content definitions above.
 
 ### Child safety
 
+CraftSky Social prohibits all forms of child sexual abuse and exploitation
+(CSAE), including grooming and the sharing of child sexual abuse material
+(CSAM).
+
 Do not sexualize, groom, exploit, or abuse a child. Never post, request, link to,
 store, or share child sexual abuse material. Do not try to move a child into
 unsafe contact on another service.
@@ -334,3 +338,4 @@ accessed by children and applies the safeguards required by law.
 
 | 0.4 | 9 November 2026 | Aligns all-user harmful-content prohibitions and context safeguards with the owner-approved children's content boundary; full policy/publication approval remains pending. | Douglas Todd / content boundary approved only |
 | 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |
+| 1.0 | 19 November 2026 | Names CraftSky Social and states the existing prohibition of child sexual abuse and exploitation explicitly for Google Play. | Douglas Todd |
