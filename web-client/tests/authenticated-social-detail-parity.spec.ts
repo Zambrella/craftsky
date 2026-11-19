@@ -728,6 +728,35 @@ async function profileEditor(page: Page) {
 	return writes;
 }
 
+test('new profile links use distinct AT Protocol record keys when saved', async ({
+	page
+}) => {
+	await page.clock.setFixedTime(new Date('2026-10-27T12:00:00Z'));
+	const writes = await profileEditor(page);
+	for (const host of ['shop.example', 'blog.example']) {
+		await page.getByRole('button', { name: 'Add link', exact: true }).click();
+		const dialog = page.getByRole('dialog', { name: 'Add link', exact: true });
+		await dialog.getByRole('textbox', { name: 'URL', exact: true }).fill(host);
+		await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+		await expect(dialog).not.toBeVisible();
+	}
+	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+	await expect.poll(() => writes.length).toBe(1);
+	const links = (writes[0].body.links as { rkey: string; url: string }[]).slice(
+		2
+	);
+	expect(links.map(({ url }) => url)).toEqual([
+		'https://shop.example/',
+		'https://blog.example/'
+	]);
+	for (const { rkey } of links) {
+		expect(rkey).toMatch(
+			/^[234567abcdefghij][234567abcdefghijklmnopqrstuvwxyz]{12}$/
+		);
+	}
+	expect(links[0].rkey).not.toBe(links[1].rkey);
+});
+
 test('profile link edit and reorder stay local until the authoritative profile save', async ({
 	page
 }) => {
