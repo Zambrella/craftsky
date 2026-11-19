@@ -31,21 +31,11 @@ type Metadata struct {
 // DecodeHTMLHead converts a bounded HTML stream to UTF-8 and stops after a
 // completed head. Exhausting the limit before then is treated as oversized.
 func DecodeHTMLHead(input io.Reader, contentType string) ([]byte, error) {
-	if _, parameters, err := mime.ParseMediaType(contentType); err != nil {
-		return nil, err
-	} else if label := parameters["charset"]; label != "" {
-		if encoding, _ := charset.Lookup(label); encoding == nil {
-			return nil, errors.New("unsupported HTML charset")
-		}
-	}
-	limited := &io.LimitedReader{R: input, N: maxPageBytes}
-	decoded, err := charset.NewReader(limited, contentType)
+	tokenizer, limited, err := newBoundedHTMLTokenizer(input, contentType)
 	if err != nil {
 		return nil, err
 	}
-
 	var head bytes.Buffer
-	tokenizer := html.NewTokenizer(decoded)
 	for {
 		tokenType := tokenizer.Next()
 		if tokenType == html.ErrorToken {
@@ -62,6 +52,22 @@ func DecodeHTMLHead(input io.Reader, contentType string) ([]byte, error) {
 			return head.Bytes(), nil
 		}
 	}
+}
+
+func newBoundedHTMLTokenizer(input io.Reader, contentType string) (*html.Tokenizer, *io.LimitedReader, error) {
+	if _, parameters, err := mime.ParseMediaType(contentType); err != nil {
+		return nil, nil, err
+	} else if label := parameters["charset"]; label != "" {
+		if encoding, _ := charset.Lookup(label); encoding == nil {
+			return nil, nil, errors.New("unsupported HTML charset")
+		}
+	}
+	limited := &io.LimitedReader{R: input, N: maxPageBytes}
+	decoded, err := charset.NewReader(limited, contentType)
+	if err != nil {
+		return nil, nil, err
+	}
+	return html.NewTokenizer(decoded), limited, nil
 }
 
 // ExtractMetadata parses an already bounded, decoded HTML head. Destination
