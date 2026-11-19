@@ -230,6 +230,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Bottom navigation'), findsNothing);
+      if (entry == 'cold') {
+        addTearDown(tester.view.resetViewInsets);
+        await tester.tap(find.byType(TextField));
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 250 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('chat-send')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('chat-keyboard-done')), findsNothing);
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+      }
       if (entry == 'share') {
         expect(
           tester.widget<TextField>(find.byType(TextField)).controller!.text,

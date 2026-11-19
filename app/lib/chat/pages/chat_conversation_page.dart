@@ -30,7 +30,6 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
-import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -450,7 +449,6 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       ChatDraftSendState.uncertain => l10n.chatSendUncertain,
       null => null,
     };
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return FormKeyboardScope(
       child: Scaffold(
         appBar: AppBar(
@@ -671,13 +669,8 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                     const SizedBox(width: 8),
                                     SizedBox(
                                       width: 96,
-                                      child: ComposerBottomAction(
-                                        keyboardVisible: keyboardVisible,
-                                        doneKey: const Key(
-                                          'chat-keyboard-done',
-                                        ),
-                                        actionKey: const Key('chat-send'),
-                                        label: l10n.chatSend,
+                                      child: ChunkyButton(
+                                        key: const Key('chat-send'),
                                         onPressed:
                                             controller.canSend &&
                                                 !blockBusy &&
