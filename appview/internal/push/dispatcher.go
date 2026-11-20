@@ -794,6 +794,11 @@ type currentDeliveryState struct {
 	eligible   bool
 }
 
+const currentSubscriptionActivationSQL = `COALESCE(
+	d.subscription_activation_generation=s.activation_generation,
+	s.deactivated_at IS NULL OR d.created_at>s.deactivated_at
+)`
+
 // currentDeliveryStatus distinguishes a stale or rotated claim from a current
 // route whose notification eligibility has been withdrawn. That distinction
 // lets the latter settle terminally without allowing an old token or lease to
@@ -808,7 +813,7 @@ func (d *Dispatcher) currentDeliveryStatus(
 	err := db.QueryRow(ctx, `
 		WITH current_claim AS (
 			SELECT n.recipient_did,n.actor_did,n.category,n.state,
-			       (s.deactivated_at IS NULL OR d.created_at>s.deactivated_at) AS current_activation
+			       `+currentSubscriptionActivationSQL+` AS current_activation
 			FROM push_deliveries d
 			JOIN notification_events n ON n.id=d.notification_id
 			JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
@@ -957,7 +962,7 @@ func (d *Dispatcher) invalidate(
 			WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2
 			  AND d.lease_expires_at=$7 AND d.lease_expires_at>$6
 			  AND s.id=$3 AND s.active
-			  AND (s.deactivated_at IS NULL OR d.created_at>s.deactivated_at)
+			  AND `+currentSubscriptionActivationSQL+`
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
 			FOR UPDATE OF d, i
 		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(&owned); err != nil {
@@ -999,7 +1004,7 @@ func (d *Dispatcher) finishClaim(ctx context.Context, db deliveryWriter, item cl
 			SELECT 1 FROM push_account_subscriptions s
 			JOIN push_installations i ON i.id=s.installation_id
 			WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5
-			  AND (s.deactivated_at IS NULL OR d.created_at>s.deactivated_at)
+			  AND `+currentSubscriptionActivationSQL+`
 		  )
 	`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token,
 		now, item.leaseExpiresAt, status, providerClass, next)

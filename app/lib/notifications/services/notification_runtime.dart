@@ -61,6 +61,12 @@ final class NotificationRuntime {
   final PendingNotificationOpen _pending = PendingNotificationOpen();
   final _subscriptions = <StreamSubscription<Object?>>[];
 
+  ({
+    ActiveAccountLease activation,
+    int sequence,
+    NotificationNavigationEffect effect,
+  })?
+  _deferredNavigation;
   Future<void>? _startFuture;
   bool _disposed = false;
   Did? _did;
@@ -123,13 +129,16 @@ final class NotificationRuntime {
     _readiness = readiness;
     if (_readiness == NotificationOpenReadiness.requiresSignIn) {
       _latestOpenSequence++;
+      _deferredNavigation = null;
     }
+    _publishDeferredNavigation();
     final pending = _pending.updateReadiness(_readiness);
     if (pending != null) await _processOpen(pending);
     await refreshAccounts();
   }
 
   Future<void> receiveOpen(NotificationOpenAttempt event) async {
+    if (_disposed) return;
     await receiveResolvedOpen(
       event,
       _routingStorage.resolveIfReady(event.accountSubscriptionId),
@@ -166,10 +175,14 @@ final class NotificationRuntime {
     );
     if (resolution is! ExactNotificationRecipient) return;
     final lease = resolution.lease;
+    final activation = _routingStorage.activeLease;
+    bool bindingIsCurrent() =>
+        !_disposed &&
+        _routingStorage.read(lease) == event.openAttempt.accountSubscriptionId;
     NotificationRecipientIdentity? recipient;
     final session = _routingStorage.sessionFor(lease);
     if (session == null) return;
-    if (!_routingStorage.isActiveLease(lease)) {
+    if (activation?.session != lease) {
       recipient = NotificationRecipientIdentity(
         lease: lease,
         handle: session.handle.value,
@@ -181,6 +194,8 @@ final class NotificationRuntime {
         event,
         resolution: resolution,
         recipient: recipient,
+        isCurrent: () =>
+            bindingIsCurrent() && _routingStorage.activeLease == activation,
       ),
     );
     if (event.openAttempt.facts is ChatNotificationFacts ||
@@ -194,7 +209,7 @@ final class NotificationRuntime {
     } else {
       await _invalidateList();
     }
-    if (_disposed || !_routingStorage.isCurrentLease(lease)) return;
+    if (!bindingIsCurrent()) return;
     final refreshAccountCount = _refreshAccountCount;
     if (refreshAccountCount != null) {
       await refreshAccountCount(lease.account);
@@ -225,20 +240,29 @@ final class NotificationRuntime {
           ? AccountActivationResult.alreadyActive
           : await _activateRecipient(lease),
       onOutcome: (outcome) {
-        if (!_isCurrentOpen(work)) return;
         final activation = _routingStorage.activeLease;
-        _effects.add(
-          NotificationNavigationEffect(
-            NotificationOpenOutcome(
-              destination: outcome.destination,
-              feedback: outcome.feedback,
-              isCurrent: () =>
-                  _isCurrentOpen(work) &&
-                  _routingStorage.activeLease == activation &&
-                  (outcome.isCurrent?.call() ?? true),
-            ),
+        if (activation == null || !_isCurrentWork(work)) return;
+        final effect = NotificationNavigationEffect(
+          NotificationOpenOutcome(
+            destination: outcome.destination,
+            feedback: outcome.feedback,
+            isCurrent: () =>
+                _isCurrentWork(work) &&
+                _routingStorage.activeLease == activation &&
+                (outcome.isCurrent?.call() ?? true),
           ),
         );
+        if (_isReadyFor(activation)) {
+          _effects.add(effect);
+        } else if (work.sequence == _latestOpenSequence) {
+          // Activation can finish before the new account's UI is ready.
+          // Keep this resolved destination without repeating its lookup.
+          _deferredNavigation = (
+            activation: activation,
+            sequence: work.sequence,
+            effect: effect,
+          );
+        }
       },
       onUnavailable: () {
         if (!_isCurrentOpen(work)) return;
@@ -252,11 +276,30 @@ final class NotificationRuntime {
     await opener.openResolved(work);
   }
 
+  void _publishDeferredNavigation() {
+    final deferred = _deferredNavigation;
+    if (deferred == null || _readiness != NotificationOpenReadiness.ready) {
+      return;
+    }
+    _deferredNavigation = null;
+    if (deferred.sequence == _latestOpenSequence &&
+        _isReadyFor(deferred.activation) &&
+        deferred.effect.outcome.isCurrent?.call() == true) {
+      _effects.add(deferred.effect);
+    }
+  }
+
+  bool _isReadyFor(ActiveAccountLease activation) =>
+      _readiness == NotificationOpenReadiness.ready &&
+      _did == activation.session.account.did;
+
   bool _isCurrentOpen(PendingNotificationOpenWork work) =>
+      _isCurrentWork(work) && _readiness == NotificationOpenReadiness.ready;
+
+  bool _isCurrentWork(PendingNotificationOpenWork work) =>
       !_disposed &&
       (!work.latestOnly || _latestOpenSequence == work.sequence) &&
-      _readiness == NotificationOpenReadiness.ready &&
-      _did != null;
+      _readiness != NotificationOpenReadiness.requiresSignIn;
 
   Future<void> dispose() async {
     if (_disposed) return;

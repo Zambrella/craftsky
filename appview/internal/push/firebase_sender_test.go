@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
-	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/errorutils"
 	"firebase.google.com/go/v4/messaging"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"google.golang.org/api/option"
 
 	"social.craftsky/appview/internal/notifications"
 )
@@ -30,6 +29,12 @@ type firebaseFailureTransport struct {
 	retryAfter string
 }
 
+type firebaseTestTransport func(*http.Request) (*http.Response, error)
+
+func (transport firebaseTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
 func (transport firebaseFailureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: transport.status,
@@ -37,6 +42,15 @@ func (transport firebaseFailureTransport) RoundTrip(request *http.Request) (*htt
 		Body:       io.NopCloser(strings.NewReader("{}")),
 		Request:    request,
 	}, nil
+}
+
+func firebaseRetryTestRequest() SendRequest {
+	return SendRequest{
+		Platform: "android", Token: "test-token", Category: notifications.Like,
+		AccountSubscriptionID: "00000000-0000-4000-8000-000000000001",
+		RoutingFacts:          RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000002"},
+		Semantics:             DeliveryUniqueEvent, TTL: time.Hour,
+	}
 }
 
 func TestFirebaseSenderPreservesProviderRetryDelay(t *testing.T) {
@@ -54,26 +68,53 @@ func TestFirebaseSenderPreservesProviderRetryDelay(t *testing.T) {
 		{"configuration failure", firebaseFailureTransport{403, "120"}, ResultPermanentFailure, 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			app, err := firebase.NewApp(t.Context(), &firebase.Config{ProjectID: "test-project"},
-				option.WithoutAuthentication(), option.WithHTTPClient(&http.Client{Transport: tt.transport}))
+			sender, err := newFirebaseSender(t.Context(), "test-project", &http.Client{Transport: tt.transport})
 			if err != nil {
 				t.Fatal(err)
 			}
-			client, err := app.Messaging(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
-			sender := FirebaseSender{client: client, now: func() time.Time { return now }}
-			result, err := sender.Send(t.Context(), SendRequest{
-				Platform: "android", Token: "test-token", Category: notifications.Like,
-				AccountSubscriptionID: "00000000-0000-4000-8000-000000000001",
-				RoutingFacts:          RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000002"},
-				Semantics:             DeliveryUniqueEvent, TTL: time.Hour,
-			})
+			sender.now = func() time.Time { return now }
+			result, err := sender.Send(t.Context(), firebaseRetryTestRequest())
 			if err == nil || result.Class != tt.wantClass || result.RetryAfter != tt.wantDelay {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
 		})
+	}
+}
+
+func TestFirebaseSenderRetains503RetryDelayWhenSDKWaitIsInterrupted(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	calls := 0
+	transport := firebaseTestTransport(func(request *http.Request) (*http.Response, error) {
+		calls++
+		// Model cancellation once the transport has received the response.
+		// The SDK exits its internal retry wait with just the context cause.
+		cancel()
+		return (firebaseFailureTransport{503, "60"}).RoundTrip(request)
+	})
+	sender, err := newFirebaseSender(ctx, "test-project", &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sender.now = func() time.Time { return time.Unix(1000, 0) }
+	result, err := sender.Send(ctx, firebaseRetryTestRequest())
+	if !errors.Is(err, context.Canceled) || result.Class != ResultRetryable || result.RetryAfter != time.Minute || calls != 1 {
+		t.Fatalf("result=%+v err=%v calls=%d", result, err, calls)
+	}
+}
+
+func TestFirebaseSenderRetriesExhaustedTransportErrors(t *testing.T) {
+	t.Parallel()
+	transport := firebaseTestTransport(func(*http.Request) (*http.Response, error) {
+		return nil, io.ErrUnexpectedEOF
+	})
+	sender, err := newFirebaseSender(t.Context(), "test-project", &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := sender.Send(t.Context(), firebaseRetryTestRequest())
+	if !errorutils.IsUnknown(err) || errorutils.HTTPResponse(err) != nil || result.Class != ResultRetryable || result.RetryAfter != 10*time.Second {
+		t.Fatalf("result=%+v err=%v", result, err)
 	}
 }
 
@@ -149,7 +190,7 @@ func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {
 					message.Notification.Body != "liked your post" {
 					t.Fatalf("Android notification = %+v", message.Notification)
 				}
-				if message.Android == nil || message.Android.TTL == nil ||
+				if message.Android == nil || message.Android.Priority != "" || message.Android.TTL == nil ||
 					*message.Android.TTL != time.Hour {
 					t.Fatalf("Android config = %+v", message.Android)
 				}

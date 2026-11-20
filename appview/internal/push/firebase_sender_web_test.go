@@ -19,7 +19,7 @@ func TestFirebaseWebPushHasBoundedTTLPrivateAccountRoutingAndNoCollapse(t *testi
 			if chat {
 				request.Category = ""
 				request.RoutingFacts = RoutingFacts{}
-				request.Chat = &ChatRouting{OpenReference: "00000000-0000-4000-8000-000000000003"}
+				request.Chat = &ChatRouting{OpenReference: "00000000-0000-4000-8000-000000000003", AcceptedConversation: true}
 			}
 			result, err := sender.Send(context.Background(), request)
 			if err != nil || result.Class != ResultSuccess {

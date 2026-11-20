@@ -337,7 +337,7 @@ void main() {
   });
 
   testWidgets(
-    'IT-007 root host presents and refreshes every foreground event',
+    'IT-007 root host presents only current foreground events',
     (tester) async {
       final service = _FakeNotificationService();
       final messenger = RecordingMessenger();
@@ -349,7 +349,7 @@ void main() {
         did: 'did:plc:viewer',
         handle: 'viewer.test',
       );
-      final bound = SessionRegistry(
+      var bound = SessionRegistry(
         nextSessionGeneration: registry.nextSessionGeneration,
         nextUseOrdinal: registry.nextUseOrdinal,
         activationGeneration: registry.activationGeneration,
@@ -360,11 +360,17 @@ void main() {
         },
         routingBindings: {registry.activeDid!.value: 'binding'},
       );
+      var removeBeforeDisplay = false;
       final runtime = _runtime(
         service,
         effects,
-        registry: bound,
-        invalidateList: () => listInvalidations++,
+        readRegistry: () => bound,
+        invalidateList: () {
+          listInvalidations++;
+          if (removeBeforeDisplay) {
+            bound = bound.removeRoutingBinding(registry.activeLease!.session);
+          }
+        },
         refreshCount: () => countRefreshes++,
       );
       await runtime.start();
@@ -436,6 +442,14 @@ void main() {
       expect(messenger.calls[0].$3?.label, 'Open');
       expect(listInvalidations, 2);
       expect(countRefreshes, 2);
+
+      removeBeforeDisplay = true;
+      service.emitForeground(event);
+      await tester.pumpAndSettle();
+
+      expect(listInvalidations, 3);
+      expect(countRefreshes, 2);
+      expect(messenger.calls.where((call) => call.$1 == 'info'), hasLength(2));
     },
   );
 }
@@ -443,7 +457,7 @@ void main() {
 NotificationRuntime _runtime(
   NotificationService service,
   StreamController<NotificationEffect> effects, {
-  SessionRegistry? registry,
+  SessionRegistry Function()? readRegistry,
   void Function()? invalidateList,
   void Function()? refreshCount,
 }) {
@@ -461,7 +475,7 @@ NotificationRuntime _runtime(
     service: service,
     registration: registration,
     routingStorage: NotificationRoutingStorage(
-      () => registry ?? SessionRegistry.empty(),
+      readRegistry ?? SessionRegistry.empty,
     ),
     invalidateList: invalidateList ?? () {},
     refreshCount: refreshCount ?? () {},

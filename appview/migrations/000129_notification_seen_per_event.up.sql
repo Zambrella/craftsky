@@ -1,3 +1,24 @@
+-- Legacy acknowledgements and account cleanup lock these tables in opposite
+-- orders. Release any partial acquisition before retrying.
+DO $$
+DECLARE
+    lock_deadline TIMESTAMPTZ := clock_timestamp() + interval '30 seconds';
+BEGIN
+    LOOP
+        BEGIN
+            LOCK TABLE notification_seen_state IN SHARE ROW EXCLUSIVE MODE NOWAIT;
+            LOCK TABLE notification_events IN ACCESS EXCLUSIVE MODE NOWAIT;
+            EXIT;
+        EXCEPTION WHEN lock_not_available THEN
+            IF clock_timestamp() >= lock_deadline THEN
+                RAISE;
+            END IF;
+            PERFORM pg_sleep(0.05);
+        END;
+    END LOOP;
+END;
+$$;
+
 ALTER TABLE notification_events ADD COLUMN is_new BOOLEAN NOT NULL DEFAULT true;
 
 UPDATE notification_events AS event

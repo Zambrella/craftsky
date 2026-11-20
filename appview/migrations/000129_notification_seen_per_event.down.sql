@@ -1,3 +1,22 @@
+-- Acquire both tables before teardown without blocking on a partial lock.
+DO $$
+DECLARE
+    lock_deadline TIMESTAMPTZ := clock_timestamp() + interval '30 seconds';
+BEGIN
+    LOOP
+        BEGIN
+            LOCK TABLE notification_seen_state, notification_events IN ACCESS EXCLUSIVE MODE NOWAIT;
+            EXIT;
+        EXCEPTION WHEN lock_not_available THEN
+            IF clock_timestamp() >= lock_deadline THEN
+                RAISE;
+            END IF;
+            PERFORM pg_sleep(0.05);
+        END;
+    END LOOP;
+END;
+$$;
+
 DROP TRIGGER notification_seen_state_legacy_ack_trigger ON notification_seen_state;
 DROP FUNCTION apply_legacy_notification_seen_marker();
 

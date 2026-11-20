@@ -18,11 +18,7 @@ import (
 
 func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000021_appview_notifications.up.sql", "000130_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	seedMember(t, pool, "did:plc:viewer")
@@ -49,19 +45,20 @@ func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *tes
 		t.Fatalf("responses=%+v %+v %+v", first, second, rotated)
 	}
 	var installations, subscriptions int
+	var generation int64
 	var token string
 	if err := pool.QueryRow(context.Background(), `SELECT count(*), max(fcm_token) FROM push_installations`).Scan(&installations, &token); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM push_account_subscriptions`).Scan(&subscriptions); err != nil {
+	if err := pool.QueryRow(context.Background(), `SELECT count(*),max(activation_generation) FROM push_account_subscriptions`).Scan(&subscriptions, &generation); err != nil {
 		t.Fatal(err)
 	}
-	if installations != 1 || subscriptions != 1 || token != "token-two" {
-		t.Fatalf("installations=%d subscriptions=%d token=%s", installations, subscriptions, token)
+	if installations != 1 || subscriptions != 1 || token != "token-two" || generation != 1 {
+		t.Fatalf("installations=%d subscriptions=%d token=%s generation=%d", installations, subscriptions, token, generation)
 	}
 
-	// The same route is stable across re-registration, but queued work is
-	// fenced off using the last deactivation time.
+	// The same route is stable across re-registration. New deliveries capture
+	// the new generation, while legacy work uses the last deactivation time.
 	store := api.NewPostStore(pool)
 	ctx := ownerlifecycle.WithExpectedGeneration(t.Context(), 1)
 	if err := store.RemoveNotificationSubscription(ctx, "did:plc:viewer", "device-1", first.AccountSubscriptionID); err != nil {
@@ -74,13 +71,17 @@ func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *tes
 	if got := register("token-two"); got != first {
 		t.Fatalf("reactivated route = %+v, want %+v", got, first)
 	}
-	var retained time.Time
-	var active bool
-	if err := pool.QueryRow(ctx, `SELECT active,deactivated_at FROM push_account_subscriptions`).Scan(&active, &retained); err != nil {
+	// A still-serving older AppView can clear the timestamp during renewal.
+	if _, err := pool.Exec(ctx, `UPDATE push_account_subscriptions SET active=true,deactivated_at=NULL`); err != nil {
 		t.Fatal(err)
 	}
-	if !active || !retained.Equal(disabledAt) {
-		t.Fatalf("active=%t last deactivation=%v want %v", active, retained, disabledAt)
+	var retained time.Time
+	var active bool
+	if err := pool.QueryRow(ctx, `SELECT active,deactivated_at,activation_generation FROM push_account_subscriptions`).Scan(&active, &retained, &generation); err != nil {
+		t.Fatal(err)
+	}
+	if !active || !retained.Equal(disabledAt) || generation != 2 {
+		t.Fatalf("active=%t last deactivation=%v want %v generation=%d want 2", active, retained, disabledAt, generation)
 	}
 }
 

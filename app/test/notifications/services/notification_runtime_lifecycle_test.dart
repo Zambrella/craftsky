@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
@@ -170,6 +172,97 @@ void main() {
       ProfileDestination(Did.parse('did:plc:actor')),
     );
   });
+
+  for (final switchAway in [false, true]) {
+    test('deferred navigation is bound to the initialized recipient '
+        '(switch away=$switchAway)', () async {
+      const service = UnavailableNotificationService();
+      final binding = AccountSubscriptionId.parse('bob_binding');
+      final alice = AccountKey('did:plc:alice');
+      final bob = AccountKey('did:plc:bob');
+      var registry = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: bob.did.value,
+            handle: 'bob.test',
+          )
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: alice.did.value,
+            handle: 'alice.test',
+          );
+      final recipient = registry.leaseFor(bob)!;
+      registry = registry.saveRoutingBinding(recipient, binding.wireValue);
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final received = <NotificationEffect>[];
+      final subscription = effects.stream.listen(received.add);
+      var resolutions = 0;
+      late final NotificationRuntime runtime;
+      runtime = NotificationRuntime(
+        service: service,
+        registration: NotificationRegistrationCoordinator(
+          service: service,
+          platform: NotificationPlatform.ios,
+          registerAccount: ({
+            required lease,
+            required platform,
+            required token,
+          }) async => binding,
+          saveBindingForLease: ({required lease, required binding}) async {},
+        ),
+        routingStorage: NotificationRoutingStorage(() => registry),
+        invalidateList: () {},
+        refreshCount: () {},
+        effects: effects,
+        activateRecipient: (lease) async {
+          registry = registry.activate(lease);
+          await runtime.updateReadiness(
+            did: null,
+            onboarded: false,
+            initialized: false,
+          );
+          return AccountActivationResult.activated;
+        },
+        resolveChat: (lease, _) async {
+          expect(lease, recipient);
+          resolutions++;
+          return ChatConversationId.parse('conversation');
+        },
+      );
+      addTearDown(effects.close);
+      addTearDown(subscription.cancel);
+      addTearDown(runtime.dispose);
+      await runtime.updateReadiness(did: alice.did, onboarded: true);
+
+      await runtime.receiveOpen(
+        NotificationOpenAttempt.fromProviderData({
+          'payloadVersion': '1',
+          'type': 'chat',
+          'accountSubscriptionId': binding.wireValue,
+          'openReference': '00000000-0000-4000-8000-000000000123',
+        }),
+      );
+      expect(resolutions, 1);
+      expect(received, isEmpty);
+      if (switchAway) {
+        // Re-selecting Bob has a new activation even though his saved session
+        // and subscription are unchanged.
+        registry = registry.activate(registry.leaseFor(alice)!);
+        registry = registry.activate(recipient);
+      }
+      await runtime.updateReadiness(did: bob.did, onboarded: true);
+
+      expect(resolutions, 1, reason: 'the resolved destination is retained');
+      if (switchAway) {
+        expect(received, isEmpty);
+      } else {
+        final outcome =
+            (received.single as NotificationNavigationEffect).outcome;
+        expect(outcome.destination, isA<ChatConversationDestination>());
+        expect(outcome.isCurrent?.call(), isTrue);
+      }
+    });
+  }
 
   test('IT-004 AT-004 REG-010 unify callback sources at least once', () async {
     final binding = AccountSubscriptionId.parse('binding');

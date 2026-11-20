@@ -13,6 +13,8 @@ job. Available recipients can receive notifications while another recipient
 is still waiting for membership or a reference with a known, different owner.
 When a missing reference could change which category a recipient gets, that
 recipient waits so reply, quote and mention precedence remains stable.
+An unresolved quote to the known reply recipient cannot outrank the reply.
+An unresolved self-reference cannot add a recipient.
 
 Notification work passes through the existing source-version, owner lifecycle,
 record validation and image-safety gates. Updates and deletes invalidate old
@@ -20,7 +22,8 @@ notification leases and dependencies. Retries reuse the notification service's
 duplicate protection, category precedence, preferences and relationship rules.
 The activity date remains the post's original `createdAt`, including during
 backfill. The push window ends six hours after the earlier of that date and
-the activation time, so a future-dated record cannot extend delivery.
+the activation time, so a future-dated record cannot extend delivery. A
+delivery already past its deadline starts expired and leaves Activity history intact.
 
 Direct indexer calls retain immediate notification generation. Durable worker
 claims supply a projection kind so the post projector can distinguish serving

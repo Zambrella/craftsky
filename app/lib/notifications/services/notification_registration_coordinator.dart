@@ -44,6 +44,7 @@ final class NotificationRegistrationCoordinator {
   bool _authorized = false;
   int _revision = 0;
   int _permissionCheck = 0;
+  bool _permissionRequestPending = false;
   int _tokenRefreshGeneration = 0;
   Future<void>? _inFlight;
   Future<NotificationPermission>? _permissionPrompt;
@@ -62,6 +63,7 @@ final class NotificationRegistrationCoordinator {
     _revision++;
     if (_eligible.isEmpty) {
       _permissionCheck++;
+      _permissionRequestPending = false;
       _setAuthorized(false);
       return;
     }
@@ -74,21 +76,28 @@ final class NotificationRegistrationCoordinator {
 
   Future<void> _refreshRegistration({required bool requestPermission}) async {
     if (_eligible.isEmpty) return;
+    // A lifecycle recheck may supersede the onboarding check, including
+    // while the operating system still has the permission dialog open.
+    _permissionRequestPending |= requestPermission;
     final check = ++_permissionCheck;
     try {
       var permission = await _service.getPermission();
       if (check != _permissionCheck) return;
-      if (requestPermission &&
+      if (_permissionRequestPending &&
           permission == NotificationPermission.notDetermined) {
         permission = await (_permissionPrompt ??= _requestPermission());
       }
       if (check != _permissionCheck) return;
+      _permissionRequestPending = false;
       _setAuthorized(permission == NotificationPermission.authorized);
       if (!_authorized) return;
       await _refreshToken();
       if (check == _permissionCheck) await _attemptRegistration();
     } on Object {
-      if (check == _permissionCheck) _setAuthorized(false);
+      if (check == _permissionCheck) {
+        _permissionRequestPending = false;
+        _setAuthorized(false);
+      }
     }
   }
 

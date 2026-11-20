@@ -12,6 +12,7 @@
 		accountForTarget,
 		pushTarget,
 		pushBindingsKey,
+		isPushURL,
 		targetFromURL,
 		pushURL,
 		type PushTarget
@@ -30,66 +31,115 @@
 		error = $state('');
 	let dead = false,
 		stop: (() => void) | undefined,
-		busy = false,
 		starting = false;
+	type OpenAttempt = {
+		target: PushTarget | null;
+		fromURL: boolean;
+		read: AbortController;
+	};
+	let latestOpen: OpenAttempt | undefined;
+	let opening = false;
 	let resumeFailureReported = false;
 	const accountFor = (target: PushTarget) =>
 		accountForTarget(bindings(localStorage), target);
-	async function open(target: PushTarget, fromURL = false) {
-		if (busy) return;
-		busy = true;
+	const refreshActivity = () =>
+		window.dispatchEvent(new Event('craftsky-activity-refresh'));
+
+	function cancelOpen() {
+		latestOpen?.read.abort();
+		latestOpen = undefined;
+	}
+
+	function open(target: PushTarget | null, fromURL = false) {
+		cancelOpen();
+		latestOpen = { target, fromURL, read: new AbortController() };
+		error = '';
+		if (!opening) void drainOpens();
+	}
+
+	async function drainOpens() {
+		opening = true;
 		try {
-			const accountId = accountFor(target);
-			if (!accountId)
-				throw new InputError(
-					'Sign in to the account for this notification to open it.'
-				);
-			if (accountId !== session.id) {
-				try {
-					await new APITransport(fetch, '/api/auth').request(
-						'POST',
-						'/switch',
-						{
-							body: { accountId },
-							response: 'empty'
-						}
-					);
-				} catch (cause) {
-					if (
-						cause instanceof APIError &&
-						cause.status >= 400 &&
-						cause.status < 500
-					)
-						throw new InputError(
-							'Sign in to the account for this notification to open it.',
-							{ cause }
-						);
-					throw cause;
-				}
-				if (!dead) window.location.assign(pushURL(target));
-				return;
-			}
-			if (target.reference) {
-				const resolved = await api.chat.notificationOpen(target.reference);
-				if (!dead)
-					await goto(
-						`/messages/conversations/${encodeURIComponent(resolved.conversationId)}`,
-						{ replaceState: true }
-					);
-			} else if (!dead) {
-				if (location.pathname === '/notifications' && !location.search)
-					window.dispatchEvent(new Event('craftsky-activity-refresh'));
-				else await goto('/notifications', { replaceState: true });
-			}
-			if (!dead && notification === target) notification = null;
-		} catch (e) {
-			void reportFailure(e, 'push.open');
-			if (!dead) {
-				if (fromURL) await goto('/feed', { replaceState: true });
-				if (!dead) error = userErrorMessage(e);
+			while (!dead && latestOpen) {
+				const attempt = latestOpen;
+				await openCurrent(attempt);
+				if (latestOpen === attempt) latestOpen = undefined;
 			}
 		} finally {
-			busy = false;
+			opening = false;
+		}
+	}
+
+	async function selectRecipient(accountId: string) {
+		try {
+			await new APITransport(fetch, '/api/auth').request('POST', '/switch', {
+				body: { accountId },
+				response: 'empty'
+			});
+		} catch (cause) {
+			if (
+				cause instanceof APIError &&
+				cause.status >= 400 &&
+				cause.status < 500
+			)
+				throw new InputError(
+					'Sign in to the account for this notification to open it.',
+					{
+						cause
+					}
+				);
+			throw cause;
+		}
+	}
+
+	async function openCurrent(attempt: OpenAttempt) {
+		const { target, fromURL, read } = attempt;
+		const current = () => !dead && latestOpen === attempt;
+		const unavailable = () =>
+			new InputError(
+				'Sign in to the account for this notification to open it.'
+			);
+		try {
+			if (!target) throw new InputError('This notification link is invalid.');
+			const accountId = accountFor(target);
+			if (!accountId) throw unavailable();
+			let destination = '/notifications';
+			if (accountId === session.id && target.reference) {
+				const resolved = await api.chat.notificationOpen(
+					target.reference,
+					read.signal
+				);
+				destination = `/messages/conversations/${encodeURIComponent(resolved.conversationId)}`;
+			}
+			if (!current()) return;
+			if (accountFor(target) !== accountId) throw unavailable();
+			if (
+				accountId === session.id &&
+				!target.reference &&
+				location.pathname === '/notifications' &&
+				!location.search
+			) {
+				if (notification === target) notification = null;
+				refreshActivity();
+				return;
+			}
+
+			// Account selection writes a shared cookie. Serialize these requests
+			// and reaffirm the recipient even if another tab changed the selection.
+			await selectRecipient(accountId);
+			if (!current()) return;
+			if (accountFor(target) !== accountId) throw unavailable();
+			if (notification === target) notification = null;
+			if (accountId !== session.id) {
+				window.location.assign(pushURL(target));
+				return;
+			}
+			await goto(destination, { replaceState: true });
+		} catch (e) {
+			if (!current()) return;
+			void reportFailure(e, 'push.open');
+			error = userErrorMessage(e);
+			if (fromURL) await goto('/feed', { replaceState: true }).catch(() => {});
 		}
 	}
 	function canListen() {
@@ -124,7 +174,10 @@
 					const accountId = accountFor(target);
 					if (!accountId) return;
 					notification = target;
-					if (accountId === session.id) void refreshCounts();
+					if (accountId === session.id) {
+						if (!target.reference) refreshActivity();
+						void refreshCounts();
+					}
 				});
 				if (dead || !canListen()) unsubscribe();
 				else stop = unsubscribe;
@@ -137,8 +190,8 @@
 		}
 	}
 	afterNavigate(({ to }) => {
-		const target = to && targetFromURL(to.url);
-		if (target) void open(target, true);
+		if (to && isPushURL(to.url)) open(targetFromURL(to.url), true);
+		else cancelOpen();
 	});
 	onMount(() => {
 		if (configuration())
@@ -159,6 +212,7 @@
 	});
 	onDestroy(() => {
 		dead = true;
+		cancelOpen();
 		stop?.();
 	});
 </script>

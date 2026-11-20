@@ -72,7 +72,7 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 			value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ
 		);
 	`)
-	for _, name := range []string{"000021_appview_notifications.up.sql", "000106_post_publication_facts.up.sql"} {
+	for _, name := range []string{"000021_appview_notifications.up.sql", "000106_post_publication_facts.up.sql", "000130_push_subscription_activation.up.sql"} {
 		migration, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatal(err)

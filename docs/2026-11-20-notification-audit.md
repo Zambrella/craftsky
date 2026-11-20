@@ -57,7 +57,19 @@ See [notification runtime](../app/lib/notifications/services/notification_runtim
 
 See the [service worker](../web-client/src/service-worker/index.ts), [push client](../web-client/src/lib/features/push/BrowserPush.svelte), [Activity page](../web-client/src/lib/features/social/Activity.svelte), and [browser regression tests](../web-client/tests/authenticated-notification-badge.spec.ts).
 
+## Second pass
+
+| Surface | Additional finding and fix |
+| --- | --- |
+| AppView migrations | Legacy acknowledgement, account cleanup and queue work can acquire the affected tables in different orders. Both migrations now acquire their table locks before changing the schema and release partial acquisitions before retrying. |
+| AppView ingestion | A missing quote could stall a valid reply to the same recipient even though reply wins category precedence. Resolve the reply immediately and skip waits on self-references. Historical deliveries that are already outside their push window now start expired, while the Activity row remains available. |
+| AppView delivery | The Firebase Admin SDK could consume a 503 retry delay before returning a deadline error. Preserve the retry delay at the transport boundary and retry SDK transport failures that have no HTTP response. An older transaction could also enqueue against a new registration and stamp a time from before that registration. Capture and compare subscription activation generations to distinguish the two. |
+| Flutter | A push could lose its destination during recipient initialization or navigate after the active account changed again. Keep a valid open through initialization and fence it to the active recipient. A badge's initial read can no longer overwrite a newer refresh. Preserve an outstanding permission grant across resume and recheck the recipient binding before displaying a queued banner. |
+| Web | A slow chat lookup could replace a newer push open. Malformed routing parameters and stale tabs could also reach Activity for the wrong active account. Prioritize the latest open, recheck its binding and route through account selection. A valid foreground social push now refreshes an open Activity page for the recipient. |
+
 ## Verification and rollout
+
+The original pass established this baseline.
 
 | Surface | Local verification |
 | --- | --- |
@@ -65,6 +77,12 @@ See the [service worker](../web-client/src/service-worker/index.ts), [push clien
 | Flutter | 441 notification, routing, settings and chat tests passed. A further 15 focused tests passed after the native thread-root change, including mention and quote routing. Targeted static analysis passed. No running debug process was available for hot reload. |
 | Web | 619 Vitest tests and 23 authenticated Chromium Playwright tests passed. Svelte check, ESLint, and the production build passed. The worker tests exercise display and click behavior with simulated messages. |
 | Documentation | The change catalogue was regenerated and all 19 catalogue tests passed. |
+
+The second pass reran the affected areas.
+
+- AppView passed the complete index and notification package race tests and focused regressions across the other affected packages. PostgreSQL 16 tests exercised both migration lock paths, a concurrent legacy acknowledgement, social and chat fan-out across reactivation, and expired delivery creation. Firebase Admin SDK tests used a simulated transport. The pinned chat SQL generation check passed.
+- Flutter passed 740 notification, chat, routing and diagnostics tests on Flutter 3.47.7. Seven subscription-feature tests were skipped by their existing gates. Targeted analysis passed.
+- Web passed 620 unit tests, 14 authenticated Chromium tests, Svelte check, ESLint and the production build. A loopback Chromium check exercised in-place Activity refresh through the Firebase browser SDK using a synthetic worker message.
 
 Live Firebase, APNs, Android and installed-PWA delivery and tap behavior remain unverified. All tests and data changes were local.
 
@@ -74,11 +92,13 @@ The browser service worker should go live before AppView starts sending web data
 
 Migration `000129` retains the old seen watermark and indexes while the preceding AppView binary is still serving. The migration holds a table lock during backfill and index creation. A binary-only rollback can temporarily re-show newer acknowledgements until Activity is acknowledged again. The down migration preserves the seen prefix and may re-show previously acknowledged rows after a gap.
 
+Migration `000130` adds the subscription activation generation before workers start writing it. Existing deliveries and rows queued by the preceding binary retain the timestamp fallback until they settle. [Push subscription activation migration](../appview/migrations/000130_push_subscription_activation.up.sql)
+
 ## Remaining tradeoffs
 
 - A successful Activity visit acknowledges the whole account. This includes other categories and notifications that commit before the leave acknowledgement, even when a filter or pagination kept them off screen. That is the existing product behavior.
 - Opening a native social push can still subtract one from the displayed badge until the next refresh. That local adjustment is scoped to the recipient account and can differ from the server count if another client already acknowledged the event.
 - Push delivery remains at least once across acknowledgements to Firebase. A process or database failure after provider acceptance can still leave the result unknown and trigger another attempt.
-- An alert already queued by Firebase or the operating system may still arrive after preferences or relationships change. Native notification messages also retain Firebase’s provider-side collapse behavior. [Firebase message collapse](https://firebase.google.com/docs/cloud-messaging/customize-messages/collapsible-message-types)
+- A preference, relationship or registration change can race with a send that has already passed its final eligibility check. AppView cannot recall an alert accepted by the provider or operating system. Native notification messages also retain Firebase’s provider-side collapse behavior. [Firebase message collapse](https://firebase.google.com/docs/cloud-messaging/customize-messages/collapsible-message-types)
 - Social notification rows and their delivery history have no general age-based pruning in the reviewed paths. Account lifecycle cleanup removes associated rows. A separate retention decision would need to distinguish Activity history and terminal queue records.
 - Moderation enqueues durable delivery work even when push is disabled. The dispatcher applies the preference when it attempts delivery, so enabling push before the first attempt can permit a queued alert. This is the defined moderation policy. [Moderation delivery implementation](changes/2026-09-09-moderation-strikes/05-implementation-plan.md#L182)

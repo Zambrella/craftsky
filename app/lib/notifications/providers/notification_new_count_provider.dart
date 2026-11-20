@@ -10,13 +10,18 @@ class AccountNotificationNewCount extends _$AccountNotificationNewCount {
   int _countRevision = 0;
 
   @override
-  Future<int> build(AccountKey account) async {
+  Future<int> build(AccountKey account) {
+    final buildRef = ref;
+    final revision = _countRevision;
     // The count owns its disposable account repository through this watch.
     // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
-    final repository = await ref.watch(
+    final repository = buildRef.watch(
       accountNotificationNewnessRepositoryProvider(account).future,
     );
-    return await repository.count();
+    return _readInitialCount(
+      () async => (await repository).count(),
+      () => buildRef.mounted && revision != _countRevision ? state : null,
+    );
   }
 
   Future<void> refresh({int suppressCount = 0}) async {
@@ -49,8 +54,15 @@ class NotificationNewCount extends _$NotificationNewCount {
   int _countRevision = 0;
 
   @override
-  Future<int> build() =>
-      ref.watch(notificationNewnessRepositoryProvider).count();
+  Future<int> build() {
+    final buildRef = ref;
+    final revision = _countRevision;
+    final repository = buildRef.watch(notificationNewnessRepositoryProvider);
+    return _readInitialCount(
+      repository.count,
+      () => buildRef.mounted && revision != _countRevision ? state : null,
+    );
+  }
 
   Future<void> refresh({int suppressCount = 0}) async {
     final operationRef = ref;
@@ -70,6 +82,18 @@ class NotificationNewCount extends _$NotificationNewCount {
     _countRevision++;
     state = AsyncData(_subtractCount(current, count));
   }
+}
+
+Future<int> _readInitialCount(
+  Future<int> Function() count,
+  AsyncValue<int>? Function() readPublishedRefresh,
+) async {
+  final initial = await AsyncValue.guard(count);
+  final refresh = readPublishedRefresh();
+  // Riverpod still publishes the build future after a manual state update.
+  // Preserve any newer result already committed while that future was open.
+  return (refresh == null || refresh.isLoading ? initial : refresh)
+      .requireValue;
 }
 
 int _subtractCount(int current, int count) =>

@@ -105,12 +105,22 @@ export function pushTarget(value: unknown): PushTarget | null {
 	}
 	return { subscriptionId: data.accountSubscriptionId };
 }
-export function targetFromURL(url: {
+type PushURL = {
 	pathname: string;
-	searchParams: Pick<URLSearchParams, 'get'>;
-}): PushTarget | null {
-	const subscriptionId = url.searchParams.get('pushSubscription');
-	const reference = url.searchParams.get('pushReference');
+	searchParams: Pick<URLSearchParams, 'has' | 'getAll'>;
+};
+export function isPushURL({ pathname, searchParams }: PushURL): boolean {
+	return (
+		(pathname === '/messages' || pathname === '/notifications') &&
+		(searchParams.has('pushSubscription') || searchParams.has('pushReference'))
+	);
+}
+export function targetFromURL(url: PushURL): PushTarget | null {
+	const subscriptions = url.searchParams.getAll('pushSubscription');
+	const references = url.searchParams.getAll('pushReference');
+	if (subscriptions.length !== 1 || references.length > 1) return null;
+	const subscriptionId = subscriptions[0];
+	const reference = references[0] ?? null;
 	if (!uuid(subscriptionId) || (reference !== null && !uuid(reference)))
 		return null;
 	if (url.pathname !== (reference ? '/messages' : '/notifications'))

@@ -15,6 +15,7 @@ const otherAccount = {
 };
 const subscription = '00000000-0000-4000-8000-000000000040';
 const chatReference = '00000000-0000-4000-8000-000000000041';
+const nextChatReference = '00000000-0000-4000-8000-000000000042';
 test.beforeEach(async ({ page, context }) => {
 	await fetch(fixture + '/__test/reset');
 	await fetch(fixture + '/__test/control', {
@@ -374,4 +375,127 @@ test('an unbound push does not resolve private chat under the active account', a
 		page.getByText('Sign in to the account for this notification to open it.')
 	).toBeVisible();
 	expect(opens).toEqual([]);
+});
+
+test('a newer chat push replaces a pending lookup in the same window', async ({
+	page
+}) => {
+	await page.addInitScript(
+		({ accountId, subscriptionId }) =>
+			localStorage.setItem(
+				'craftsky.push.bindings',
+				JSON.stringify([{ accountId, subscriptionId, enabled: true }])
+			),
+		{ accountId: account.id, subscriptionId: subscription }
+	);
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route(
+		'**/api/appview/v1/chat/notification-opens/' + chatReference,
+		async (route) => {
+			await held;
+			// The first fetch can be canceled while the route fixture is holding it.
+			await route
+				.fulfill({
+					json: { type: 'conversation', conversationId: 'older-chat' }
+				})
+				.catch(() => {});
+		}
+	);
+	await page.route(
+		'**/api/appview/v1/chat/notification-opens/' + nextChatReference,
+		(route) =>
+			route.fulfill({
+				json: { type: 'conversation', conversationId: 'newer-chat' }
+			})
+	);
+	const firstLookup = page.waitForRequest(
+		'**/api/appview/v1/chat/notification-opens/' + chatReference
+	);
+	await page.goto(
+		`/messages?pushSubscription=${subscription}&pushReference=${chatReference}`
+	);
+	try {
+		await firstLookup;
+		await page.evaluate((url) => {
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			document.body.append(anchor);
+			anchor.click();
+			anchor.remove();
+		}, `/messages?pushSubscription=${subscription}&pushReference=${nextChatReference}`);
+		await expect(page).toHaveURL(/\/messages\/conversations\/newer-chat$/);
+	} finally {
+		release();
+	}
+	await expect(page).toHaveURL(/\/messages\/conversations\/newer-chat$/);
+});
+
+test('a malformed notification link never loads or acknowledges Activity', async ({
+	page
+}) => {
+	const activity: string[] = [];
+	page.on('request', (request) => {
+		const path = new URL(request.url()).pathname;
+		if (/\/v1\/notifications(?:\/seen)?$/.test(path)) activity.push(path);
+	});
+	await page.goto(
+		`/notifications?pushSubscription=${subscription}&pushReference=invalid`
+	);
+	await expect(page).toHaveURL(/\/feed$/);
+	await expect(
+		page.getByText('This notification link is invalid.')
+	).toBeVisible();
+	expect(activity).toEqual([]);
+});
+
+test('resolving a chat push reselects its account after a different tab changes it', async ({
+	page,
+	context
+}) => {
+	await context.addCookies([
+		{
+			name: 'craftsky_account_' + otherAccount.id,
+			value: Buffer.from(JSON.stringify(otherAccount)).toString('base64url'),
+			url: 'http://127.0.0.1:19846',
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
+	await page.addInitScript(
+		({ accountId, subscriptionId }) =>
+			localStorage.setItem(
+				'craftsky.push.bindings',
+				JSON.stringify([{ accountId, subscriptionId, enabled: true }])
+			),
+		{ accountId: account.id, subscriptionId: subscription }
+	);
+	await page.route(
+		'**/api/appview/v1/chat/notification-opens/' + chatReference,
+		async (route) => {
+			expect(route.request().headers()['x-craftsky-account-id']).toBe(
+				account.id
+			);
+			await context.addCookies([
+				{
+					name: 'craftsky_active',
+					value: otherAccount.id,
+					url: 'http://127.0.0.1:19846',
+					httpOnly: true,
+					sameSite: 'Lax'
+				}
+			]);
+			await route.fulfill({
+				json: { type: 'conversation', conversationId: 'push-chat' }
+			});
+		}
+	);
+	await page.goto(
+		`/messages?pushSubscription=${subscription}&pushReference=${chatReference}`
+	);
+	await expect(page).toHaveURL(/\/messages\/conversations\/push-chat$/);
+	const active = (await context.cookies()).find(
+		(cookie) => cookie.name === 'craftsky_active'
+	);
+	expect(active?.value).toBe(account.id);
 });

@@ -277,7 +277,18 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 			return ErrOperationUnavailable
 		}
 		sendCtx, cancel := context.WithTimeout(ctx, deadline.Sub(now))
-		result, sendErr := dispatcher.sender.Send(sendCtx, push.SendRequest{Token: metadata.FcmToken, Chat: &push.ChatRouting{OpenReference: uuid.UUID(metadata.OpenReference.Bytes).String()}, AccountSubscriptionID: uuid.UUID(metadata.RoutingID.Bytes).String(), ActorDisplayName: chatSenderName(summary.Peer), Platform: metadata.Platform, Semantics: push.DeliveryUniqueEvent, TTL: item.DeadlineAt.Time.Sub(now)})
+		result, sendErr := dispatcher.sender.Send(sendCtx, push.SendRequest{
+			Token: metadata.FcmToken,
+			Chat: &push.ChatRouting{
+				OpenReference:        uuid.UUID(metadata.OpenReference.Bytes).String(),
+				AcceptedConversation: summary.Status == "accepted",
+			},
+			AccountSubscriptionID: uuid.UUID(metadata.RoutingID.Bytes).String(),
+			ActorDisplayName:      chatSenderName(summary.Peer),
+			Platform:              metadata.Platform,
+			Semantics:             push.DeliveryUniqueEvent,
+			TTL:                   item.DeadlineAt.Time.Sub(now),
+		})
 		cancel()
 		handled = true
 		status, code, next := "succeeded", string(result.Class), dispatcher.now()

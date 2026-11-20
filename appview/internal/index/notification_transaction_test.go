@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,7 +39,7 @@ func TestPostDeletionRollsBackSourceNotificationAndDeliveryTogether(t *testing.T
 	}
 	seedNotificationSubscription(t, pool, "did:plc:recipient")
 	service := notifications.NewService()
-	ev := tap.Event{URI: "at://did:plc:actor/social.craftsky.feed.post/reply", CID: "replycid", DID: "did:plc:actor", Rkey: "reply", Collection: "social.craftsky.feed.post", Action: "create", Record: json.RawMessage(`{"text":"reply","createdAt":"2026-05-04T12:00:00Z","reply":{"root":{"uri":"at://did:plc:recipient/social.craftsky.feed.post/root","cid":"rootcid"},"parent":{"uri":"at://did:plc:recipient/social.craftsky.feed.post/root","cid":"rootcid"}}}`)}
+	ev := tap.Event{URI: "at://did:plc:actor/social.craftsky.feed.post/reply", CID: "replycid", DID: "did:plc:actor", Rkey: "reply", Collection: "social.craftsky.feed.post", Action: "create", Record: json.RawMessage(`{"text":"reply","createdAt":"` + time.Now().UTC().Format(time.RFC3339) + `","reply":{"root":{"uri":"at://did:plc:recipient/social.craftsky.feed.post/root","cid":"rootcid"},"parent":{"uri":"at://did:plc:recipient/social.craftsky.feed.post/root","cid":"rootcid"}}}`)}
 	if err := index.NewCraftskyPost(pool, testLogger(), service).Handle(context.Background(), ev); err != nil {
 		t.Fatal(err)
 	}
@@ -51,11 +52,7 @@ func TestPostDeletionRollsBackSourceNotificationAndDeliveryTogether(t *testing.T
 
 func applyNotificationMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000021_appview_notifications.up.sql", "000130_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 }

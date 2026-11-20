@@ -41,19 +41,20 @@ type ChatOperation struct {
 }
 
 type ChatPushDelivery struct {
-	OwnerDid              string
-	ID                    pgtype.UUID
-	NotificationID        pgtype.UUID
-	AccountSubscriptionID pgtype.UUID
-	Status                string
-	Attempts              int32
-	LeaseToken            pgtype.UUID
-	LeaseExpiresAt        pgtype.Timestamptz
-	NextAttemptAt         pgtype.Timestamptz
-	DeadlineAt            pgtype.Timestamptz
-	ProviderResultClass   string
-	CreatedAt             pgtype.Timestamptz
-	TerminalAt            pgtype.Timestamptz
+	OwnerDid                         string
+	ID                               pgtype.UUID
+	NotificationID                   pgtype.UUID
+	AccountSubscriptionID            pgtype.UUID
+	Status                           string
+	Attempts                         int32
+	LeaseToken                       pgtype.UUID
+	LeaseExpiresAt                   pgtype.Timestamptz
+	NextAttemptAt                    pgtype.Timestamptz
+	DeadlineAt                       pgtype.Timestamptz
+	ProviderResultClass              string
+	CreatedAt                        pgtype.Timestamptz
+	TerminalAt                       pgtype.Timestamptz
+	SubscriptionActivationGeneration pgtype.Int8
 }
 
 type ChatSyncState struct {

@@ -105,7 +105,9 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
         :final event,
         :final resolution,
         :final recipient,
+        :final isCurrent,
       ):
+        if (isCurrent?.call() == false) return;
         final recipientHandle = recipient == null
             ? null
             : ProfileHandle(

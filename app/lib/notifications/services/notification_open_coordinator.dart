@@ -89,9 +89,10 @@ final class NotificationOpenCoordinator {
           await _onRemovedAccount();
           return;
         }
+        if (_isActiveLease?.call(lease) == false) return;
         if (attempt.facts case ChatNotificationFacts(:final openReference)) {
           final resolve = _resolveChat;
-          if (resolve == null || _isActiveLease?.call(lease) != true) {
+          if (resolve == null || _isActiveLease == null) {
             await _onUnavailable();
             return;
           }

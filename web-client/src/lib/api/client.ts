@@ -867,9 +867,11 @@ export class CraftskyAPI {
 				'/v1/chat/push-preferences',
 				{ body: { pushEnabled } }
 			),
-		notificationOpen: (reference: string) =>
+		notificationOpen: (reference: string, signal?: AbortSignal) =>
 			this.transport.get<{ type: 'conversation'; conversationId: string }>(
-				`/v1/chat/notification-opens/${segment(reference)}`
+				`/v1/chat/notification-opens/${segment(reference)}`,
+				undefined,
+				signal
 			)
 	};
 	readonly media = {

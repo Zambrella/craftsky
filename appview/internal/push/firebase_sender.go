@@ -14,6 +14,8 @@ import (
 	"firebase.google.com/go/v4/errorutils"
 	"firebase.google.com/go/v4/messaging"
 	"github.com/google/uuid"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 
 	"social.craftsky/appview/internal/notifications"
 )
@@ -27,7 +29,21 @@ type FirebaseSender struct {
 }
 
 func NewFirebaseSender(ctx context.Context, projectID string) (*FirebaseSender, error) {
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
+	httpClient, _, err := transport.NewHTTPClient(ctx, option.WithScopes("https://www.googleapis.com/auth/firebase.messaging"))
+	if err != nil {
+		return nil, err
+	}
+	return newFirebaseSender(ctx, projectID, httpClient)
+}
+
+func newFirebaseSender(ctx context.Context, projectID string, httpClient *http.Client) (*FirebaseSender, error) {
+	clientWithRetryHint := *httpClient
+	base := httpClient.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	clientWithRetryHint.Transport = firebaseRetryTransport{base}
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID}, option.WithHTTPClient(&clientWithRetryHint))
 	if err != nil {
 		return nil, err
 	}
@@ -37,12 +53,42 @@ func NewFirebaseSender(ctx context.Context, projectID string) (*FirebaseSender, 
 	}
 	return &FirebaseSender{client: client, now: time.Now}, nil
 }
+
+type firebaseRetryHintKey struct{}
+
+type firebaseRetryHint struct {
+	now       func() time.Time
+	notBefore time.Time
+}
+
+type firebaseRetryTransport struct{ http.RoundTripper }
+
+func (transport firebaseRetryTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := transport.RoundTripper.RoundTrip(request)
+	// When the send context ends during its internal 503 backoff, the SDK
+	// returns only the context error. Keep the parsed retry time for this send.
+	if err != nil || response == nil || response.StatusCode != http.StatusServiceUnavailable {
+		return response, err
+	}
+	hint, ok := request.Context().Value(firebaseRetryHintKey{}).(*firebaseRetryHint)
+	if !ok {
+		return response, nil
+	}
+	now := hint.now()
+	delay := firebaseRetryAfter(response.Header.Get("Retry-After"), now)
+	if retryAt := now.Add(delay); delay > 0 && retryAt.After(hint.notBefore) {
+		hint.notBefore = retryAt
+	}
+	return response, nil
+}
+
 func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (ProviderResult, error) {
 	message, err := s.buildMessage(request)
 	if err != nil {
 		return ProviderResult{Class: ResultPermanentFailure}, err
 	}
-	_, err = s.client.Send(ctx, message)
+	hint := firebaseRetryHint{now: s.now}
+	_, err = s.client.Send(context.WithValue(ctx, firebaseRetryHintKey{}, &hint), message)
 	if err == nil {
 		return ProviderResult{Class: ResultSuccess}, nil
 	}
@@ -50,7 +96,12 @@ func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (Provide
 	case messaging.IsUnregistered(err):
 		return ProviderResult{Class: ResultInvalidToken}, err
 	default:
-		return classifyFirebaseFailure(ctx, err, s.now()), err
+		now := s.now()
+		result := classifyFirebaseFailure(ctx, err, now)
+		if result.Class == ResultRetryable {
+			result.RetryAfter = max(result.RetryAfter, hint.notBefore.Sub(now))
+		}
+		return result, err
 	}
 }
 
@@ -63,6 +114,10 @@ func classifyFirebaseFailure(ctx context.Context, err error, now time.Time) Prov
 	if response != nil {
 		retryable = retryable || response.StatusCode >= http.StatusInternalServerError
 		quota = quota || response.StatusCode == http.StatusTooManyRequests
+	} else {
+		// The SDK maps remaining transport failures (such as a reset or
+		// truncated response) to UNKNOWN without an HTTP response.
+		retryable = retryable || errorutils.IsUnknown(err)
 	}
 	if !retryable && !quota {
 		return ProviderResult{Class: ResultPermanentFailure}
@@ -72,14 +127,20 @@ func classifyFirebaseFailure(ctx context.Context, err error, now time.Time) Prov
 		minimum = time.Minute
 	}
 	if response != nil {
-		header := strings.TrimSpace(response.Header.Get("Retry-After"))
-		if seconds, parseErr := strconv.ParseUint(header, 10, 32); parseErr == nil {
-			minimum = max(minimum, time.Duration(seconds)*time.Second)
-		} else if until, parseErr := http.ParseTime(header); parseErr == nil {
-			minimum = max(minimum, until.Sub(now))
-		}
+		minimum = max(minimum, firebaseRetryAfter(response.Header.Get("Retry-After"), now))
 	}
 	return ProviderResult{Class: ResultRetryable, RetryAfter: minimum}
+}
+
+func firebaseRetryAfter(header string, now time.Time) time.Duration {
+	header = strings.TrimSpace(header)
+	if seconds, err := strconv.ParseUint(header, 10, 32); err == nil {
+		return time.Duration(seconds) * time.Second
+	}
+	if until, err := http.ParseTime(header); err == nil {
+		return until.Sub(now)
+	}
+	return 0
 }
 
 func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, error) {
@@ -146,6 +207,9 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 		}
 	case "android":
 		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}
+		if request.Chat != nil && request.Chat.AcceptedConversation {
+			message.Android.Priority = "high"
+		}
 	case "ios":
 		message.APNS = &messaging.APNSConfig{
 			Headers: map[string]string{

@@ -61,6 +61,37 @@ void main() {
   });
 
   test(
+    'resume can finish an onboarding permission request already in use',
+    () async {
+      final started = Completer<void>();
+      final granted = Completer<NotificationPermission>();
+      final service = _FakeService(
+        permission: NotificationPermission.notDetermined,
+        token: 'provider-token',
+      );
+      service.permissionPrompt = () {
+        started.complete();
+        return granted.future;
+      };
+      final registrations = <AccountSessionLease>[];
+      final coordinator = _coordinator(
+        service,
+        onRegister: (lease, _) => registrations.add(lease),
+      );
+
+      final onboarding = coordinator.updateAccounts([alice]);
+      await started.future;
+      final resume = coordinator.retryRegistration();
+      await Future<void>.delayed(Duration.zero);
+      granted.complete(NotificationPermission.authorized);
+      await Future.wait([onboarding, resume]);
+
+      expect(service.permissionRequests, 1);
+      expect(registrations, [alice]);
+    },
+  );
+
+  test(
     'IT-004 retries one account failure and refreshes every account',
     () async {
       final service = _FakeService(
@@ -211,6 +242,7 @@ final class _FakeService implements NotificationService {
   NotificationPermission permission;
   String? token;
   Future<String?> Function()? tokenLookup;
+  Future<NotificationPermission> Function()? permissionPrompt;
   Object? permissionError;
   int permissionChecks = 0;
   int permissionRequests = 0;
@@ -245,7 +277,8 @@ final class _FakeService implements NotificationService {
   @override
   Future<NotificationPermission> requestPermission() async {
     permissionRequests++;
-    return permission = NotificationPermission.authorized;
+    return permission =
+        await permissionPrompt?.call() ?? NotificationPermission.authorized;
   }
 
   @override
