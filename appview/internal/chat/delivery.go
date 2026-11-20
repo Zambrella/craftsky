@@ -139,20 +139,35 @@ func (dispatcher *DeliveryDispatcher) ProcessOne(ctx context.Context) (processed
 	if errors.Is(err, errDeliverySuppressed) || errors.Is(err, ErrInaccessibleConversation) || errors.Is(err, ErrBlocked) || errors.Is(err, ErrDisabled) || errors.Is(err, ErrConnectionChanged) || errors.Is(err, ErrRestricted) || errors.Is(err, ownerlifecycle.ErrOwnerNotActive) || errors.Is(err, ownerlifecycle.ErrTerminalOwner) || (errors.As(err, &provider) && provider.StatusCode == 404) {
 		return true, dispatcher.terminate(ctx, item, "cancelled")
 	}
-	// Eligibility failures defer rather than deliver stale copy. This is a
-	// new leased push attempt, never a replay of a send/report operation.
+	// Transient eligibility failures defer just this delivery.
 	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer finalCancel()
 	delay := time.Second
-	if errors.Is(err, auth.ErrNoUsableBackgroundSession) || errors.Is(err, auth.ErrPDSPermissionsRequired) || errors.Is(err, auth.ErrPDSSessionExpired) {
+	sessionUnavailable := errors.Is(err, auth.ErrNoUsableBackgroundSession) || errors.Is(err, auth.ErrPDSPermissionsRequired) || errors.Is(err, auth.ErrPDSSessionExpired)
+	if sessionUnavailable {
 		delay = 5 * time.Minute
 	}
 	var limited *auth.RateLimitError
 	if errors.As(err, &limited) {
 		delay = max(delay, limited.RetryAfter)
 	}
-	_, finishErr := q.FinishChatDelivery(finalCtx, chatdb.FinishChatDeliveryParams{OwnerDid: item.OwnerDid, ID: item.ID, LeaseToken: item.LeaseToken, Status: "retry", ProviderResultClass: "retryable", NextAttemptAt: dbTime(dispatcher.now().Add(delay)), Column7: dbTime(dispatcher.now()), ID_2: metadata.InstallationID, FcmToken: metadata.FcmToken})
-	return true, errors.Join(err, finishErr)
+	now = dispatcher.now()
+	next, retry := push.NextRetry(now, item.DeadlineAt.Time, int(item.Attempts), 0, delay)
+	outcome := "retry"
+	var finishErr error
+	if !retry {
+		outcome = "terminal"
+		finishErr = dispatcher.terminate(finalCtx, item, "expired")
+	} else {
+		_, finishErr = q.FinishChatDelivery(finalCtx, chatdb.FinishChatDeliveryParams{OwnerDid: item.OwnerDid, ID: item.ID, LeaseToken: item.LeaseToken, Status: "retry", ProviderResultClass: "retryable", NextAttemptAt: dbTime(next), Column7: dbTime(now), ID_2: metadata.InstallationID, FcmToken: metadata.FcmToken})
+	}
+	if finishErr != nil {
+		return true, errors.Join(err, finishErr)
+	}
+	if !sessionUnavailable && dispatcher.observer != nil {
+		dispatcher.observer.ObservePrivateFailure(diagnosticCtx, err, owner, diagnosticReference, "chat.push", "eligibility", outcome, attempt)
+	}
+	return true, nil
 }
 
 func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner syntax.DID, item chatdb.ChatPushDelivery, initial chatdb.ChatDeliveryMetadataRow) (bool, error) {
@@ -262,7 +277,18 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 			return ErrOperationUnavailable
 		}
 		sendCtx, cancel := context.WithTimeout(ctx, deadline.Sub(now))
-		result, sendErr := dispatcher.sender.Send(sendCtx, push.SendRequest{Token: metadata.FcmToken, Chat: &push.ChatRouting{OpenReference: uuid.UUID(metadata.OpenReference.Bytes).String()}, AccountSubscriptionID: uuid.UUID(metadata.RoutingID.Bytes).String(), ActorDisplayName: chatSenderName(summary.Peer), Platform: metadata.Platform, Semantics: push.DeliveryUniqueEvent, TTL: item.DeadlineAt.Time.Sub(now)})
+		result, sendErr := dispatcher.sender.Send(sendCtx, push.SendRequest{
+			Token: metadata.FcmToken,
+			Chat: &push.ChatRouting{
+				OpenReference:        uuid.UUID(metadata.OpenReference.Bytes).String(),
+				AcceptedConversation: summary.Status == "accepted",
+			},
+			AccountSubscriptionID: uuid.UUID(metadata.RoutingID.Bytes).String(),
+			ActorDisplayName:      chatSenderName(summary.Peer),
+			Platform:              metadata.Platform,
+			Semantics:             push.DeliveryUniqueEvent,
+			TTL:                   item.DeadlineAt.Time.Sub(now),
+		})
 		cancel()
 		handled = true
 		status, code, next := "succeeded", string(result.Class), dispatcher.now()
@@ -275,7 +301,7 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 		default:
 			code = string(push.ResultRetryable)
 			var retry bool
-			next, retry = push.NextRetry(dispatcher.now(), item.DeadlineAt.Time, int(item.Attempts), 0)
+			next, retry = push.NextRetry(dispatcher.now(), item.DeadlineAt.Time, int(item.Attempts), 0, result.RetryAfter)
 			status = "retry"
 			if !retry {
 				status = "expired"
@@ -300,7 +326,22 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 			}
 			return q.CompleteChatNotification(finalCtx, chatdb.CompleteChatNotificationParams{OwnerDid: item.OwnerDid, ID: item.NotificationID, TerminalAt: dbTime(dispatcher.now())})
 		})
-		return errors.Join(sendErr, finishErr)
+		if finishErr != nil {
+			return errors.Join(sendErr, finishErr)
+		}
+		if sendErr != nil && dispatcher.observer != nil {
+			outcome := "terminal"
+			switch result.Class {
+			case push.ResultInvalidToken:
+				outcome = "expected"
+			case push.ResultRetryable:
+				if status == "retry" {
+					outcome = "retry"
+				}
+			}
+			dispatcher.observer.ObservePrivateFailure(ctx, sendErr, owner, uuid.UUID(item.ID.Bytes).String(), "chat.push", "provider", outcome, int(item.Attempts))
+		}
+		return nil
 	})
 	return handled, err
 }

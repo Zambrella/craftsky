@@ -63,7 +63,7 @@ void main() {
     });
   });
 
-  test('UT-002 enforces required facts and ignores every extra', () {
+  test('UT-002 accepts only the allowed routing facts', () {
     const actorDid = 'did:plc:alice';
     const subjectUri = 'at://did:plc:subject/social.craftsky.feed.post/subject';
     const rootUri = 'at://did:plc:root/social.craftsky.feed.post/root';
@@ -92,6 +92,8 @@ void main() {
       };
       final attempt = NotificationOpenAttempt.fromProviderData(data);
       final facts = attempt.facts as ValidNotificationFacts;
+      final optionalRoot =
+          testCase.type == 'mention' || testCase.type == 'quote';
 
       expect(facts.category.wireValue, testCase.type);
       expect(
@@ -106,13 +108,22 @@ void main() {
       );
       expect(
         facts.rootUri,
-        testCase.required.contains('rootUri') ? AtUri.parse(rootUri) : null,
+        testCase.required.contains('rootUri') || optionalRoot
+            ? AtUri.parse(rootUri)
+            : null,
       );
       expect(
         facts.sourceUri,
         testCase.required.contains('sourceUri') ? AtUri.parse(sourceUri) : null,
       );
       expect(attempt.toString(), isNot(contains('must.not.be.used')));
+
+      if (optionalRoot) {
+        final withoutRoot = NotificationOpenAttempt.fromProviderData(
+          {...data}..remove('rootUri'),
+        );
+        expect((withoutRoot.facts as ValidNotificationFacts).rootUri, isNull);
+      }
 
       for (final required in testCase.required) {
         final missing = NotificationOpenAttempt.fromProviderData(

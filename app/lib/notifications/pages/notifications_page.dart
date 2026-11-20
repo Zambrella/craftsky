@@ -31,7 +31,8 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   GoRouter? _router;
   bool _visible = true;
-  bool _waitingForSeen = false;
+  final _waitingForSeen = <AccountSessionLease?>{};
+  AccountSessionLease? _renderOwner;
   Future<void> Function()? _acknowledge;
   VoidCallback? _invalidate;
 
@@ -58,16 +59,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   void _routeChanged() {
     final visible = _isCurrent;
     if (_visible && !visible) unawaited(_finishVisit());
-    if (!_visible && visible && !_waitingForSeen) {
+    if (!_visible && visible) {
       final owner = ref
           .read(sessionRegistryProvider)
           .value
           ?.activeLease
           ?.session;
-      if (owner == null) {
-        ref.invalidate(notificationsProvider);
-      } else {
-        ref.invalidate(accountNotificationsProvider(owner.account));
+      if (!_waitingForSeen.contains(owner)) {
+        if (owner == null) {
+          ref.invalidate(notificationsProvider);
+        } else {
+          ref.invalidate(accountNotificationsProvider(owner.account));
+        }
       }
     }
     if (_visible != visible) setState(() => _visible = visible);
@@ -76,24 +79,35 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Future<void> _finishVisit() async {
     final acknowledge = _acknowledge;
     final invalidate = _invalidate;
+    final owner = _renderOwner;
     _acknowledge = null;
     _invalidate = null;
     if (acknowledge == null) return;
-    _waitingForSeen = true;
-    await acknowledge();
-    invalidate?.call();
-    if (!mounted) return;
-    setState(() => _waitingForSeen = false);
+    _waitingForSeen.add(owner);
+    try {
+      // The coordinator reports mark-seen failures and its provider owns
+      // repository-resolution failures.
+      await AsyncValue.guard(acknowledge);
+      invalidate?.call();
+    } finally {
+      _waitingForSeen.remove(owner);
+      if (mounted) setState(() {});
+    }
   }
 
   void _rendered(int token, AccountSessionLease? owner) {
-    if (!_visible || !_isCurrent || _waitingForSeen) return;
+    if (!_visible || !_isCurrent || _waitingForSeen.contains(owner)) return;
+    if (ref.read(sessionRegistryProvider).value?.activeLease?.session !=
+        owner) {
+      return;
+    }
     // Capture the account coordinator before leaving or switching accounts.
     final coordinator = owner == null
         ? Future.value(ref.read(notificationSeenProvider))
         : ref.read(accountNotificationSeenProvider(owner.account).future);
     _acknowledge = () async =>
         await (await coordinator).afterSuccessfulRender(token);
+    _renderOwner = owner;
     final container = ProviderScope.containerOf(context, listen: false);
     _invalidate = () {
       if (owner == null) {
@@ -115,7 +129,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Widget build(BuildContext context) {
     ref.listen(
       sessionRegistryProvider.select(
-        (value) => value.value?.activeLease?.session.account,
+        (value) => value.value?.activeLease?.session,
       ),
       (previous, next) {
         if (previous != next) unawaited(_finishVisit());
@@ -160,7 +174,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             ],
           ),
           switch (notifications) {
-            AsyncValue(:final value?) when value.category == category =>
+            AsyncValue(:final value?)
+                when value.category == category && value.owner == owner =>
               _NotificationsLoadedSlivers(
                 items: value.items,
                 hasMore: value.hasMore,
@@ -169,7 +184,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 renderToken: value.renderToken,
                 owner: value.owner,
                 onRendered: _rendered,
-                showNewness: !_waitingForSeen,
+                showNewness: !_waitingForSeen.contains(owner),
               ),
             _ when notifications.hasError && !notifications.isLoading =>
               _NotificationsErrorSliver(
@@ -229,7 +244,7 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
       onRendered(renderToken, owner);
     });
     final l10n = AppLocalizations.of(context);
-    if (items.isEmpty) {
+    if (items.isEmpty && !hasMore && !isLoadingMore && !hasLoadMoreError) {
       return SliverFillRemaining(
         hasScrollBody: false,
         child: CraftskyEmptyState(

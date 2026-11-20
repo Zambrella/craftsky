@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { contextMenu } from './context-menu';
 	import { reportFailure } from '../diagnostics/client.ts';
-	import { getContext, onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack } from 'svelte';
 	import {
 		notificationBadgeContext,
 		type BeginNotificationSeen,
@@ -18,49 +18,85 @@
 	import Status from './Status.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { compactDate } from '#lib/public.ts';
-	import { visible, postRoute, postAddress, profileStyle } from './model';
-	import { notificationCopy, notificationCategories } from './presentation';
+	import { profileStyle } from './model';
+	import {
+		notificationCopy,
+		notificationCategories,
+		notificationDestination
+	} from './presentation';
 	import EmptyState from './EmptyState.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import LoadMore from '#lib/LoadMore.svelte';
+	import { appendPage, reloadPages } from '#lib/pagination.ts';
+	import { rememberPage } from '../shell/page-history';
 	let { api, did = '' }: { api: CraftskyAPI; did?: string } = $props();
 	const work = new Work('social.Activity.action');
 	let loadingMore = $state(false);
 	const beginSeen = getContext<BeginNotificationSeen | undefined>(
 		notificationBadgeContext
 	);
+	const history = rememberPage<number>('notifications');
+	let loadedPages = history?.value ?? 1;
+	const requests = new AbortController();
+	const notificationKey = (item: AppNotification) => item.id;
 	let disposed = false;
 	let pendingSeen: FinishNotificationSeen | undefined;
 	let items = $state<AppNotification[]>([]),
 		cursor = $state<string | null>(null);
-	const category =
-		(page.url.searchParams.get('category') as NotificationCategory) ||
-		undefined;
+	const requestedCategory = page.url.searchParams.get('category');
+	const category: NotificationCategory | undefined =
+		requestedCategory === 'everythingElse'
+			? requestedCategory
+			: notificationCategories.find(
+					([value]) => value === requestedCategory
+				)?.[0] || undefined;
+	let refreshRequested = $state(false);
+	$effect(() => {
+		if (!refreshRequested || work.busy) return;
+		refreshRequested = false;
+		untrack(() => void load());
+	});
 	async function load(more = false) {
 		if (disposed || work.busy) return;
 		const finish = !more ? beginSeen?.() : undefined;
 		if (finish) pendingSeen = finish;
+		let accepted = false;
 		try {
 			await work.run(
 				async () => {
 					loadingMore = more;
 					try {
-						return await api.notifications.list({
-							cursor: more ? cursor : undefined,
-							category
-						});
+						const fetchPage = (next?: string | null) =>
+							api.notifications.list({
+								cursor: next,
+								category,
+								signal: requests.signal
+							});
+						return more
+							? { ...(await fetchPage(cursor)), pages: loadedPages + 1 }
+							: await reloadPages(fetchPage, loadedPages, notificationKey);
 					} finally {
 						loadingMore = false;
 					}
 				},
 				(value) => {
-					items = more ? [...items, ...value.items] : value.items;
+					items = more
+						? appendPage(items, value.items, notificationKey)
+						: value.items;
 					cursor = value.cursor || null;
+					loadedPages = value.pages;
+					history?.save(loadedPages);
+					accepted = true;
 				},
 				undefined,
 				'social.Activity.load'
 			);
-			if (disposed || work.error) return;
+			history?.ready();
+			if (disposed) return;
+			if (!accepted) {
+				if (work.retry) work.retry = () => load(more);
+				return;
+			}
 			if (!more) {
 				// A started acknowledgement can finish after leaving this page.
 				if (pendingSeen === finish) pendingSeen = undefined;
@@ -74,27 +110,6 @@
 			finish?.(false);
 			if (pendingSeen === finish) pendingSeen = undefined;
 		}
-	}
-	function destination(item: AppNotification) {
-		if (!notificationCopy(item).interactive) return undefined;
-		if (item.caseReference)
-			return '/settings/moderation/' + encodeURIComponent(item.caseReference);
-		if (item.subjectPost && visible(item.subjectPost))
-			return (
-				postRoute(item.subjectPost) +
-				(item.reply ? '?focus=' + encodeURIComponent(item.reply.uri) : '')
-			);
-		const ref = postAddress(item.uri || '');
-		if (ref)
-			return (
-				'/posts/' +
-				encodeURIComponent(ref.did) +
-				'/' +
-				encodeURIComponent(ref.rkey)
-			);
-		return item.actor
-			? '/profiles/' + encodeURIComponent(item.actor.did)
-			: '/settings/account';
 	}
 	function follow(item: AppNotification) {
 		const actor = item.actor;
@@ -121,9 +136,16 @@
 			'social.Activity.follow'
 		);
 	}
-	onMount(() => load());
+	onMount(() => {
+		void load();
+		const refresh = () => (refreshRequested = true);
+		window.addEventListener('craftsky-activity-refresh', refresh);
+		return () =>
+			window.removeEventListener('craftsky-activity-refresh', refresh);
+	});
 	onDestroy(() => {
 		disposed = true;
+		requests.abort();
 		pendingSeen?.(false);
 		work.dispose();
 	});
@@ -160,7 +182,8 @@
 	{work}
 	skeleton="activity"
 	reload={() => load()}
-/>{#each items as item}{@const copy = notificationCopy(item)}
+/>{#each items as item (item.id)}{@const copy = notificationCopy(item)}
+	{@const href = copy.interactive ? notificationDestination(item) : undefined}
 	<article
 		class="notification"
 		class:unread={item.isNew}
@@ -168,9 +191,9 @@
 		style={profileStyle(item.actor?.customisation)}
 	>
 		<div class="notification-main">
-			{#if destination(item)}<a
+			{#if href}<a
 					class="notification-destination"
-					href={destination(item)}
+					{href}
 					aria-label={[
 						item.actor?.displayName || item.actor?.handle,
 						copy.action
@@ -215,6 +238,8 @@
 					><Icon name={copy.icon} /></span
 				>{/if}
 			<div class="notification-body">
+				{#if item.isNew}<span class="visually-hidden">New notification</span
+					>{/if}
 				<p class="notification-title">
 					{#if item.actor && copy.available}<a
 							class="notification-profile"

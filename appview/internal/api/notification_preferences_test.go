@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -81,6 +84,63 @@ func TestNotificationPreferencesHandlersReturnDefaultsAndPatchSubset(t *testing.
 	patch.ServeHTTP(recorder, authedReq(http.MethodPatch, "/v1/notifications/preferences", `{"preferences":{"unknown":{"pushEnabled":false}}}`, "did:plc:viewer"))
 	if recorder.Code != http.StatusBadRequest || strings.Contains(recorder.Body.String(), "did:plc:viewer") {
 		t.Fatalf("invalid status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestConcurrentFirstNotificationPreferencePatchesMerge(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	applyNotificationPreferencesTestSchema(t, pool)
+	ctx, cancel := context.WithTimeout(ownerlifecycle.WithExpectedGeneration(context.Background(), 1), 5*time.Second)
+	defer cancel()
+	const did = "did:plc:viewer"
+	seedMember(t, pool, did)
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Rollback(context.Background())
+	// Stop inserts after the first request resolves defaults. Before the
+	// fix, both requests reach this lock with a stale copy of the defaults.
+	if _, err := blocker.Exec(ctx, `LOCK TABLE notification_preferences IN SHARE MODE`); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewPostStore(pool)
+	scope, enabled := notifications.PeopleIFollow, false
+	results := make(chan error, 2)
+	for _, patch := range []notifications.PreferencePatch{{Scope: &scope}, {PushEnabled: &enabled}} {
+		go func() {
+			_, err := store.PatchNotificationPreferences(ctx, did, map[notifications.Category]notifications.PreferencePatch{notifications.Like: patch})
+			results <- err
+		}()
+	}
+	for {
+		var waiting int
+		err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM pg_locks
+			WHERE NOT granted AND (
+				(relation = 'notification_preferences'::regclass AND mode = 'RowExclusiveLock')
+				OR (locktype = 'advisory' AND classid = hashtext('notification_preferences')::oid AND objid = hashtext($1)::oid AND objsubid = 2)
+			)
+		`, did).Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting == 2 {
+			break
+		}
+		runtime.Gosched()
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	preferences, err := store.NotificationPreferences(ctx, did)
+	if want := (notifications.Preference{Scope: scope, PushEnabled: enabled}); err != nil || preferences[notifications.Like] != want {
+		t.Fatalf("like preference=%+v err=%v, want %+v", preferences[notifications.Like], err, want)
 	}
 }
 

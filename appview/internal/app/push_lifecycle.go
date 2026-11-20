@@ -73,3 +73,13 @@ func (fence pushOwnerLifecycleFence) WithPostPublicationFence(ctx context.Contex
 }
 
 var _ push.PublicationDeliveryFence = pushOwnerLifecycleFence{}
+
+func (fence pushOwnerLifecycleFence) WithActiveEffectTransaction(ctx context.Context, callback func(pgx.Tx) error) error {
+	store, ok := fence.store.(push.DeliveryTransactionFence)
+	if !ok {
+		return errors.New("push owner lifecycle transaction unavailable")
+	}
+	return store.WithActiveEffectTransaction(ctx, callback)
+}
+
+var _ push.DeliveryTransactionFence = pushOwnerLifecycleFence{}

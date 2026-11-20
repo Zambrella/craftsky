@@ -12,7 +12,8 @@ final class PendingNotificationOpenWork {
   });
 
   final NotificationOpenAttempt attempt;
-  final NotificationRecipientResolution resolution;
+  // A cold-start tap may arrive before the secure registry has loaded.
+  final NotificationRecipientResolution? resolution;
   final int sequence;
   final bool latestOnly;
 

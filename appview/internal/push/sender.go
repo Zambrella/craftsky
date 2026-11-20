@@ -19,7 +19,10 @@ const (
 	ResultPermanentFailure ResultClass = "permanentFailure"
 )
 
-type ProviderResult struct{ Class ResultClass }
+type ProviderResult struct {
+	Class      ResultClass
+	RetryAfter time.Duration
+}
 
 type DeliverySemantics string
 
@@ -63,7 +66,10 @@ type SendRequest struct {
 
 // Chat routing is separate from social notification categories and targets.
 // The random reference is resolved by the authenticated owner inside AppView.
-type ChatRouting struct{ OpenReference string }
+type ChatRouting struct {
+	OpenReference        string
+	AcceptedConversation bool
+}
 
 func (ChatRouting) String() string   { return "ChatRouting([REDACTED])" }
 func (ChatRouting) GoString() string { return "ChatRouting([REDACTED])" }

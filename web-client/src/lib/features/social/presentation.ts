@@ -1,5 +1,5 @@
 import type { AppNotification, Profile } from '#lib/api/types.ts';
-import { visible } from './model';
+import { postAddress, postRoute, visible } from './model';
 
 export const notificationCategories = [
 	['', 'All categories', 'activity'],
@@ -15,12 +15,26 @@ export const notificationCategories = [
 
 export function notificationCopy(item: AppNotification) {
 	const type = item.type.replaceAll('_', '').toLowerCase();
+	const subject =
+		item.subjectPost && visible(item.subjectPost)
+			? item.subjectPost
+			: undefined;
 	const sourceUnavailable =
 		item.actor?.available === false ||
 		item.contentAvailable === false ||
-		!!(item.subjectPost && !visible(item.subjectPost));
+		!!(item.subjectPost && !subject);
+	const subjectReply = subject?.reply;
+	const subjectRole = !subjectReply
+		? 'post'
+		: subjectReply.parent.uri === subjectReply.root.uri
+			? 'comment'
+			: 'reply';
 	const roleSource =
-		type === 'quote' ? item.quotedPreview?.role : item.preview?.role;
+		type === 'quote'
+			? item.quotedPreview?.role
+			: type === 'reply'
+				? subjectRole
+				: (item.preview?.role ?? subjectRole);
 	const role =
 		roleSource === 'reply'
 			? 'reply'
@@ -44,10 +58,6 @@ export function notificationCopy(item: AppNotification) {
 		moderation: ['Review an update to your account standing', 'shield']
 	};
 	const [action, icon] = actions[type] || ['New activity', 'activity'];
-	const subject =
-		item.subjectPost && visible(item.subjectPost)
-			? item.subjectPost
-			: undefined;
 	const preview = sourceUnavailable
 		? undefined
 		: item.preview ||
@@ -82,6 +92,33 @@ export function notificationCopy(item: AppNotification) {
 				: `↳ Your post: ${contextText}`
 			: ''
 	};
+}
+
+function notificationPostRoute(uri: string) {
+	const address = postAddress(uri);
+	if (address)
+		return `/posts/${encodeURIComponent(address.did)}/${encodeURIComponent(address.rkey)}`;
+}
+
+/** Resolve the thread directly so routing a reply never substitutes its parent as the focus. */
+export function notificationDestination(item: AppNotification) {
+	if (item.caseReference)
+		return '/settings/moderation/' + encodeURIComponent(item.caseReference);
+	if (item.subjectPost && visible(item.subjectPost)) {
+		const post = item.subjectPost;
+		const root = post.reply && notificationPostRoute(post.reply.root.uri);
+		const focus = item.reply?.uri || (root ? post.uri : undefined);
+		return (
+			(root || postRoute(post)) +
+			(focus ? '?focus=' + encodeURIComponent(focus) : '')
+		);
+	}
+	return (
+		(item.uri && notificationPostRoute(item.uri)) ||
+		(item.actor
+			? '/profiles/' + encodeURIComponent(item.actor.did)
+			: '/settings/account')
+	);
 }
 
 /** Matches ProfileTabPolicy in the Flutter client. Explicit old deep links remain addressable. */

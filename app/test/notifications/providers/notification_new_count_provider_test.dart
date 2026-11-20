@@ -37,6 +37,77 @@ void main() {
   );
 
   for (final accountScoped in [false, true]) {
+    test('a pending initial read cannot overwrite a refreshed badge '
+        '(account=$accountScoped)', () async {
+      final account = AccountKey('did:plc:alice');
+      final initial = Completer<int>();
+      final repository = _QueuedNewnessRepository([
+        initial.future,
+        Future.value(0),
+      ]);
+      final container = ProviderContainer.test(
+        overrides: [
+          notificationNewnessRepositoryProvider.overrideWithValue(repository),
+          accountNotificationNewnessRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+        ],
+      );
+      final provider = accountScoped
+          ? accountNotificationNewCountProvider(account)
+          : notificationNewCountProvider;
+      container.read(provider);
+      await repository.firstCountStarted.future;
+      expect(repository.countCalls, 1);
+
+      await (accountScoped
+          ? container
+                .read(accountNotificationNewCountProvider(account).notifier)
+                .refresh()
+          : container.read(notificationNewCountProvider.notifier).refresh());
+      expect(container.read(provider).requireValue, 0);
+      initial.complete(5);
+      await container.pump();
+
+      expect(container.read(provider).requireValue, 0);
+    });
+
+    test('only the latest overlapping refresh updates the badge '
+        '(account=$accountScoped)', () async {
+      final account = AccountKey('did:plc:alice');
+      final older = Completer<int>();
+      final repository = _QueuedNewnessRepository([
+        Future.value(3),
+        older.future,
+        Future.value(0),
+      ]);
+      final container = ProviderContainer.test(
+        overrides: [
+          notificationNewnessRepositoryProvider.overrideWithValue(repository),
+          accountNotificationNewnessRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+        ],
+      );
+      final provider = accountScoped
+          ? accountNotificationNewCountProvider(account)
+          : notificationNewCountProvider;
+      Future<void> refresh() => accountScoped
+          ? container
+                .read(accountNotificationNewCountProvider(account).notifier)
+                .refresh()
+          : container.read(notificationNewCountProvider.notifier).refresh();
+      await container.read(provider.future);
+      final first = refresh();
+      await container.pump();
+      await refresh();
+      older.complete(5);
+      await first;
+
+      expect(repository.countCalls, 3);
+      expect(container.read(provider).requireValue, 0);
+    });
+
     for (final fails in [false, true]) {
       test(
         'refresh cannot replace a rebuilt count '
@@ -145,10 +216,14 @@ final class _QueuedNewnessRepository implements NotificationNewnessRepository {
   new(this.responses);
 
   final List<Future<int>> responses;
+  final firstCountStarted = Completer<void>();
   int countCalls = 0;
 
   @override
-  Future<int> count() => responses[countCalls++];
+  Future<int> count() {
+    if (countCalls == 0) firstCountStarted.complete();
+    return responses[countCalls++];
+  }
 
   @override
   Future<void> markSeen() async {}

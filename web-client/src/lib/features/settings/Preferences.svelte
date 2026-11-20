@@ -452,7 +452,7 @@
 							{ id: 'everyone', label: 'Everyone' },
 							{ id: 'peopleIFollow', label: 'People I follow' }
 						]}
-						disabled={work.busy}
+						disabled={work.busy || !!work.retry}
 						onchange={(value) => notification(category, 'scope', value)}
 					/>{/if}
 				<label class="switch-row notification-push"
@@ -461,7 +461,7 @@
 						role="switch"
 						aria-label={`${notificationLabels[category]} push notifications`}
 						checked={pref.pushEnabled}
-						disabled={work.busy}
+						disabled={work.busy || !!work.retry}
 						onchange={(event) =>
 							notification(
 								category,

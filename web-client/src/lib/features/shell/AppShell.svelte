@@ -514,7 +514,7 @@
 			);
 		if (unexpected) countFailures[index] = true;
 	}
-	async function counts() {
+	async function counts(forceMessages = false) {
 		if (dead || document.hidden || !ready || expired) return;
 		const activityRevision = activityBadge.capture();
 		await Promise.all([
@@ -527,7 +527,7 @@
 				(error) => countFailed(error, 0)
 			),
 			eligibility?.state === 'eligible' && onboarding?.completed
-				? messagesSession.loadCounts().then(
+				? messagesSession.loadCounts(forceMessages).then(
 						() => {
 							countFailures[1] = false;
 						},
@@ -777,7 +777,7 @@
 		}
 	}}
 />
-<BrowserPush {api} {session} />
+<BrowserPush {api} {session} refreshCounts={() => counts(true)} />
 <svelte:window
 	bind:scrollY
 	onscroll={() => (profileScrolled = window.scrollY > 72)}

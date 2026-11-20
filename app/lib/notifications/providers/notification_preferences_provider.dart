@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -33,11 +34,11 @@ NotificationPreference _mergePreferenceField(
 @Riverpod(keepAlive: true)
 class AccountNotificationPreferencesNotifier
     extends _$AccountNotificationPreferencesNotifier {
-  final _generations =
-      <(NotificationCategory, NotificationPreferenceField), int>{};
+  _PreferenceEdits _edits = _PreferenceEdits();
 
   @override
   Future<NotificationPreferences> build(AccountKey account) async {
+    _edits = _PreferenceEdits();
     // This watch owns the account repository for the retained preferences.
     // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
     final repository = await ref.watch(
@@ -58,84 +59,34 @@ class AccountNotificationPreferencesNotifier
     required NotificationPreferenceScope value,
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
-  Future<bool> _edit(NotificationPreferencePatch patch) async {
+  Future<bool> _edit(NotificationPreferencePatch patch) {
     final operationRef = ref;
-    final reporter = operationRef.read(errorReporterProvider);
-    final current = state.value;
-    final previous = current?.known[patch.category];
-    if (current == null || previous == null) return false;
-    final key = (patch.category, patch.field);
-    final generation = (_generations[key] ?? 0) + 1;
-    _generations[key] = generation;
-    state = AsyncData(
-      current.replace(patch.category, _applyPreference(previous, patch)),
-    );
-    var dispatched = false;
-    try {
-      // build's watch owns this same account repository throughout the edit.
-      // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
-      final repository = await operationRef.read(
-        accountNotificationPreferencesRepositoryProvider(account).future,
-      );
-      if (!operationRef.mounted) return false;
-      dispatched = true;
-      final server = await repository.patch(patch);
-      if (_generations[key] != generation || !operationRef.mounted) return true;
-      final now = state.value;
-      final serverValue = server.known[patch.category];
-      if (now != null && serverValue != null) {
-        state = AsyncData(
-          now.replace(
-            patch.category,
-            _mergePreferenceField(
-              now.known[patch.category]!,
-              serverValue,
-              patch.field,
-            ),
+    return _edits.apply(
+      patch,
+      operationRef: operationRef,
+      readState: () => state.value,
+      update: (value) => state = AsyncData(value),
+      accountDid: account.did.value,
+      repository: () =>
+          // build's watch owns the account repository throughout the edit.
+          // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+          operationRef.read(
+            accountNotificationPreferencesRepositoryProvider(account).future,
           ),
-        );
-      }
-      return true;
-    } on Object catch (error, stack) {
-      if (_generations[key] == generation && operationRef.mounted) {
-        if (dispatched) {
-          reportConsumedFailure(
-            error,
-            stack,
-            reporter: reporter,
-            feature: 'Notifications',
-            operation: 'notifications.preferences_patch',
-            accountDid: account.did.value,
-          );
-        }
-        final now = state.value;
-        if (now != null) {
-          state = AsyncData(
-            now.replace(
-              patch.category,
-              _mergePreferenceField(
-                now.known[patch.category]!,
-                previous,
-                patch.field,
-              ),
-            ),
-          );
-        }
-      }
-      return false;
-    }
+    );
   }
 }
 
 @Riverpod(keepAlive: true, name: 'notificationPreferencesProvider')
 class NotificationPreferencesNotifier
     extends _$NotificationPreferencesNotifier {
-  final _generations =
-      <(NotificationCategory, NotificationPreferenceField), int>{};
+  _PreferenceEdits _edits = _PreferenceEdits();
 
   @override
-  Future<NotificationPreferences> build() =>
-      ref.watch(notificationPreferencesRepositoryProvider).load();
+  Future<NotificationPreferences> build() {
+    _edits = _PreferenceEdits();
+    return ref.watch(notificationPreferencesRepositoryProvider).load();
+  }
 
   Future<bool> setPushEnabled(
     NotificationCategory category, {
@@ -149,9 +100,8 @@ class NotificationPreferencesNotifier
     required NotificationPreferenceScope value,
   }) => _edit(NotificationPreferencePatch.scope(category, value: value));
 
-  Future<bool> _edit(NotificationPreferencePatch patch) async {
+  Future<bool> _edit(NotificationPreferencePatch patch) {
     final operationRef = ref;
-    final reporter = operationRef.read(errorReporterProvider);
     final accountDid = operationRef.exists(sessionRegistryProvider)
         ? operationRef
               .read(sessionRegistryProvider)
@@ -162,75 +112,90 @@ class NotificationPreferencesNotifier
               .did
               .value
         : null;
-    final current = state.value;
+    return _edits.apply(
+      patch,
+      operationRef: operationRef,
+      readState: () => state.value,
+      update: (value) => state = AsyncData(value),
+      accountDid: accountDid,
+      repository: () => Future.value(
+        operationRef.read(notificationPreferencesRepositoryProvider),
+      ),
+    );
+  }
+}
+
+final class _PreferenceEdits {
+  final _fields =
+      <(NotificationCategory, NotificationPreferenceField), _PendingField>{};
+
+  Future<bool> apply(
+    NotificationPreferencePatch patch, {
+    required Ref operationRef,
+    required NotificationPreferences? Function() readState,
+    required void Function(NotificationPreferences) update,
+    required String? accountDid,
+    required Future<NotificationPreferencesRepository> Function() repository,
+  }) async {
+    final current = readState();
     final previous = current?.known[patch.category];
     if (current == null || previous == null) return false;
-
+    final reporter = operationRef.read(errorReporterProvider);
     final key = (patch.category, patch.field);
-    final generation = (_generations[key] ?? 0) + 1;
-    _generations[key] = generation;
-    state = AsyncData(current.replace(patch.category, _apply(previous, patch)));
+    final field = _fields.putIfAbsent(key, () => _PendingField(previous));
+    final earlier = field.pending;
+    final revision = ++field.revision;
+    update(current.replace(patch.category, _applyPreference(previous, patch)));
 
-    try {
-      final server = await operationRef
-          .read(notificationPreferencesRepositoryProvider)
-          .patch(patch);
-      if (_generations[key] != generation || !operationRef.mounted) return true;
-      final now = state.value;
-      final serverValue = server.known[patch.category];
-      if (now != null && serverValue != null) {
-        state = AsyncData(
-          now.replace(
-            patch.category,
-            _mergeField(now.known[patch.category]!, serverValue, patch.field),
-          ),
-        );
-      }
-      return true;
-    } on Object catch (error, stack) {
-      if (_generations[key] == generation && operationRef.mounted) {
-        reportConsumedFailure(
-          error,
-          stack,
-          reporter: reporter,
-          feature: 'Notifications',
-          operation: 'notifications.preferences_patch',
-          accountDid: accountDid,
-        );
-        final now = state.value;
-        if (now != null) {
-          state = AsyncData(
-            now.replace(
-              patch.category,
-              _mergeField(now.known[patch.category]!, previous, patch.field),
-            ),
+    Future<bool> save() async {
+      if (earlier != null) await earlier;
+      if (!operationRef.mounted) return false;
+      var dispatched = false;
+      try {
+        final target = await repository();
+        if (!operationRef.mounted) return false;
+        dispatched = true;
+        final server = await target.patch(patch);
+        field.saved = server.known[patch.category] ?? field.saved;
+        return true;
+      } on Object catch (error, stack) {
+        if (dispatched && operationRef.mounted && revision == field.revision) {
+          reportConsumedFailure(
+            error,
+            stack,
+            reporter: reporter,
+            feature: 'Notifications',
+            operation: 'notifications.preferences_patch',
+            accountDid: accountDid,
           );
         }
+        return false;
       }
-      return false;
     }
+
+    final saving = save();
+    field.pending = saving;
+    final saved = await saving;
+    if (!operationRef.mounted || revision != field.revision) return saved;
+    _fields.remove(key);
+    final now = readState();
+    final nowValue = now?.known[patch.category];
+    if (now != null && nowValue != null) {
+      update(
+        now.replace(
+          patch.category,
+          _mergePreferenceField(nowValue, field.saved, patch.field),
+        ),
+      );
+    }
+    return saved;
   }
+}
 
-  NotificationPreference _apply(
-    NotificationPreference value,
-    NotificationPreferencePatch patch,
-  ) => switch (patch.field) {
-    NotificationPreferenceField.scope => value.copyWith(
-      scope: patch.scopeValue,
-    ),
-    NotificationPreferenceField.pushEnabled => value.copyWith(
-      pushEnabled: patch.pushEnabledValue,
-    ),
-  };
+final class _PendingField {
+  new(this.saved);
 
-  NotificationPreference _mergeField(
-    NotificationPreference current,
-    NotificationPreference source,
-    NotificationPreferenceField field,
-  ) => switch (field) {
-    NotificationPreferenceField.scope => current.copyWith(scope: source.scope),
-    NotificationPreferenceField.pushEnabled => current.copyWith(
-      pushEnabled: source.pushEnabled,
-    ),
-  };
+  NotificationPreference saved;
+  Future<bool>? pending;
+  int revision = 0;
 }

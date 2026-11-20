@@ -68,7 +68,8 @@ final class NotificationOpenCoordinator {
 
   Future<void> openResolved(PendingNotificationOpenWork work) async {
     final attempt = work.attempt;
-    final resolution = work.resolution;
+    final resolution =
+        work.resolution ?? _resolveRecipient(attempt.accountSubscriptionId);
     switch (resolution) {
       case InvalidNotificationRecipient():
         await _onUnavailable();
@@ -88,14 +89,15 @@ final class NotificationOpenCoordinator {
           await _onRemovedAccount();
           return;
         }
+        if (_isActiveLease?.call(lease) == false) return;
         if (attempt.facts case ChatNotificationFacts(:final openReference)) {
           final resolve = _resolveChat;
-          if (resolve == null || _isActiveLease?.call(lease) != true) {
+          if (resolve == null || _isActiveLease == null) {
             await _onUnavailable();
             return;
           }
           final id = await resolve(lease, openReference);
-          if (!_isCurrentLease(lease) || _isActiveLease?.call(lease) != true) {
+          if (!_isCurrentLease(lease) || !_isActiveLease(lease)) {
             return;
           }
           if (id == null) {
@@ -105,8 +107,7 @@ final class NotificationOpenCoordinator {
           await _onOutcome(
             NotificationOpenOutcome(
               destination: ChatConversationDestination(id),
-              isCurrent: () =>
-                  _isCurrentLease(lease) && _isActiveLease?.call(lease) == true,
+              isCurrent: () => _isCurrentLease(lease) && _isActiveLease(lease),
             ),
           );
           return;

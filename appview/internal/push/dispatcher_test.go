@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -538,6 +539,42 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 		restore     func(*testing.T, *pgxpool.Pool)
 	}{
 		{
+			name: "actor hidden after claim",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `
+					INSERT INTO moderation_outputs(source_did,subject_type,subject_did,value,action,indexed_at)
+					VALUES('did:plc:moderator','account','did:plc:actor','hide','apply',now())
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `DELETE FROM moderation_outputs`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "route reactivated after claim",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `
+					UPDATE push_account_subscriptions SET active=false,deactivated_at=clock_timestamp();
+					UPDATE push_account_subscriptions SET active=true
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `UPDATE push_account_subscriptions SET deactivated_at=NULL`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
 			name: "category disabled",
 			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
@@ -674,6 +711,73 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 	}
 }
 
+func TestDispatcherMatchesSubscriptionActivationCapturedDuringFanout(t *testing.T) {
+	pool := dispatcherPool(t)
+	ctx := t.Context()
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(ctx, `UPDATE push_deliveries SET subscription_activation_generation = 1`); err != nil {
+		t.Fatal(err)
+	}
+
+	// A projection may have opened its transaction before a concurrent
+	// re-registration, then select the new active subscription at fan-out.
+	fanout, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fanout.Rollback(ctx)
+	if _, err := pool.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=clock_timestamp()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE push_account_subscriptions SET active=true,deactivated_at=NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := notifications.NewService().Activate(ctx, fanout, notifications.Activation{
+		RecipientDID: "did:plc:viewer",
+		ActorDID:     "did:plc:actor",
+		Category:     notifications.Like,
+		SubjectKey:   "new-subject",
+		SourceURI:    "at://did:plc:actor/social.craftsky.feed.like/new-like",
+		SourceRkey:   "new-like",
+		SourceCID:    "new-cid",
+		ActivityAt:   time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := fanout.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Conversely an older activation is still stale if its timestamp looks new.
+	if _, err := pool.Exec(ctx, `UPDATE push_deliveries SET created_at=clock_timestamp() WHERE subscription_activation_generation=1`); err != nil {
+		t.Fatal(err)
+	}
+	var generation int64
+	var wouldFailTimestampFence bool
+	if err := pool.QueryRow(ctx, `
+		SELECT d.subscription_activation_generation,d.created_at<=s.deactivated_at
+		FROM push_deliveries d
+		JOIN notification_events n ON n.id=d.notification_id
+		JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
+		WHERE n.subject_key='new-subject'
+	`).Scan(&generation, &wouldFailTimestampFence); err != nil || generation != 2 || !wouldFailTimestampFence {
+		t.Fatalf("generation=%d old timestamp=%t err=%v", generation, wouldFailTimestampFence, err)
+	}
+
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{BatchSize: 2, Concurrency: 1})
+	if processed, err := dispatcher.ProcessBatch(ctx, "worker"); err != nil || processed != 2 {
+		t.Fatalf("processed=%d err=%v", processed, err)
+	}
+	var older, newer string
+	if err := pool.QueryRow(ctx, `
+		SELECT max(status) FILTER (WHERE subscription_activation_generation=1),
+		       max(status) FILTER (WHERE subscription_activation_generation=2)
+		FROM push_deliveries
+	`).Scan(&older, &newer); err != nil || sender.requestCount() != 1 || older != "cancelled" || newer != "succeeded" {
+		t.Fatalf("sends=%d older=%s newer=%s err=%v", sender.requestCount(), older, newer, err)
+	}
+}
+
 func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *testing.T) {
 	pool := dispatcherPool(t)
 	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
@@ -696,7 +800,7 @@ func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *tes
 		t.Fatal(err)
 	}
 
-	current, err := dispatcher.currentDeliveryStatus(context.Background(), item, now)
+	current, err := dispatcher.currentDeliveryStatus(context.Background(), pool, item, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -711,7 +815,7 @@ func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *tes
 		t.Fatal(err)
 	}
 
-	if err := dispatcher.cancelEligibilityInvalid(context.Background(), item, now); err != nil {
+	if err := dispatcher.cancelEligibilityInvalid(context.Background(), pool, item, now); err != nil {
 		t.Fatal(err)
 	}
 	var status, token string
@@ -1493,11 +1597,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		t.Fatalf("worker exited on transient store failure: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000021_appview_notifications.up.sql", "000131_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
@@ -1739,14 +1839,11 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatal(err)
-	}
-	if err := testdb.ApplyMigrations(context.Background(), pool, "000106_post_publication_facts.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(context.Background(), pool,
+		"000021_appview_notifications.up.sql",
+		"000106_post_publication_facts.up.sql",
+		"000131_push_subscription_activation.up.sql",
+	); err != nil {
 		t.Fatal(err)
 	}
 	return pool

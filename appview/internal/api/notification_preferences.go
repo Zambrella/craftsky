@@ -45,7 +45,12 @@ func (s *PostStore) PatchNotificationPreferences(ctx context.Context, did string
 	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(did), nil); err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT category, scope, push_enabled FROM notification_preferences WHERE account_did = $1 FOR UPDATE`, did)
+	// There may be no saved rows yet. Serialize partial patches before
+	// resolving defaults so concurrent first writes merge omitted fields.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('notification_preferences'), hashtext($1))`, did); err != nil {
+		return nil, fmt.Errorf("lock notification preferences: %w", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT category, scope, push_enabled FROM notification_preferences WHERE account_did = $1`, did)
 	if err != nil {
 		return nil, err
 	}

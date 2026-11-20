@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"social.craftsky/appview/internal/notifications"
 	"strings"
 	"testing"
 	"time"
+
+	"social.craftsky/appview/internal/notifications"
 )
 
 // UT-007 / FR-013, RULE-003: the real provider serializer emits sender
@@ -15,14 +16,33 @@ import (
 func TestFirebaseChatPayloadHasOnlyOpaqueRoutingAndSenderCopy(t *testing.T) {
 	const reference = "00000000-0000-4000-8000-000000000123"
 	const subscription = "00000000-0000-4000-8000-000000000456"
-	for _, platform := range []string{"ios", "android"} {
+	for _, tt := range []struct {
+		platform string
+		accepted bool
+		priority string
+	}{
+		{platform: "ios", accepted: true},
+		{platform: "android"},
+		{platform: "android", accepted: true, priority: "high"},
+	} {
 		client := &captureFirebaseClient{}
 		sender := &FirebaseSender{client: client, now: time.Now}
-		request := SendRequest{Token: "provider-token", AccountSubscriptionID: subscription, Chat: &ChatRouting{OpenReference: reference}, ActorDisplayName: "Alex", Platform: platform, Semantics: DeliveryUniqueEvent, TTL: time.Hour}
+		request := SendRequest{
+			Token: "provider-token", AccountSubscriptionID: subscription,
+			Chat:             &ChatRouting{OpenReference: reference, AcceptedConversation: tt.accepted},
+			ActorDisplayName: "Alex", Platform: tt.platform, Semantics: DeliveryUniqueEvent, TTL: time.Hour,
+		}
 		if _, err := sender.Send(t.Context(), request); err != nil {
 			t.Fatal(err)
 		}
 		message := client.messages[0]
+		if tt.platform == "android" {
+			if message.Android == nil || message.Android.Priority != tt.priority {
+				t.Fatalf("Android config = %+v, want priority %q", message.Android, tt.priority)
+			}
+		} else if message.Android != nil || message.APNS == nil || message.APNS.Headers["apns-priority"] != "" {
+			t.Fatal("iOS chat push has an unexpected platform configuration")
+		}
 		if message.Notification.Title != "Alex" || message.Notification.Body != "sent you a message" {
 			t.Fatalf("visible copy=%+v", message.Notification)
 		}
