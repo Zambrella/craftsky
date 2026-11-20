@@ -53,7 +53,7 @@ final class AccountNotificationNewCountProvider
 }
 
 String _$accountNotificationNewCountHash() =>
-    r'3e5966cde84621221ef33dc2d3ff146d9e0b04d7';
+    r'6286774c1287d310d4d611431448deb570e46115';
 
 final class AccountNotificationNewCountFamily extends $Family
     with

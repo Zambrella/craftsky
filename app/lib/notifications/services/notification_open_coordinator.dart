@@ -97,7 +97,7 @@ final class NotificationOpenCoordinator {
             return;
           }
           final id = await resolve(lease, openReference);
-          if (!_isCurrentLease(lease) || _isActiveLease?.call(lease) != true) {
+          if (!_isCurrentLease(lease) || !_isActiveLease(lease)) {
             return;
           }
           if (id == null) {
@@ -107,8 +107,7 @@ final class NotificationOpenCoordinator {
           await _onOutcome(
             NotificationOpenOutcome(
               destination: ChatConversationDestination(id),
-              isCurrent: () =>
-                  _isCurrentLease(lease) && _isActiveLease?.call(lease) == true,
+              isCurrent: () => _isCurrentLease(lease) && _isActiveLease(lease),
             ),
           );
           return;

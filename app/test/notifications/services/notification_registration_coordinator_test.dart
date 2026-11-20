@@ -65,14 +65,15 @@ void main() {
     () async {
       final started = Completer<void>();
       final granted = Completer<NotificationPermission>();
-      final service = _FakeService(
-        permission: NotificationPermission.notDetermined,
-        token: 'provider-token',
-      );
-      service.permissionPrompt = () {
-        started.complete();
-        return granted.future;
-      };
+      final service =
+          _FakeService(
+              permission: NotificationPermission.notDetermined,
+              token: 'provider-token',
+            )
+            ..permissionPrompt = () {
+              started.complete();
+              return granted.future;
+            };
       final registrations = <AccountSessionLease>[];
       final coordinator = _coordinator(
         service,

@@ -19,7 +19,10 @@ class AccountNotificationNewCount extends _$AccountNotificationNewCount {
       accountNotificationNewnessRepositoryProvider(account).future,
     );
     return _readInitialCount(
-      () async => (await repository).count(),
+      () async {
+        final accountRepository = await repository;
+        return await accountRepository.count();
+      },
       () => buildRef.mounted && revision != _countRevision ? state : null,
     );
   }
