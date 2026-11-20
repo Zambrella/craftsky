@@ -101,38 +101,46 @@ final class NotificationRuntime {
   Future<void> updateReadiness({
     required Did? did,
     required bool onboarded,
+    bool initialized = true,
   }) async {
-    if (_lastReadinessDid == did && _lastOnboarded == onboarded) {
-      await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
+    if (_disposed) return;
+    final readiness = !initialized
+        ? NotificationOpenReadiness.transient
+        : did == null
+        ? NotificationOpenReadiness.requiresSignIn
+        : onboarded
+        ? NotificationOpenReadiness.ready
+        : NotificationOpenReadiness.transient;
+    if (_lastReadinessDid == did &&
+        _lastOnboarded == onboarded &&
+        _readiness == readiness) {
+      await refreshAccounts();
       return;
     }
     _lastReadinessDid = did;
     _lastOnboarded = onboarded;
     _did = did;
-    _readiness = did == null
-        ? NotificationOpenReadiness.requiresSignIn
-        : onboarded
-        ? NotificationOpenReadiness.ready
-        : NotificationOpenReadiness.transient;
+    _readiness = readiness;
     if (_readiness == NotificationOpenReadiness.requiresSignIn) {
       _latestOpenSequence++;
     }
     final pending = _pending.updateReadiness(_readiness);
     if (pending != null) await _processOpen(pending);
-    await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
+    await refreshAccounts();
   }
 
   Future<void> receiveOpen(NotificationOpenAttempt event) async {
     await receiveResolvedOpen(
       event,
-      _routingStorage.resolve(event.accountSubscriptionId),
+      _routingStorage.resolveIfReady(event.accountSubscriptionId),
     );
   }
 
   Future<void> receiveResolvedOpen(
     NotificationOpenAttempt event,
-    NotificationRecipientResolution resolution,
+    NotificationRecipientResolution? resolution,
   ) async {
+    if (_disposed) return;
     final requiresActivation = switch (resolution) {
       ExactNotificationRecipient(:final lease) =>
         !_routingStorage.isActiveLease(lease),
@@ -152,21 +160,21 @@ final class NotificationRuntime {
   Future<void> receiveForegroundEvent(
     ForegroundNotificationEvent event,
   ) async {
+    if (_disposed) return;
     final resolution = _routingStorage.resolve(
       event.openAttempt.accountSubscriptionId,
     );
+    if (resolution is! ExactNotificationRecipient) return;
+    final lease = resolution.lease;
     NotificationRecipientIdentity? recipient;
-    AccountKey? recipientAccount;
-    if (resolution case ExactNotificationRecipient(:final lease)) {
-      recipientAccount = lease.account;
-      final session = _routingStorage.sessionFor(lease);
-      if (session != null && !_routingStorage.isActiveLease(lease)) {
-        recipient = NotificationRecipientIdentity(
-          lease: lease,
-          handle: session.handle.value,
-          avatarUrl: session.cachedAvatarUrl,
-        );
-      }
+    final session = _routingStorage.sessionFor(lease);
+    if (session == null) return;
+    if (!_routingStorage.isActiveLease(lease)) {
+      recipient = NotificationRecipientIdentity(
+        lease: lease,
+        handle: session.handle.value,
+        avatarUrl: session.cachedAvatarUrl,
+      );
     }
     _effects.add(
       NotificationBannerEffect(
@@ -177,23 +185,34 @@ final class NotificationRuntime {
     );
     if (event.openAttempt.facts is ChatNotificationFacts ||
         event.openAttempt.facts is InvalidChatNotificationFacts) {
-      if (recipientAccount case final account?) {
-        await _refreshChatCount?.call(account);
-      }
+      await _refreshChatCount?.call(lease.account);
       return;
     }
-    if (recipientAccount case final account?) {
-      await (_invalidateAccountList?.call(account) ?? _invalidateList());
-      await (_refreshAccountCount?.call(account) ?? _refreshCount());
+    final invalidateAccountList = _invalidateAccountList;
+    if (invalidateAccountList != null) {
+      await invalidateAccountList(lease.account);
     } else {
       await _invalidateList();
+    }
+    if (_disposed || !_routingStorage.isCurrentLease(lease)) return;
+    final refreshAccountCount = _refreshAccountCount;
+    if (refreshAccountCount != null) {
+      await refreshAccountCount(lease.account);
+    } else {
       await _refreshCount();
     }
   }
 
   Future<void> resume() async {
-    await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
-    await _registration.retryRegistration();
+    await refreshAccounts(retry: true);
+  }
+
+  Future<void> refreshAccounts({bool retry = false}) async {
+    if (_disposed) return;
+    await _registration.updateAccounts(
+      _eligibleAccounts?.call() ?? const [],
+      retry: retry,
+    );
   }
 
   Future<void> _processOpen(PendingNotificationOpenWork work) async {

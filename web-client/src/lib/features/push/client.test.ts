@@ -58,7 +58,8 @@ describe('browser push lifecycle', () => {
 		const { registerPush } = await import('./client.ts');
 		const registerDevice = vi.fn(async () => ({ accountSubscriptionId: subA }));
 		const api = { notifications: { registerDevice } } as unknown as CraftskyAPI;
-		await registerPush(api, a);
+		await registerPush(api, a, true);
+		permission.mockClear();
 		await registerPush(api, a);
 		expect(registerDevice).toHaveBeenCalledTimes(2);
 		expect(registerDevice).toHaveBeenCalledWith(
@@ -90,12 +91,45 @@ describe('browser push lifecycle', () => {
 				unregisterDevice
 			}
 		} as unknown as CraftskyAPI;
-		await registerPush(api, a);
-		await registerPush(api, b);
+		await registerPush(api, a, true);
+		await registerPush(api, b, true);
 		await disablePush(api, a);
 		expect(unregisterDevice).toHaveBeenCalledWith(subA);
 		expect(sdk.deleteToken).not.toHaveBeenCalled();
 		await disablePush(api, b);
+		expect(sdk.deleteToken).toHaveBeenCalledTimes(1);
+	});
+	it('keeps a renewal queued behind disable from re-enabling notifications', async () => {
+		const { registerPush, disablePush } = await import('./client.ts');
+		const registerDevice = vi.fn(async () => ({ accountSubscriptionId: subA }));
+		let finish!: () => void;
+		const removal = new Promise<void>((resolve) => (finish = resolve));
+		const api = {
+			notifications: { registerDevice, unregisterDevice: () => removal }
+		} as unknown as CraftskyAPI;
+		await registerPush(api, a, true);
+		const disabled = disablePush(api, a);
+		const renewal = registerPush(api, a);
+		finish();
+		await Promise.all([disabled, renewal]);
+		expect(registerDevice).toHaveBeenCalledTimes(1);
+		expect(sdk.deleteToken).toHaveBeenCalledTimes(1);
+	});
+	it('clears a stale local binding when the server already removed the subscription', async () => {
+		const { registerPush, disablePush } = await import('./client.ts');
+		const { bindings } = await import('./model.ts');
+		const { APIError } = await import('#lib/api/transport.ts');
+		const api = {
+			notifications: {
+				registerDevice: async () => ({ accountSubscriptionId: subA }),
+				unregisterDevice: async () => {
+					throw new APIError(404, 'subscription_not_found', 'fixture');
+				}
+			}
+		} as unknown as CraftskyAPI;
+		await registerPush(api, a, true);
+		await disablePush(api, a);
+		expect(bindings(localStorage)).toEqual([]);
 		expect(sdk.deleteToken).toHaveBeenCalledTimes(1);
 	});
 });

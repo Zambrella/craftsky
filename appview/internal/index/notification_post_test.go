@@ -97,3 +97,26 @@ func TestPostMentionOfNonMemberIndexesPostWithoutNotification(t *testing.T) {
 		t.Fatalf("posts=%d events=%d deliveries=%d", posts, events, deliveries)
 	}
 }
+
+func TestFutureActivityCannotExtendPushDeliveryWindow(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	applyNotificationMigration(t, pool)
+	seedCraftskyMember(t, pool, "did:plc:actor")
+	seedCraftskyMember(t, pool, "did:plc:recipient")
+	seedNotificationSubscription(t, pool, "did:plc:recipient")
+	ev := tap.Event{
+		URI: "at://did:plc:actor/social.craftsky.feed.post/mention", CID: "mentioncid",
+		DID: "did:plc:actor", Rkey: "mention", Collection: "social.craftsky.feed.post", Action: "create",
+		Record: json.RawMessage(`{"text":"hello recipient","createdAt":"2099-05-04T12:00:00Z"` + mentionExtra("did:plc:recipient") + `}`),
+	}
+	idx := index.NewCraftskyPost(pool, testLogger(), notifications.NewService())
+	if err := idx.Handle(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+	var bounded bool
+	if err := pool.QueryRow(context.Background(), `
+		SELECT deadline_at = next_attempt_at + interval '6 hours' FROM push_deliveries
+	`).Scan(&bounded); err != nil || !bounded {
+		t.Fatalf("future-dated delivery window bounded=%t err=%v", bounded, err)
+	}
+}

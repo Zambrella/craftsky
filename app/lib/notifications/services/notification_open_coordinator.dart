@@ -68,7 +68,8 @@ final class NotificationOpenCoordinator {
 
   Future<void> openResolved(PendingNotificationOpenWork work) async {
     final attempt = work.attempt;
-    final resolution = work.resolution;
+    final resolution =
+        work.resolution ?? _resolveRecipient(attempt.accountSubscriptionId);
     switch (resolution) {
       case InvalidNotificationRecipient():
         await _onUnavailable();

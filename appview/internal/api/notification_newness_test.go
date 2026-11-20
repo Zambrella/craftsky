@@ -14,12 +14,13 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
+func TestNotificationNewCountUsesEventStateAndListVisibility(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := context.Background()
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
+		"000129_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -90,18 +91,7 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 			t.Fatal("first-use notification must be new")
 		}
 	}
-	var markerRows int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_seen_state`).Scan(&markerRows); err != nil {
-		t.Fatal(err)
-	}
-	if markerRows != 0 {
-		t.Fatalf("GET created %d acknowledgement rows, want 0", markerRows)
-	}
-
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO notification_seen_state (account_did, last_seen_revision)
-		VALUES ('did:plc:viewer', $1)
-	`, oldRevision); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE notification_events SET is_new = false WHERE newness_revision = $1`, oldRevision); err != nil {
 		t.Fatal(err)
 	}
 	if count := requestCount(); count != 1 {
@@ -161,6 +151,7 @@ func TestActorlessModerationNotificationIsListedCountedAndHasNoActorDTO(t *testi
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
+		"000129_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -238,6 +229,7 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
+		"000129_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -249,32 +241,31 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	}
 	seedMember(t, pool, "did:plc:viewer")
 
-	insert := func(id string) int64 {
-		t.Helper()
-		var revision int64
-		if err := pool.QueryRow(ctx, `
-			INSERT INTO notification_events (
-				id, recipient_did, actor_did, category, subject_key,
-				source_uri, source_cid, source_rkey,
-				eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
-				state, first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
-			) VALUES (
-				$1::uuid, 'did:plc:viewer', 'did:plc:actor', 'follow', $1::uuid::text,
-				'at://did:plc:actor/app.bsky.graph.follow/' || $1::uuid::text, 'cid', $1::uuid::text,
-				'everyone', false, true, 'active', now(), now(), now(), now()
-			)
-			RETURNING newness_revision
-		`, id).Scan(&revision); err != nil {
-			t.Fatalf("insert notification: %v", err)
-		}
-		return revision
+	const (
+		firstID            = "10000000-0000-0000-0000-000000000001"
+		olderUncommittedID = "10000000-0000-0000-0000-000000000002"
+		thirdID            = "10000000-0000-0000-0000-000000000003"
+	)
+	const insertSQL = `
+		INSERT INTO notification_events (
+			id, recipient_did, actor_did, category, subject_key,
+			source_uri, source_cid, source_rkey,
+			eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
+			state, first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
+		) VALUES (
+			$1::uuid, 'did:plc:viewer', 'did:plc:actor', 'follow', $1::uuid::text,
+			'at://did:plc:actor/app.bsky.graph.follow/' || $1::uuid::text, 'cid', $1::uuid::text,
+			'everyone', false, true, 'active', now(), now(), now(), now()
+		)`
+	uncommitted, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	firstRevision := insert("10000000-0000-0000-0000-000000000001")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO notification_seen_state (account_did, last_seen_revision)
-		VALUES ('did:plc:viewer', 0)
-	`); err != nil {
+	defer uncommitted.Rollback(ctx)
+	if _, err := uncommitted.Exec(ctx, insertSQL, olderUncommittedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, insertSQL, firstID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -284,10 +275,8 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	}
 	defer blocker.Rollback(ctx)
 	if _, err := blocker.Exec(ctx, `
-		UPDATE notification_seen_state
-		SET updated_at = updated_at
-		WHERE account_did = 'did:plc:viewer'
-	`); err != nil {
+		UPDATE notification_events SET source_cid = 'replacement' WHERE id = $1
+	`, firstID); err != nil {
 		t.Fatal(err)
 	}
 	var blockerXID string
@@ -319,14 +308,16 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("mark-seen did not reach the blocked acknowledgement upsert")
+			t.Fatal("mark-seen did not reach the blocked acknowledgement update")
 		}
 		runtime.Gosched()
 	}
 
-	secondRevision := insert("10000000-0000-0000-0000-000000000002")
-	if secondRevision <= firstRevision {
-		t.Fatalf("second revision=%d, want greater than %d", secondRevision, firstRevision)
+	if _, err := pool.Exec(ctx, insertSQL, thirdID); err != nil {
+		t.Fatal(err)
+	}
+	if err := uncommitted.Commit(ctx); err != nil {
+		t.Fatal(err)
 	}
 	if err := blocker.Commit(ctx); err != nil {
 		t.Fatal(err)
@@ -335,23 +326,9 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 		t.Fatalf("mark seen: %v", err)
 	}
 
-	var marker int64
-	if err := pool.QueryRow(ctx, `
-		SELECT last_seen_revision
-		FROM notification_seen_state
-		WHERE account_did = 'did:plc:viewer'
-	`).Scan(&marker); err != nil {
-		t.Fatal(err)
-	}
-	if marker != firstRevision {
-		t.Fatalf("marker=%d, want captured revision %d", marker, firstRevision)
-	}
 	count, err := store.NotificationNewCount(ctx, "did:plc:viewer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("new count=%d, want concurrent notification to remain new", count)
+	if err != nil || count != 3 {
+		t.Fatalf("new count=%d err=%v, want both concurrent inserts and the replacement to remain new", count, err)
 	}
 
 	recorder := httptest.NewRecorder()

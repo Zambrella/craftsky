@@ -538,6 +538,41 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 		restore     func(*testing.T, *pgxpool.Pool)
 	}{
 		{
+			name: "actor hidden after claim",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `
+					INSERT INTO moderation_outputs(source_did,subject_type,subject_did,value,action,indexed_at)
+					VALUES('did:plc:moderator','account','did:plc:actor','hide','apply',now())
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `DELETE FROM moderation_outputs`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "route reactivated after claim",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `
+					UPDATE push_account_subscriptions SET active=true,deactivated_at=clock_timestamp()
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(t.Context(), `UPDATE push_account_subscriptions SET deactivated_at=NULL`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
 			name: "category disabled",
 			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
@@ -696,7 +731,7 @@ func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *tes
 		t.Fatal(err)
 	}
 
-	current, err := dispatcher.currentDeliveryStatus(context.Background(), item, now)
+	current, err := dispatcher.currentDeliveryStatus(context.Background(), pool, item, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -711,7 +746,7 @@ func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *tes
 		t.Fatal(err)
 	}
 
-	if err := dispatcher.cancelEligibilityInvalid(context.Background(), item, now); err != nil {
+	if err := dispatcher.cancelEligibilityInvalid(context.Background(), pool, item, now); err != nil {
 		t.Fatal(err)
 	}
 	var status, token string

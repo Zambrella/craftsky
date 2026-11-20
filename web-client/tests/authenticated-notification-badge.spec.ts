@@ -7,6 +7,14 @@ const account = {
 	handle: 'alice.test',
 	token: Buffer.alloc(32, 1).toString('base64url')
 };
+const otherAccount = {
+	id: 'c6dc7d6a-4bff-45f0-87ee-d42634646546',
+	did: 'did:plc:bob',
+	handle: 'bob.test',
+	token: Buffer.alloc(32, 2).toString('base64url')
+};
+const subscription = '00000000-0000-4000-8000-000000000040';
+const chatReference = '00000000-0000-4000-8000-000000000041';
 test.beforeEach(async ({ page, context }) => {
 	await fetch(fixture + '/__test/reset');
 	await fetch(fixture + '/__test/control', {
@@ -189,4 +197,181 @@ test('a failed seen acknowledgement restores and reconciles the badge', async ({
 	await expect(
 		page.getByRole('heading', { name: 'Notifications', exact: true })
 	).toBeVisible();
+});
+
+test('retrying a failed first page acknowledges the recovered notifications', async ({
+	page
+}) => {
+	await page.route(
+		/\/api\/appview\/v1\/notifications(?:\?.*)?$/,
+		(route) => route.fulfill({ status: 503, json: { error: 'unavailable' } }),
+		{ times: 1 }
+	);
+	const acknowledgements: string[] = [];
+	page.on('request', (request) => {
+		if (request.url().endsWith('/v1/notifications/seen'))
+			acknowledgements.push(request.method());
+	});
+	await page.goto('/notifications');
+	const retry = page.getByRole('button', { name: 'Retry', exact: true });
+	await expect(retry).toBeVisible();
+	expect(acknowledgements).toEqual([]);
+	await retry.click();
+	await expect(page.locator('.notification').first()).toBeVisible();
+	await expect.poll(() => acknowledgements).toEqual(['POST']);
+});
+
+test('returning from a notification restores loaded pages and scroll position', async ({
+	page
+}) => {
+	await page.route(
+		/\/api\/appview\/v1\/notifications(?:\?.*)?$/,
+		async (route) => {
+			const url = new URL(route.request().url());
+			const later = url.searchParams.has('cursor');
+			url.searchParams.delete('cursor');
+			const response = await route.fetch({ url: url.href });
+			const { items } = await response.json();
+			const pageItems = Array.from({ length: 15 }, (_, index) => ({
+				...items[0],
+				id: `${later ? 'later' : 'first'}-${index}`
+			}));
+			await route.fulfill({
+				json: { items: pageItems, ...(later ? {} : { cursor: 'another-page' }) }
+			});
+		}
+	);
+	await page.goto('/notifications');
+	await expect(page.locator('.notification')).toHaveCount(15);
+	await page.getByRole('button', { name: 'Load more', exact: true }).click();
+	await expect(page.locator('.notification')).toHaveCount(30);
+	const profile = page.locator('.notification-avatar').nth(20);
+	await profile.scrollIntoViewIfNeeded();
+	const scroll = await page.evaluate(() => window.scrollY);
+	const actor = await profile.getAttribute('href');
+	expect(scroll).toBeGreaterThan(0);
+	await profile.click();
+	await expect(page).toHaveURL(new RegExp(actor! + '$'));
+	await page.goBack();
+	await expect(page.locator('.notification')).toHaveCount(30);
+	await expect
+		.poll(() => page.evaluate(() => window.scrollY))
+		.toBeCloseTo(scroll, 0);
+});
+
+test('the activity badge updates while the chat count request is pending', async ({
+	page
+}) => {
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/api/appview/v1/chat/unread-counts', async (route) => {
+		await held;
+		await route.fulfill({ json: { accepted: 0, requests: 0 } });
+	});
+	await page.route('**/api/appview/v1/notifications/new-count', (route) =>
+		route.fulfill({ json: { newCount: 3 } })
+	);
+	await page.goto('/feed');
+	try {
+		await expect(
+			page.locator('.app-sidebar a[href="/notifications"] .count-badge')
+		).toHaveText('3');
+	} finally {
+		release();
+	}
+});
+
+test('a push for another account switches before listing or acknowledging activity', async ({
+	page,
+	context
+}) => {
+	await context.addCookies([
+		{
+			name: 'craftsky_account_' + otherAccount.id,
+			value: Buffer.from(JSON.stringify(otherAccount)).toString('base64url'),
+			url: 'http://127.0.0.1:19846',
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
+	await page.addInitScript(
+		({ accountId, subscriptionId }) =>
+			localStorage.setItem(
+				'craftsky.push.bindings',
+				JSON.stringify([{ accountId, subscriptionId, enabled: true }])
+			),
+		{ accountId: otherAccount.id, subscriptionId: subscription }
+	);
+	const loaded: string[] = [];
+	const seen: string[] = [];
+	page.on('request', (request) => {
+		const path = new URL(request.url()).pathname;
+		const id = request.headers()['x-craftsky-account-id'];
+		if (path === '/api/appview/v1/notifications') loaded.push(id);
+		if (path === '/api/appview/v1/notifications/seen') seen.push(id);
+	});
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/api/auth/switch', async (route) => {
+		await held;
+		await route.continue();
+	});
+	await page.goto('/notifications?pushSubscription=' + subscription);
+	try {
+		await expect(page.getByText('Opening notification…')).toBeVisible();
+		expect(loaded).toEqual([]);
+		expect(seen).toEqual([]);
+	} finally {
+		release();
+	}
+	await expect(page).toHaveURL(/\/notifications$/);
+	await expect(page.locator('.notification').first()).toBeVisible();
+	await expect.poll(() => seen).toEqual([otherAccount.id]);
+	expect(loaded).toEqual([otherAccount.id]);
+});
+
+test('a bound chat push opens the resolved conversation for the active account', async ({
+	page
+}) => {
+	await page.addInitScript(
+		({ accountId, subscriptionId }) =>
+			localStorage.setItem(
+				'craftsky.push.bindings',
+				JSON.stringify([{ accountId, subscriptionId, enabled: true }])
+			),
+		{ accountId: account.id, subscriptionId: subscription }
+	);
+	await page.route(
+		'**/api/appview/v1/chat/notification-opens/' + chatReference,
+		(route) => {
+			expect(route.request().headers()['x-craftsky-account-id']).toBe(
+				account.id
+			);
+			return route.fulfill({
+				json: { type: 'conversation', conversationId: 'push-chat' }
+			});
+		}
+	);
+	await page.goto(
+		`/messages?pushSubscription=${subscription}&pushReference=${chatReference}`
+	);
+	await expect(page).toHaveURL(/\/messages\/conversations\/push-chat$/);
+});
+
+test('an unbound push does not resolve private chat under the active account', async ({
+	page
+}) => {
+	const opens: string[] = [];
+	page.on('request', (request) => {
+		if (request.url().includes('/chat/notification-opens/'))
+			opens.push(request.url());
+	});
+	await page.goto(
+		`/messages?pushSubscription=${subscription}&pushReference=${chatReference}`
+	);
+	await expect(page).toHaveURL(/\/feed$/);
+	await expect(
+		page.getByText('Sign in to the account for this notification to open it.')
+	).toBeVisible();
+	expect(opens).toEqual([]);
 });

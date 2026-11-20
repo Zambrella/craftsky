@@ -463,31 +463,49 @@
 				error = 'CraftSky could not load your account. Please try again.';
 		}
 	}
-	const countFailures = [false, false];
+	const countFailures = { activity: false, messages: false };
+	function reportCountFailure(
+		error: unknown,
+		scope: keyof typeof countFailures
+	) {
+		const unexpected = !expectedFailure(error);
+		if (!unexpected || !countFailures[scope])
+			void reportFailure(
+				error,
+				scope === 'activity'
+					? 'startup.count.activity'
+					: 'startup.count.messages'
+			);
+		if (unexpected) countFailures[scope] = true;
+	}
+	let messagesRevision = 0;
 	async function counts() {
 		if (dead || document.hidden || !ready) return;
 		const activityRevision = activityBadge.capture();
-		const results = await Promise.allSettled([
-			api.notifications.count(),
-			api.chat.unread()
+		const revision = ++messagesRevision;
+		await Promise.all([
+			api.notifications.count().then(
+				({ newCount }) => {
+					if (dead) return;
+					countFailures.activity = false;
+					activityBadge.accept(newCount, activityRevision);
+				},
+				(error) => {
+					if (!dead) reportCountFailure(error, 'activity');
+				}
+			),
+			api.chat.unread().then(
+				({ accepted }) => {
+					if (dead || revision !== messagesRevision) return;
+					countFailures.messages = false;
+					newMessages = accepted;
+				},
+				(error) => {
+					if (!dead && revision === messagesRevision)
+						reportCountFailure(error, 'messages');
+				}
+			)
 		]);
-		if (dead) return;
-		for (const [index, result] of results.entries()) {
-			if (result.status === 'fulfilled') countFailures[index] = false;
-			else {
-				const unexpected = !expectedFailure(result.reason);
-				if (!unexpected || !countFailures[index])
-					void reportFailure(
-						result.reason,
-						index === 0 ? 'startup.count.activity' : 'startup.count.messages'
-					);
-				if (unexpected) countFailures[index] = true;
-			}
-		}
-		if (results[0].status === 'fulfilled')
-			activityBadge.accept(results[0].value.newCount, activityRevision);
-		if (results[1].status === 'fulfilled')
-			newMessages = results[1].value.accepted;
 	}
 	onMount(() => {
 		const showComingSoon = (event: Event) => {
@@ -717,7 +735,7 @@
 		}
 	}}
 />
-<BrowserPush {api} {session} />
+<BrowserPush {api} {session} refreshCounts={counts} />
 <svelte:window
 	bind:scrollY
 	onscroll={() => (profileScrolled = window.scrollY > 72)}

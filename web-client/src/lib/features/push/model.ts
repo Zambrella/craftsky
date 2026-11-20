@@ -34,7 +34,7 @@ export type PushBinding = {
 	subscriptionId: string;
 	enabled: boolean;
 };
-const key = 'craftsky.push.bindings';
+export const pushBindingsKey = 'craftsky.push.bindings';
 export type BindingStorage = {
 	getItem(key: string): string | null;
 	setItem(key: string, value: string): void;
@@ -42,7 +42,7 @@ export type BindingStorage = {
 /** Only opaque browser-account and routing IDs are stored. No credentials or notification contents. */
 export function bindings(storage: BindingStorage): PushBinding[] {
 	try {
-		const rows: unknown = JSON.parse(storage.getItem(key) || '[]');
+		const rows: unknown = JSON.parse(storage.getItem(pushBindingsKey) || '[]');
 		return Array.isArray(rows)
 			? rows
 					.filter(
@@ -68,7 +68,7 @@ export function saveBinding(storage: BindingStorage, binding: PushBinding) {
 	if (!uuid(binding.accountId) || !uuid(binding.subscriptionId))
 		throw new Error('CraftSky returned an invalid notification registration.');
 	storage.setItem(
-		key,
+		pushBindingsKey,
 		JSON.stringify(
 			[
 				...bindings(storage).filter(
@@ -85,7 +85,7 @@ export function saveBinding(storage: BindingStorage, binding: PushBinding) {
 }
 export function removeBinding(storage: BindingStorage, accountId: string) {
 	storage.setItem(
-		key,
+		pushBindingsKey,
 		JSON.stringify(
 			bindings(storage).filter((row) => row.accountId !== accountId)
 		)
@@ -105,10 +105,15 @@ export function pushTarget(value: unknown): PushTarget | null {
 	}
 	return { subscriptionId: data.accountSubscriptionId };
 }
-export function targetFromURL(url: URL): PushTarget | null {
+export function targetFromURL(url: {
+	pathname: string;
+	searchParams: Pick<URLSearchParams, 'get'>;
+}): PushTarget | null {
 	const subscriptionId = url.searchParams.get('pushSubscription');
 	const reference = url.searchParams.get('pushReference');
 	if (!uuid(subscriptionId) || (reference !== null && !uuid(reference)))
+		return null;
+	if (url.pathname !== (reference ? '/messages' : '/notifications'))
 		return null;
 	return { subscriptionId, ...(reference ? { reference } : {}) };
 }

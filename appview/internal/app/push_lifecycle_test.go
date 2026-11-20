@@ -15,6 +15,57 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
+type pushLifecycleSendFunc func(context.Context, push.SendRequest) (push.ProviderResult, error)
+
+func (send pushLifecycleSendFunc) Send(ctx context.Context, request push.SendRequest) (push.ProviderResult, error) {
+	return send(ctx, request)
+}
+
+func TestPushUsesSingleFencedConnectionAndFinalizesDuringShutdown(t *testing.T) {
+	fixture := newPushLifecycleFixture(t)
+	recipient, actor := syntax.DID("did:plc:push-recipient"), syntax.DID("did:plc:push-actor")
+	activatePushLifecycleOwner(t, fixture.storeA, recipient)
+	activatePushLifecycleOwner(t, fixture.storeA, actor)
+	seedPushLifecycleDelivery(t, fixture.poolA, recipient, actor)
+
+	config := fixture.poolA.Config().Copy()
+	config.MaxConns = 1
+	pool, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	sender := pushLifecycleSendFunc(func(context.Context, push.SendRequest) (push.ProviderResult, error) {
+		cancel()
+		return push.ProviderResult{Class: push.ResultSuccess}, nil
+	})
+	dispatcher, err := push.NewDispatcherValidated(pool, sender, push.DispatcherOptions{
+		BatchSize: 1, Concurrency: 1,
+		LifecycleFence: pushOwnerLifecycleFence{store: store},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := dispatcher.ProcessBatch(ctx, "single-connection-test"); processed != 1 || err != nil {
+		t.Fatalf("processed=%d err=%v", processed, err)
+	}
+	var status string
+	if err := pool.QueryRow(t.Context(), "SELECT status FROM push_deliveries").Scan(&status); err != nil || status != "succeeded" {
+		t.Fatalf("status=%s err=%v", status, err)
+	}
+}
+
 type scriptedPushLifecycleStore struct {
 	lifecycle ownerlifecycle.Lifecycle
 	effectErr error
@@ -401,6 +452,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 	poolA := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE moderation_outputs(source_did TEXT,subject_type TEXT,subject_did TEXT,value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL,subject_did TEXT NOT NULL,PRIMARY KEY(owner_did,subject_did));
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL,actor_did TEXT NOT NULL,subject_did TEXT);
 		CREATE TABLE owner_lifecycles(

@@ -156,6 +156,31 @@ void main() {
     expect(tokens, ['token-a', 'token-b']);
     expect(maxActiveRuns, 1);
   });
+
+  test('token refresh event supersedes a delayed token lookup', () async {
+    final service = _FakeService(
+      permission: NotificationPermission.authorized,
+    );
+    final requested = Completer<void>();
+    final token = Completer<String?>();
+    service.tokenLookup = () {
+      requested.complete();
+      return token.future;
+    };
+    final registrations = <String>[];
+    final coordinator = _coordinator(
+      service,
+      onRegister: (_, token) => registrations.add(token),
+    );
+
+    final initial = coordinator.updateAccounts([alice]);
+    await requested.future;
+    await coordinator.onTokenRefresh('new-token');
+    token.complete('old-token');
+    await initial;
+
+    expect(registrations, ['new-token']);
+  });
 }
 
 AccountSessionLease _lease(String did, int generation) => AccountSessionLease(
@@ -185,6 +210,7 @@ final class _FakeService implements NotificationService {
 
   NotificationPermission permission;
   String? token;
+  Future<String?> Function()? tokenLookup;
   Object? permissionError;
   int permissionChecks = 0;
   int permissionRequests = 0;
@@ -204,7 +230,11 @@ final class _FakeService implements NotificationService {
   }
 
   @override
-  Future<String?> getToken() async => token;
+  Future<String?> getToken() async {
+    final lookup = tokenLookup;
+    return lookup == null ? token : await lookup();
+  }
+
   @override
   Future<void> initialize() async {}
   @override

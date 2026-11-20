@@ -19,7 +19,10 @@ const (
 	ResultPermanentFailure ResultClass = "permanentFailure"
 )
 
-type ProviderResult struct{ Class ResultClass }
+type ProviderResult struct {
+	Class      ResultClass
+	RetryAfter time.Duration
+}
 
 type DeliverySemantics string
 

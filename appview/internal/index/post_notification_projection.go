@@ -62,6 +62,8 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 		references = append(references, rec.Embed.FeedPost_QuoteEmbed.Record.Uri)
 	}
 	var missingMember syntax.DID
+	var missingSubject string
+	pendingRecipients := make(map[syntax.DID]bool, len(references))
 	for _, uri := range references {
 		var member, terminal bool
 		var did syntax.DID
@@ -70,7 +72,18 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			FROM craftsky_posts p WHERE uri=$1
 		`, uri).Scan(&did, &member, &terminal)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: uri}), nil
+			// Another reason can still be classified for a different recipient.
+			// If we can't tell who owns the missing post, wait before creating
+			// an event whose category the missing reference might outrank.
+			target, parseErr := syntax.ParseATURI(uri)
+			if parseErr != nil || target.Authority().DID() == "" {
+				return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: uri}), nil
+			}
+			pendingRecipients[target.Authority().DID()] = true
+			if missingSubject == "" {
+				missingSubject = uri
+			}
+			continue
 		}
 		if err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), err
@@ -96,11 +109,14 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 		}
 	}
 	createdAt := *original.CreatedAt
-	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt); err != nil {
+	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt, pendingRecipients); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
 	}
 	// Available recipients are notified even if another recipient is not yet
 	// a member. Replays use the notification service's duplicate protection.
+	if missingSubject != "" {
+		return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: missingSubject}), nil
+	}
 	if missingMember != "" {
 		return tap.Blocked(tap.ReasonMissingMember, tap.Dependency{Kind: "member_did", Key: missingMember.String()}), nil
 	}

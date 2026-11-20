@@ -276,3 +276,19 @@ func TestPostNotificationAvailableRecipientDoesNotWaitForOtherMember(t *testing.
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
 }
+
+func TestPostNotificationAvailableRecipientDoesNotWaitForUnrelatedMissingSubject(t *testing.T) {
+	f := newNotificationPipeline(t)
+	seedCraftskyMember(t, f.pool, "did:plc:mentioned")
+	f.ingest(notificationEvent(1, "did:plc:actor", "3aaaaaaaaaaa3", replyExtra(notificationTarget)+mentionExtra("did:plc:mentioned")))
+	f.drain()
+
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention' AND recipient_did='did:plc:mentioned'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:recipient'`, 0)
+	f.assertCount(`SELECT count(*) FROM tap_projection_jobs WHERE projection_kind='post_notifications' AND state='blocked' AND dependency_kind='subject_uri'`, 1)
+
+	f.ingest(notificationEvent(2, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply' AND recipient_did='did:plc:recipient'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
+}

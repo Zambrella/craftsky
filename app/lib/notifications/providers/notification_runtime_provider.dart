@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
@@ -21,6 +22,21 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'notification_runtime_provider.g.dart';
+
+@Riverpod(keepAlive: true)
+List<AccountSessionLease> _eligibleNotificationAccounts(Ref ref) {
+  final registry = ref.watch(sessionRegistryProvider).value;
+  if (registry == null) return const [];
+  return [
+    for (final account in registry.sessions.keys)
+      if (registry.leaseFor(AccountKey(account.value)) case final lease?)
+        // Registration owns onboarding while the account is retained,
+        // including accounts with no active widget watching their status.
+        // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
+        if (ref.watch(onboardingStatusProvider(lease)).value?.completed == true)
+          lease,
+  ];
+}
 
 @Riverpod(keepAlive: true)
 Raw<Stream<NotificationEffect>> notificationEffectStream(Ref ref) =>
@@ -109,20 +125,11 @@ NotificationRuntime notificationRuntime(Ref ref) {
       }
     },
     activateRecipient: activation.activate,
-    eligibleAccounts: () {
-      final registry = ref.read(sessionRegistryProvider).value;
-      if (registry == null) return const [];
-      return [
-        for (final account in registry.sessions.keys)
-          if (registry.leaseFor(AccountKey(account.value)) case final lease?)
-            // Read a synchronous snapshot; unresolved accounts stay ineligible.
-            // ignore: riverpod_lint/only_use_keep_alive_inside_keep_alive
-            if (ref.read(onboardingStatusProvider(lease)).value?.completed ??
-                false)
-              lease,
-      ];
-    },
+    eligibleAccounts: () => ref.read(_eligibleNotificationAccountsProvider),
   );
+  ref.listen(_eligibleNotificationAccountsProvider, (_, _) {
+    unawaited(runtime.refreshAccounts());
+  });
   unawaited(runtime.start());
   ref.onDispose(() => unawaited(runtime.dispose()));
   return runtime;

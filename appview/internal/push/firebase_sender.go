@@ -3,15 +3,19 @@ package push
 import (
 	"context"
 	"errors"
-	"net/url"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
 	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/errorutils"
 	"firebase.google.com/go/v4/messaging"
 	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/notifications"
 )
 
 type firebaseClient interface {
@@ -45,11 +49,37 @@ func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (Provide
 	switch {
 	case messaging.IsUnregistered(err):
 		return ProviderResult{Class: ResultInvalidToken}, err
-	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || messaging.IsUnavailable(err) || messaging.IsInternal(err) || messaging.IsQuotaExceeded(err):
-		return ProviderResult{Class: ResultRetryable}, err
 	default:
-		return ProviderResult{Class: ResultPermanentFailure}, err
+		return classifyFirebaseFailure(ctx, err, s.now()), err
 	}
+}
+
+func classifyFirebaseFailure(ctx context.Context, err error, now time.Time) ProviderResult {
+	response := errorutils.HTTPResponse(err)
+	retryable := ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled) || errorutils.IsDeadlineExceeded(err) ||
+		errorutils.IsUnavailable(err) || messaging.IsUnavailable(err) || messaging.IsInternal(err)
+	quota := messaging.IsQuotaExceeded(err)
+	if response != nil {
+		retryable = retryable || response.StatusCode >= http.StatusInternalServerError
+		quota = quota || response.StatusCode == http.StatusTooManyRequests
+	}
+	if !retryable && !quota {
+		return ProviderResult{Class: ResultPermanentFailure}
+	}
+	minimum := 10 * time.Second
+	if quota {
+		minimum = time.Minute
+	}
+	if response != nil {
+		header := strings.TrimSpace(response.Header.Get("Retry-After"))
+		if seconds, parseErr := strconv.ParseUint(header, 10, 32); parseErr == nil {
+			minimum = max(minimum, time.Duration(seconds)*time.Second)
+		} else if until, parseErr := http.ParseTime(header); parseErr == nil {
+			minimum = max(minimum, until.Sub(now))
+		}
+	}
+	return ProviderResult{Class: ResultRetryable, RetryAfter: minimum}
 }
 
 func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, error) {
@@ -102,15 +132,17 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 		if err != nil || routingID == uuid.Nil {
 			return nil, ErrPushPayloadInvalid
 		}
-		path := "/notifications"
-		query := url.Values{"pushSubscription": {routingID.String()}}
-		if request.Chat != nil {
-			path = "/messages"
-			query.Set("pushReference", request.Chat.OpenReference)
+		// The CraftSky service worker owns display and click handling on the
+		// web. An FCM notification would bypass that handler and can focus an
+		// existing tab without navigating it to the destination.
+		if request.Category == notifications.Mention || request.Category == notifications.Quote {
+			delete(message.Data, "rootUri")
 		}
+		message.Data["webTitle"] = message.Notification.Title
+		message.Data["webBody"] = message.Notification.Body
+		message.Notification = nil
 		message.Webpush = &messaging.WebpushConfig{
-			Headers:    map[string]string{"TTL": strconv.FormatInt(max(1, int64(request.TTL/time.Second)), 10)},
-			FCMOptions: &messaging.WebpushFCMOptions{Link: "https://app.craftsky.social" + path + "?" + query.Encode()},
+			Headers: map[string]string{"TTL": strconv.FormatInt(int64(request.TTL/time.Second), 10)},
 		}
 	case "android":
 		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}

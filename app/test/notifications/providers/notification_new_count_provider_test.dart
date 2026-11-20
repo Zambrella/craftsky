@@ -37,6 +37,42 @@ void main() {
   );
 
   for (final accountScoped in [false, true]) {
+    test('only the latest overlapping refresh updates the badge '
+        '(account=$accountScoped)', () async {
+      final account = AccountKey('did:plc:alice');
+      final older = Completer<int>();
+      final repository = _QueuedNewnessRepository([
+        Future.value(3),
+        older.future,
+        Future.value(0),
+      ]);
+      final container = ProviderContainer.test(
+        overrides: [
+          notificationNewnessRepositoryProvider.overrideWithValue(repository),
+          accountNotificationNewnessRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+        ],
+      );
+      final provider = accountScoped
+          ? accountNotificationNewCountProvider(account)
+          : notificationNewCountProvider;
+      Future<void> refresh() => accountScoped
+          ? container
+                .read(accountNotificationNewCountProvider(account).notifier)
+                .refresh()
+          : container.read(notificationNewCountProvider.notifier).refresh();
+      await container.read(provider.future);
+      final first = refresh();
+      await container.pump();
+      await refresh();
+      older.complete(5);
+      await first;
+
+      expect(repository.countCalls, 3);
+      expect(container.read(provider).requireValue, 0);
+    });
+
     for (final fails in [false, true]) {
       test(
         'refresh cannot replace a rebuilt count '

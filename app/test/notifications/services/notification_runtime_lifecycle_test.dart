@@ -132,6 +132,7 @@ void main() {
         .where((effect) => effect is NotificationNavigationEffect)
         .cast<NotificationNavigationEffect>()
         .listen(received.add);
+    SessionRegistry? hydratedRegistry;
     final runtime = NotificationRuntime(
       service: service,
       registration: NotificationRegistrationCoordinator(
@@ -144,7 +145,7 @@ void main() {
         }) async => binding,
         saveBindingForLease: ({required lease, required binding}) async {},
       ),
-      routingStorage: NotificationRoutingStorage(() => registry),
+      routingStorage: NotificationRoutingStorage(() => hydratedRegistry),
       invalidateList: () {},
       refreshCount: () {},
       effects: effects,
@@ -154,8 +155,14 @@ void main() {
     addTearDown(service.close);
     addTearDown(runtime.dispose);
 
+    await runtime.updateReadiness(
+      did: null,
+      onboarded: false,
+      initialized: false,
+    );
     await runtime.start();
     expect(received, isEmpty);
+    hydratedRegistry = registry;
     await runtime.updateReadiness(did: did, onboarded: true);
     expect(received, hasLength(1));
     expect(

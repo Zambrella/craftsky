@@ -5,12 +5,13 @@
 	import { expectedFailure } from '../diagnostics/privacy';
 	import { onMount, onDestroy } from 'svelte';
 	import Snackbar from '../social/Snackbar.svelte';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
 	import {
 		bindings,
 		accountForTarget,
 		pushTarget,
+		pushBindingsKey,
 		targetFromURL,
 		pushURL,
 		type PushTarget
@@ -18,23 +19,27 @@
 	import { configuration, registerPush, listenPush } from './client.ts';
 	let {
 		api,
-		session
+		session,
+		refreshCounts
 	}: {
 		api: CraftskyAPI;
 		session: { id: string; did: string; handle: string };
+		refreshCounts: () => Promise<void>;
 	} = $props();
 	let notification = $state<PushTarget | null>(null),
 		error = $state('');
 	let dead = false,
 		stop: (() => void) | undefined,
 		busy = false,
-		refreshing = false;
+		starting = false;
 	let resumeFailureReported = false;
-	async function open(target: PushTarget) {
+	const accountFor = (target: PushTarget) =>
+		accountForTarget(bindings(localStorage), target);
+	async function open(target: PushTarget, fromURL = false) {
 		if (busy) return;
 		busy = true;
 		try {
-			const accountId = accountForTarget(bindings(localStorage), target);
+			const accountId = accountFor(target);
 			if (!accountId)
 				throw new InputError(
 					'Sign in to the account for this notification to open it.'
@@ -71,64 +76,90 @@
 						`/messages/conversations/${encodeURIComponent(resolved.conversationId)}`,
 						{ replaceState: true }
 					);
-			} else if (!dead) await goto('/notifications', { replaceState: true });
-			if (!dead) notification = null;
+			} else if (!dead) {
+				if (location.pathname === '/notifications' && !location.search)
+					window.dispatchEvent(new Event('craftsky-activity-refresh'));
+				else await goto('/notifications', { replaceState: true });
+			}
+			if (!dead && notification === target) notification = null;
 		} catch (e) {
 			void reportFailure(e, 'push.open');
-			if (!dead) error = userErrorMessage(e);
+			if (!dead) {
+				if (fromURL) await goto('/feed', { replaceState: true });
+				if (!dead) error = userErrorMessage(e);
+			}
 		} finally {
 			busy = false;
 		}
 	}
-	async function resume() {
-		if (
-			refreshing ||
-			!configuration() ||
-			!('Notification' in window) ||
-			Notification.permission !== 'granted'
-		)
-			return;
-		refreshing = true;
+	function canListen() {
+		return (
+			!!configuration() &&
+			'Notification' in window &&
+			Notification.permission === 'granted' &&
+			bindings(localStorage).some((row) => row.enabled)
+		);
+	}
+	function reportResumeFailure(error: unknown) {
+		const unexpected = !expectedFailure(error);
+		if (!unexpected || !resumeFailureReported)
+			void reportFailure(error, 'push.resume');
+		if (unexpected) resumeFailureReported = true;
+	}
+	async function syncListener() {
 		try {
-			const rows = bindings(localStorage);
-			if (rows.some((row) => row.accountId === session.id && row.enabled))
-				await registerPush(api, session.id);
-			if (dead) return;
-			stop?.();
-			stop = undefined;
-			if (rows.some((row) => row.enabled)) {
-				const unsubscribe = await listenPush((data) => {
-					const target = pushTarget(data);
-					if (target && !dead) notification = target;
-				});
-				if (dead) unsubscribe();
-				else stop = unsubscribe;
+			if (notification && !accountFor(notification)) notification = null;
+			if (!canListen()) {
+				stop?.();
+				stop = undefined;
+				return;
 			}
-			resumeFailureReported = false;
+			if (stop || starting) return;
+			starting = true;
+			try {
+				const unsubscribe = await listenPush((data) => {
+					if (dead) return;
+					const target = pushTarget(data);
+					if (!target) return;
+					const accountId = accountFor(target);
+					if (!accountId) return;
+					notification = target;
+					if (accountId === session.id) void refreshCounts();
+				});
+				if (dead || !canListen()) unsubscribe();
+				else stop = unsubscribe;
+				resumeFailureReported = false;
+			} finally {
+				starting = false;
+			}
 		} catch (error) {
-			const unexpected = !expectedFailure(error);
-			if (!unexpected || !resumeFailureReported)
-				void reportFailure(error, 'push.resume');
-			if (unexpected) resumeFailureReported = true;
-			/* Optional push never prevents use of CraftSky. Settings provides an explicit retry. */
-		} finally {
-			refreshing = false;
+			reportResumeFailure(error);
 		}
 	}
+	afterNavigate(({ to }) => {
+		const target = to && targetFromURL(to.url);
+		if (target) void open(target, true);
+	});
 	onMount(() => {
-		const target = targetFromURL(new URL(location.href));
-		if (target) void open(target);
-		void resume();
-		window.addEventListener('craftsky-push-change', resume);
-		window.addEventListener('storage', resume);
+		if (configuration())
+			void registerPush(api, session.id).catch(reportResumeFailure);
+		void syncListener();
+		const syncStorage = (event: StorageEvent) => {
+			if (event.key === null || event.key === pushBindingsKey)
+				void syncListener();
+		};
+		window.addEventListener('craftsky-push-change', syncListener);
+		window.addEventListener('storage', syncStorage);
+		window.addEventListener('focus', syncListener);
+		return () => {
+			window.removeEventListener('craftsky-push-change', syncListener);
+			window.removeEventListener('storage', syncStorage);
+			window.removeEventListener('focus', syncListener);
+		};
 	});
 	onDestroy(() => {
 		dead = true;
 		stop?.();
-		if (typeof window !== 'undefined') {
-			window.removeEventListener('craftsky-push-change', resume);
-			window.removeEventListener('storage', resume);
-		}
 	});
 </script>
 

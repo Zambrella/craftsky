@@ -7,5 +7,5 @@ part 'notification_lifecycle_provider.g.dart';
 @Riverpod(keepAlive: true)
 NotificationRoutingStorage notificationRoutingStorage(Ref ref) =>
     NotificationRoutingStorage(
-      () => ref.read(sessionRegistryProvider).requireValue,
+      () => ref.read(sessionRegistryProvider).value,
     );

@@ -344,9 +344,26 @@ void main() {
       final effects = StreamController<NotificationEffect>.broadcast();
       var listInvalidations = 0;
       var countRefreshes = 0;
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:viewer',
+        handle: 'viewer.test',
+      );
+      final bound = SessionRegistry(
+        nextSessionGeneration: registry.nextSessionGeneration,
+        nextUseOrdinal: registry.nextUseOrdinal,
+        activationGeneration: registry.activationGeneration,
+        activeDid: registry.activeDid!.value,
+        sessions: {
+          for (final entry in registry.sessions.entries)
+            entry.key.value: entry.value,
+        },
+        routingBindings: {registry.activeDid!.value: 'binding'},
+      );
       final runtime = _runtime(
         service,
         effects,
+        registry: bound,
         invalidateList: () => listInvalidations++,
         refreshCount: () => countRefreshes++,
       );
@@ -396,7 +413,19 @@ void main() {
 
       service
         ..emitForeground(event)
-        ..emitForeground(event);
+        ..emitForeground(event)
+        ..emitForeground(
+          ForegroundNotificationEvent(
+            title: 'Private activity',
+            body: 'Activity for a removed account',
+            openAttempt: NotificationOpenAttempt.fromProviderData({
+              'payloadVersion': '1',
+              'type': 'follow',
+              'actorDid': 'did:plc:actor',
+              'accountSubscriptionId': 'removed-binding',
+            }),
+          ),
+        );
       await tester.pumpAndSettle();
 
       expect(
@@ -414,6 +443,7 @@ void main() {
 NotificationRuntime _runtime(
   NotificationService service,
   StreamController<NotificationEffect> effects, {
+  SessionRegistry? registry,
   void Function()? invalidateList,
   void Function()? refreshCount,
 }) {
@@ -430,7 +460,9 @@ NotificationRuntime _runtime(
   return NotificationRuntime(
     service: service,
     registration: registration,
-    routingStorage: const NotificationRoutingStorage(SessionRegistry.empty),
+    routingStorage: NotificationRoutingStorage(
+      () => registry ?? SessionRegistry.empty(),
+    ),
     invalidateList: invalidateList ?? () {},
     refreshCount: refreshCount ?? () {},
     effects: effects,

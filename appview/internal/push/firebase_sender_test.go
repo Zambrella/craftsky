@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"google.golang.org/api/option"
 
 	"social.craftsky/appview/internal/notifications"
 )
@@ -21,12 +25,104 @@ type captureFirebaseClient struct {
 	err      error
 }
 
+type firebaseFailureTransport struct {
+	status     int
+	retryAfter string
+}
+
+func (transport firebaseFailureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: transport.status,
+		Header:     http.Header{"Retry-After": {transport.retryAfter}},
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Request:    request,
+	}, nil
+}
+
+func TestFirebaseSenderPreservesProviderRetryDelay(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name      string
+		transport firebaseFailureTransport
+		wantClass ResultClass
+		wantDelay time.Duration
+	}{
+		{"missing quota header", firebaseFailureTransport{status: 429}, ResultRetryable, time.Minute},
+		{"quota seconds", firebaseFailureTransport{429, "135"}, ResultRetryable, 135 * time.Second},
+		{"gateway HTTP date", firebaseFailureTransport{502, now.Add(30 * time.Second).Format(http.TimeFormat)}, ResultRetryable, 30 * time.Second},
+		{"plain internal error", firebaseFailureTransport{status: 500}, ResultRetryable, 10 * time.Second},
+		{"configuration failure", firebaseFailureTransport{403, "120"}, ResultPermanentFailure, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := firebase.NewApp(t.Context(), &firebase.Config{ProjectID: "test-project"},
+				option.WithoutAuthentication(), option.WithHTTPClient(&http.Client{Transport: tt.transport}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			client, err := app.Messaging(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			sender := FirebaseSender{client: client, now: func() time.Time { return now }}
+			result, err := sender.Send(t.Context(), SendRequest{
+				Platform: "android", Token: "test-token", Category: notifications.Like,
+				AccountSubscriptionID: "00000000-0000-4000-8000-000000000001",
+				RoutingFacts:          RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000002"},
+				Semantics:             DeliveryUniqueEvent, TTL: time.Hour,
+			})
+			if err == nil || result.Class != tt.wantClass || result.RetryAfter != tt.wantDelay {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+		})
+	}
+}
+
 func (client *captureFirebaseClient) Send(
 	_ context.Context,
 	message *messaging.Message,
 ) (string, error) {
 	client.messages = append(client.messages, message)
 	return "provider-id", client.err
+}
+
+func TestFirebaseSenderIncludesThreadRootForNativeMentionsAndQuotes(t *testing.T) {
+	const source = "at://did:plc:source/social.craftsky.feed.post/reply"
+	const root = "at://did:plc:author/social.craftsky.feed.post/root"
+	for _, category := range []notifications.Category{notifications.Mention, notifications.Quote} {
+		for _, platform := range []string{"android", "ios", "web"} {
+			t.Run(string(category)+"/"+platform, func(t *testing.T) {
+				client := &captureFirebaseClient{}
+				sender := FirebaseSender{client: client, now: time.Now}
+				result, err := sender.Send(t.Context(), SendRequest{
+					Platform:              platform,
+					Token:                 "test-token",
+					Category:              category,
+					AccountSubscriptionID: "00000000-0000-4000-8000-000000000001",
+					RoutingFacts: RoutingFacts{
+						NotificationID: "00000000-0000-4000-8000-000000000002",
+						SourceURI:      syntax.ATURI(source),
+						RootURI:        syntax.ATURI(root),
+					},
+					Semantics: DeliveryUniqueEvent,
+					TTL:       time.Hour,
+				})
+				if err != nil || result.Class != ResultSuccess || len(client.messages) != 1 {
+					t.Fatalf("result=%+v err=%v messages=%d", result, err, len(client.messages))
+				}
+				data := client.messages[0].Data
+				if data["sourceUri"] != source {
+					t.Fatalf("sourceUri=%q, want %q", data["sourceUri"], source)
+				}
+				if platform == "web" {
+					if _, exists := data["rootUri"]; exists {
+						t.Fatal("web payload includes a native thread root")
+					}
+				} else if data["rootUri"] != root {
+					t.Fatalf("rootUri=%q, want %q", data["rootUri"], root)
+				}
+			})
+		}
+	}
 }
 
 func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {

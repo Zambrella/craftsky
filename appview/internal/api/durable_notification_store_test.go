@@ -227,6 +227,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 	for _, migrationPath := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
+		"000129_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(migrationPath)
 		if err != nil {
@@ -663,7 +664,7 @@ func TestNotificationPreviewsUseNewContentAndVisibleQuoteContext(t *testing.T) {
 	}
 }
 
-// Notification list fixtures include the newness columns and seen marker used by production reads.
+// Notification list fixtures include the newness columns used by production reads.
 func readNotificationEventsMigration() ([]byte, error) {
 	events, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
@@ -673,5 +674,9 @@ func readNotificationEventsMigration() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(append(events, '\n'), newness...), nil
+	perEvent, err := testdb.ReadMigration("000129_notification_seen_per_event.up.sql")
+	if err != nil {
+		return nil, err
+	}
+	return []byte(string(events) + "\n" + string(newness) + "\n" + string(perEvent)), nil
 }

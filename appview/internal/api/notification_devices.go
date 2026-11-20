@@ -49,10 +49,10 @@ func (s *PostStore) RegisterNotificationDevice(ctx context.Context, accountDID, 
 		if _, err := tx.Exec(ctx, `UPDATE push_installations SET active=false, deactivated_at=now(), updated_at=now() WHERE id=$1`, oldInstallation); err != nil {
 			return "", err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false, deactivated_at=now(), updated_at=now() WHERE installation_id=$1 AND active`, oldInstallation); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false, deactivated_at=clock_timestamp(), updated_at=clock_timestamp() WHERE installation_id=$1 AND active`, oldInstallation); err != nil {
 			return "", err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status='cancelled', updated_at=now() WHERE account_subscription_id IN (SELECT id FROM push_account_subscriptions WHERE installation_id=$1) AND status IN ('pending','retry','leased')`, oldInstallation); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status='cancelled', updated_at=now(), lease_owner=NULL, lease_expires_at=NULL WHERE account_subscription_id IN (SELECT id FROM push_account_subscriptions WHERE installation_id=$1) AND status IN ('pending','retry','leased')`, oldInstallation); err != nil {
 			return "", err
 		}
 	}
@@ -65,9 +65,12 @@ func (s *PostStore) RegisterNotificationDevice(ctx context.Context, accountDID, 
 		return "", err
 	}
 	subscriptionID, routingID := uuid.New(), uuid.New()
+	// Keep the routing ID stable and retain the last deactivation so queued
+	// work from before that boundary cannot use the reactivated subscription.
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO push_account_subscriptions (id, installation_id, account_did, routing_id) VALUES ($1,$2,$3,$4)
-		ON CONFLICT (installation_id, account_did) DO UPDATE SET active=true, deactivated_at=NULL, updated_at=now()
+		INSERT INTO push_account_subscriptions (id, installation_id, account_did, routing_id, updated_at)
+		VALUES ($1,$2,$3,$4,clock_timestamp())
+		ON CONFLICT (installation_id, account_did) DO UPDATE SET active=true, updated_at=clock_timestamp()
 		RETURNING routing_id
 	`, subscriptionID, installationID, accountDID, routingID).Scan(&routingID); err != nil {
 		return "", err
@@ -94,7 +97,7 @@ func (s *PostStore) RemoveNotificationSubscription(ctx context.Context, accountD
 	var subscriptionID uuid.UUID
 	err = tx.QueryRow(ctx, `
 		UPDATE push_account_subscriptions subscription
-		SET active=false, deactivated_at=now(), updated_at=now()
+		SET active=false, deactivated_at=clock_timestamp(), updated_at=clock_timestamp()
 		FROM push_installations installation
 		WHERE subscription.installation_id=installation.id
 		  AND subscription.routing_id=$1 AND subscription.account_did=$2
@@ -175,7 +178,7 @@ func (s *PostStore) deactivateSubscriptions(ctx context.Context, query string, a
 		return err
 	}
 	for _, id := range ids {
-		if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=now(),updated_at=now() WHERE id=$1`, id); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1`, id); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status='cancelled',updated_at=now(),lease_owner=NULL,lease_expires_at=NULL WHERE account_subscription_id=$1 AND status IN ('pending','retry','leased')`, id); err != nil {

@@ -59,6 +59,29 @@ func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *tes
 	if installations != 1 || subscriptions != 1 || token != "token-two" {
 		t.Fatalf("installations=%d subscriptions=%d token=%s", installations, subscriptions, token)
 	}
+
+	// The same route is stable across re-registration, but queued work is
+	// fenced off using the last deactivation time.
+	store := api.NewPostStore(pool)
+	ctx := ownerlifecycle.WithExpectedGeneration(t.Context(), 1)
+	if err := store.RemoveNotificationSubscription(ctx, "did:plc:viewer", "device-1", first.AccountSubscriptionID); err != nil {
+		t.Fatal(err)
+	}
+	var disabledAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT deactivated_at FROM push_account_subscriptions`).Scan(&disabledAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := register("token-two"); got != first {
+		t.Fatalf("reactivated route = %+v, want %+v", got, first)
+	}
+	var retained time.Time
+	var active bool
+	if err := pool.QueryRow(ctx, `SELECT active,deactivated_at FROM push_account_subscriptions`).Scan(&active, &retained); err != nil {
+		t.Fatal(err)
+	}
+	if !active || !retained.Equal(disabledAt) {
+		t.Fatalf("active=%t last deactivation=%v want %v", active, retained, disabledAt)
+	}
 }
 
 func TestRegisterNotificationDeviceRebindsTokenWithoutTransferringAccounts(t *testing.T) {

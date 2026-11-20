@@ -137,3 +137,75 @@ func TestNotificationNewnessMigrationAddsAccountRevisionState(t *testing.T) {
 		t.Fatal("notification_events_recipient_newness_idx missing")
 	}
 }
+
+func TestNotificationSeenPerEventMigrationPreservesSeenHistory(t *testing.T) {
+	pool := testdb.WithSchema(t, "")
+	ctx := context.Background()
+	apply := func(name string) {
+		t.Helper()
+		sql, err := testdb.ReadMigration(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, string(sql)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply("000021_appview_notifications.up.sql")
+	apply("000022_notification_newness.up.sql")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO notification_events (
+			id, recipient_did, actor_did, category, subject_key,
+			source_uri, source_cid, source_rkey, eligibility_scope,
+			recipient_followed_actor, push_enabled_snapshot, state,
+			first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
+		)
+		SELECT gen_random_uuid(), 'did:plc:viewer', 'did:plc:actor', 'follow', key,
+		       'at://did:plc:actor/app.bsky.graph.follow/' || key, 'cid', key, 'everyone',
+		       false, true, 'active', now(), now(), now(), now()
+		FROM unnest(ARRAY['seen', 'unseen', 'latest']) WITH ORDINALITY AS candidate(key, position)
+		ORDER BY position;
+		INSERT INTO notification_seen_state (account_did, last_seen_revision)
+		SELECT recipient_did, newness_revision FROM notification_events WHERE subject_key = 'seen';
+	`); err != nil {
+		t.Fatal(err)
+	}
+	apply("000129_notification_seen_per_event.up.sql")
+	assertUnseen := func(want string) {
+		t.Helper()
+		var got string
+		if err := pool.QueryRow(ctx, `SELECT string_agg(subject_key, ',' ORDER BY subject_key) FROM notification_events WHERE is_new`).Scan(&got); err != nil || got != want {
+			t.Fatalf("unseen = %q, err=%v, want %q", got, err, want)
+		}
+	}
+	assertUnseen("latest,unseen")
+	if _, err := pool.Exec(ctx, `
+		UPDATE notification_seen_state SET last_seen_revision = (
+			SELECT newness_revision FROM notification_events WHERE subject_key = 'unseen'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	assertUnseen("latest")
+	if _, err := pool.Exec(ctx, `
+		UPDATE notification_events SET source_cid = 'replacement' WHERE subject_key = 'unseen'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	assertUnseen("latest,unseen")
+	if _, err := pool.Exec(ctx, `
+		UPDATE notification_events SET is_new = false WHERE subject_key = 'unseen'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	assertUnseen("latest")
+	apply("000129_notification_seen_per_event.down.sql")
+	var legacyUnseen string
+	if err := pool.QueryRow(ctx, `
+		SELECT string_agg(subject_key, ',' ORDER BY subject_key)
+		FROM notification_events e JOIN notification_seen_state seen ON seen.account_did = e.recipient_did
+		WHERE e.newness_revision > seen.last_seen_revision
+	`).Scan(&legacyUnseen); err != nil || legacyUnseen != "latest,unseen" {
+		t.Fatalf("legacy unseen = %q, err=%v, want latest,unseen", legacyUnseen, err)
+	}
+}

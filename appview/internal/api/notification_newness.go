@@ -30,49 +30,11 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 	var count int64
 	err := s.pool.QueryRow(ctx, `
 		SELECT count(*)
-		FROM notification_events event
-		WHERE event.recipient_did = $1
-		  AND event.state = 'active'
-		  AND NOT appview_owner_is_terminal(event.recipient_did)
-		  AND (event.actor_did IS NULL OR (
-			NOT appview_owner_is_terminal(event.actor_did)
-			AND NOT EXISTS (
-				SELECT 1 FROM actor_mutes mute
-				WHERE mute.owner_did = $1 AND mute.subject_did = event.actor_did
-			)
-			AND NOT EXISTS (
-				SELECT 1 FROM pds_set_aggregates block
-				WHERE block.kind = 'block'
-				  AND ((block.actor_did = $1 AND block.subject_did = event.actor_did)
-				   OR (block.actor_did = event.actor_did AND block.subject_did = $1))
-			)
-		  ))
-		  AND event.newness_revision > COALESCE((
-			SELECT seen.last_seen_revision
-			FROM notification_seen_state seen
-			WHERE seen.account_did = $1
-		  ), 0)
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM moderation_outputs output
-			WHERE output.action = 'apply'
-			  AND NOT appview_owner_is_terminal(output.source_did)
-			  AND output.subject_type = 'account'
-			  AND output.subject_did = event.actor_did
-			  AND output.value IN ('hide', 'takedown')
-			  AND (output.expires_at IS NULL OR output.expires_at > now())
-			  AND NOT EXISTS (
-				SELECT 1
-				FROM moderation_outputs negation
-				WHERE negation.action = 'negate'
-				  AND negation.source_did = output.source_did
-				  AND negation.subject_type = output.subject_type
-				  AND negation.subject_did = output.subject_did
-				  AND negation.value = output.value
-				  AND (negation.expires_at IS NULL OR negation.expires_at > now())
-				  AND negation.indexed_at > output.indexed_at
-			  )
-		  )
+		FROM notification_events e
+		WHERE e.recipient_did = $1
+		  AND e.state = 'active'
+		  AND e.is_new
+		  `+notificationVisibilityPredicate+`
 	`, accountDID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("notification new count: %w", err)
@@ -89,21 +51,22 @@ func (s *PostStore) MarkNotificationsSeen(ctx context.Context, accountDID string
 	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(accountDID), nil); err != nil {
 		return fmt.Errorf("mark notifications seen authorization: %w", err)
 	}
+	// Capture each activation in the statement snapshot. Sequence allocation
+	// order can differ from commit order, and a concurrent reactivation must
+	// remain new if its row changes while this update is waiting for a lock.
 	_, err = tx.Exec(ctx, `
-		INSERT INTO notification_seen_state (
-			account_did,
-			last_seen_revision,
-			updated_at
+		WITH unseen AS MATERIALIZED (
+			SELECT id, newness_revision
+			FROM notification_events
+			WHERE recipient_did = $1 AND state = 'active' AND is_new
 		)
-		SELECT $1, COALESCE(max(event.newness_revision), 0), now()
-		FROM notification_events event
-		WHERE event.recipient_did = $1
-		ON CONFLICT (account_did) DO UPDATE SET
-			last_seen_revision = GREATEST(
-				notification_seen_state.last_seen_revision,
-				EXCLUDED.last_seen_revision
-			),
-			updated_at = now()
+		UPDATE notification_events AS event
+		SET is_new = false
+		FROM unseen
+		WHERE event.id = unseen.id
+		  AND event.newness_revision = unseen.newness_revision
+		  AND event.state = 'active'
+		  AND event.is_new
 	`, accountDID)
 	if err != nil {
 		return fmt.Errorf("mark notifications seen: %w", err)

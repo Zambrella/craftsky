@@ -25,6 +25,9 @@ context is omitted.
 
 Push notifications for replies, mentions and quotes use the same reader immediately
 before provider delivery. Visible bodies include a bounded project title and text
-excerpt. Text never enters routing data. Title and excerpt budgets preserve both
-within the provider's display-text limit; whitespace/control characters are
-normalized. Follow, moderation and Instagram-match copy is unchanged.
+excerpt. Title and excerpt budgets preserve both within the provider's display
+text limit. Whitespace and control characters are normalized. Native push uses
+the provider's display fields. Web push carries the approved copy in
+`webTitle` and `webBody` for the service worker, separate from the opaque
+subscription and chat routing fields. Follow, moderation and Instagram-match
+copy is unchanged.

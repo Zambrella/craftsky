@@ -1,10 +1,12 @@
 import { InputError, UserFacingError } from '#lib/user-facing-error.ts';
 import type { CraftskyAPI } from '#lib/api/client.ts';
+import { APIError } from '#lib/api/transport.ts';
 import {
 	bindings,
 	pushConfig,
 	saveBinding,
 	removeBinding,
+	uuid,
 	type PushConfig
 } from './model.ts';
 import * as publicEnv from '$app/env/public';
@@ -52,6 +54,14 @@ async function messaging() {
 	});
 	return setup;
 }
+let registrationQueue = Promise.resolve();
+function withRegistrationLock(operation: () => Promise<void>): Promise<void> {
+	if (navigator.locks)
+		return navigator.locks.request('craftsky-browser-push', operation);
+	const next = registrationQueue.then(operation);
+	registrationQueue = next.catch(() => {});
+	return next;
+}
 export async function registerPush(
 	api: CraftskyAPI,
 	accountId: string,
@@ -68,42 +78,77 @@ export async function registerPush(
 					: 'Notification permission was not granted.'
 			);
 	}
-	if (Notification.permission !== 'granted') return;
-	const { messaging: instance, registration, config } = await messaging();
-	const { getToken } = await import('@firebase/messaging');
-	const token = await getToken(instance, {
-		vapidKey: config.vapidKey,
-		serviceWorkerRegistration: registration
-	});
-	if (!token)
-		throw new UserFacingError(
-			'The browser could not create a notification registration.'
+	return withRegistrationLock(async () => {
+		const previous = bindings(localStorage).find(
+			(row) => row.accountId === accountId
 		);
-	const previous = bindings(localStorage).find(
-		(row) => row.accountId === accountId
-	);
-	const response = await api.notifications.registerDevice('web', token);
-	saveBinding(localStorage, {
-		accountId,
-		subscriptionId: response.accountSubscriptionId,
-		enabled: true
-	});
-	if (
-		!previous?.enabled ||
-		previous.subscriptionId !== response.accountSubscriptionId
-	)
+		if (!requestPermission && !previous?.enabled) return;
+		if (!('Notification' in window) || Notification.permission !== 'granted') {
+			if (!requestPermission) return;
+			throw new InputError('Notification permission was not granted.');
+		}
+		const { messaging: instance, registration, config } = await messaging();
+		const { getToken } = await import('@firebase/messaging');
+		const token = await getToken(instance, {
+			vapidKey: config.vapidKey,
+			serviceWorkerRegistration: registration
+		});
+		if (!token)
+			throw new UserFacingError(
+				'The browser could not create a notification registration.'
+			);
+		const { accountSubscriptionId } = await api.notifications.registerDevice(
+			'web',
+			token
+		);
+		if (previous?.enabled && previous.subscriptionId === accountSubscriptionId)
+			return;
+		try {
+			saveBinding(localStorage, {
+				accountId,
+				subscriptionId: accountSubscriptionId,
+				enabled: true
+			});
+		} catch (error) {
+			// A registration that we cannot route locally is unusable.
+			if (uuid(accountSubscriptionId))
+				await api.notifications
+					.unregisterDevice(accountSubscriptionId)
+					.catch(() => {});
+			throw error;
+		}
 		window.dispatchEvent(new Event('craftsky-push-change'));
+	});
 }
 export async function disablePush(api: CraftskyAPI, accountId: string) {
-	const binding = bindings(localStorage).find(
-		(row) => row.accountId === accountId
-	);
-	if (binding) await api.notifications.unregisterDevice(binding.subscriptionId);
-	await forgetPush(accountId);
+	return withRegistrationLock(async () => {
+		const binding = bindings(localStorage).find(
+			(row) => row.accountId === accountId
+		);
+		if (!binding) return;
+		try {
+			await api.notifications.unregisterDevice(binding.subscriptionId);
+		} catch (error) {
+			if (
+				!(error instanceof APIError) ||
+				error.status !== 404 ||
+				error.code !== 'subscription_not_found'
+			)
+				throw error;
+		}
+		await removeLocalPush(accountId);
+	});
 }
 /** Local cleanup after successful logout, including when server revocation was already authoritative. */
 export async function forgetPush(accountId: string) {
+	return withRegistrationLock(async () => {
+		if (bindings(localStorage).some((row) => row.accountId === accountId))
+			await removeLocalPush(accountId);
+	});
+}
+async function removeLocalPush(accountId: string) {
 	removeBinding(localStorage, accountId);
+	window.dispatchEvent(new Event('craftsky-push-change'));
 	// Other signed-in accounts may share this browser token. Remove it only when none remain.
 	if (!bindings(localStorage).some((row) => row.enabled) && configuration()) {
 		try {
@@ -112,7 +157,6 @@ export async function forgetPush(accountId: string) {
 			await deleteToken(instance);
 		} catch {}
 	}
-	window.dispatchEvent(new Event('craftsky-push-change'));
 }
 export async function listenPush(receive: (data: unknown) => void) {
 	const { messaging: instance } = await messaging();

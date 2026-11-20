@@ -9,6 +9,55 @@ part of 'notification_runtime_provider.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
+@ProviderFor(_eligibleNotificationAccounts)
+final _eligibleNotificationAccountsProvider =
+    _EligibleNotificationAccountsProvider._();
+
+final class _EligibleNotificationAccountsProvider
+    extends
+        $FunctionalProvider<
+          List<AccountSessionLease>,
+          List<AccountSessionLease>,
+          List<AccountSessionLease>
+        >
+    with $Provider<List<AccountSessionLease>> {
+  _EligibleNotificationAccountsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'_eligibleNotificationAccountsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$_eligibleNotificationAccountsHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<AccountSessionLease>> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  List<AccountSessionLease> create(Ref ref) {
+    return _eligibleNotificationAccounts(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<AccountSessionLease> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<AccountSessionLease>>(value),
+    );
+  }
+}
+
+String _$_eligibleNotificationAccountsHash() =>
+    r'ba337711404bee770691d6db0fd5cc46b3d10a9c';
+
 @ProviderFor(notificationEffectStream)
 final notificationEffectStreamProvider = NotificationEffectStreamProvider._();
 
@@ -155,4 +204,4 @@ final class NotificationRuntimeProvider
 }
 
 String _$notificationRuntimeHash() =>
-    r'0925eaae255e151396b48aeaadc4676033bbae7c';
+    r'2eb888ee6d2e784797b5a7dcbbd052eb8def84f9';

@@ -45,6 +45,7 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     ref.invalidate(notificationPermissionProvider);
+    unawaited(ref.read(notificationRuntimeProvider).resume());
     if (_did == null || !_onboarded) return;
     _refreshNotifications();
   }
@@ -70,7 +71,10 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
 
   @override
   Widget build(BuildContext context) {
-    final initialization = ref.watch(activeAccountInitializationProvider).value;
+    final runtime = ref.watch(notificationRuntimeProvider);
+    final accountState = ref.watch(activeAccountInitializationProvider);
+    final initialized = accountState is AsyncData && !accountState.isLoading;
+    final initialization = initialized ? accountState.value : null;
     final did = initialization?.lease.session.account.did;
     final onboarded = initialization?.onboardingComplete ?? false;
     _did = did;
@@ -84,9 +88,11 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
       });
     }
     unawaited(
-      ref
-          .read(notificationRuntimeProvider)
-          .updateReadiness(did: did, onboarded: onboarded),
+      runtime.updateReadiness(
+        did: did,
+        onboarded: onboarded,
+        initialized: initialized,
+      ),
     );
     return widget.child;
   }
@@ -140,25 +146,6 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     }
   }
 
-  void _suppressOpenedNotificationCount() {
-    final activeAccount = ref
-        .read(sessionRegistryProvider)
-        .value
-        ?.activeLease
-        ?.session
-        .account;
-    if (activeAccount != null) {
-      final countProvider = accountNotificationNewCountProvider(activeAccount);
-      if (ref.exists(countProvider)) {
-        ref.read(countProvider.notifier).suppress(1);
-      }
-      return;
-    }
-    if (ref.exists(notificationNewCountProvider)) {
-      ref.read(notificationNewCountProvider.notifier).suppress(1);
-    }
-  }
-
   Future<void> _refreshOpenedNotificationCount() async {
     final account = ref
         .read(sessionRegistryProvider)
@@ -169,11 +156,12 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     if (account != null) {
       await ref
           .read(accountNotificationNewCountProvider(account).notifier)
-          .refresh();
+          .refresh(suppressCount: 1);
     } else {
-      await ref.read(notificationNewCountProvider.notifier).refresh();
+      await ref
+          .read(notificationNewCountProvider.notifier)
+          .refresh(suppressCount: 1);
     }
-    if (mounted) _suppressOpenedNotificationCount();
   }
 
   void _invalidateOpenedNotificationList() {

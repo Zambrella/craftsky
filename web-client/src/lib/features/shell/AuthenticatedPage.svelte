@@ -8,6 +8,7 @@
 	import Tag from '#lib/features/social/Tag.svelte';
 	import Saved from '#lib/features/social/Saved.svelte';
 	import Activity from '#lib/features/social/Activity.svelte';
+	import { targetFromURL } from '#lib/features/push/model.ts';
 	import ConnectionsPlaceholder from '#lib/features/settings/ConnectionsPlaceholder.svelte';
 	let {
 		data
@@ -42,7 +43,10 @@
 	</section>{/snippet}
 
 {#key ['profile', 'profiles'].includes(section) || (section === 'search' && path[1] !== 'tags') ? page.url.pathname : (section === 'feed' ? '/feed' : page.url.pathname) + page.url.search}
-	{#if section === 'feed'}<Feed
+	{#if targetFromURL(page.url)}<p class="empty" role="status">
+			Opening notification…
+		</p>
+	{:else if section === 'feed'}<Feed
 			{api}
 			did={data.session.did}
 		/>{:else if section === 'search' && path[1] === 'tags'}<Tag

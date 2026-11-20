@@ -63,6 +63,103 @@ func TestDeliveryWorkerSendsQueuedJobAndStops(t *testing.T) {
 	}
 }
 
+func TestChatProviderRetryDoesNotBackOffOtherDeliveries(t *testing.T) {
+	service, store, info := newServiceFixture(t, true, append([]string{"atproto"}, auth.OptionalChatScopes()...), roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"chatDisabled":false}`
+		if strings.HasSuffix(r.URL.Path, "getConvo") {
+			body = `{"convo":{"id":"direct-1","status":"accepted","unreadCount":1,"members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:peer"}],"lastMessage":{"$type":"chat.bsky.convo.defs#messageView","id":"incoming-1","rev":"0002","sender":{"did":"did:plc:peer"},"text":"private text","sentAt":"2026-10-19T12:00:00Z"}}}`
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	}))
+	seedDeliveryFixture(t, store, info)
+	if _, err := store.pool.Exec(t.Context(), `
+		WITH installation AS (
+			INSERT INTO push_installations(id,device_id,platform,fcm_token)
+			VALUES(gen_random_uuid(),'healthy-device','web','healthy-token') RETURNING id
+		), subscription AS (
+			INSERT INTO push_account_subscriptions(id,installation_id,account_did,routing_id)
+			SELECT gen_random_uuid(), id, $1, gen_random_uuid() FROM installation RETURNING id
+		)
+		INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at)
+		SELECT owner_did,gen_random_uuid(),notification.id,subscription.id,now()+interval '24 hours'
+		FROM chat_notifications notification CROSS JOIN subscription
+	`, info.DID); err != nil {
+		t.Fatal(err)
+	}
+	dispatcher, err := NewDeliveryDispatcher(service, backgroundSessionFunc(func(context.Context, syntax.DID, []string) (string, error) { return info.SessionID, nil }), chatPushFunc(func(_ context.Context, request push.SendRequest) (push.ProviderResult, error) {
+		if request.Token == "synthetic-delivery-token" {
+			return push.ProviderResult{Class: push.ResultRetryable, RetryAfter: time.Minute}, errors.New("synthetic provider throttle")
+		}
+		return push.ProviderResult{Class: push.ResultSuccess}, nil
+	}), DeliveryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	for range 2 {
+		if processed, err := dispatcher.ProcessOne(t.Context()); !processed || err != nil {
+			t.Fatalf("processed=%v err=%v", processed, err)
+		}
+	}
+	var retries, succeeded int
+	if err := store.pool.QueryRow(t.Context(), `
+		SELECT count(*) FILTER (WHERE status='retry' AND next_attempt_at >= $1),
+		       count(*) FILTER (WHERE status='succeeded')
+		FROM chat_push_deliveries`, start.Add(time.Minute)).Scan(&retries, &succeeded); err != nil || retries != 1 || succeeded != 1 {
+		t.Fatalf("retries=%d succeeded=%d err=%v", retries, succeeded, err)
+	}
+}
+
+func TestChatSubscriptionReactivationDiscardsOnlyOlderDeliveries(t *testing.T) {
+	service, store, info := newServiceFixture(t, true, append([]string{"atproto"}, auth.OptionalChatScopes()...), roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"chatDisabled":false}`
+		if strings.HasSuffix(r.URL.Path, "getConvo") {
+			body = `{"convo":{"id":"direct-1","status":"accepted","unreadCount":1,"members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:peer"}],"lastMessage":{"$type":"chat.bsky.convo.defs#messageView","id":"incoming-1","rev":"0002","sender":{"did":"did:plc:peer"},"text":"private text","sentAt":"2026-10-19T12:00:00Z"}}}`
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	}))
+	seedDeliveryFixture(t, store, info)
+	if _, err := store.pool.Exec(t.Context(), `
+		UPDATE push_account_subscriptions SET active=true,deactivated_at=clock_timestamp();
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(t.Context(), `
+		WITH notification AS (
+			INSERT INTO chat_notifications(owner_did,id,logical_key,kind,conversation_id,message_id,messaging_generation,open_reference)
+			VALUES($1,gen_random_uuid(),'post-reactivation','normal','direct-1','incoming-1',2,gen_random_uuid())
+			RETURNING owner_did,id
+		)
+		INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at)
+		SELECT notification.owner_did,gen_random_uuid(),notification.id,subscription.id,now()+interval '24 hours'
+		FROM notification JOIN push_account_subscriptions subscription ON subscription.account_did=notification.owner_did
+	`, info.DID); err != nil {
+		t.Fatal(err)
+	}
+	sends := 0
+	dispatcher, err := NewDeliveryDispatcher(service, backgroundSessionFunc(func(context.Context, syntax.DID, []string) (string, error) { return info.SessionID, nil }), chatPushFunc(func(context.Context, push.SendRequest) (push.ProviderResult, error) {
+		sends++
+		return push.ProviderResult{Class: push.ResultSuccess}, nil
+	}), DeliveryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if processed, err := dispatcher.ProcessOne(t.Context()); !processed || err != nil {
+			t.Fatalf("processed=%v err=%v", processed, err)
+		}
+	}
+	var oldStatus, newStatus string
+	if err := store.pool.QueryRow(t.Context(), `
+		SELECT max(delivery.status) FILTER (WHERE notification.logical_key='incoming-1'),
+		       max(delivery.status) FILTER (WHERE notification.logical_key='post-reactivation')
+		FROM chat_push_deliveries delivery JOIN chat_notifications notification
+		  ON notification.owner_did=delivery.owner_did AND notification.id=delivery.notification_id
+	`).Scan(&oldStatus, &newStatus); err != nil || sends != 1 || oldStatus != "cancelled" || newStatus != "succeeded" {
+		t.Fatalf("sends=%d old=%s new=%s err=%v", sends, oldStatus, newStatus, err)
+	}
+}
+
 // IT-011 / FR-014: an invalid-token result deactivates the attempted token;
 // a token rotated during the provider request must remain active.
 func TestDeliveryInvalidTokenCannotDeactivateRotatedToken(t *testing.T) {
