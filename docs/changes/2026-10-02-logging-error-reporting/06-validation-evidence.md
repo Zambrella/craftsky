@@ -586,3 +586,40 @@ until release.
 - The original Android preview-build failure was not reproduced. Delivery
   from a rebuilt Android preview, hosted Sentry collection and release
   symbolication remain unverified.
+
+## Sentry issue triage (20 November 2026)
+
+The Sentry CLI returned 58 unresolved groups over the 365-day lookback, with
+no further pages. The inventory covered all environments across 31 AppView
+groups, 26 Flutter groups and one web group. The resolved and archived
+inventory contained another 142 groups over the same lookback. The
+investigation examined 493 retained events across the open groups.
+
+| Sentry groups | Evidence and disposition |
+| --- | --- |
+| APP-VIEW-P, APP-VIEW-1Z | The pinned Indigo resolver could lose a failed HTTPS well-known lookup and proceed with an empty DID when DNS was skipped for `.bsky.social`. A local reproduction confirmed this path. The resolver now carries the error through and still verifies the declared handle against the DID document. Future reports distinguish handle well-known, PLC and DID well-known HTTP failures. The three 1Z follow failures were target DID lookups with no preserved provider status. |
+| APP-VIEW-2C, APP-VIEW-29 | The historical chat errors lacked their provider details. Chat diagnostics now distinguish a failed OAuth refresh from a failed chat RPC and identify DID lookup, protected-resource discovery and authorization-server metadata, with reviewed status and codes. |
+| APP-VIEW-21, APP-VIEW-22, APP-VIEW-25, APP-VIEW-26, APP-VIEW-27, APP-VIEW-28, APP-VIEW-2A, APP-VIEW-2B, APP-VIEW-2D, APP-VIEW-2E, APP-VIEW-2F, APP-VIEW-2W, APP-VIEW-2X, APP-VIEW-2Y, APP-VIEW-1A, APP-VIEW-1B, APP-VIEW-1C | Occurrence histories showed provider 502/503, network, TLS and deadline failures. The three oldest groups came from dev. Existing stages and retry metadata identify the affected chat operations. |
+| APP-VIEW-8, APP-VIEW-2V | The generic 5xx group crossed multiple routes in dev and production. Most production occurrences were prior link-preview failures, before the current handler retained the specific fetch cause. The HTTP fallback now records the v1 error code when it owns the issue. 2V already identifies DNS NXDOMAIN in a link-preview fetch. |
+| APP-VIEW-N, APP-VIEW-Q, APP-VIEW-13, APP-VIEW-16, APP-VIEW-20, APP-VIEW-24, APP-VIEW-H | PDS, transport and Firebase dependency failures. Existing provider status and error types establish the boundary. New AppView diagnostics add the classified request route and distinguish dial, read and write failures and known TLS, response-header and response-body timeout paths. |
+| APP-VIEW-1Y, FLUTTER-APP-4G, FLUTTER-APP-4H | Post reporting returned HTTP 500. Both Flutter groups had a request UUID match with an AppView report-store check constraint failure. Migration 000120 corrected the constraint in AppView 1.3.0. |
+| FLUTTER-APP-4Y | A PDS write returned 401 and cleared the active session while the composer could still build. A regression reproduced the widget failure. Both native composer sheets now tolerate the expected session cancellation. |
+| FLUTTER-APP-51, FLUTTER-APP-57, FLUTTER-APP-58, FLUTTER-APP-59 | Nine iOS occurrences while paused showed `HttpException` without an HTTP response. The original connection failure phase remains unknown. The protected console and native issue now select the exact reviewed Dart HTTP close phase or retain a generic transport explanation. |
+| FLUTTER-APP-52, FLUTTER-APP-53, FLUTTER-APP-54, FLUTTER-APP-55, FLUTTER-APP-4Z, FLUTTER-APP-50, FLUTTER-APP-4M, FLUTTER-APP-4N, FLUTTER-APP-4P | Login or chat failed with an AppView 502/503, a stable response code where available and an AppView request UUID. The provider and route findings above cover the server-side investigations. |
+| FLUTTER-APP-4J, FLUTTER-APP-4S, FLUTTER-APP-4T, FLUTTER-APP-4V, FLUTTER-APP-4W, FLUTTER-APP-4Q | Five 502 responses lacked JSON and AppView correlation. The like action in FLUTTER-APP-4Q timed out waiting for a response and had no AppView request UUID. The reports already distinguish these cases. The responding edge and cause of the delayed write response were not established. |
+| FLUTTER-APP-4R, FLUTTER-APP-4X, FLUTTER-APP-4K | The seven video assertions predate the native player disposal guard shipped in Flutter app 1.12.0+18. The guard and regression test are present in the current checkout. |
+| FLUTTER-APP-56 | The single Android ANR retains both native threads and the lifecycle timeline. The main thread waits during Flutter surface destruction while Impeller's Vulkan raster thread is blocked in `vkDeviceWaitIdle`. The pinned engine still contains this path. |
+| WEB-CLIENT-2 | The source-mapped event ended at the prior settings sign-out handler's generic non-2xx exception. The current browser already uses the typed API transport. The Worker now logs sign-out with its own operation, status, stable code and validated request UUID when available. The historic response status is unknown. |
+
+Local regressions reproduce the identity lookup and composer failures, and
+check retained fields and privacy canaries in serialized diagnostic sinks.
+Flutter analysis was clean and the full suite passed 4,366 tests with 50
+skipped. The web type check and lint passed, and all 615 web tests passed.
+AppView race and integration coverage passed across the full run and two
+package reruns. The full run picked up a chat test that moved after package
+discovery, and the scheduled-posts check found the new MinIO bucket had
+not been initialized. The final chat race suite and the scheduled-posts
+race suite after repository-provided MinIO initialization both passed.
+Device recurrence, native release symbolication and hosted delivery of the
+new fields remain unverified. The worktree contains the changes and live
+Sentry was accessed read-only.

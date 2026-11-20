@@ -20,7 +20,7 @@ func TestNotificationNewCountUsesEventStateAndListVisibility(t *testing.T) {
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
-		"000129_notification_seen_per_event.up.sql",
+		"000130_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -151,7 +151,7 @@ func TestActorlessModerationNotificationIsListedCountedAndHasNoActorDTO(t *testi
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
-		"000129_notification_seen_per_event.up.sql",
+		"000130_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -229,7 +229,7 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
-		"000129_notification_seen_per_event.up.sql",
+		"000130_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {

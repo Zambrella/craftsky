@@ -34,7 +34,7 @@ void main() {
         ownership: null,
         isCurrent: () => true,
       ),
-      onRevision: (_, _, _) async {},
+      onRevision: (_, _, _, _) async {},
       now: () => now,
     );
     await tester.pumpWidget(
@@ -115,7 +115,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -179,7 +179,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -251,7 +251,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(

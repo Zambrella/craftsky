@@ -108,3 +108,29 @@ func TestIdentitySentinelFactsSurviveSinksWithoutInput(t *testing.T) {
 		}
 	}
 }
+
+func TestOAuthRefreshFailureUsesOnlyReviewedResponseFacts(t *testing.T) {
+	for _, test := range []struct {
+		name, detail, status, code string
+	}{
+		{"auth server nonce challenge rejection", "token refresh failed: auth server request failed (HTTP 400): invalid_dpop_proof", "400", "oauth.invalid_dpop_proof"},
+		{"unknown payload", "token refresh failed (HTTP 503): PRIVATE_PROVIDER_PROSE\nSECOND_PRIVATE_LINE", "503", ""},
+		{"no response", "token refresh failed: PRIVATE_PROVIDER_ADDRESS", "", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			original := errors.New("failed to refresh OAuth tokens: " + test.detail)
+			got, ok := OAuthRefreshFailure(original).(*oauthRequestDiagnostic)
+			if !ok || !errors.Is(got, original) {
+				t.Fatal("original failure was not preserved by refresh diagnostic")
+			}
+			cause := got.diagnosticCause()
+			if cause.Code != test.status || cause.ProviderCode != test.code || strings.Contains(cause.Message, "PRIVATE_") {
+				t.Fatalf("unexpected selected facts: %+v", cause)
+			}
+		})
+	}
+	unrelated := errors.New("unrelated request failed")
+	if OAuthRefreshFailure(unrelated) != unrelated || OAuthRefreshFailure(nil) != nil {
+		t.Fatal("non-refresh results changed")
+	}
+}

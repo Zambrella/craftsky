@@ -8,13 +8,13 @@ The review followed social and system notifications from record ingestion and pr
 
 | Priority | Finding | Change |
 | --- | --- | --- |
-| High | PostgreSQL assigns sequence numbers before transactions commit. If a higher revision committed first, the account-wide watermark could mark a lower revision seen before it was ever available to read. A concurrent update could also replace the activation being acknowledged. | Store newness on the event and acknowledge the activation revisions visible in one statement snapshot. A replacement or a later commit stays new. Migration `000129` backfills existing seen state, indexes active unseen rows and accepts legacy acknowledgements during the AppView rollout. |
+| High | PostgreSQL assigns sequence numbers before transactions commit. If a higher revision committed first, the account-wide watermark could mark a lower revision seen before it was ever available to read. A concurrent update could also replace the activation being acknowledged. | Store newness on the event and acknowledge the activation revisions visible in one statement snapshot. A replacement or a later commit stays new. Migration `000130` backfills existing seen state, indexes active unseen rows and accepts legacy acknowledgements during the AppView rollout. |
 | Medium | Two devices could simultaneously set scope and push for a category with no saved row. The second write could restore defaults over the first device’s change. | Serialize PATCH operations for the same account before reading saved preferences. Partial patches now merge both fields. |
 | Medium | A post notification job could hold an unrelated mention behind a missing reply parent or quote. An unresolved dependency could outlast the push delivery window. | Resolve independent recipients immediately when the missing reference has a different known owner. Keep the dependency for recipients whose category may change and preserve reply, quote, then mention precedence. |
 | Medium | A future-dated PDS record could extend the six-hour push window beyond provider limits. | Bound the deadline by the activation time while retaining the original activity date and the cutoff for old backfill. |
 | Optimisation | Event-time eligibility read preferences, relationships and, conditionally, follow state in separate queries. The Activity list and badge count also maintained their own copies of the visibility policy. | Use one SQL statement for event-time eligibility and share Activity/count visibility rules. The unread index covers the active unseen subset rather than every notification. |
 
-Entry points and regression coverage are in [event newness](../appview/internal/api/notification_newness.go), [preference PATCH](../appview/internal/api/notification_preferences.go), [publication projection](../appview/internal/index/post_notification_projection.go), [event eligibility](../appview/internal/notifications/service.go), and [migration 000129](../appview/migrations/000129_notification_seen_per_event.up.sql).
+Entry points and regression coverage are in [event newness](../appview/internal/api/notification_newness.go), [preference PATCH](../appview/internal/api/notification_preferences.go), [publication projection](../appview/internal/index/post_notification_projection.go), [event eligibility](../appview/internal/notifications/service.go), and [migration 000130](../appview/migrations/000130_notification_seen_per_event.up.sql).
 
 ## AppView push delivery
 
@@ -90,9 +90,9 @@ The full Go invocation was `go test -p=1 -race -count=1 -timeout=30m ./...` with
 
 The browser service worker should go live before AppView starts sending web data-only payloads. Browsers need to activate the updated worker to display those messages. The existing native payload version remains valid and gains a thread root for mention and quote opens when available. [Firebase web message handling](https://firebase.google.com/docs/cloud-messaging/web/receive-messages)
 
-Migration `000129` retains the old seen watermark and indexes while the preceding AppView binary is still serving. The migration holds a table lock during backfill and index creation. A binary-only rollback can temporarily re-show newer acknowledgements until Activity is acknowledged again. The down migration preserves the seen prefix and may re-show previously acknowledged rows after a gap.
+Migration `000130` retains the old seen watermark and indexes while the preceding AppView binary is still serving. The migration holds a table lock during backfill and index creation. A binary-only rollback can temporarily re-show newer acknowledgements until Activity is acknowledged again. The down migration preserves the seen prefix and may re-show previously acknowledged rows after a gap.
 
-Migration `000130` adds the subscription activation generation before workers start writing it. Existing deliveries and rows queued by the preceding binary retain the timestamp fallback until they settle. [Push subscription activation migration](../appview/migrations/000130_push_subscription_activation.up.sql)
+Migration `000131` adds the subscription activation generation before workers start writing it. Existing deliveries and rows queued by the preceding binary retain the timestamp fallback until they settle. [Push subscription activation migration](../appview/migrations/000131_push_subscription_activation.up.sql)
 
 ## Remaining tradeoffs
 

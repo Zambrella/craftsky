@@ -18,7 +18,7 @@ import (
 
 func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	if err := testdb.ApplyMigrations(t.Context(), pool, "000021_appview_notifications.up.sql", "000130_push_subscription_activation.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000021_appview_notifications.up.sql", "000131_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	seedMember(t, pool, "did:plc:viewer")

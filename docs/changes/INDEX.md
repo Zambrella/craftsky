@@ -201,7 +201,7 @@ These are package-specific historical limits and questions. Check later evidence
 
 | Change | Implementation | Archive | Other topics | Summary |
 | --- | --- | --- | --- | --- |
-| [Protected logging and native Sentry diagnostics](catalog/2026-10-02-logging-error-reporting.md) | implemented | archived | errors, sentry | This evolving package records the protected diagnostic pipeline and later mobile, web and AppView error-handling audits through 13 November 2026. |
+| [Protected logging and native Sentry diagnostics](catalog/2026-10-02-logging-error-reporting.md) | implemented | archived | errors, sentry | This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage. |
 
 ## media
 

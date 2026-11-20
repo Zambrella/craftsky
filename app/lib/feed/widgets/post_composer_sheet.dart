@@ -52,7 +52,6 @@ import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
-import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -409,11 +408,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _ => false,
     };
 
-    final preferences = ref.watch(activeLanguagePreferencesProvider);
-    _languages ??= PostLanguageSelection.fromPrimary(
-      preferences.primaryLanguage,
-    );
-    _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final selectedVideo = _videoController.selection;
@@ -454,6 +448,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         }
       });
     }
+    final primaryLanguage = ref.watch(composerPrimaryLanguageProvider);
+    if (primaryLanguage == null) return const SizedBox.shrink();
+    _languages ??= PostLanguageSelection.fromPrimary(primaryLanguage);
+    _initialLanguages ??= List.of(_languages!.values);
     final account = activeLease?.session.account;
     final scheduleAccess = activeLease == null
         ? null

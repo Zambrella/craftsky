@@ -476,7 +476,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 			PRIMARY KEY(owner_did,owner_generation,component,did_role)
 		);
 	`)
-	if err := testdb.ApplyMigrations(context.Background(), poolA, "000021_appview_notifications.up.sql", "000130_push_subscription_activation.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(context.Background(), poolA, "000021_appview_notifications.up.sql", "000131_push_subscription_activation.up.sql"); err != nil {
 		t.Fatalf("apply push migration: %v", err)
 	}
 	if _, err := poolA.Exec(context.Background(), `

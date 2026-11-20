@@ -169,7 +169,7 @@ func TestNotificationSeenPerEventMigrationPreservesSeenHistory(t *testing.T) {
 	`); err != nil {
 		t.Fatal(err)
 	}
-	upgrade, err := testdb.ReadMigration("000129_notification_seen_per_event.up.sql")
+	upgrade, err := testdb.ReadMigration("000130_notification_seen_per_event.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestNotificationSeenPerEventMigrationPreservesSeenHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertUnseen("latest")
-	apply("000129_notification_seen_per_event.down.sql")
+	apply("000130_notification_seen_per_event.down.sql")
 	var legacyUnseen string
 	if err := pool.QueryRow(ctx, `
 		SELECT string_agg(subject_key, ',' ORDER BY subject_key)
@@ -281,7 +281,7 @@ func TestNotificationSeenPerEventMigrationPreservesSeenHistory(t *testing.T) {
 
 func TestPushActivationMigrationReleasesLocksWhileDeliveryTableIsBusy(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
-	if err := testdb.ApplyMigrations(t.Context(), pool, "000130_push_subscription_activation.down.sql"); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000131_push_subscription_activation.down.sql"); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
@@ -298,7 +298,7 @@ func TestPushActivationMigrationReleasesLocksWhileDeliveryTableIsBusy(t *testing
 	}
 	applied := make(chan error, 1)
 	go func() {
-		applied <- testdb.ApplyMigrations(ctx, pool, "000130_push_subscription_activation.up.sql")
+		applied <- testdb.ApplyMigrations(ctx, pool, "000131_push_subscription_activation.up.sql")
 	}()
 	tick := time.NewTicker(5 * time.Millisecond)
 	defer tick.Stop()

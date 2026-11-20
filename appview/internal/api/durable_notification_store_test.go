@@ -227,7 +227,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 	for _, migrationPath := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
-		"000129_notification_seen_per_event.up.sql",
+		"000130_notification_seen_per_event.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(migrationPath)
 		if err != nil {
@@ -674,7 +674,7 @@ func readNotificationEventsMigration() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	perEvent, err := testdb.ReadMigration("000129_notification_seen_per_event.up.sql")
+	perEvent, err := testdb.ReadMigration("000130_notification_seen_per_event.up.sql")
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
@@ -867,6 +869,10 @@ func TestRecurrenceCauseFactsRemainPrivateAcrossSinks(t *testing.T) {
 		{auth.ErrCallbackAttemptInvalid, "OAuth callback attempt invalid"},
 		{&net.DNSError{Err: "private-provider-canary", Name: "private-host-canary", IsNotFound: true}, "not_found=true"},
 		{&net.OpError{Op: "private-operation-canary", Err: context.DeadlineExceeded}, "network request timed out"},
+		{&net.OpError{Op: "dial", Err: context.DeadlineExceeded}, "network operation=dial"},
+		{fmt.Errorf("%w: HTTP well-known status 503 for private-handle-canary.bsky.social", identity.ErrHandleResolutionFailed), "Handle well-known request failed (HTTP 503)"},
+		{fmt.Errorf("%w: PLC directory status 502", identity.ErrDIDResolutionFailed), "PLC directory request failed (HTTP 502)"},
+		{fmt.Errorf("%w: did:web HTTP status 500", identity.ErrDIDResolutionFailed), "DID well-known request failed (HTTP 500)"},
 	} {
 		var local bytes.Buffer
 		transport := &sentry.MockTransport{}
@@ -888,6 +894,81 @@ func TestRecurrenceCauseFactsRemainPrivateAcrossSinks(t *testing.T) {
 				t.Fatal("private cause input escaped")
 			}
 		}
+	}
+}
+
+func TestHTTPClientTimeoutKeepsFailurePhase(t *testing.T) {
+	t.Parallel()
+	const canary = "private-http-timeout-canary"
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/body/"+canary {
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+		}
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+	client := server.Client()
+	client.Timeout = 250 * time.Millisecond
+	for _, test := range []struct {
+		phase string
+		want  string
+	}{
+		{"headers", "HTTP client deadline reached before response headers"},
+		{"body", "HTTP client interrupted while reading the response body"},
+	} {
+		t.Run(test.phase, func(t *testing.T) {
+			response, err := client.Get(server.URL + "/" + test.phase + "/" + canary)
+			if test.phase == "body" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer response.Body.Close()
+				_, err = io.Copy(io.Discard, response.Body)
+			}
+			facts := fmt.Sprint(DescribeError(err, nil))
+			if !strings.Contains(facts, test.want) || strings.Contains(facts, canary) {
+				t.Fatalf("unexpected timeout facts: %s", facts)
+			}
+		})
+	}
+}
+
+func TestRequestFailureRetainsClassifiedRouteWithoutPrivatePath(t *testing.T) {
+	const route = "/v1/chat/conversations/{id}/messages"
+	const privateID = "private-conversation-canary"
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := New(Config{
+		Env: "test", Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))),
+		LogsEnabled: true, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport,
+	})
+	ctx := WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{
+		RoutePattern: route, Path: "/v1/chat/conversations/[REDACTED]/messages",
+	})
+	ctx = WithRequestObserver(ctx, observer)
+	ReportRequestFailure(ctx, errors.New("https://example.test/v1/chat/conversations/"+privateID+"/messages"), "api.chat", "handler")
+	observer.Flush(time.Second)
+	issues := 0
+	for _, event := range transport.Events() {
+		if len(event.Exception) != 0 {
+			issues++
+			if event.Tags["route_pattern"] != route {
+				t.Fatalf("issue route pattern lost: %v", event.Tags)
+			}
+		}
+	}
+	if issues != 1 || !strings.Contains(local.String(), route) {
+		t.Fatalf("issue count=%d and local route missing=%t", issues, !strings.Contains(local.String(), route))
+	}
+	serialized, err := json.Marshal(transport.Events())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(local.String()+string(serialized), privateID) {
+		t.Fatal("private conversation ID escaped")
 	}
 }
 

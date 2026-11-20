@@ -1597,7 +1597,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		t.Fatalf("worker exited on transient store failure: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	if err := testdb.ApplyMigrations(context.Background(), pool, "000021_appview_notifications.up.sql", "000130_push_subscription_activation.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000021_appview_notifications.up.sql", "000131_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
@@ -1842,7 +1842,7 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	if err := testdb.ApplyMigrations(context.Background(), pool,
 		"000021_appview_notifications.up.sql",
 		"000106_post_publication_facts.up.sql",
-		"000130_push_subscription_activation.up.sql",
+		"000131_push_subscription_activation.up.sql",
 	); err != nil {
 		t.Fatal(err)
 	}

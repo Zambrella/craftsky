@@ -26,7 +26,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       addTearDown(coordinator.dispose);
       coordinator
@@ -71,7 +71,7 @@ void main() {
             ownership: null,
             isCurrent: () => true,
           ),
-          onRevision: (_, _, _) async {},
+          onRevision: (_, _, _, _) async {},
         );
         addTearDown(coordinator.dispose);
         final route = Object();
@@ -125,7 +125,7 @@ void main() {
             ownership: null,
             isCurrent: () => true,
           ),
-          onRevision: (_, _, _) async {},
+          onRevision: (_, _, _, _) async {},
         );
         addTearDown(coordinator.dispose);
         final observed = <bool>[];
@@ -171,7 +171,7 @@ void main() {
             ownership: null,
             isCurrent: () => true,
           ),
-          onRevision: (view, id, snapshot) async {
+          onRevision: (view, id, snapshot, _) async {
             refreshedViews.add(view);
           },
         );
@@ -248,7 +248,7 @@ void main() {
           ownership: null,
           isCurrent: () => current,
         ),
-        onRevision: (view, id, snapshot) async {
+        onRevision: (view, id, snapshot, _) async {
           refreshes++;
         },
       );
@@ -287,7 +287,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (view, id, snapshot) async {},
+        onRevision: (view, id, snapshot, _) async {},
       );
       addTearDown(next.dispose);
       next
@@ -359,7 +359,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (view, id, snapshot) async {},
+        onRevision: (view, id, snapshot, _) async {},
       );
       addTearDown(coordinator.dispose);
       coordinator
@@ -415,7 +415,7 @@ void main() {
         ownership: null,
         isCurrent: () => true,
       ),
-      onRevision: (view, id, snapshot) async {
+      onRevision: (view, id, snapshot, _) async {
         refreshes++;
       },
     );
@@ -438,6 +438,97 @@ void main() {
     coordinator.dispose();
   });
 
+  testWidgets('unchanged revision revalidates only on bounded fallback', (
+    tester,
+  ) async {
+    final remote = _Repository();
+    final refreshes = <({bool shared, bool conversation})>[];
+    final coordinator = ChatSyncCoordinator(
+      account: AccountKey('did:plc:owner'),
+      repository: remote,
+      operation: ActiveAccountOperation.withGuard(
+        ownership: null,
+        isCurrent: () => true,
+      ),
+      now: () => tester.binding.clock.now(),
+      onRevision: (_, _, _, refresh) async => refreshes.add(refresh),
+    );
+    addTearDown(coordinator.dispose);
+    coordinator
+      ..setView(ChatView.inbox)
+      ..setForeground(active: true);
+    await tester.pump();
+    expect(refreshes, [(shared: true, conversation: false)]);
+
+    coordinator.setView(
+      ChatView.conversation,
+      conversationId: ChatConversationId.parse('conversation'),
+    );
+    await tester.pump();
+    expect(refreshes.last, (shared: false, conversation: true));
+    for (var i = 0; i < 7; i++) {
+      await tester.pump(const Duration(seconds: 4));
+    }
+    expect(remote.calls, 9);
+    expect(refreshes, hasLength(2));
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(refreshes, hasLength(3));
+    expect(refreshes.last, (shared: false, conversation: true));
+    for (var i = 0; i < 7; i++) {
+      await tester.pump(const Duration(seconds: 4));
+    }
+    expect(refreshes, hasLength(4));
+    expect(refreshes.last, (shared: true, conversation: false));
+
+    remote.revision++;
+    await tester.pump(const Duration(seconds: 4));
+    expect(refreshes, hasLength(5));
+    expect(refreshes.last, (shared: true, conversation: true));
+    coordinator.dispose();
+  });
+
+  testWidgets('view switch preserves a forced shared refresh in flight', (
+    tester,
+  ) async {
+    final remote = _Repository();
+    final refreshes = <({bool shared, bool conversation})>[];
+    final coordinator = ChatSyncCoordinator(
+      account: AccountKey('did:plc:owner'),
+      repository: remote,
+      operation: ActiveAccountOperation.withGuard(
+        ownership: null,
+        isCurrent: () => true,
+      ),
+      now: () => tester.binding.clock.now(),
+      onRevision: (_, _, _, refresh) async => refreshes.add(refresh),
+    );
+    addTearDown(coordinator.dispose);
+    coordinator
+      ..setView(ChatView.inbox)
+      ..setForeground(active: true);
+    await tester.pump();
+
+    final held = Completer<ChatSyncSnapshot>();
+    remote.held = held;
+    coordinator.retry();
+    expect(remote.calls, 2);
+    coordinator.setView(
+      ChatView.conversation,
+      conversationId: ChatConversationId.parse('conversation'),
+    );
+    remote.held = null;
+    held.complete(_snapshot(1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(remote.calls, 3);
+    expect(refreshes, [
+      (shared: true, conversation: false),
+      (shared: true, conversation: true),
+    ]);
+    coordinator.dispose();
+  });
+
   testWidgets(
     'UT-006 degraded sync retains state and honors Retry-After, including '
     'manual retry',
@@ -452,7 +543,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (view, id, snapshot) async {
+        onRevision: (view, id, snapshot, _) async {
           refreshes++;
         },
       );
@@ -502,7 +593,7 @@ void main() {
           ownership: null,
           isCurrent: () => current,
         ),
-        onRevision: (view, id, snapshot) async {
+        onRevision: (view, id, snapshot, _) async {
           refreshes++;
         },
       );

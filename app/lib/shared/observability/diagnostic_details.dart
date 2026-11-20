@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -46,6 +48,23 @@ List<Map<String, Object?>> selectedCauses(Object error) {
         PdsMutationAmbiguousException(responsePending: true) =>
           'AppView accepted mutation; PDS outcome pending',
         PdsMutationAmbiguousException() => 'PDS mutation outcome uncertain',
+        HttpException(:final message) => switch (message) {
+          // Exact Dart HTTP parser/client strings and socket messages. Some
+          // HttpExceptions wrap a socket error's message without its errno.
+          'Socket closed before request was sent' =>
+            'HTTP connection closed before request was sent',
+          'Connection closed before response was received' =>
+            'HTTP connection closed before response',
+          'Connection closed before full header was received' =>
+            'HTTP connection closed during response headers',
+          'Connection closed before full body was received' ||
+          'Connection closed while receiving data' =>
+            'HTTP connection closed during response body',
+          'Software caused connection abort' => 'HTTP connection aborted',
+          'Connection reset by peer' => 'HTTP connection reset by peer',
+          'Request has been aborted' => 'HTTP request was aborted',
+          _ => 'HTTP transport failed',
+        },
         DioException(:final response)
             when response?.statusCode != null &&
                 response!.statusCode! >= 100 &&
