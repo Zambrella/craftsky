@@ -22,6 +22,7 @@ func (f backgroundSessionFunc) SelectForCapability(ctx context.Context, owner sy
 // commit a cursor ahead of its dedupe/logical notification transaction.
 func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 	deleted := false
+	unknown := false
 	service, store, info := newServiceFixture(t, true, append([]string{"atproto"}, auth.OptionalChatScopes()...), roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := `{"chatDisabled":false}`
 		switch r.URL.Path {
@@ -32,8 +33,12 @@ func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 			}
 			if deleted {
 				body = `{"cursor":"0003","logs":[{"$type":"chat.bsky.convo.defs#logDeleteMessage","rev":"0003","convoId":"direct-1","message":{"id":"new-1"}}]}`
+			} else if unknown {
+				body = `{"cursor":"0004","logs":[{"$type":"chat.bsky.convo.defs#futureEvent","rev":"0004"}]}`
 			} else if r.URL.Query().Get("cursor") == "" {
 				body = `{"cursor":"0001","logs":[]}`
+			} else if r.URL.Query().Get("cursor") == "0002" {
+				body = `{"cursor":"0002","logs":[]}`
 			} else {
 				body = `{"cursor":"0002","logs":[{"$type":"chat.bsky.convo.defs#logCreateMessage","rev":"0002","convoId":"direct-1","message":{"id":"new-1","sender":{"did":"did:plc:peer"},"text":"private-sync-canary"}}]}`
 			}
@@ -70,9 +75,18 @@ func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	assertRevision := func(want int64) {
+		t.Helper()
+		snapshot, err := service.Heartbeat(t.Context(), info, ViewActivity{View: "none"})
+		if err != nil || snapshot.Revision != want {
+			t.Fatalf("heartbeat revision=%d want=%d err=%v", snapshot.Revision, want, err)
+		}
+	}
+	assertRevision(0)
 	for range 3 {
 		poll()
 	}
+	assertRevision(1)
 	var cursor string
 	var notifications int
 	if err := store.pool.QueryRow(t.Context(), `SELECT cursor FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor); err != nil || cursor != "0001" {
@@ -88,6 +102,7 @@ func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 	if err := worker.Poll(t.Context(), info.DID); err == nil {
 		t.Fatal("injected crash ignored")
 	}
+	assertRevision(1)
 	if err := store.pool.QueryRow(t.Context(), `SELECT cursor FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor); err != nil || cursor != "0001" {
 		t.Fatal("cursor advanced ahead of outbox", err)
 	}
@@ -95,7 +110,9 @@ func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	poll()
+	assertRevision(2)
 	poll()
+	assertRevision(2)
 	if err := store.pool.QueryRow(t.Context(), `SELECT cursor,(SELECT count(*) FROM chat_notifications) FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor, &notifications); err != nil || cursor != "0002" || notifications != 1 {
 		t.Fatalf("committed cursor=%s notifications=%d err=%v", cursor, notifications, err)
 	}
@@ -113,8 +130,16 @@ func TestSyncBaselineIsSilentAndProgressCommitsWithNotification(t *testing.T) {
 
 	deleted = true
 	poll()
+	assertRevision(3)
 	var disposition string
 	if err := store.pool.QueryRow(t.Context(), `SELECT cursor,(SELECT disposition FROM chat_message_dedupe WHERE owner_did=$1 AND conversation_id='direct-1' AND message_id='new-1'),(SELECT count(*) FROM chat_push_deliveries WHERE status IN('pending','retry','leased')) FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor, &disposition, &deliveries); err != nil || cursor != "0003" || disposition != "deleted" || deliveries != 0 {
 		t.Fatalf("delete checkpoint cursor=%s disposition=%s pending=%d err=%v", cursor, disposition, deliveries, err)
+	}
+	deleted, unknown = false, true
+	poll()
+	assertRevision(3)
+	var version int64
+	if err := store.pool.QueryRow(t.Context(), `SELECT cursor,version FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor, &version); err != nil || cursor != "0004" || version != 7 {
+		t.Fatalf("worker progress cursor=%s version=%d err=%v", cursor, version, err)
 	}
 }

@@ -27,6 +27,7 @@ final class ChatConversationController extends ChangeNotifier {
     required this._draftLease,
     required this._operation,
     this._onSharedStateChanged,
+    this._onInboxChanged,
     this._onReadStarted,
     this._onReadReconciled,
     ChatOperationId Function()? newOperationId,
@@ -42,6 +43,8 @@ final class ChatConversationController extends ChangeNotifier {
   final ChatDraftLease _draftLease;
   final ActiveAccountOperation _operation;
   final Future<void> Function()? _onSharedStateChanged;
+  final Future<void> Function(ChatConversation, {required bool sent})?
+  _onInboxChanged;
   final void Function() Function(ChatConversation)? _onReadStarted;
   final Future<void> Function()? _onReadReconciled;
   final ChatOperationId Function() _newOperationId;
@@ -67,6 +70,7 @@ final class ChatConversationController extends ChangeNotifier {
   bool left = false;
   bool loadingOlder = false;
   bool refreshing = false;
+  Completer<void>? _refreshCompletion;
   bool _disposed = false;
   bool _draftLoaded = false;
   int _contentEpoch = 0;
@@ -112,18 +116,35 @@ final class ChatConversationController extends ChangeNotifier {
             ? _onReadStarted?.call(summaryBeforeRead)
             : null;
         try {
-          await _operation.step(() => _repository.updateRead(id, target.id));
-          if (epoch != _contentEpoch) return;
           final summary = await _operation.step(
-            () => _repository.conversation(id),
+            () => _repository.updateRead(id, target.id),
           );
           if (epoch != _contentEpoch) return;
+          if (summary.id != id ||
+              summary.peer.did != summaryBeforeRead?.peer.did) {
+            throw const FormatException('Invalid conversation read result');
+          }
+          ChatConversation? updated;
           _publish(() {
             _lastRead = target;
-            conversation = summary;
+            if (identical(conversation, summaryBeforeRead)) {
+              // The mutation response does not evaluate send eligibility.
+              conversation = updated = summary.withSendEligibility(
+                allowed:
+                    summary.bucket == ChatBucket.accepted &&
+                    summaryBeforeRead?.canSend == true,
+              );
+            }
           });
-          await _sharedChanged();
-          await _onReadReconciled?.call();
+          await _sharedChanged(updated: updated);
+          try {
+            await _onReadReconciled?.call();
+          } on AccountOperationDiscarded {
+            rethrow;
+          } on Object {
+            // A count-provider error cannot undo a confirmed read or establish
+            // that this conversation became inaccessible.
+          }
         } finally {
           finishRead?.call();
         }
@@ -316,17 +337,34 @@ final class ChatConversationController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
-    if (!_current || loading || refreshing) return;
+  Future<void> refresh({bool afterCurrent = false}) async {
+    if (!_current || loading || left) return;
+    if (_refreshCompletion case final pending?) {
+      if (afterCurrent) {
+        await pending.future;
+        await refresh();
+      }
+      return;
+    }
+    final completion = Completer<void>();
+    _refreshCompletion = completion;
     final epoch = _contentEpoch;
+    final previous = conversation;
     _publish(() => refreshing = true);
     try {
-      final summary = await _operation.step(() => _repository.conversation(id));
-      final page = await _operation.step(() => _repository.history(id));
+      final details = await _operation.step(() => _repository.details(id));
       if (epoch != _contentEpoch) return;
       _publish(() {
-        conversation = summary;
-        _mergeNewest(page);
+        if (identical(conversation, previous)) {
+          conversation = details.conversation;
+        } else if (conversation != null) {
+          // A concurrent mutation won the summary race. Still apply the
+          // checked eligibility and merge history without regressing its data.
+          conversation = conversation!.withSendEligibility(
+            allowed: conversation!.canSend && details.conversation.canSend,
+          );
+        }
+        _mergeNewest(details.messages);
         failed = false;
       });
     } on AccountOperationDiscarded {
@@ -335,12 +373,20 @@ final class ChatConversationController extends ChangeNotifier {
       if (!_current) return;
       _contentFailure(error, stack, 'refresh', epoch);
     } finally {
+      _refreshCompletion = null;
+      completion.complete();
       _publish(() => refreshing = false);
     }
   }
 
-  Future<void> _sharedChanged() async {
-    final callback = _onSharedStateChanged;
+  Future<void> _sharedChanged({
+    ChatConversation? updated,
+    bool sent = false,
+  }) async {
+    final onInboxChanged = _onInboxChanged;
+    final callback = updated != null && onInboxChanged != null
+        ? () => onInboxChanged(updated, sent: sent)
+        : _onSharedStateChanged;
     if (!_current || callback == null) return;
     try {
       await _operation.step(callback);
@@ -431,6 +477,7 @@ final class ChatConversationController extends ChangeNotifier {
     try {
       await _operation.step(() => _repository.leave(id));
       _publish(() {
+        _contentEpoch++;
         left = true;
         conversation = null;
         history = const ChatHistory.empty();
@@ -623,6 +670,7 @@ final class ChatConversationController extends ChangeNotifier {
       final result = await _operation.step(
         () => _repository.send(id, operationId, attempt.text),
       );
+      ChatConversation? updated;
       _publish(() {
         _resolveReceipt(result.receipt);
         final message = result.message;
@@ -630,11 +678,19 @@ final class ChatConversationController extends ChangeNotifier {
           history = history.merge(
             ChatMessagePage(items: [message], cursor: history.cursor),
           );
+          final summary = conversation;
+          final last = summary?.lastMessage;
+          if (summary != null &&
+              (last == null || _compareMessage(message, last) > 0)) {
+            conversation = updated = summary.withLastMessage(message);
+          }
         }
       });
       if (_current) await _persist(draft);
       if (result.receipt.state == ChatOperationState.confirmed) {
-        await _sharedChanged();
+        // Unlock the composer once the result is durable. The inbox catches up
+        // in the background.
+        unawaited(_sharedChanged(updated: updated, sent: true));
       } else if (result.receipt.state == ChatOperationState.uncertain) {
         await _reconcileAttempt(attempt, epoch);
       }

@@ -37,6 +37,7 @@
   ],
   "evidence": [
     "docs/changes/2026-10-18-direct-messaging/06-validation-evidence.md#cached-inbox-on-conversation-return-2026-10-31",
+    "docs/changes/2026-10-18-direct-messaging/06-validation-evidence.md#inbox-and-conversation-performance",
     "docs/changes/2026-10-18-direct-messaging/05-implementation-plan.md",
     "docs/changes/2026-10-18-direct-messaging/06-implementation-review.md"
   ],
@@ -52,6 +53,8 @@
 ## Outcome and decisions
 
 This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Chat stays on its separate provider boundary with server-owned OAuth credentials. Account/access/generation fences protect private state, accepted unread counts exclude requests, and returning from a conversation refreshes retained inbox controllers instead of destroying visible rows. Ambiguous non-idempotent sends require an explicit recovery action. The original local draft requirement (FR-019) is superseded. Both clients keep unsent text in memory while the composer is open, including shared links. Device storage supports recovery of submitted attempts.
+
+The web shell warms and retains the accepted inbox and caches recently visited conversations for the active messaging connection. AppView publishes a content revision independent of worker progress. Both clients use it to avoid refetching after empty polls and also revalidate periodically.
 
 ## Evidence and limits
 

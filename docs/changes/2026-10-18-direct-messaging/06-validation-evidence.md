@@ -695,3 +695,34 @@ actual messaging remain owner-run validation; no account credentials, live chat
 messages, reports or push deliveries were used to test this repair. Preserve the
 local key across future restarts. Earlier statements that no key had been
 provisioned describe prior implementation passes, before this repair.
+
+## Inbox and conversation performance
+
+- The authenticated web shell shares the accepted inbox preload and unread
+  counts with Messages. The inbox can display rows while counts load and
+  restore its scroll position on return. Visited conversations have a bounded
+  session-memory cache, with checked permissions on reopen. Flutter continues
+  to warm its accepted inbox and retain three recently closed conversations.
+- AppView advances the content revision for recognized provider events and on
+  completion of baseline or recovery. An empty or unknown-only poll can
+  advance worker progress without invalidating client content. Both clients
+  also revalidate periodically to catch changes outside the provider log.
+- Flutter refreshes thread metadata and recent history through one details
+  request and uses the read acknowledgement to update the message state.
+  Both clients can reconcile the inbox after the composer becomes available
+  again following a confirmed send.
+
+AppView integration fixtures verify that empty and unknown-only polls preserve
+the content revision, a failed outbox transaction cannot publish a revision,
+committed message and delete events advance it, and cursor recovery publishes
+the new revision only when reconciliation finishes.
+
+The local AppView chat, API, route and auth tests passed against an isolated
+PostgreSQL 16 instance. The changed sync fixtures also passed with the Go race
+detector. Flutter passed 271 messaging, notification-routing and badge tests
+and targeted Dart analysis.
+
+Web passed 626 unit tests, Svelte checks, lint, formatting checks for changed
+files, the production build and 22 local Playwright scenarios. A browser
+fixture verifies preload from Home, inbox display while counts are pending
+and scroll restoration when returning from a conversation.

@@ -14,6 +14,7 @@ typedef ChatRevisionCallback = Future<void> Function(
   ChatView view,
   ChatConversationId? conversationId,
   ChatSyncSnapshot snapshot,
+  ({bool shared, bool conversation}) refresh,
 );
 
 /// One disposable foreground heartbeat loop for one messaging generation.
@@ -47,7 +48,10 @@ final class ChatSyncCoordinator extends ChangeNotifier {
   bool _active = false;
   bool _sessionForeground = false;
   bool _restart = false;
-  bool _forceRefresh = true;
+  bool _forceSharedRefresh = true;
+  bool _forceConversationRefresh = true;
+  DateTime? _lastSharedRefresh;
+  DateTime? _lastConversationRefresh;
   int _version = 0;
   ChatView _view = ChatView.none;
   ChatConversationId? _id;
@@ -114,10 +118,10 @@ final class ChatSyncCoordinator extends ChangeNotifier {
     _view = view;
     _id = conversationId;
     ++_version;
-    _forceRefresh = true;
+    _forceConversationRefresh = true;
     _timer?.cancel();
     _timer = null;
-    if (_canPoll) retry();
+    _pollSoon();
   }
 
   void setForeground({required bool active}) {
@@ -127,13 +131,18 @@ final class ChatSyncCoordinator extends ChangeNotifier {
     _timer?.cancel();
     _timer = null;
     _restart = false;
-    _forceRefresh = true;
-    if (_canPoll) retry();
+    retry();
   }
 
   void retry() {
+    if (!_current) return;
+    _forceSharedRefresh = true;
+    _forceConversationRefresh = true;
+    _pollSoon();
+  }
+
+  void _pollSoon() {
     if (!_canPoll) return;
-    _forceRefresh = true;
     final notBefore = _retryNotBefore;
     if (notBefore != null && _now().isBefore(notBefore)) {
       if (!busy) {
@@ -153,6 +162,9 @@ final class ChatSyncCoordinator extends ChangeNotifier {
     unawaited(_poll());
   }
 
+  bool _refreshDue(DateTime now, DateTime? last, Duration interval) =>
+      last == null || now.difference(last) >= interval;
+
   Future<void> _poll() async {
     if (!_canPoll || busy) return;
     busy = true;
@@ -160,8 +172,10 @@ final class ChatSyncCoordinator extends ChangeNotifier {
     final version = _version;
     final view = _view;
     final id = _id;
-    final force = _forceRefresh;
-    _forceRefresh = false;
+    final forceShared = _forceSharedRefresh;
+    final forceConversation = _forceConversationRefresh;
+    _forceSharedRefresh = false;
+    _forceConversationRefresh = false;
     try {
       final next = await _operation.step(
         () => _repository.heartbeat(
@@ -182,10 +196,35 @@ final class ChatSyncCoordinator extends ChangeNotifier {
         );
         return;
       }
-      if (force || failed || next.revision != snapshot?.revision) {
-        await _operation.step(() => _onRevision(view, id, next));
+      final now = _now();
+      final changed =
+          failed ||
+          next.revision != snapshot?.revision ||
+          next.state != snapshot?.state;
+      final shared =
+          forceShared ||
+          changed ||
+          _refreshDue(now, _lastSharedRefresh, const Duration(minutes: 1));
+      final conversation =
+          view == ChatView.conversation &&
+          (forceConversation ||
+              changed ||
+              _refreshDue(
+                now,
+                _lastConversationRefresh,
+                const Duration(seconds: 30),
+              ));
+      if (shared || conversation) {
+        await _operation.step(
+          () => _onRevision(view, id, next, (
+            shared: shared,
+            conversation: conversation,
+          )),
+        );
       }
       if (!_canPoll || version != _version) return;
+      if (shared) _lastSharedRefresh = now;
+      if (conversation) _lastConversationRefresh = now;
       snapshot = next;
       _consecutiveSyncFailures =
           next.state == 'ready' || next.state == 'syncing'
@@ -254,6 +293,7 @@ final class ChatSyncCoordinator extends ChangeNotifier {
         );
       }
     } finally {
+      if (version != _version && forceShared) _forceSharedRefresh = true;
       busy = false;
       // Listeners must observe the completed request, including its idle state.
       if (_current) notifyListeners();

@@ -1,14 +1,21 @@
-import { reloadPages } from '#lib/pagination.ts';
 import { stageSharedLink, takeSharedLink } from './share';
 import { reportFailure } from '../diagnostics/client';
 import type { DiagnosticOperation } from '../diagnostics/privacy';
 import { userErrorMessage } from '#lib/user-facing-error.ts';
 import { isCanceled } from '#lib/api/error-message.ts';
 import {
+	MessagesSession,
+	chatAccessDenied,
+	chatConversationUnavailable,
+	emptyUnread,
+	statusAllowsReading
+} from './session';
+import {
 	APIError,
 	type CraftskyAPI,
 	type Author,
 	type ChatConversation,
+	type ChatDetails,
 	type ChatMessage,
 	type ChatStatus,
 	type ChatIncomingSetting,
@@ -36,6 +43,8 @@ export interface MessagesState {
 	id?: string;
 	reportMessage?: string;
 	loading: boolean;
+	confirming: boolean;
+	inboxScroll: number;
 	busy: boolean;
 	loadingMore: boolean;
 	error: string;
@@ -59,28 +68,19 @@ const initial = (): MessagesState => ({
 	view: 'inbox',
 	bucket: 'accepted',
 	loading: true,
+	confirming: false,
+	inboxScroll: 0,
 	busy: false,
 	loadingMore: false,
 	error: '',
 	notice: '',
-	counts: { accepted: 0, requests: 0 },
+	counts: emptyUnread(),
 	conversations: [],
 	peerBlocked: false,
 	messages: [],
 	draft: { text: '' },
 	recipients: []
 });
-const accessDenied = (error: unknown): boolean =>
-	error instanceof APIError &&
-	(error.status === 401 ||
-		error.status === 403 ||
-		[
-			'chat_conversation_unavailable',
-			'chat_authorization_required',
-			'chat_restricted',
-			'chat_disconnected',
-			'chat_connection_changed'
-		].includes(error.code));
 const errorMessage = (error: unknown): string =>
 	error instanceof APIError && error.code === 'chat_relationship_unavailable'
 		? 'This person cannot receive a new message from you right now.'
@@ -97,18 +97,39 @@ export class MessagesController {
 	private syncFailed = false;
 	private reportSaveFailed = false;
 	private syncRevision?: number;
+	private lastReconciled = 0;
+	private unsubscribeCounts: () => void;
+	private unsubscribeAccess: () => void;
+	private viewing = false;
 	private searchEpoch = 0;
 	private readID?: string;
 	private pendingRead?: string;
+	private readTarget?: string;
 	private readingEpoch?: number;
 	private blockAttempt?: { did: string; key: string };
 	constructor(
 		readonly api: CraftskyAPI,
 		readonly account: string,
 		storage: StorageLike,
-		private publish: (state: MessagesState) => void
+		private publish: (state: MessagesState) => void,
+		private session = new MessagesSession(api)
 	) {
 		this.store = new MessageDraftStore(storage, account);
+		this.unsubscribeCounts = session.subscribeCounts((counts) =>
+			this.update({ counts })
+		);
+		this.unsubscribeAccess = session.subscribeAccessInvalidation(() =>
+			this.update({
+				status: undefined,
+				conversation: undefined,
+				messages: [],
+				conversations: [],
+				recipients: [],
+				draft: { text: '' },
+				cursor: undefined,
+				historyCursor: undefined
+			})
+		);
 	}
 	private current(epoch: number): boolean {
 		return !this.disposed && this.epoch === epoch;
@@ -122,7 +143,10 @@ export class MessagesController {
 	private failure(error: unknown, operation: DiagnosticOperation): void {
 		if (isCanceled(error)) return;
 		void reportFailure(error, operation);
-		if (accessDenied(error))
+		this.session.observeRateLimit(error);
+		if (chatAccessDenied(error) || chatConversationUnavailable(error)) {
+			if (chatAccessDenied(error)) this.session.invalidateAccess();
+			else if (this.state.id) this.session.removeThread(this.state.id);
 			this.update({
 				conversation: undefined,
 				messages: [],
@@ -131,12 +155,19 @@ export class MessagesController {
 				error:
 					'Messaging access changed. Refresh or review your messaging permissions.'
 			});
-		else this.update({ error: errorMessage(error) });
+		} else this.update({ error: errorMessage(error) });
 	}
 	dispose(): void {
+		void this.sync(false);
 		this.disposed = true;
 		this.epoch++;
 		this.searchEpoch++;
+		this.unsubscribeCounts();
+		this.unsubscribeAccess();
+	}
+	rememberInboxScroll(scroll: number) {
+		if (this.state.view === 'inbox')
+			this.session.rememberInboxScroll(this.state.bucket, scroll);
 	}
 	async navigate(path: string[], force = false): Promise<void> {
 		const nested = path[0] === 'messages' ? path.slice(1) : path;
@@ -149,6 +180,7 @@ export class MessagesController {
 		this.syncRevision = undefined;
 		this.readID = undefined;
 		this.pendingRead = undefined;
+		this.readTarget = undefined;
 		const first = parts[0];
 		const reserved: MessageView[] = ['new', 'settings'];
 		const view: MessageView =
@@ -160,15 +192,37 @@ export class MessagesController {
 						? 'report'
 						: 'conversation';
 		const id = ['conversation', 'report'].includes(view) ? first : undefined;
+		const bucket = first === 'requests' ? 'request' : 'accepted';
+		const cachedInbox =
+			view === 'inbox' ? this.session.cachedInbox(bucket) : undefined;
+		const cachedThread =
+			view === 'conversation' && id ? this.session.cachedThread(id) : undefined;
+		const recents =
+			view === 'new' ? this.session.cachedInbox('accepted') : undefined;
+		const isWarm = !!(cachedInbox || cachedThread || recents);
+		this.syncRevision = cachedInbox?.revision ?? cachedThread?.revision;
+		this.readID = cachedThread?.readID;
 		this.update({
 			...initial(),
 			view,
-			bucket: first === 'requests' ? 'request' : 'accepted',
+			bucket,
 			id,
+			counts: this.session.unread,
+			loading: !isWarm,
+			status: this.session.cachedStatus,
+			confirming: !!cachedThread,
+			inboxScroll: cachedInbox?.scroll ?? 0,
+			conversations: (cachedInbox || recents)?.data.items ?? [],
+			cursor: cachedInbox?.data.cursor,
+			conversation:
+				cachedThread?.data.conversation ??
+				(id ? this.session.inboxConversation(id) : undefined),
+			messages: cachedThread?.data.messages.items ?? [],
+			historyCursor: cachedThread?.data.messages.cursor,
 			reportMessage: view === 'report' ? parts[2] : undefined
 		});
 		try {
-			const status = await this.api.chat.status();
+			const status = await this.session.loadStatus(force && !isWarm);
 			if (!this.current(epoch)) return;
 			this.update({ status, push: status.pushEnabled });
 			if (view === 'settings') {
@@ -184,12 +238,11 @@ export class MessagesController {
 							? push.value.pushEnabled
 							: status.pushEnabled
 				});
-			} else if (status.capabilities.canRead) {
+			} else if (statusAllowsReading(status)) {
 				if (id) {
-					const details = await this.api.chat.details(id);
+					const details = await this.session.loadDetails(id);
 					if (!this.current(epoch)) return;
-					if (details.conversation.id !== id)
-						throw new Error('Invalid conversation response');
+					if (view === 'conversation') this.session.rememberThread(details);
 					let draft: MessageDraft = { text: '' };
 					try {
 						draft = this.store.load(id);
@@ -205,104 +258,131 @@ export class MessagesController {
 						conversation: details.conversation,
 						messages: mergeMessages([], details.messages.items),
 						historyCursor: details.messages.cursor,
-						draft
+						draft,
+						confirming: false
 					});
 					if (view === 'report')
 						this.update({ report: this.store.loadReport(id, parts[2]) });
 					if (draft.pending?.state === 'uncertain') void this.checkSend();
 				} else if (view === 'inbox') {
-					const [page, counts] = await Promise.all([
-						this.refreshedInbox(epoch),
-						this.api.chat.unread()
-					]);
-					if (!this.current(epoch)) return;
-					this.update({
-						conversations: page.items,
-						cursor: page.cursor,
-						counts
-					});
+					void this.refreshCounts(epoch);
+					await this.refreshInbox(epoch, false);
 				} else if (view === 'new') {
-					const recent = await this.api.chat.conversations('accepted', {
-						limit: 20
-					});
-					if (!this.current(epoch)) return;
-					this.update({ conversations: recent.items });
+					const recent = await this.session.loadInbox('accepted');
+					if (this.current(epoch))
+						this.update({ conversations: recent.items.slice(0, 20) });
 				}
+			} else {
+				this.update({
+					conversation: undefined,
+					messages: [],
+					conversations: []
+				});
 			}
+			if (this.current(epoch)) this.lastReconciled = Date.now();
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error, 'messages.navigate');
 		} finally {
 			if (this.current(epoch)) this.update({ loading: false });
 		}
 	}
-	private refreshedInbox(epoch: number) {
-		const bucket = this.state.bucket;
-		return reloadPages(
-			async (cursor) => {
-				const page = await this.api.chat.conversations(bucket, { cursor });
-				if (!this.current(epoch))
-					throw new DOMException('Canceled', 'AbortError');
-				return page;
-			},
-			1,
-			(item) => item.id,
-			this.state.conversations.length
-		);
+	private async refreshInbox(epoch: number, force = true): Promise<void> {
+		const page = await this.session.loadInbox(this.state.bucket, force);
+		if (this.current(epoch))
+			this.update({
+				conversations: page.items,
+				cursor: page.cursor,
+				error: ''
+			});
+	}
+	private async refreshCounts(epoch: number, force = false): Promise<void> {
+		try {
+			await this.session.loadCounts(force);
+		} catch (error) {
+			if (!this.current(epoch) || isCanceled(error)) return;
+			if (chatAccessDenied(error)) this.failure(error, 'messages.navigate');
+			else void reportFailure(error, 'startup.count.messages');
+		}
 	}
 	async refresh(): Promise<void> {
-		if (
-			this.state.view === 'inbox' &&
-			this.state.status?.capabilities.canRead
-		) {
-			const epoch = this.epoch;
-			try {
-				const result = await this.refreshedInbox(epoch);
-				if (this.current(epoch))
-					this.update({
-						conversations: result.items,
-						cursor: result.cursor,
-						error: ''
-					});
-			} catch (error) {
-				if (this.current(epoch)) this.failure(error, 'messages.navigate');
+		const epoch = this.epoch;
+		try {
+			if (
+				this.state.view === 'inbox' &&
+				statusAllowsReading(this.state.status)
+			) {
+				void this.refreshCounts(epoch, true);
+				await this.refreshInbox(epoch);
+				return;
 			}
-			return;
+			if (
+				this.state.view === 'conversation' &&
+				this.state.conversation &&
+				!this.state.confirming
+			) {
+				await this.refreshContent(epoch);
+				return;
+			}
+			await this.navigate(this.route.split('/').filter(Boolean), true);
+		} catch (error) {
+			if (this.current(epoch)) this.failure(error, 'messages.navigate');
 		}
-		return this.navigate(this.route.split('/').filter(Boolean), true);
 	}
 	async more(): Promise<void> {
-		if (this.state.loadingMore) return;
+		if (this.state.loadingMore || this.state.confirming) return;
 		const epoch = this.epoch;
 		const { id, cursor, historyCursor } = this.state;
 		if (!(id ? historyCursor : cursor)) return;
 		this.update({ loadingMore: true });
 		try {
 			if (id) {
-				const page = await this.api.chat.messages(id, {
-					cursor: historyCursor
-				});
+				const page = await this.session.loadOlderMessages(id, historyCursor!);
 				if (this.current(epoch))
 					this.update({
 						messages: mergeMessages(this.state.messages, page.items),
 						historyCursor: page.cursor
 					});
 			} else {
-				const page = await this.api.chat.conversations(this.state.bucket, {
-					cursor
-				});
+				const page = await this.session.loadMoreInbox(
+					this.state.bucket,
+					cursor!
+				);
 				if (this.current(epoch)) {
 					const items = new Map(
 						this.state.conversations.map((item) => [item.id, item])
 					);
 					for (const item of page.items) items.set(item.id, item);
-					this.update({
-						conversations: [...items.values()],
+					const conversations = [...items.values()];
+					this.session.rememberInbox(this.state.bucket, {
+						items: conversations,
 						cursor: page.cursor
 					});
+					this.update({ conversations, cursor: page.cursor });
 				}
 			}
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error, 'messages.more');
+			if (this.current(epoch)) {
+				// Continuations can expire or be evicted while a snapshot is kept in memory.
+				if (error instanceof APIError && error.status === 400) {
+					try {
+						if (id) {
+							const details = await this.session.loadDetails(id);
+							if (this.current(epoch)) {
+								this.session.rememberThread(details);
+								this.update({
+									conversation: details.conversation,
+									messages: mergeMessages([], details.messages.items),
+									historyCursor: details.messages.cursor
+								});
+							}
+						} else {
+							await this.refreshInbox(epoch);
+						}
+					} catch (cause) {
+						if (this.current(epoch)) this.failure(cause, 'messages.more');
+					}
+				} else this.failure(error, 'messages.more');
+			}
 		} finally {
 			if (this.current(epoch)) this.update({ loadingMore: false });
 		}
@@ -366,7 +446,7 @@ export class MessagesController {
 		}
 	}
 	edit(text: string): void {
-		if (!this.state.id) return;
+		if (!this.state.id || this.state.confirming) return;
 		this.update({ draft: { ...this.state.draft, text } });
 	}
 	private async setDraft(draft: MessageDraft): Promise<boolean> {
@@ -392,10 +472,13 @@ export class MessagesController {
 			!id ||
 			this.state.busy ||
 			this.state.peerBlocked ||
+			this.state.confirming ||
+			!this.state.status?.capabilities.canSend ||
 			!conversation?.canSend
 		)
 			return;
 		const epoch = this.epoch;
+		const live = this.session.captureAuthority();
 		let draft = this.state.draft;
 		try {
 			if (!retry) draft = freezeSend(draft);
@@ -413,7 +496,10 @@ export class MessagesController {
 			this.update({ busy: false });
 			return;
 		}
-		if (!this.current(epoch)) return;
+		if (!this.current(epoch) || !live()) {
+			if (this.current(epoch)) this.update({ busy: false });
+			return;
+		}
 		const attempt = draft.pending!;
 		this.update({ busy: true, error: '', notice: '' });
 		try {
@@ -422,14 +508,22 @@ export class MessagesController {
 				attempt.operationId,
 				attempt.text
 			);
-			if (!this.current(epoch)) return;
-			await this.setDraft(reconcileSend(this.state.draft, receipt));
-			if (!this.current(epoch)) return;
-			if (receipt.message)
+			if (!this.current(epoch) || !live()) return;
+			if (
+				!(await this.setDraft(reconcileSend(this.state.draft, receipt))) ||
+				!live()
+			)
+				return;
+			if (receipt.state === 'confirmed' && receipt.message) {
+				const latest = this.state.conversation ?? conversation;
+				const updated = this.session.confirmedSend(latest, receipt.message);
 				this.update({
+					conversation: updated,
 					messages: mergeMessages(this.state.messages, [receipt.message])
 				});
-			if (receipt.state === 'confirmed') await this.refreshContent(epoch);
+			}
+			if (receipt.state === 'confirmed')
+				void this.reconcileConfirmedSend(epoch);
 		} catch (error) {
 			if (!this.current(epoch)) return;
 			const pending = this.state.draft.pending;
@@ -447,13 +541,18 @@ export class MessagesController {
 		const pending = this.state.draft.pending;
 		if (!pending || this.state.busy) return;
 		const epoch = this.epoch;
+		const live = this.session.captureAuthority();
 		this.update({ busy: true, error: '' });
 		try {
 			const receipt = await this.api.chat.receipt(pending.operationId);
-			if (!this.current(epoch)) return;
-			await this.setDraft(reconcileSend(this.state.draft, receipt));
-			if (!this.current(epoch)) return;
-			if (receipt.state === 'confirmed') await this.refreshContent(epoch);
+			if (!this.current(epoch) || !live()) return;
+			if (
+				!(await this.setDraft(reconcileSend(this.state.draft, receipt))) ||
+				!live()
+			)
+				return;
+			if (receipt.state === 'confirmed')
+				void this.reconcileConfirmedSend(epoch);
 		} catch (error) {
 			if (this.current(epoch)) {
 				if (error instanceof APIError && error.status === 404)
@@ -473,15 +572,45 @@ export class MessagesController {
 				text: this.state.draft.text || this.state.draft.pending.text
 			});
 	}
+	private async reconcileConfirmedSend(epoch: number): Promise<void> {
+		try {
+			await this.refreshContent(epoch);
+		} catch (error) {
+			if (this.current(epoch)) this.failure(error, 'messages.sync');
+		}
+	}
+	private publishDetails(details: ChatDetails) {
+		const { items, cursor } = details.messages;
+		const returnedIDs = new Set(items.map((item) => item.id));
+		const first = mergeMessages([], items)[0];
+		// Keep the older visible range only if the newest page reconnects to it.
+		// The cache itself retains only the newest authoritative page.
+		const joined =
+			!!first &&
+			this.state.messages.some((message) => returnedIDs.has(message.id));
+		const older =
+			joined && cursor
+				? this.state.messages.filter(
+						(message) =>
+							Date.parse(message.sentAt) < Date.parse(first.sentAt) &&
+							!returnedIDs.has(message.id)
+					)
+				: [];
+		const historyCursor = older.length ? this.state.historyCursor : cursor;
+		if (this.state.view === 'conversation')
+			this.session.rememberThread(details);
+		this.update({
+			conversation: details.conversation,
+			messages: mergeMessages(older, items),
+			historyCursor,
+			confirming: false
+		});
+	}
 	private async refreshContent(epoch: number): Promise<void> {
 		const { id } = this.state;
 		if (!id) return;
-		const details = await this.api.chat.details(id);
-		if (!this.current(epoch)) return;
-		this.update({
-			conversation: details.conversation,
-			messages: mergeMessages(this.state.messages, details.messages.items)
-		});
+		const details = await this.session.loadDetails(id);
+		if (this.current(epoch)) this.publishDetails(details);
 	}
 	async presented(messageID: string): Promise<void> {
 		const index = this.state.messages.findIndex(
@@ -493,38 +622,57 @@ export class MessagesController {
 		const pending = this.state.messages.findIndex(
 			(message) => message.id === this.pendingRead
 		);
+		const sending = this.state.messages.findIndex(
+			(message) => message.id === this.readTarget
+		);
 		if (
 			!this.state.id ||
+			this.state.view !== 'conversation' ||
+			this.state.confirming ||
+			!statusAllowsReading(this.state.status) ||
+			!this.state.conversation?.unreadCount ||
 			index < 0 ||
 			index <= last ||
 			index <= pending ||
+			index <= sending ||
 			this.disposed
 		)
 			return;
 		this.pendingRead = messageID;
 		const epoch = this.epoch;
 		if (this.readingEpoch === epoch) return;
+		const live = this.session.captureAuthority();
 		this.readingEpoch = epoch;
 		const id = this.state.id;
 		try {
-			while (this.pendingRead && this.current(epoch)) {
+			// Coalesce observers that enter the viewport in the same rendering task.
+			await Promise.resolve();
+			while (this.pendingRead && this.current(epoch) && live()) {
 				const target = this.pendingRead;
 				this.pendingRead = undefined;
+				this.readTarget = target;
 				const conversation = await this.api.chat.read(id, target);
-				if (!this.current(epoch)) return;
+				if (!this.current(epoch) || !live()) return;
 				this.readID = target;
 				// A read receipt only acknowledges the watermark. Send authority comes
 				// from checked conversation/details reads, never this partial response.
 				const current = this.state.conversation;
-				if (current && conversation.id === current.id)
+				if (current && conversation.id === current.id) {
 					this.update({
 						conversation: { ...current, unreadCount: conversation.unreadCount }
 					});
+					this.session.markRead(conversation, target);
+					void this.refreshCounts(epoch, true);
+					if (conversation.unreadCount === 0) this.pendingRead = undefined;
+				}
 			}
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error, 'messages.presented');
 		} finally {
-			if (this.readingEpoch === epoch) this.readingEpoch = undefined;
+			if (this.readingEpoch === epoch) {
+				this.readTarget = undefined;
+				this.readingEpoch = undefined;
+			}
 		}
 	}
 	async conversationAction(
@@ -532,20 +680,30 @@ export class MessagesController {
 		afterLeave?: () => void
 	): Promise<void> {
 		const { id, conversation } = this.state;
-		if (!id || !conversation) return;
+		if (!id || !conversation || this.state.confirming) return;
+		const live = this.session.captureAuthority();
 		await this.action(
 			async () => {
 				if (action === 'leave') {
 					await this.api.chat.leave(id);
+					if (live()) this.session.removeThread(id);
 					return undefined;
 				}
 				if (action === 'accept') {
 					await this.api.chat.accept(id);
-					// Accept acknowledges status, not the checked sending capability.
-					return (await this.api.chat.details(id)).conversation;
+					if (live()) this.session.removeThread(id);
+					// Accept acknowledges status. Obtain checked send authority separately.
+					const accepted = await this.api.chat.conversation(id);
+					if (accepted.id !== id || accepted.status !== 'accepted')
+						throw new Error('Invalid accepted conversation response');
+					if (live()) this.session.acceptConversation(accepted);
+					return accepted;
 				}
 				const result = await this.api.chat.mute(id, !conversation.muted);
-				return { ...conversation, muted: result.muted };
+				if (result.id !== id) throw new Error('Invalid conversation response');
+				const muted = { ...conversation, muted: result.muted };
+				if (live()) this.session.changeConversation(muted);
+				return muted;
 			},
 			(result) => {
 				if (result) this.update({ conversation: result });
@@ -553,15 +711,16 @@ export class MessagesController {
 					this.update({ conversation: undefined, messages: [] });
 					afterLeave?.();
 				}
+				void this.refreshCounts(this.epoch, true);
 			}
 		);
 	}
 	async deleteMessage(message: ChatMessage): Promise<void> {
 		const id = this.state.id;
-		if (!id) return;
+		if (!id || this.state.confirming) return;
 		await this.action(
 			() => this.api.chat.deleteMessage(id, message.id),
-			() =>
+			() => {
 				this.update({
 					messages: this.state.messages.map((item) =>
 						item.id === message.id
@@ -573,12 +732,20 @@ export class MessagesController {
 								}
 							: item
 					)
-				})
+				});
+			},
+			() => this.session.deleteMessage(id, message.id)
 		);
 	}
 	async blockPeer(): Promise<void> {
 		const peer = this.state.conversation?.peer;
-		if (!peer || this.state.peerBlocked || this.state.busy) return;
+		if (
+			!peer ||
+			this.state.peerBlocked ||
+			this.state.busy ||
+			this.state.confirming
+		)
+			return;
 		// Explicit retries retain the same write key after a lost response.
 		if (this.blockAttempt?.did !== peer.did)
 			this.blockAttempt = { did: peer.did, key: crypto.randomUUID() };
@@ -598,14 +765,16 @@ export class MessagesController {
 	async setEnabled(enabled: boolean): Promise<void> {
 		await this.action(
 			() => this.api.chat.setConnection(enabled),
-			(status) =>
+			(status) => {
+				this.session.setStatus(status);
 				this.update({
 					status,
 					push: status.pushEnabled,
 					conversation: enabled ? this.state.conversation : undefined,
 					messages: enabled ? this.state.messages : [],
 					conversations: enabled ? this.state.conversations : []
-				})
+				});
+			}
 		);
 	}
 	async setPush(enabled: boolean): Promise<void> {
@@ -632,14 +801,19 @@ export class MessagesController {
 	}
 	private async action<T>(
 		work: () => Promise<T>,
-		commit: (value: T) => void
+		commit: (value: T) => void,
+		commitShared?: (value: T) => void
 	): Promise<void> {
 		if (this.state.busy) return;
 		const epoch = this.epoch;
+		const live = this.session.captureAuthority();
 		this.update({ busy: true, error: '', notice: '' });
 		try {
 			const result = await work();
-			if (this.current(epoch)) commit(result);
+			if (live()) {
+				commitShared?.(result);
+				if (this.current(epoch)) commit(result);
+			}
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error, 'messages.setPolicy');
 		} finally {
@@ -715,35 +889,60 @@ export class MessagesController {
 		if (this.state.report?.state === 'failed') this.setReport(undefined);
 	}
 	async sync(visible: boolean): Promise<void> {
-		if (this.syncing || this.disposed || !this.state.status?.enabled) return;
+		if (this.disposed || !this.state.status?.enabled) return;
+		if (!visible) {
+			if (!this.viewing) return;
+			this.viewing = false;
+			try {
+				await this.session.heartbeat('none');
+			} catch (error) {
+				if (!this.disposed && !isCanceled(error))
+					this.failure(error, 'messages.sync');
+			}
+			return;
+		}
+		if (
+			this.syncing ||
+			this.state.loading ||
+			this.state.confirming ||
+			this.session.isBackingOff() ||
+			!['conversation', 'inbox'].includes(this.state.view)
+		)
+			return;
+		this.viewing = true;
 		this.syncing = true;
 		const epoch = this.epoch;
 		try {
-			const id = visible ? this.state.id : undefined;
-			const snapshot = await this.api.chat.sync(
-				visible ? (id ? 'conversation' : 'inbox') : 'none',
+			const id =
+				visible && this.state.view === 'conversation'
+					? this.state.id
+					: undefined;
+			const inbox = visible && this.state.view === 'inbox';
+			const snapshot = await this.session.heartbeat(
+				id ? 'conversation' : inbox ? 'inbox' : 'none',
 				id,
 				this.syncRevision
 			);
-			if (!this.current(epoch)) return;
+			if (!this.viewing || !this.current(epoch)) return;
 			if (
 				['authorizationNeeded', 'restricted', 'disabled'].includes(
 					snapshot.state
 				)
 			) {
-				const status = this.state.status!;
+				const status: ChatStatus = {
+					...this.state.status!,
+					state: snapshot.state,
+					enabled: snapshot.state !== 'disabled',
+					capabilities: {
+						canRead: false,
+						canSend: false,
+						canReport: false,
+						canSetPolicy: false
+					}
+				};
+				this.session.setStatus(status);
 				this.update({
-					status: {
-						...status,
-						state: snapshot.state,
-						enabled: snapshot.state !== 'disabled',
-						capabilities: {
-							canRead: false,
-							canSend: false,
-							canReport: false,
-							canSetPolicy: false
-						}
-					},
+					status,
 					conversation: undefined,
 					messages: [],
 					conversations: [],
@@ -752,31 +951,29 @@ export class MessagesController {
 				this.syncRevision = snapshot.revision;
 				return;
 			}
-			if (
-				visible &&
-				(this.syncRevision === undefined ||
-					this.syncRevision !== snapshot.revision)
-			) {
+			const previousRevision = this.syncRevision;
+			const changed = previousRevision !== snapshot.revision;
+			const fallback =
+				Date.now() - this.lastReconciled >= (id ? 30_000 : 60_000);
+			if (changed || fallback) {
 				if (id) await this.refreshContent(epoch);
-				else if (this.state.view === 'inbox') {
-					const [page, counts] = await Promise.all([
-						this.refreshedInbox(epoch),
-						this.api.chat.unread()
-					]);
-					if (this.current(epoch))
-						this.update({
-							conversations: page.items,
-							cursor: page.cursor,
-							counts
-						});
+				else if (inbox) {
+					void this.refreshCounts(epoch, true);
+					await this.refreshInbox(epoch);
 				}
+				if (this.current(epoch)) this.lastReconciled = Date.now();
 			}
 			if (this.current(epoch)) {
 				this.syncRevision = snapshot.revision;
+				this.session.rememberRevision(
+					inbox ? this.state.bucket : undefined,
+					id,
+					snapshot.revision
+				);
 				this.syncFailed = false;
 			}
 		} catch (error) {
-			if (this.current(epoch) && !this.syncFailed) {
+			if (this.current(epoch) && !isCanceled(error) && !this.syncFailed) {
 				this.syncFailed = true;
 				this.failure(error, 'messages.sync');
 			}

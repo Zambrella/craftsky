@@ -149,7 +149,8 @@ SELECT pg_advisory_xact_lock(hashtextextended('craftsky.chat.poll.capacity.v1',0
 UPDATE chat_sync_state SET phase=$4,cursor=$5,seed_cursor=$6,page_cursor=$7,
  version=version+1,claim_token=NULL,claim_expires_at=NULL,next_due_at=$8,
  safe_state=CASE WHEN $4='ready' THEN 'ready' ELSE 'syncing' END,
- failure_count=0,last_success_at=$9,recovery_id=$10
+ failure_count=0,last_success_at=$9,recovery_id=$10,
+ content_revision=content_revision+CASE WHEN sqlc.arg(content_changed)::boolean THEN 1 ELSE 0 END
 WHERE owner_did=$1 AND claim_token=$2 AND version=$3;
 
 -- name: FailChatSync :exec
@@ -223,7 +224,7 @@ UPDATE chat_conversation_state SET left_by_owner=false
 WHERE owner_did=$1 AND conversation_id=$2 AND status='accepted';
 
 -- name: ChatSyncSnapshot :one
-SELECT version,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1;
+SELECT content_revision,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1;
 
 -- name: SetChatViewActivity :exec
 INSERT INTO chat_view_activity(owner_did,child_token_hash,oauth_session_id,view,conversation_id,expires_at)

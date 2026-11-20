@@ -8,6 +8,7 @@ import {
 	type ChatStatus
 } from '#lib/api/client.ts';
 import { MessagesController } from './controller';
+import { MessagesSession } from './session';
 class MemoryStorage {
 	values = new Map<string, string>();
 	getItem(key: string) {
@@ -60,13 +61,23 @@ function setup(storage = new MemoryStorage()) {
 		conversation: conversation(id),
 		messages: { items: [message()] }
 	}));
+	vi.spyOn(api.chat, 'conversation').mockImplementation(async (id) =>
+		conversation(id)
+	);
 	vi.spyOn(api.chat, 'conversations').mockResolvedValue({
 		items: [conversation()]
 	});
 	vi.spyOn(api.chat, 'unread').mockResolvedValue({ accepted: 2, requests: 1 });
 	const publish = vi.fn();
-	const controller = new MessagesController(api, 'account-a', storage, publish);
-	return { api, controller, storage, publish };
+	const session = new MessagesSession(api);
+	const controller = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	return { api, controller, storage, publish, session };
 }
 describe('account-owned messaging operations', () => {
 	it('retains the block write key on retry and disables sending after confirmation', async () => {
@@ -241,7 +252,7 @@ describe('account-owned messaging operations', () => {
 		expect(controller.state.conversation?.unreadCount).toBe(0);
 		expect(controller.state.conversation?.canSend).toBe(true);
 	});
-	it('muting preserves send authority and accepting verifies it with a checked detail read', async () => {
+	it('muting preserves send authority and accepting verifies it with checked metadata', async () => {
 		const { api, controller } = setup();
 		await controller.navigate(['conversation']);
 		vi.spyOn(api.chat, 'mute').mockResolvedValue({
@@ -258,7 +269,8 @@ describe('account-owned messaging operations', () => {
 		});
 		vi.mocked(api.chat.details).mockClear();
 		await controller.conversationAction('accept');
-		expect(api.chat.details).toHaveBeenCalledWith('conversation');
+		expect(api.chat.conversation).toHaveBeenCalledWith('conversation');
+		expect(api.chat.details).not.toHaveBeenCalled();
 		expect(controller.state.conversation?.canSend).toBe(true);
 	});
 	it('syncs visibility without automatically resending or marking fetched history read', async () => {
@@ -270,9 +282,14 @@ describe('account-owned messaging operations', () => {
 			send = vi.spyOn(api.chat, 'send');
 		await controller.navigate(['conversation']);
 		await controller.sync(false);
+		expect(sync).not.toHaveBeenCalled();
 		await controller.sync(true);
-		expect(sync.mock.calls[0][0]).toBe('none');
-		expect(sync.mock.calls[1][0]).toBe('conversation');
+		await controller.sync(false);
+		await controller.sync(false);
+		expect(sync.mock.calls.map(([view]) => view)).toEqual([
+			'conversation',
+			'none'
+		]);
 		expect(read).not.toHaveBeenCalled();
 		expect(send).not.toHaveBeenCalled();
 	});
@@ -442,4 +459,288 @@ it('refresh reloads restricted inbox status without requesting private conversat
 	expect(controller.state.status?.state).toBe('disabled');
 	expect(api.chat.conversations).not.toHaveBeenCalled();
 	controller.dispose();
+});
+
+it('shares the warm inbox request and displays rows while the badge is pending', async () => {
+	const { api, controller, session } = setup();
+	let showInbox!: (
+		value: Awaited<ReturnType<typeof api.chat.conversations>>
+	) => void;
+	let showCounts!: (value: Awaited<ReturnType<typeof api.chat.unread>>) => void;
+	vi.mocked(api.chat.conversations).mockImplementation(
+		() => new Promise((resolve) => (showInbox = resolve))
+	);
+	vi.mocked(api.chat.unread).mockImplementation(
+		() => new Promise((resolve) => (showCounts = resolve))
+	);
+	const preload = session.warmInbox();
+	const visit = controller.navigate([]);
+	await vi.waitFor(() => expect(showInbox).toBeDefined());
+	expect(api.chat.status).toHaveBeenCalledTimes(1);
+	expect(api.chat.conversations).toHaveBeenCalledTimes(1);
+	showInbox({ items: [conversation()] });
+	await Promise.all([preload, visit]);
+	expect(controller.state.loading).toBe(false);
+	expect(controller.state.conversations).toHaveLength(1);
+	expect(controller.state.counts.accepted).toBe(0);
+	showCounts({ accepted: 3, requests: 2 });
+	await vi.waitFor(() => expect(controller.state.counts.requests).toBe(2));
+});
+
+it('reopens a cached thread and holds actions until fresh authorization is available', async () => {
+	const { api, controller, session, storage, publish } = setup();
+	await controller.navigate(['conversation']);
+	controller.dispose();
+	const reopened = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	let showDetails!: (
+		value: Awaited<ReturnType<typeof api.chat.details>>
+	) => void;
+	vi.mocked(api.chat.details).mockImplementation(
+		() => new Promise((resolve) => (showDetails = resolve))
+	);
+	const visit = reopened.navigate(['conversation']);
+	expect(reopened.state.messages.map((item) => item.id)).toEqual(['message']);
+	expect(reopened.state.loading).toBe(false);
+	expect(reopened.state.confirming).toBe(true);
+	const read = vi.spyOn(api.chat, 'read');
+	await reopened.presented('message');
+	expect(read).not.toHaveBeenCalled();
+	await vi.waitFor(() => expect(showDetails).toBeDefined());
+	showDetails({
+		conversation: conversation(),
+		messages: { items: [message('fresh')] }
+	});
+	await visit;
+	expect(reopened.state.confirming).toBe(false);
+	expect(reopened.state.messages.map((item) => item.id)).toEqual(['fresh']);
+});
+
+it('retains no more than five recent conversations and expires them by time', async () => {
+	const { api } = setup();
+	let time = 0;
+	const session = new MessagesSession(api, () => time);
+	for (let i = 1; i <= 6; i++) {
+		const id = String(i);
+		session.rememberThread({
+			conversation: conversation(id),
+			messages: { items: [message()] }
+		});
+	}
+	expect(session.cachedThread('1')).toBeUndefined();
+	expect(session.cachedThread('6')?.data.conversation.id).toBe('6');
+	time = 120_001;
+	expect(session.cachedThread('6')).toBeUndefined();
+});
+
+it('unlocks a confirmed send before a held history refresh', async () => {
+	const { api, controller, session } = setup();
+	await controller.navigate([]);
+	await controller.navigate(['conversation']);
+	const sent = { ...message('sent'), sentAt: '2026-02-03T12:00:00Z' };
+	vi.spyOn(api.chat, 'send').mockImplementation(async (_, operationId) => ({
+		operationId,
+		message: sent,
+		messageId: sent.id,
+		kind: 'send',
+		state: 'confirmed'
+	}));
+	let showDetails!: (
+		value: Awaited<ReturnType<typeof api.chat.details>>
+	) => void;
+	vi.mocked(api.chat.details).mockImplementation(
+		() => new Promise((resolve) => (showDetails = resolve))
+	);
+	controller.edit('A message');
+	await controller.send();
+	expect(showDetails).toBeDefined();
+	expect(controller.state.busy).toBe(false);
+	expect(controller.state.draft.pending).toBeUndefined();
+	expect(controller.state.messages.at(-1)?.id).toBe('sent');
+	expect(session.cachedInbox('accepted')?.data.items[0].lastMessage?.id).toBe(
+		'sent'
+	);
+	showDetails({
+		conversation: conversation(),
+		messages: { items: [message()] }
+	});
+	await vi.waitFor(() =>
+		expect(controller.state.messages.at(-1)?.id).toBe('sent')
+	);
+});
+
+it('keeps a confirmed deletion across navigation and masks stale responses', async () => {
+	const { api, controller, session, storage, publish } = setup();
+	await controller.navigate(['conversation']);
+	let confirm!: (
+		value: Awaited<ReturnType<typeof api.chat.deleteMessage>>
+	) => void;
+	vi.spyOn(api.chat, 'deleteMessage').mockImplementation(
+		() => new Promise((resolve) => (confirm = resolve))
+	);
+	const deleting = controller.deleteMessage(message());
+	controller.dispose();
+	confirm({ deleted: true });
+	await deleting;
+	const reopened = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	await reopened.navigate(['conversation']);
+	expect(reopened.state.messages[0]).toMatchObject({
+		id: 'message',
+		kind: 'deleted',
+		text: undefined
+	});
+});
+
+it('does not replay a mutation invalidation over unrelated pending status', async () => {
+	const { api, session } = setup();
+	await session.loadStatus();
+	const newest = { ...message('newer'), sentAt: '2026-06-01T00:00:00Z' };
+	vi.mocked(api.chat.conversations).mockResolvedValue({
+		items: [conversation('first'), { ...conversation(), lastMessage: newest }]
+	});
+	await session.loadInbox('accepted');
+	let status!: (value: ChatStatus) => void;
+	vi.mocked(api.chat.status).mockImplementation(
+		() => new Promise((resolve) => (status = resolve))
+	);
+	const pending = session.loadStatus(true);
+	session.confirmedSend(conversation(), message('earlier'));
+	status(ready);
+	await expect(pending).resolves.toEqual(ready);
+	expect(
+		session.cachedInbox('accepted')?.data.items.map((item) => item.id)
+	).toEqual(['first', 'conversation']);
+	expect(session.inboxConversation('conversation')?.lastMessage?.id).toBe(
+		'newer'
+	);
+});
+
+it('keeps a confirmed block local when the shell invalidates relationship-dependent reads', async () => {
+	const { api, controller, session } = setup();
+	await controller.navigate(['conversation']);
+	vi.spyOn(api.profiles, 'block').mockImplementation(async () => {
+		session.invalidateRelationships();
+		return {
+			did: 'did:plc:peer',
+			muted: false,
+			blocking: true,
+			blockedBy: false
+		};
+	});
+	await controller.blockPeer();
+	expect(controller.state.peerBlocked).toBe(true);
+	expect(controller.state.notice).toContain('Account blocked');
+	expect(controller.state.messages).toHaveLength(1);
+	expect(session.cachedThread('conversation')).toBeUndefined();
+});
+
+it('lets a warm thread retry after a transient authorization check failure', async () => {
+	const { api, controller, session, storage, publish } = setup();
+	await controller.navigate(['conversation']);
+	controller.dispose();
+	const reopened = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	vi.mocked(api.chat.details).mockRejectedValueOnce(
+		new APIError(503, 'unavailable', 'Offline')
+	);
+	await reopened.navigate(['conversation']);
+	expect(reopened.state.messages).toHaveLength(1);
+	expect(reopened.state.confirming).toBe(true);
+	reopened.edit('Do not lose an enabled composer edit');
+	expect(reopened.state.draft.text).toBe('');
+	await reopened.refresh();
+	expect(reopened.state.confirming).toBe(false);
+	expect(reopened.state.error).toBe('');
+});
+
+it('does not append a confirmed send when it falls before a disjoint latest page', async () => {
+	const { api, controller, session } = setup();
+	await controller.navigate(['conversation']);
+	const sent = { ...message('sent'), sentAt: '2026-01-02T00:00:00Z' };
+	session.confirmedSend(conversation(), sent);
+	vi.mocked(api.chat.details).mockResolvedValue({
+		conversation: conversation(),
+		messages: {
+			items: [{ ...message('new-window'), sentAt: '2026-01-10T00:00:00Z' }],
+			cursor: 'older'
+		}
+	});
+	await controller.refresh();
+	expect(controller.state.messages.map((item) => item.id)).toEqual([
+		'new-window'
+	]);
+	expect(controller.state.historyCursor).toBe('older');
+});
+
+it('shows a retryable failure instead of a false empty inbox during shared rate-limit backoff', async () => {
+	const { api, publish, storage } = setup();
+	let time = 0;
+	const session = new MessagesSession(api, () => time);
+	session.observeRateLimit(
+		new APIError(429, 'rate_limited', 'Wait', undefined, undefined, 30)
+	);
+	const controller = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	await controller.navigate([]);
+	expect(controller.state.error).toContain('Too many requests');
+	expect(api.chat.status).not.toHaveBeenCalled();
+	time = 29_999;
+	await controller.refresh();
+	expect(api.chat.status).not.toHaveBeenCalled();
+	time = 30_000;
+	await controller.refresh();
+	expect(controller.state.error).toBe('');
+	expect(controller.state.conversations).toHaveLength(1);
+});
+
+it('keeps inbox rows and scroll through a long visit and revalidates stale data in place', async () => {
+	const { api, publish, storage } = setup();
+	let time = 0;
+	const session = new MessagesSession(api, () => time);
+	await session.warmInbox();
+	session.rememberInboxScroll('accepted', 250);
+	time = 120_001;
+	let showInbox!: (
+		value: Awaited<ReturnType<typeof api.chat.conversations>>
+	) => void;
+	vi.mocked(api.chat.conversations).mockImplementation(
+		() => new Promise((resolve) => (showInbox = resolve))
+	);
+	const controller = new MessagesController(
+		api,
+		'account-a',
+		storage,
+		publish,
+		session
+	);
+	const visit = controller.navigate([]);
+	expect(controller.state.loading).toBe(false);
+	expect(controller.state.conversations).toHaveLength(1);
+	expect(controller.state.inboxScroll).toBe(250);
+	await vi.waitFor(() => expect(showInbox).toBeDefined());
+	showInbox({ items: [conversation('newest')] });
+	await visit;
+	expect(controller.state.conversations[0].id).toBe('newest');
+	expect(session.cachedInbox('accepted')?.scroll).toBe(250);
 });

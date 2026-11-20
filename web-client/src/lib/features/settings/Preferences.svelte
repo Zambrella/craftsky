@@ -9,7 +9,14 @@
 	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { confirmNavigation } from '../social/navigation-prompt';
-	import { onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import {
+		messagesSessionContext,
+		type MessagesSession
+	} from '../messages/session';
+	const messagesSession = getContext<MessagesSession | undefined>(
+		messagesSessionContext
+	);
 
 	import Avatar from '#lib/Avatar.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
@@ -126,7 +133,8 @@
 		if (section === 'messaging')
 			return work.load(
 				async () => {
-					const status = await api.chat.status();
+					const status = await (messagesSession?.loadStatus(true) ??
+						api.chat.status());
 					const [policy, prefs] = await Promise.all([
 						status.enabled && status.capabilities.canSetPolicy
 							? api.chat.incoming()
@@ -219,6 +227,7 @@
 		await work.run(
 			async () => {
 				const status = await api.chat.setConnection(enabled);
+				messagesSession?.setStatus(status);
 				if (status.enabled !== enabled)
 					throw new UserFacingError(
 						'Messaging connection change was not confirmed. Try again.'

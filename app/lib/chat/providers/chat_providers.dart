@@ -333,6 +333,20 @@ Future<Raw<ChatConversationController>> chatConversationController(
     onReadReconciled: () => operation.step(
       () => ref.read(chatUnreadCountsProvider(account).future),
     ),
+    onInboxChanged: (summary, {required sent}) async {
+      operation.requireCurrent();
+      if (!sent) ref.invalidate(chatUnreadCountsProvider(account));
+      final family = chatInboxControllerProvider(account, summary.bucket);
+      if (!ref.exists(family)) return;
+      final inbox = ref.read(family).value;
+      if (inbox == null) {
+        // The first fetch may predate the mutation.
+        ref.invalidate(family);
+        return;
+      }
+      inbox.applyConversation(summary, sent: sent);
+      await inbox.refresh(afterCurrent: true);
+    },
     onSharedStateChanged: () async {
       operation.requireCurrent();
       ref.invalidate(chatUnreadCountsProvider(account));
@@ -554,31 +568,34 @@ Future<Raw<ChatSyncCoordinator>> chatSyncCoordinator(
       }
       ref.invalidate(chatStatusProvider(account));
     },
-    onRevision: (view, id, snapshot) async {
+    onRevision: (view, id, snapshot, refresh) async {
       operation.requireCurrent();
-      ref.invalidate(chatUnreadCountsProvider(account));
       if (snapshot.state == 'authorizationNeeded' ||
           snapshot.state == 'restricted' ||
           ref.read(chatStatusProvider(account)).value?.state ==
               ChatConnectionState.unavailable) {
         ref.invalidate(chatStatusProvider(account));
       }
-      final updates = <Future<void>>[];
-      if (view == ChatView.conversation && id != null) {
+      if (refresh.conversation && id != null) {
         final family = chatConversationControllerProvider(account, id);
         if (ref.exists(family)) {
           final controller = ref.read(family).value;
-          if (controller != null) updates.add(controller.refresh());
+          if (controller != null) {
+            unawaited(controller.refresh(afterCurrent: true));
+          }
         }
       }
+      if (!refresh.shared) return;
+      ref.invalidate(chatUnreadCountsProvider(account));
       for (final bucket in ChatBucket.values) {
         final family = chatInboxControllerProvider(account, bucket);
         if (ref.exists(family)) {
           final controller = ref.read(family).value;
-          if (controller != null) updates.add(controller.refresh());
+          if (controller != null) {
+            unawaited(controller.refresh(afterCurrent: true));
+          }
         }
       }
-      await Future.wait(updates);
     },
   );
   ref.onDispose(coordinator.dispose);

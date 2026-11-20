@@ -62,6 +62,38 @@ final class ChatInboxController extends ChangeNotifier {
     );
   }
 
+  /// Applies a confirmed mutation immediately, fencing any older list fetch.
+  void applyConversation(ChatConversation conversation, {required bool sent}) {
+    if (!_current || conversation.bucket != bucket) return;
+    final index = items.indexWhere((item) => item.id == conversation.id);
+    if (index == -1 && !sent) return;
+    final previous = index < 0 ? null : items[index];
+    final previousMessage = previous?.lastMessage;
+    final nextMessage = conversation.lastMessage;
+    if (previousMessage != null &&
+        (nextMessage == null ||
+            previousMessage.sentAt.isAfter(nextMessage.sentAt) ||
+            (previousMessage.sentAt == nextMessage.sentAt &&
+                previousMessage.id.value.compareTo(nextMessage.id.value) >
+                    0))) {
+      return;
+    }
+    _publish(() {
+      ++_snapshot;
+      final updated = [...items];
+      if (sent && nextMessage != null) {
+        if (index >= 0) updated.removeAt(index);
+        updated.insert(
+          0,
+          previous?.withLastMessage(nextMessage) ?? conversation,
+        );
+      } else if (index >= 0) {
+        updated[index] = conversation;
+      }
+      items = List.unmodifiable(updated);
+    });
+  }
+
   /// Mutations need a fetch started after the action, even if an older refresh
   /// is still running. Multiple waiting reconciliations share the next fetch.
   Future<void> refresh({bool afterCurrent = false}) async {
