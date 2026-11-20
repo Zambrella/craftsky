@@ -84,6 +84,39 @@ void main() {
   }
 
   test(
+    'confirmed read updates visible row before an older refresh completes',
+    () async {
+      final repository = _Repository();
+      final inbox = ChatInboxController(
+        account: AccountKey('did:plc:owner'),
+        bucket: ChatBucket.accepted,
+        repository: repository,
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+      );
+      addTearDown(inbox.dispose);
+      await inbox.refresh();
+      final old = inbox.refresh();
+      final original = _item('external-conversation', ChatBucket.accepted);
+      inbox.applyConversation(
+        ChatConversation.fromMap({...original, 'unreadCount': 0}),
+        sent: false,
+      );
+      expect(inbox.items.single.unreadCount, 0);
+
+      repository.emptyPage.complete(
+        ChatConversationPage.fromMap({
+          'items': [original],
+        }),
+      );
+      await old;
+      expect(inbox.items.single.unreadCount, 0);
+    },
+  );
+
+  test(
     'independent buckets preserve empty continuations and merge stable IDs',
     () async {
       final repository = _Repository();

@@ -130,14 +130,15 @@ func TestExpiredCursorReconcilesPagesBeforeInstallingNewHead(t *testing.T) {
 			t.Fatal(err)
 		}
 		var cursor string
-		if err := store.pool.QueryRow(t.Context(), `SELECT cursor FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor); err != nil {
+		var revision int64
+		if err := store.pool.QueryRow(t.Context(), `SELECT cursor,content_revision FROM chat_sync_state WHERE owner_did=$1`, info.DID).Scan(&cursor, &revision); err != nil {
 			t.Fatal(err)
 		}
-		if step < 4 && cursor != "expired" {
-			t.Fatal("new head installed before reconciliation finished")
+		if step < 4 && (cursor != "expired" || revision != 0) {
+			t.Fatal("new head or content revision published before reconciliation finished")
 		}
-		if step == 4 && cursor != "0010" {
-			t.Fatalf("recovered cursor=%s", cursor)
+		if step == 4 && (cursor != "0010" || revision != 1) {
+			t.Fatalf("recovered cursor=%s revision=%d", cursor, revision)
 		}
 	}
 	var total int

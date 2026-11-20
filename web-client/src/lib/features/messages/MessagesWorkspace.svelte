@@ -6,9 +6,9 @@
 	import { reportFailure } from '../diagnostics/client';
 	import Snackbar from '../social/Snackbar.svelte';
 	import SingleSelect from '#lib/SingleSelect.svelte';
-	import { goto } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { onMount, tick, untrack } from 'svelte';
+	import { getContext, onMount, tick, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
 	import {
 		historyScrollMode,
@@ -19,6 +19,10 @@
 	} from './presentation';
 	import type { CraftskyAPI, ChatMessage } from '#lib/api/client.ts';
 	import { MessagesController, type MessagesState } from './controller';
+	import { messagesSessionContext, type MessagesSession } from './session';
+	const messagesSession = getContext<MessagesSession | undefined>(
+		messagesSessionContext
+	);
 	import MessagePreview from './MessagePreview.svelte';
 	import ChatIdentity from './ChatIdentity.svelte';
 	import { contextMenu } from '../social/context-menu';
@@ -103,7 +107,8 @@
 				setItem: (key, value) => window.localStorage.setItem(key, value),
 				removeItem: (key) => window.localStorage.removeItem(key)
 			},
-			(value) => (viewState = value)
+			(value) => (viewState = value),
+			messagesSession
 		);
 		controller = next;
 		viewState = next.state;
@@ -170,7 +175,7 @@
 				deleteDialog?.close();
 				blockDialog?.close();
 			});
-			void current.navigate(currentPath, true);
+			void current.navigate(currentPath);
 		}
 	});
 	$effect(() => {
@@ -190,16 +195,33 @@
 			void start(recipient);
 		}
 	});
+	const syncReady = $derived(
+		!!viewState &&
+			!viewState.loading &&
+			!viewState.confirming &&
+			!!viewState.status?.capabilities.canRead &&
+			['conversation', 'inbox'].includes(viewState.view)
+	);
+	$effect(() => {
+		if (syncReady && controller && document.visibilityState === 'visible')
+			untrack(() => void controller?.sync(true));
+	});
+	beforeNavigate(() => controller?.rememberInboxScroll(window.scrollY));
 	onMount(() => {
-		const sync = () =>
-			void controller?.sync(document.visibilityState === 'visible');
+		const sync = () => {
+			if (document.visibilityState === 'visible') void controller?.sync(true);
+		};
+		const visibility = () => {
+			if (document.visibilityState === 'visible') sync();
+			else void controller?.sync(false);
+		};
 		const timer = setInterval(sync, 10_000);
-		document.addEventListener('visibilitychange', sync);
+		document.addEventListener('visibilitychange', visibility);
 		window.addEventListener('focus', sync);
 		return () => {
 			clearInterval(timer);
 			clearTimeout(searchTimer);
-			document.removeEventListener('visibilitychange', sync);
+			document.removeEventListener('visibilitychange', visibility);
 			window.removeEventListener('focus', sync);
 		};
 	});
@@ -238,12 +260,17 @@
 		};
 	}
 
-	function visibleMessage(node: HTMLElement, id: string) {
+	function visibleMessage(
+		node: HTMLElement,
+		initial: { id: string; checked: boolean }
+	) {
 		const owner = controller,
 			conversation = viewState?.id;
+		let parameters = initial;
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (
+					parameters.checked &&
 					entries.some(
 						(entry) => entry.isIntersecting && entry.intersectionRatio >= 0.7
 					) &&
@@ -252,15 +279,20 @@
 					document.visibilityState === 'visible' &&
 					document.hasFocus()
 				)
-					void owner?.presented(id);
+					void owner?.presented(parameters.id);
 			},
 			{ threshold: 0.7 }
 		);
-		observer.observe(node);
+		if (parameters.checked) observer.observe(node);
 		return {
-			destroy() {
-				observer.disconnect();
-			}
+			update(next: typeof parameters) {
+				if (next.checked !== parameters.checked) {
+					if (next.checked) observer.observe(node);
+					else observer.unobserve(node);
+				}
+				parameters = next;
+			},
+			destroy: () => observer.disconnect()
 		};
 	}
 	function searchRecipients(value: string) {
@@ -375,6 +407,19 @@
 			}
 		}
 	}
+	let restoredInbox: HTMLElement | undefined;
+	$effect(() => {
+		const node = inboxNode,
+			scroll = viewState?.inboxScroll;
+		if (node && node !== restoredInbox) {
+			restoredInbox = node;
+			if (scroll)
+				requestAnimationFrame(() => {
+					if (inboxNode === node && node.isConnected)
+						window.scrollTo({ top: scroll, behavior: 'instant' });
+				});
+		}
+	});
 	$effect.pre(() => {
 		void viewState?.conversations;
 		if (!inboxNode) return;
@@ -457,7 +502,7 @@
 						>
 						<div class="menu-items">
 							<button
-								disabled={viewState.busy}
+								disabled={viewState.busy || viewState.confirming}
 								onclick={() => controller?.conversationAction('mute')}
 								><Icon name="muted" />{viewState.conversation.muted
 									? 'Unmute conversation'
@@ -465,7 +510,7 @@
 							>
 							{#if !viewState.peerBlocked}<button
 									class="destructive"
-									disabled={viewState.busy}
+									disabled={viewState.busy || viewState.confirming}
 									onclick={() => blockDialog.showModal()}
 									><Icon name="shield" />Block account</button
 								>{/if}
@@ -475,7 +520,7 @@
 								>{/if}
 							<button
 								class="destructive"
-								disabled={viewState.busy}
+								disabled={viewState.busy || viewState.confirming}
 								onclick={() => askLeave()}
 								><Icon name="signOut" />Leave conversation</button
 							>
@@ -559,7 +604,7 @@
 				><input
 					type="checkbox"
 					checked={viewState.status?.enabled || false}
-					disabled={viewState.busy}
+					disabled={viewState.busy || viewState.confirming}
 					onchange={(event) =>
 						controller?.setEnabled(event.currentTarget.checked)}
 				/></label
@@ -614,7 +659,7 @@
 								{ id: 'following', label: 'People I follow' },
 								{ id: 'nobody', label: 'Nobody' }
 							]}
-							disabled={viewState.busy}
+							disabled={viewState.busy || viewState.confirming}
 							onchange={(value) =>
 								controller?.setPolicy(
 									value as 'everyone' | 'following' | 'nobody'
@@ -748,7 +793,7 @@
 					>
 						<button
 							class="conversation-row recipient"
-							disabled={viewState.busy}
+							disabled={viewState.busy || viewState.confirming}
 							onclick={() => start(person.did)}
 							><span class="avatar"
 								>{#if safeAvatar(person.avatar)}<img
@@ -780,7 +825,7 @@
 					>
 						{#if sharedLink}<button
 								class="conversation-row recipient"
-								disabled={viewState.busy}
+								disabled={viewState.busy || viewState.confirming}
 								onclick={() => start(conversation.peer.did)}
 								><span class="avatar"
 									>{#if safeAvatar(conversation.peer.avatar)}<img
@@ -845,7 +890,7 @@
 						rows="5"
 						bind:value={reportExplanation}
 						readonly={!!viewState.report}
-						disabled={viewState.busy}></textarea><small
+						disabled={viewState.busy || viewState.confirming}></textarea><small
 						>{graphemeCount(reportExplanation)} / 2,000</small
 					></label
 				>{#if validateText(reportExplanation, true)}<p
@@ -862,9 +907,11 @@
 					<div class="action-row">
 						<button
 							type="button"
-							disabled={viewState.busy}
+							disabled={viewState.busy || viewState.confirming}
 							onclick={() => controller?.checkReport()}>Check status</button
-						><button type="submit" disabled={viewState.busy}
+						><button
+							type="submit"
+							disabled={viewState.busy || viewState.confirming}
 							>Retry same report</button
 						>
 					</div>{:else if viewState.report?.state === 'failed'}<p role="status">
@@ -908,7 +955,10 @@
 						class:own={message.senderDid === session.did}
 						class:deleted={message.kind !== 'text'}
 						class="chat-message"
-						use:visibleMessage={message.id}
+						use:visibleMessage={{
+							id: message.id,
+							checked: !viewState.confirming
+						}}
 					>
 						<div class="message-bubble">
 							<p>
@@ -931,7 +981,7 @@
 									<summary aria-label="Message actions">•••</summary>
 									<div class="menu-items">
 										{#if message.senderDid === session.did}<button
-												disabled={viewState.busy}
+												disabled={viewState.busy || viewState.confirming}
 												onclick={() => openDelete(message)}
 												>Delete for me</button
 											>{:else if viewState.status?.capabilities.canReport}<a
@@ -964,15 +1014,15 @@
 								class="action-row"
 							>
 								<button
-									disabled={viewState.busy}
+									disabled={viewState.busy || viewState.confirming}
 									onclick={() => controller?.checkSend()}>Check status</button
 								><button
-									disabled={viewState.busy}
+									disabled={viewState.busy || viewState.confirming}
 									onclick={() => controller?.send(true)}
 									>Retry same message</button
 								>
 							</div>{:else if viewState.draft.pending.state === 'failed'}<button
-								disabled={viewState.busy}
+								disabled={viewState.busy || viewState.confirming}
 								onclick={() => controller?.dismissFailed()}>Edit message</button
 							>{/if}
 					</article>{/if}
@@ -985,11 +1035,12 @@
 						it does not accept it.
 					</p>
 					<div class="action-row">
-						<button disabled={viewState.busy} onclick={() => askLeave(true)}
-							>Ignore</button
+						<button
+							disabled={viewState.busy || viewState.confirming}
+							onclick={() => askLeave(true)}>Ignore</button
 						><button
 							class="button"
-							disabled={viewState.busy}
+							disabled={viewState.busy || viewState.confirming}
 							aria-describedby="request-disclosure"
 							onclick={() => controller?.conversationAction('accept')}
 							>Accept request</button
@@ -1014,6 +1065,7 @@
 							? 'chat-validation'
 							: undefined}
 						value={viewState.draft.text}
+						readonly={viewState.confirming}
 						rows="1"
 						placeholder="Message"
 						autocapitalize="sentences"
@@ -1035,6 +1087,7 @@
 							class="button send-button"
 							aria-label={viewState.busy ? 'Sending…' : 'Send message'}
 							disabled={viewState.busy ||
+								viewState.confirming ||
 								!!viewState.draft.pending ||
 								!!validateText(viewState.draft.text)}
 							><Icon name="send" filled={true} /></button

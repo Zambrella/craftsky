@@ -23,10 +23,11 @@ import '../test_support/recording_error_reporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final fails in [false, true]) {
+  for (final outcome in ['success', 'write failed', 'counts failed']) {
     test(
-      'read optimism starts before request and cleans up after success/error: $fails',
+      'read optimism starts before request and cleans up after $outcome',
       () async {
+        final fails = outcome == 'write failed';
         FlutterSecureStorage.setMockInitialValues({});
         final account = AccountKey('did:plc:owner');
         final store = ChatDraftStore(const FlutterSecureStorage());
@@ -72,19 +73,43 @@ void main() {
             return () => events.add('cleanup');
           },
           onSharedStateChanged: () async => events.add('reconciled'),
-          onReadReconciled: () async => events.add('count'),
+          onReadReconciled: () async {
+            events.add('count');
+            if (outcome == 'counts failed') {
+              throw const ApiBadRequest('chat_conversation_unavailable');
+            }
+          },
         );
         addTearDown(controller.dispose);
         await controller.load();
+        // A successful write returns the updated unread state. The response
+        // leaves canSend for the existing checked summary to supply.
+        remote.summaryReader = () =>
+            throw StateError('unexpected summary read');
         controller.setForeground(value: true);
         final reading = controller.presented([ChatMessageId.parse('latest')]);
         expect(events, ['optimistic']);
         if (fails) {
           remote.readResult!.completeError(const ApiNetworkError('offline'));
         } else {
-          remote.readResult!.complete(summary);
+          remote.readResult!.complete(
+            ChatConversation.fromMap({
+              'id': id.value,
+              'revision': 'read',
+              'status': 'accepted',
+              'muted': false,
+              'unreadCount': 0,
+              'canSend': false,
+              'peer': const {'did': 'did:plc:peer'},
+              'lastMessage': message,
+            }),
+          );
         }
         await reading;
+        expect(controller.conversation?.unreadCount, fails ? 1 : 0);
+        expect(controller.conversation?.canSend, isTrue);
+        expect(controller.history.messages, hasLength(1));
+        expect(controller.failed, fails);
         expect(
           events,
           fails
@@ -1293,7 +1318,8 @@ void main() {
       final operation = ChatOperationId.parse(
         '00000000-0000-4000-8000-000000000123',
       );
-      var countRefreshes = 0;
+      final inboxRefresh = Completer<void>();
+      final inboxUpdates = <({ChatConversation summary, bool sent})>[];
       final remote = _Repository();
       final controller = ChatConversationController(
         account: account,
@@ -1305,8 +1331,9 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onSharedStateChanged: () async {
-          countRefreshes++;
+        onInboxChanged: (summary, {required sent}) async {
+          inboxUpdates.add((summary: summary, sent: sent));
+          await inboxRefresh.future;
         },
         newOperationId: () => operation,
       );
@@ -1344,9 +1371,13 @@ void main() {
       expect(controller.draft.text, newText);
       expect(controller.history.messages.single.id.value, 'message-1');
       expect(controller.draft.pending, isNull);
+      expect(controller.busy, isFalse);
+      expect(controller.canSend, newText.isNotEmpty);
       expect(remote.sendCalls, 1);
-      expect(countRefreshes, 1);
+      expect(inboxUpdates.single.sent, isTrue);
+      expect(inboxUpdates.single.summary.lastMessage?.id.value, 'message-1');
       expect((await store.load(store.lease(account), id)).text, isEmpty);
+      inboxRefresh.complete();
     });
   }
 }

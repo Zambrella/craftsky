@@ -216,6 +216,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 	recoveryID := state.RecoveryID
 	observations := make([]syncObservation, 0)
 	baseline := strings.HasPrefix(phase, "baseline")
+	contentChanged := false
 	switch phase {
 	case "baselineHead", "recoveryHead":
 		stage = "get_log"
@@ -327,6 +328,9 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			}
 			processed++
 			observation := syncObservation{event: event}
+			// Even a now-inaccessible conversation may be present in a
+			// client's inbox and need revalidation.
+			contentChanged = contentChanged || event.Kind != "unknown"
 			if event.Kind != "unknown" && event.Kind != "leave" {
 				stage = "get_conversation"
 				view, err := worker.service.supportedConversation(ctx, transport, owner, event.ConversationID)
@@ -355,6 +359,8 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 	default:
 		return ErrProviderResponse
 	}
+	// Reconcile when baseline or cursor recovery finishes, and after an outage.
+	contentChanged = contentChanged || (phase == "ready" && (state.Phase != "ready" || state.SafeState != "ready"))
 	stage = "persist"
 	return worker.service.store.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
 		q := chatdb.New(tx)
@@ -382,7 +388,12 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			}
 			due = due.Add(interval)
 		}
-		changed, err := q.FinishChatSync(ctx, chatdb.FinishChatSyncParams{OwnerDid: owner.String(), ClaimToken: state.ClaimToken, Version: state.Version, Phase: phase, Cursor: cursor, SeedCursor: seed, PageCursor: pageCursor, NextDueAt: dbTime(due), LastSuccessAt: dbTime(worker.now()), RecoveryID: recoveryID})
+		changed, err := q.FinishChatSync(ctx, chatdb.FinishChatSyncParams{
+			OwnerDid: owner.String(), ClaimToken: state.ClaimToken, Version: state.Version,
+			Phase: phase, Cursor: cursor, SeedCursor: seed, PageCursor: pageCursor,
+			NextDueAt: dbTime(due), LastSuccessAt: dbTime(worker.now()), RecoveryID: recoveryID,
+			ContentChanged: contentChanged,
+		})
 		if err != nil {
 			return err
 		}

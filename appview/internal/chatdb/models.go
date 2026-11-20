@@ -57,17 +57,18 @@ type ChatPushDelivery struct {
 }
 
 type ChatSyncState struct {
-	OwnerDid       string
-	Phase          string
-	Cursor         string
-	SeedCursor     string
-	PageCursor     string
-	Version        int64
-	RecoveryID     pgtype.UUID
-	ClaimToken     pgtype.UUID
-	ClaimExpiresAt pgtype.Timestamptz
-	NextDueAt      pgtype.Timestamptz
-	FailureCount   int32
-	SafeState      string
-	LastSuccessAt  pgtype.Timestamptz
+	OwnerDid        string
+	Phase           string
+	Cursor          string
+	SeedCursor      string
+	PageCursor      string
+	Version         int64
+	RecoveryID      pgtype.UUID
+	ClaimToken      pgtype.UUID
+	ClaimExpiresAt  pgtype.Timestamptz
+	NextDueAt       pgtype.Timestamptz
+	FailureCount    int32
+	SafeState       string
+	LastSuccessAt   pgtype.Timestamptz
+	ContentRevision int64
 }
