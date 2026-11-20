@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -6,6 +7,7 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
@@ -13,12 +15,67 @@ import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../test_support/serialized_sentry_transport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'HTTP transport cause keeps a reviewed failure phase in both sinks',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      final cause = HttpException(
+        'Connection closed before full header was received',
+        uri: Uri.parse(
+          'https://private.example/PRIVATE_LOCATION?token=PRIVATE_TOKEN',
+        ),
+      );
+      final error = ApiServerError(
+        'PRIVATE_WRAPPER',
+        details: ApiFailureDetails(
+          cause: cause,
+          method: 'GET',
+          transportFailure: 'unknown',
+        ),
+      );
+      final unknown = HttpException(
+        'PRIVATE_TRANSPORT_MESSAGE',
+        uri: cause.uri,
+      );
+      final local = <String>[];
+      final emitter = DiagnosticEmitter(platformSink: local.add);
+      for (final failure in [error, unknown]) {
+        final stack = StackTrace.current;
+        emitter.emitLocal(
+          LogRecord(Level.SEVERE, 'Request failed', 'Test', failure, stack),
+        );
+        await Sentry.captureException(failure, stackTrace: stack);
+      }
+      await Sentry.close();
+
+      for (final output in [local.join(), transport.payloads.join()]) {
+        expect(
+          output,
+          contains('HTTP connection closed during response headers'),
+        );
+        expect(output, contains('HTTP transport failed'));
+        expect(output, contains('HttpException'));
+        expect(output, isNot(contains('private.example')));
+        expect(output, isNot(contains('PRIVATE_')));
+      }
+    },
+  );
+
   test(
     'SDK keeps sampled native thread evidence and removes protected data',
     () async {

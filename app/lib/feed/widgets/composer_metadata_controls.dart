@@ -1,7 +1,9 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
@@ -9,7 +11,20 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:material_ui/material_ui.dart';
+
+// An open composer can rebuild while the router is leaving an expired session.
+final Provider<String?> composerPrimaryLanguageProvider = Provider.autoDispose(
+  (ref) {
+    try {
+      return ref.watch(activeLanguagePreferencesProvider).primaryLanguage;
+    } on ProviderException catch (error) {
+      if (error.exception is! ApiCanceled) rethrow;
+      return null;
+    }
+  },
+);
 
 class ComposerMetadataControls extends StatelessWidget {
   const new({

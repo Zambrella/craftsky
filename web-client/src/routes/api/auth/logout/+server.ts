@@ -33,12 +33,12 @@ export const POST: RequestHandler = async ({ request, url, cookies }) => {
 				);
 			} catch (error) {
 				if (!(error instanceof UpstreamError && error.status === 401))
-					return safeFailure(error);
+					return safeFailure(error, 'auth.logout');
 			}
 			remove(cookies, url, account.id);
 		}
 		return new Response(null, { status: 204 });
 	} catch (error) {
-		return safeFailure(error);
+		return safeFailure(error, 'auth.logout');
 	}
 };

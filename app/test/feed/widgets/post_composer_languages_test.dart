@@ -5,6 +5,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -48,6 +49,39 @@ void main() {
     await tester.pumpAndSettle();
     await _openLanguages(tester);
     expect(find.text('French'), findsOneWidget);
+  });
+
+  testWidgets('composer survives losing active language preferences', (
+    tester,
+  ) async {
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith((ref) {
+          final primary = ref.watch(_primaryProvider);
+          if (primary.isEmpty) throw const ApiCanceled();
+          return LanguagePreferences(
+            primaryLanguage: primary,
+            contentLanguages: [primary],
+          );
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_testApp(container, key: const ValueKey('post')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText), 'Unsubmitted reply');
+
+    container.read(_primaryProvider.notifier).value = '';
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(FacetAutocompleteEditor), findsNothing);
+
+    container.read(_primaryProvider.notifier).value = 'en';
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Unsubmitted reply'), findsOneWidget);
   });
 
   testWidgets('AT-001 scheduling defaults to Now for top-level posts', (

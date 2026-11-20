@@ -1,8 +1,11 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,20 +67,24 @@ func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
 
 func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 	transport := &sentry.MockTransport{}
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
 	observer := observability.New(observability.Config{
 		Env:             "test",
 		SentryDSN:       "https://public@example.invalid/1",
 		SentryTransport: transport,
+		LogsEnabled:     true,
+		Logger:          logger,
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/internal/{did}", func(w http.ResponseWriter, r *http.Request) {
-		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error", GetRunID(r.Context()), nil)
-	})
+	mux.Handle("GET /v1/internal/{did}", BodyLimit(BodyLimitConfig{}, BodyNoBody, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "private-message-canary", GetRunID(r.Context()), map[string]string{"detail": "private-field-canary"})
+	})))
 	mux.HandleFunc("GET /v1/not-found", func(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, http.StatusNotFound, "not_found", "not found", GetRunID(r.Context()), nil)
 	})
-	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
+	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(Recovery(logger, observer)(mux)))
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/internal/did:plc:raw?cursor=secret", nil))
@@ -95,10 +102,25 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 		t.Fatal("observer Flush returned false")
 	}
 	events := transport.Events()
-	if len(events) != 1 {
-		t.Fatalf("captured %d Sentry events, want 1", len(events))
+	var issues []*sentry.Event
+	var logCode string
+	for _, event := range events {
+		if len(event.Exception) > 0 {
+			issues = append(issues, event)
+		}
+		for _, log := range event.Logs {
+			if log.Body == "HTTP request failed" {
+				logCode = log.Attributes["api_error_code"].AsString()
+			}
+		}
 	}
-	tags := events[0].Tags
+	if len(issues) != 1 {
+		t.Fatalf("captured %d Sentry issues, want 1", len(issues))
+	}
+	if logCode != "internal_error" || !strings.Contains(local.String(), `"api_error_code":"internal_error"`) {
+		t.Fatalf("fallback code missing from Sentry Logs or local output: %q, %s", logCode, local.String())
+	}
+	tags := issues[0].Tags
 	for key, want := range map[string]string{
 		"component":         "http",
 		"route_pattern":     "/v1/internal/{did}",
@@ -107,6 +129,7 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 		"http_status_class": "5xx",
 		"error_category":    "server",
 		"error_code":        "appview.server",
+		"api_error_code":    "internal_error",
 		"result":            "error",
 	} {
 		if tags[key] != want {
@@ -116,14 +139,13 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 	if _, ok := tags["run_id"]; ok {
 		t.Fatalf("Sentry event retained high-cardinality run_id tag: %#v", tags)
 	}
-	for _, forbidden := range []string{"did:plc:raw", "cursor=secret", "internal server error", "not_found"} {
-		if strings.Contains(events[0].Message, forbidden) {
-			t.Fatalf("Sentry message contains forbidden value %q: %#v", forbidden, events[0])
-		}
-		for key, value := range tags {
-			if strings.Contains(key, forbidden) || strings.Contains(value, forbidden) {
-				t.Fatalf("Sentry tag contains forbidden value %q: %q=%q", forbidden, key, value)
-			}
+	serialized, err := json.Marshal(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"did:plc:raw", "cursor=secret", "private-message-canary", "private-field-canary", "not_found"} {
+		if strings.Contains(string(serialized)+local.String(), forbidden) {
+			t.Fatalf("diagnostics contain forbidden value %q", forbidden)
 		}
 	}
 }
