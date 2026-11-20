@@ -3,8 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"social.craftsky/appview/internal/observability"
 )
 
 type recordingOAuthMetadataSource struct {
@@ -468,6 +472,38 @@ func TestAuthoritativeOAuthVerifierKeepsDIDFreshWhileMetadataIsWarm(t *testing.T
 	}
 	if protected, authorization := source.calls(); protected != 1 || authorization != 1 {
 		t.Fatalf("metadata calls = protected:%d authorization:%d, want 1/1", protected, authorization)
+	}
+}
+
+func TestOAuthAuthorityVerifierPreservesDiscoveryFailureStatus(t *testing.T) {
+	const did = "did:plc:metadata-wiring"
+	directory := &countingOAuthAuthorityDirectory{value: &identity.Identity{
+		DID: did,
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example"},
+		},
+	}}
+	source := &oauth.Resolver{Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/.well-known/oauth-protected-resource" {
+			t.Errorf("unexpected OAuth discovery path %q", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Body:       io.NopCloser(strings.NewReader("PRIVATE_PROVIDER_RESPONSE_CANARY")),
+		}, nil
+	})}}
+	_, operations, err := newOAuthAuthorityVerifiers(directory, source, time.Minute, 10, time.Second, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = operations.ResolveCurrent(t.Context(), did)
+	facts := observability.DescribeError(err, nil)
+	if len(facts) != 3 ||
+		facts[0].Message != "resolve current OAuth authorization server" ||
+		facts[1].Message != "OAuth protected resource document request failed (HTTP 502)" ||
+		facts[1].Code != "502" ||
+		facts[2].Type != "*errors.errorString" {
+		t.Fatalf("discovery stage, HTTP status or original cause lost: %+v", facts)
 	}
 }
 

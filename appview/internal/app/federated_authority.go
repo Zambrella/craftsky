@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -11,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 )
 
 type authoritativeOAuthVerifier struct {
@@ -76,7 +76,7 @@ func (verifier *authoritativeOAuthVerifier) ResolveCurrent(
 	}
 	resolved, err := verifier.directory.LookupDID(ctx, did)
 	if err != nil {
-		return auth.OAuthAuthority{}, fmt.Errorf("resolve current OAuth DID authority: %w", err)
+		return auth.OAuthAuthority{}, observability.WrapError("resolve current OAuth DID authority", err)
 	}
 	if resolved == nil || resolved.DID != did || resolved.PDSEndpoint() == "" {
 		return auth.OAuthAuthority{}, errors.New("resolved current OAuth DID authority is invalid")
@@ -84,7 +84,7 @@ func (verifier *authoritativeOAuthVerifier) ResolveCurrent(
 	pds := resolved.PDSEndpoint()
 	issuer, err := verifier.metadata.ResolveIssuer(ctx, pds)
 	if err != nil {
-		return auth.OAuthAuthority{}, fmt.Errorf("resolve current OAuth authorization server: %w", err)
+		return auth.OAuthAuthority{}, observability.WrapError("resolve current OAuth authorization server", observability.OAuthRequestFailure(err))
 	}
 	return auth.OAuthAuthority{
 		DID: did, PDSOrigin: pds, IssuerOrigin: issuer,
