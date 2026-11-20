@@ -19,8 +19,8 @@ describe('native social presentation policy', () => {
 		} as unknown as Profile;
 		expect(profileTabs(profile, false)).toEqual([
 			'about',
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);
@@ -28,8 +28,8 @@ describe('native social presentation policy', () => {
 			'products',
 			'events',
 			'about',
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);
@@ -37,8 +37,8 @@ describe('native social presentation policy', () => {
 			'events'
 		);
 		expect(profileTabs({ ...profile, blocking: true }, false)).toEqual([
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);

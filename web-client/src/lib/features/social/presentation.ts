@@ -86,7 +86,7 @@ export function notificationCopy(item: AppNotification) {
 
 /** Matches ProfileTabPolicy in the Flutter client. Explicit old deep links remain addressable. */
 export function profileTabs(profile: Profile, own: boolean): string[] {
-	const ordinary = ['projects', 'posts', 'comments', 'reposts'];
+	const ordinary = ['posts', 'projects', 'comments', 'reposts'];
 	if (
 		profile.accountType !== 'business' ||
 		profile.blocking ||
