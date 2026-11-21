@@ -822,6 +822,109 @@ void main() {
     expect(router.state.matchedLocation, '/feed');
   });
 
+  testWidgets('Android Back returns every top-level destination to Home', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    bool? frameworkHandlesBack;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+          frameworkHandlesBack = call.arguments as bool;
+        }
+        return null;
+      },
+    );
+    final router = await _pumpShell(
+      tester,
+      const Size(500, 800),
+      platform: TargetPlatform.android,
+      initialLocation: '/settings',
+    );
+
+    expect(router.state.matchedLocation, '/settings');
+    expect(frameworkHandlesBack, isTrue);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, '/feed');
+
+    for (final location in [
+      '/search',
+      '/messages',
+      '/notifications',
+      '/profile',
+      '/saved',
+      '/scheduled',
+      '/drafts',
+      '/projects',
+    ]) {
+      router.go(location);
+      await tester.pumpAndSettle();
+
+      expect(router.state.matchedLocation, location);
+      expect(frameworkHandlesBack, isTrue, reason: location);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/feed');
+    }
+
+    expect(frameworkHandlesBack, isFalse);
+    expect(await tester.binding.handlePopRoute(), isFalse);
+  }, variant: const TargetPlatformVariant({TargetPlatform.android}));
+
+  testWidgets(
+    'Android Back closes child pages, dialogs, and the drawer first',
+    (
+      tester,
+    ) async {
+      final router = await _pumpShell(
+        tester,
+        const Size(500, 800),
+        platform: TargetPlatform.android,
+        initialLocation: '/settings/about',
+      );
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/settings');
+
+      showDialog<void>(
+        context: tester.element(find.text('/settings')),
+        builder: (_) => const AlertDialog(title: Text('Dialog')),
+      );
+      await tester.pumpAndSettle();
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('Dialog'), findsNothing);
+      expect(router.state.matchedLocation, '/settings');
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(router.state.matchedLocation, '/settings');
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/feed');
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
+  testWidgets('iOS has no Home fallback for platform Back', (tester) async {
+    final router = await _pumpShell(
+      tester,
+      const Size(500, 800),
+      initialLocation: '/settings',
+    );
+
+    expect(await tester.binding.handlePopRoute(), isFalse);
+    expect(router.state.matchedLocation, '/settings');
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
   testWidgets('CORR-003 rapid drawer selection dispatches once', (
     tester,
   ) async {
@@ -1337,6 +1440,7 @@ Future<GoRouter> _pumpShell(
   RecordingMessenger? messenger,
   ThemeMode themeMode = ThemeMode.light,
   TargetPlatform platform = TargetPlatform.iOS,
+  String initialLocation = '/feed',
   bool wrapInAuthenticatedShell = false,
   VoidCallback? onFeedLoad,
   ChatRepository? chatRepository,
@@ -1347,7 +1451,7 @@ Future<GoRouter> _pumpShell(
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   final router = GoRouter(
-    initialLocation: '/feed',
+    initialLocation: initialLocation,
     redirect: (context, state) {
       onRedirect?.call(state.matchedLocation);
       return null;
@@ -1391,7 +1495,19 @@ Future<GoRouter> _pumpShell(
                           appBar: AppBar(leading: const AppShellDrawerButton()),
                           body: Text(path),
                         ),
+                  routes: [
+                    if (path == '/settings')
+                      GoRoute(
+                        path: 'about',
+                        builder: (_, _) => const Scaffold(body: Text('About')),
+                      ),
+                  ],
                 ),
+                if (path == '/feed')
+                  GoRoute(
+                    path: '/projects',
+                    builder: (_, _) => const Scaffold(body: Text('/projects')),
+                  ),
               ],
             ),
         ],

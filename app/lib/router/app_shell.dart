@@ -38,6 +38,7 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -608,6 +609,37 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
+/// Declares whether the shell handles Back before Android starts the gesture.
+class _AndroidBackToHome extends StatelessWidget {
+  const new({required this.navigationShell, required this.child});
+
+  final StatefulNavigationShell navigationShell;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return child;
+
+    final router = GoRouter.of(context);
+    final branch = navigationShell.route.branches[navigationShell.currentIndex];
+    final state = router.state;
+    // The guest drawer lives on the parent route. The member drawer uses this
+    // route's local history.
+    final backToHome =
+        state.matchedLocation != RouteLocations.home &&
+        branch.routes.contains(state.topRoute) &&
+        ModalRoute.canPopOf(context) == false &&
+        AppShellDrawerScope.maybeOf(context)?.isDrawerOpen != true;
+    return PopScope<Object?>(
+      canPop: !backToHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && backToHome) router.go(RouteLocations.home);
+      },
+      child: child,
+    );
+  }
+}
+
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   late final AccountActivationCoordinator _activation;
@@ -653,7 +685,12 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => _AndroidBackToHome(
+    navigationShell: widget.navigationShell,
+    child: _buildShell(context),
+  );
+
+  Widget _buildShell(BuildContext context) {
     if (ref.watch(isGuestBrowsingProvider)) {
       return widget.navigationShell;
     }
@@ -752,8 +789,6 @@ class _AppShellState extends ConsumerState<AppShell>
       GoRouterState.of(context).matchedLocation,
       widget.navigationShell.currentIndex,
     );
-    final router = GoRouter.of(context);
-
     if (formFactor.isLarge) {
       if (_AuthenticatedShellNavigationScope.maybeOf(context)
           case final scope?) {
@@ -791,6 +826,7 @@ class _AppShellState extends ConsumerState<AppShell>
       );
     }
 
+    final router = GoRouter.of(context);
     return Scaffold(
       key: _compactScaffoldKey,
       // Child pages own the edge gesture for platform Back navigation.

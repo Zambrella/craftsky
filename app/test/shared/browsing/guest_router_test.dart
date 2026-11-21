@@ -240,6 +240,55 @@ void main() {
   );
 
   testWidgets(
+    'Android Back closes the guest drawer before returning from Search to Home',
+    (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          sessionRegistryProvider.overrideWith(_EmptyRegistry.new),
+          searchRepositoryProvider.overrideWithValue(FakeSearchRepository()),
+          projectRepositoryProvider.overrideWithValue(
+            FakeProjectRepository(
+              onListProjects: ({required query, limit, cursor}) async =>
+                  const PostPage(items: []),
+            ),
+          ),
+        ],
+      );
+      container.read(guestSessionProvider).explore();
+      final subscription = container.listen(goRouterProvider, (_, _) {});
+      addTearDown(subscription.close);
+      final router = subscription.read()..go('/search');
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+            builder: (context, child) => FormFactorWidget(child: child!),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(router.state.matchedLocation, '/search');
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(router.state.matchedLocation, '/feed');
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
+  testWidgets(
     'AT-007 shared post requests sign in without sending guest mutations',
     (
       tester,
