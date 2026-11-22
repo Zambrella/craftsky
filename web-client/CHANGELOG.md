@@ -1,5 +1,20 @@
 # Web Client Changelog
 
+## 1.14.0 - 2026-11-22
+
+- feat(web): add a generated project schema explorer
+- feat(video): add custom thumbnail selection and upload
+- fix(chat): preserve failed message recovery across clients
+- test(web-client): update share link guidance assertion
+- fix(web-client): preserve feed tab scroll position
+- fix(profile-links): resolve streamed icons and generate valid rkeys
+- feat(profile): default to posts tab
+- fix(notifications): harden cross-client notification handling
+- perf(chat): preload conversations and bound sync refreshes
+- fix(observability): preserve safe failure details across clients
+- fix(notifications): fence stale opens and push deliveries
+- test(web): wait for relationship loading hydration
+
 ## 1.13.2 - 2026-11-18
 
 - fix(web-client): reject stale notification badge polls
