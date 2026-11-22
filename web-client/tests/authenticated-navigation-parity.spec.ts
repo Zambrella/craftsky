@@ -461,8 +461,12 @@ for (const width of [1280, 390]) {
 					},
 					{ times: 1 }
 				);
+				const requestStarted = page.waitForRequest(endpoint);
 				await page.goto(path);
 				try {
+					// The initial skeleton can be replaced during hydration. Measure
+					// after the mounted list has started its held request.
+					await requestStarted;
 					await page.addStyleTag({
 						content: '.settings-workspace { --profile-accent: #1535d6; }'
 					});
