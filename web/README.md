@@ -4,15 +4,14 @@ Static public site served at https://craftsky.social.
 
 ## Contents
 
-- `index.html` — landing page, nine sections
+- `index.html` — marketing landing page with launch countdown
 - `why-instagram-sucks-for-crafters.html` + `why-instagram.css` — sourced comparison campaign at `/why-instagram-sucks-for-crafters`
-- `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
   `copyright.html` — generated policies; publication approval and remaining full-launch evidence are recorded in the readiness manifest
 - `safety.html` — generated safety and support guide
 - `/project-schema.html` — interactive project schema generated from the repository Lexicons on every build
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
-- `main.js` — waiting-list modal + PostHog event tracking
+- `main.js` — launch countdown, page interactions, and PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture
 - `robots.txt` — allow all crawlers
 
@@ -95,7 +94,7 @@ just web-build
 just web-check
 ```
 
-`web-build` creates a fresh `web/dist/` with the homepage, waitlist, all five
+`web-build` creates a fresh `web/dist/` with the homepage, all five
 policy pages, the safety guide at `/safety`, the Instagram import help article at `/instagram-import`,
 the generated `/project-schema.html`, JavaScript, CSS, robots.txt and image/font assets. It excludes
 packages, tests, email templates, documentation, configuration and policy

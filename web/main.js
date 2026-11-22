@@ -2,11 +2,9 @@
  * CraftSky landing page - main.js
  *
  * Responsibilities:
- *   - Open/close the waiting-list <dialog> on CTA clicks (form is a
- *     cross-origin Brevo iframe, so submission happens entirely inside it)
+ *   - Update the launch countdown
  *   - Open/close the AT Protocol diagram lightbox <dialog>
  *   - Dispatch PostHog events after consent (behind DNT + key checks)
- *   - Close modal on overlay click
  *   - Keep current year in footer up to date
  *
  * ESC-to-close and focus trap are native to <dialog> — no JS needed.
@@ -23,6 +21,39 @@
   const POSTHOG_HOST = 'https://t.craftsky.social';
   const ANALYTICS_CHOICE_KEY = 'craftsky.analytics-consent';
   let postHogLoaded = false;
+
+  // -----------------------------------------------------------------------
+  // Launch countdown
+  // -----------------------------------------------------------------------
+
+  const launchDate = document.getElementById('launch-date');
+  const countdown = document.getElementById('launch-countdown');
+
+  if (launchDate && countdown) {
+    const launchTime = Date.parse(launchDate.dateTime);
+    const values = countdown.querySelectorAll('[data-countdown-value]');
+
+    function updateCountdown() {
+      const remainingMs = launchTime - Date.now();
+      const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
+      const units = [
+        Math.floor(remaining / 86400),
+        Math.floor(remaining / 3600) % 24,
+        Math.floor(remaining / 60) % 60,
+        remaining % 60,
+      ];
+
+      values.forEach(function (value, index) {
+        value.textContent = String(units[index]).padStart(2, '0');
+      });
+      if (remaining > 0) {
+        window.setTimeout(updateCountdown, remainingMs % 1000 || 1000);
+      }
+    }
+
+    updateCountdown();
+    countdown.hidden = false;
+  }
 
   // -----------------------------------------------------------------------
   // PostHog init and consent
@@ -133,34 +164,6 @@
   analyticsSettings.textContent = 'Analytics choices';
   analyticsSettings.addEventListener('click', showAnalyticsChoices);
   document.body.appendChild(analyticsSettings);
-
-  // -----------------------------------------------------------------------
-  // Modal
-  // -----------------------------------------------------------------------
-
-  const modal = document.getElementById('waiting-list-modal');
-  const openButtons = document.querySelectorAll('.js-open-waiting-list');
-
-  function openModal(source) {
-    if (!modal) return;
-    track('landing_cta_waiting_list_clicked', { source: source });
-    modal.showModal();
-  }
-
-  openButtons.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      const source = btn.getAttribute('data-source') || 'unknown';
-      openModal(source);
-    });
-  });
-
-  // Overlay click: <dialog> clicks bubble to the dialog itself when the user
-  // clicks the backdrop. Clicks on inner content have different target.
-  if (modal) {
-    modal.addEventListener('click', function (event) {
-      if (event.target === modal) modal.close();
-    });
-  }
 
   // -----------------------------------------------------------------------
   // AT Protocol diagram lightbox — open + close-on-overlay
