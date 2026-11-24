@@ -1,9 +1,7 @@
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
-import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -18,7 +16,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
-import '../../feed/fakes/fake_post_repository.dart';
 
 void main() {
   testWidgets(
@@ -96,7 +93,7 @@ void main() {
 
     expect(find.text('Choose a craft type.'), findsOneWidget);
     expect(find.text('Add at least one photo.'), findsOneWidget);
-    expect(find.text('Materials and style'), findsOneWidget);
+    expect(find.text('Materials and style'), findsNothing);
   });
 
   testWidgets('AT-006 blocks final submission without caption text', (
@@ -134,84 +131,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add body text.'), findsOneWidget);
-  });
-
-  testWidgets('AT-006 blocks partial knitting gauge input', (tester) async {
-    var createCalls = 0;
-    final repo = FakePostRepository(
-      onCreateWithFacets:
-          ({required text, reply, project, images, facets}) async {
-            createCalls += 1;
-            return _post(text);
-          },
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          composerImagesProvider('validation-composer').overrideWithValue(
-            const ComposerImagesState(
-              images: [
-                ComposerImageDraft(
-                  id: 'image-1',
-                  fileName: 'knit.jpg',
-                  mimeType: 'image/jpeg',
-                  altText: 'Knitted swatch',
-                  phase: ImageUploaded(
-                    UploadedDraftImage(
-                      cid: 'bafkimage',
-                      mime: 'image/jpeg',
-                      size: 123,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(repo),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(composerId: 'validation-composer'),
-          ),
-        ),
-      ),
-    );
-
-    await _selectCraft(tester, 'Knitting');
-    final craftDetails = find.byKey(
-      const Key('project-composer-craft-details-action'),
-    );
-    await tester.ensureVisible(craftDetails);
-    await tester.pumpAndSettle();
-    await tester.tap(craftDetails);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const Key('knitting-gauge-stitches-input')),
-    );
-    await tester.enterText(
-      find.byKey(const Key('knitting-gauge-stitches-input')),
-      '20',
-    );
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
-    await tester.enterText(_bodyTextField(), 'Finished swatch');
-    await _pumpUntilPostEnabled(tester);
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Complete the gauge or clear it.'), findsOneWidget);
-    expect(createCalls, 0);
   });
 }
 
@@ -258,36 +177,4 @@ Finder _bodyTextField() {
     of: find.byKey(const Key('project-composer-body-editor')),
     matching: find.byType(TextField),
   );
-}
-
-Post _post(String text) {
-  final now = DateTime.utc(2026, 6, 11);
-  return Post(
-    uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
-    cid: 'bafyreibazjzrzibga2jwt5co2yus7j2w6p3n3cb6nn4njvkzcxwrlfvula',
-    rkey: '3lf2abc',
-    text: text,
-    tags: const [],
-    createdAt: now,
-    indexedAt: now,
-    author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),
-    likeCount: 0,
-    repostCount: 0,
-    replyCount: 0,
-    viewerHasLiked: false,
-    viewerHasReposted: false,
-    viewerHasSaved: false,
-    sponsored: false,
-  );
-}
-
-Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
-  for (var i = 0; i < 200; i += 1) {
-    await tester.pump(const Duration(milliseconds: 20));
-    final button = tester.widget<ChunkyButton>(
-      find.widgetWithText(ChunkyButton, 'Post'),
-    );
-    if (button.onPressed != null) return;
-  }
-  fail('Timed out waiting for Post button to be enabled');
 }

@@ -73,10 +73,7 @@ class _CraftskySingleSelectInputState<T>
   List<CraftskySelectOption<T>> get _filteredOptions {
     final query = _query.trim().toLowerCase();
     if (!_searchable) return widget.options;
-    if (query.isEmpty) return widget.options;
-    return widget.options
-        .where((option) => _optionMatchesQuery(option, query))
-        .toList(growable: false);
+    return _matchingOptions(widget.options, query);
   }
 
   @override
@@ -127,9 +124,9 @@ class _CraftskySingleSelectInputState<T>
     if (shouldOpen == _open) return;
     setState(() {
       _open = shouldOpen;
-      _highlightedIndex = 0;
       if (!shouldOpen) {
         _query = '';
+        _highlightedIndex = 0;
         _searchController.clear();
       }
     });
@@ -389,7 +386,8 @@ class _CraftskySingleSelectInputState<T>
   @override
   Widget build(BuildContext context) {
     final selectedOption = _selectedOption;
-    final selectedLabel = selectedOption?.label;
+    final selectedLabel =
+        selectedOption?.selectedLabel ?? selectedOption?.label;
     final emptySelectionText = 'Select ${widget.label}';
     final keyPrefix = widget.keyPrefix ?? widget.label;
     return CraftskyFieldScaffold(
@@ -457,7 +455,11 @@ class _CraftskySingleSelectInputState<T>
                               onChanged: (value) {
                                 setState(() {
                                   _query = value;
-                                  _highlightedIndex = 0;
+                                  final match = _firstMatchingOption(
+                                    _filteredOptions,
+                                    value.trim().toLowerCase(),
+                                  );
+                                  _highlightedIndex = match < 0 ? 0 : match;
                                 });
                                 _setOpen(true);
                                 _markOverlayNeedsBuild();
@@ -534,6 +536,10 @@ class _CraftskySingleSelectInputState<T>
 
   Widget _buildMenuContent() {
     final options = _filteredOptions;
+    final parents = _optionParentValues(options);
+    final hierarchical = widget.options.any(
+      (option) => option.parentValue != null,
+    );
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
     final selectedTileColor = theme.colorScheme.primaryContainer.withValues(
@@ -558,6 +564,7 @@ class _CraftskySingleSelectInputState<T>
             for (final (index, option) in options.indexed)
               Container(
                 key: _optionVisibilityKey(option.value),
+                padding: _optionRowPadding(options, parents, index),
                 child: ListTile(
                   key: Key(
                     _optionKey(widget.keyPrefix, widget.label, option.value),
@@ -566,7 +573,7 @@ class _CraftskySingleSelectInputState<T>
                   selectedTileColor: selectedTileColor,
                   shape: selectedTileShape,
                   leading: option.leadingBuilder?.call(context),
-                  title: Text(option.label),
+                  title: _optionTitle(option, hierarchical: hierarchical),
                   subtitle: option.description == null
                       ? null
                       : Text(option.description!),

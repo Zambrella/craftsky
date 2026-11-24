@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -247,5 +248,115 @@ func insertScheduledPostRequestMedia(t *testing.T, pool *pgxpool.Pool, mediaID u
 			decode(repeat('03',32),'hex'),'bafk-test',$6)
 	`, mediaID, attemptID, objectKey, mimeType, size, now.Add(time.Hour)); err != nil {
 		t.Fatalf("insert scheduled media: %v", err)
+	}
+}
+
+func TestScheduledProjectRetainsOrderedPatternsAndSizes(t *testing.T) {
+	const body = `{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"project","text":"Two patterns","sponsored":false,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","pattern":{"name":"Stale"},"patterns":[{"name":"Sleeves","future":9007199254740993},{"name":"Collar","publisher":"Woven Press"}]},"details":{"$type":"social.craftsky.project.knitting#details","projectType":"social.craftsky.project.defs#homeGoods","projectSubtype":"Lampshade","methods":["social.craftsky.project.knitting.defs#hand","social.craftsky.project.knitting.defs#loom"],"needleSizeMm":"3.0mm","needleSizesMm":["4.0mm","4.5mm"],"techniques":[{"technique":"colourwork","subtypes":[{"subtype":"stranded"}]}]}}}}`
+	request, err := decodeScheduledPostCreate(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, raw, err := validateScheduledPostRequest(time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC), request, DefaultMediaLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := scheduledposts.DecodePayload(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var project Project
+	if err := json.Unmarshal(payload.Project, &project); err != nil {
+		t.Fatal(err)
+	}
+	if project.Common.Pattern != nil || len(project.Common.Patterns) != 2 ||
+		string(project.Common.Patterns[0].ExtraFields["future"]) != "9007199254740993" ||
+		*project.Common.Patterns[0].Name != "Sleeves" || *project.Common.Patterns[1].Name != "Collar" ||
+		!strings.Contains(string(project.Details), `"needleSizesMm":["4.0mm","4.5mm"]`) ||
+		strings.Contains(string(project.Details), "needleSizeMm") || !strings.Contains(string(project.Details), "stranded") {
+		t.Fatalf("schedule changed project data: %s", payload.Project)
+	}
+	for _, detail := range []string{
+		`"projectType":"social.craftsky.project.defs#homeGoods"`,
+		`"projectSubtype":"Lampshade"`,
+		`"methods":["social.craftsky.project.knitting.defs#hand","social.craftsky.project.knitting.defs#loom"]`,
+	} {
+		if !strings.Contains(string(project.Details), detail) {
+			t.Errorf("scheduled project lost %s in %s", detail, project.Details)
+		}
+	}
+}
+
+func TestProjectPublicationPatternListPresence(t *testing.T) {
+	const projectPrefix = `{"common":{"craftType":"social.craftsky.feed.defs#knitting","pattern":{"name":"Legacy"}`
+	for _, tc := range []struct {
+		name, list, want string
+	}{
+		{name: "null list", list: `,"patterns":null`},
+		{name: "null entry", list: `,"patterns":[null]`},
+		{name: "legacy fallback", want: `[{"name":"Legacy"}]`},
+		{name: "empty list overrides legacy", list: `,"patterns":[]`, want: `[]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			project := projectPrefix + tc.list + `}}`
+			t.Run("immediate", func(t *testing.T) {
+				body := `{"text":"Pattern","sponsored":false,"project":` + project + `}`
+				request, err := DecodePostCreate(strings.NewReader(body))
+				if err == nil {
+					err = ValidatePostCreate(request)
+				}
+				if tc.want == "" {
+					if err == nil {
+						t.Fatal("malformed pattern list accepted")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				candidate, err := projectForPublication(request.Project)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertProjectPublicationPatterns(t, candidate, tc.want)
+			})
+			t.Run("scheduled", func(t *testing.T) {
+				body := `{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"project","text":"Pattern","sponsored":false,"project":` + project + `}}`
+				request, err := decodeScheduledPostCreate(strings.NewReader(body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, _, encoded, err := validateScheduledPostRequest(time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC), request, DefaultMediaLimits())
+				if tc.want == "" {
+					if err == nil {
+						t.Fatal("malformed pattern list accepted")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload, err := scheduledposts.DecodePayload(encoded)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var candidate Project
+				if err := json.Unmarshal(payload.Project, &candidate); err != nil {
+					t.Fatal(err)
+				}
+				assertProjectPublicationPatterns(t, &candidate, tc.want)
+			})
+		})
+	}
+}
+
+func assertProjectPublicationPatterns(t *testing.T, project *Project, want string) {
+	t.Helper()
+	list, err := json.Marshal(project.Common.Patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if project.Common.Pattern != nil || string(list) != want {
+		t.Fatalf("patterns = %s, retained legacy pattern = %v, want %s and no legacy pattern", list, project.Common.Pattern, want)
 	}
 }

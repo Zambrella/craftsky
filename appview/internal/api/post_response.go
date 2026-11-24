@@ -356,7 +356,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 			AvatarCID:     row.AuthorAvatarCID,
 			Customisation: defaultProfileCustomisationPointer(),
 		},
-		Project: row.Project,
+		Project: projectForResponse(row.Project),
 	}
 	var playback PlaybackURLBuilder
 	if len(playbackBuilders) > 0 {
@@ -499,7 +499,7 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle, playbackBuilders ..
 		Crafts:         row.Post.Crafts,
 		Author:         author,
 		Images:         buildPostImageViews(row.Post),
-		Project:        row.Post.Project,
+		Project:        projectForResponse(row.Post.Project),
 		CreatedAt:      row.Post.CreatedAt.UTC(),
 		EditedAt:       postEditTimeUTC(row.Post.EditedAt),
 		RecordRevision: row.Post.RecordRevision,

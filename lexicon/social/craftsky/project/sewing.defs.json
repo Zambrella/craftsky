@@ -14,11 +14,13 @@
     "skirt": { "type": "token", "description": "Skirts." },
     "leggings": { "type": "token", "description": "Leggings." },
     "jumpsuit": { "type": "token", "description": "Jumpsuits and rompers." },
+    "dungarees": { "type": "token", "description": "Bib-and-brace trousers, also called overalls." },
     "robe": { "type": "token", "description": "Robes." },
     "sleepwear": { "type": "token", "description": "Sleepwear and pajamas." },
     "swimwear": { "type": "token", "description": "Swimwear." },
     "intimateApparel": { "type": "token", "description": "Intimate apparel and undergarments." },
     "vest": { "type": "token", "description": "Vests." },
+    "waistcoat": { "type": "token", "description": "Tailored sleeveless garments such as suit waistcoats." },
     "babyOnesie": { "type": "token", "description": "Baby onesies and bodysuits." },
     "shrugBolero": { "type": "token", "description": "Shrugs and boleros." },
     "bag": { "type": "token", "description": "Bags." },
@@ -73,6 +75,68 @@
     "mending": { "type": "token", "description": "Mending work." },
     "refashion": { "type": "token", "description": "Refashioning an existing item." },
     "hemming": { "type": "token", "description": "Hemming alterations." },
-    "repair": { "type": "token", "description": "Repairs." }
+    "repair": { "type": "token", "description": "Repairs." },
+    "frenchSeams": {"type": "token", "description": "French seams."},
+    "flatFelledSeams": {"type": "token", "description": "Flat-felled seams."},
+    "hongKongSeamFinish": {"type": "token", "description": "Hong Kong seam finish."},
+    "biasBinding": {"type": "token", "description": "Bias binding."},
+    "rolledHems": {"type": "token", "description": "Rolled hems."},
+    "invisibleZipInsertion": {"type": "token", "description": "Invisible zip insertion."},
+    "flyFrontZipInsertion": {"type": "token", "description": "Fly-front zip insertion."},
+    "boundButtonholes": {"type": "token", "description": "Bound buttonholes."},
+    "darts": {"type": "token", "description": "Darts."},
+    "gathering": {"type": "token", "description": "Gathering."},
+    "pleating": {"type": "token", "description": "Pleating."},
+    "shirring": {"type": "token", "description": "Shirring."},
+    "smocking": {"type": "token", "description": "Smocking."},
+    "baggingOutALining": {"type": "token", "description": "Bagging out a lining."},
+    "inseamPockets": {"type": "token", "description": "Inseam pockets."},
+    "weltPockets": {"type": "token", "description": "Welt pockets."},
+    "topstitching": {"type": "token", "description": "Topstitching."},
+    "printMatching": {"type": "token", "description": "Aligning a fabric's print across seams or adjacent pieces."},
+    "sweatshirtHoodie": {
+      "type": "token",
+      "description": "Sweatshirt or hoodie."
+    },
+    "cardigan": {
+      "type": "token",
+      "description": "Cardigan."
+    },
+    "apron": {
+      "type": "token",
+      "description": "Apron."
+    },
+    "backpack": {
+      "type": "token",
+      "description": "Backpack."
+    },
+    "crossbodyBag": {
+      "type": "token",
+      "description": "Crossbody or sling bag."
+    },
+    "tableLinen": {
+      "type": "token",
+      "description": "Table linen."
+    },
+    "towel": {
+      "type": "token",
+      "description": "Towel or tea towel."
+    },
+    "equipmentCover": {
+      "type": "token",
+      "description": "Equipment cover."
+    },
+    "playMat": {
+      "type": "token",
+      "description": "Play mat."
+    },
+    "fitAdjustment": {
+      "type": "token",
+      "description": "Fit adjustment."
+    },
+    "toile": {
+      "type": "token",
+      "description": "Sample or toile."
+    }
   }
 }

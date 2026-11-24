@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
@@ -76,13 +77,14 @@ Future<void> _pumpProjects(
   List<ProjectOption>? craftTypes,
   Future<Profile>? profile,
   bool following = false,
+  bool guest = false,
   String? source,
   FakePostRepository? timelineRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        testMemberBrowsingOverride,
+        if (guest) testGuestBrowsingOverride else testMemberBrowsingOverride,
         authSessionProvider.overrideWith(
           profile == null ? SignedOutAuthSession.new : SignedInAuthSession.new,
         ),
@@ -201,6 +203,19 @@ void main() {
     expect(networkReads, 1);
     expect(followingReads, 1);
     expect(offset(), closeTo(savedOffset, 0.01));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomePage)),
+    );
+    container.read(feedReselectProvider.notifier).reselect();
+    await tester.pumpAndSettle();
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    expect(networkReads, 1);
+    expect(followingReads, 2);
+    await tester.ensureVisible(find.text('Extended network'));
+    await tester.tap(find.text('Extended network'));
+    await tester.pumpAndSettle();
+    expect(offset(), closeTo(savedOffset, 0.01));
   });
 
   testWidgets('Extended network deep link opens its tab and empty state', (
@@ -263,7 +278,12 @@ void main() {
       timelineRepository: FakePostRepository(
         onListTimeline: ({cursor, limit}) async {
           timelineReads++;
-          return const TimelinePage(items: []);
+          return TimelinePage(
+            items: [
+              for (var i = 0; i < 30; i++)
+                TimelineItem(itemKey: 'post:$i', post: _post(i)),
+            ],
+          );
         },
       ),
     );
@@ -287,6 +307,17 @@ void main() {
     expect(find.byType(SortMenuButton<SearchSort>), findsNothing);
     expect(timelineReads, 1);
     expect(queries, isEmpty);
+    final followingScroll = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) => widget is FeedPage && !widget.extendedNetwork,
+      ),
+      matching: find.byType(CustomScrollView),
+    );
+    ScrollController followingController() =>
+        tester.widget<CustomScrollView>(followingScroll).controller!;
+    await tester.drag(followingScroll, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    expect(followingController().offset, greaterThan(200));
     await tester.ensureVisible(find.text('Knitting'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Knitting'));
@@ -319,26 +350,69 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(HomePage)),
     );
+    final craftReads = queries.length;
     container.read(feedReselectProvider.notifier).reselect();
     await tester.pumpAndSettle();
-    expect(
-      timelineReads,
-      1,
-      reason: 'Reselecting Home refreshes only the active craft',
-    );
-    await tester.ensureVisible(find.text('Following'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Following'));
-    await tester.pumpAndSettle();
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
     expect(find.byTooltip('New post'), findsOneWidget);
     expect(
-      timelineReads,
-      1,
-      reason: 'Changing tabs retains the timeline subscription',
+      followingController().offset,
+      followingController().position.minScrollExtent,
+    );
+    expect(timelineReads, 2);
+    expect(queries, hasLength(craftReads));
+    container.read(feedReselectProvider.notifier).reselect();
+    await tester.pumpAndSettle();
+    expect(timelineReads, 3);
+    expect(queries, hasLength(craftReads));
+  });
+
+  testWidgets('Guest Home reselection returns to and refreshes All crafts', (
+    tester,
+  ) async {
+    final queries = <ProjectBrowseQuery>[];
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async {
+          queries.add(query);
+          return PostPage(
+            items: [
+              if (query.craftTypes.isEmpty)
+                for (var i = 0; i < 30; i++) _post(i),
+            ],
+          );
+        },
+      ),
+      following: true,
+      guest: true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('All crafts'), findsOneWidget);
+    expect(queries.single.craftTypes, isEmpty);
+    final allCrafts = find.byKey(const PageStorageKey<String>('projects_tab_'));
+    final scroll = tester.widget<CustomScrollView>(allCrafts).controller!;
+    await tester.drag(allCrafts, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(200));
+
+    final knitting = find.text('Knitting');
+    await tester.ensureVisible(knitting);
+    await tester.pumpAndSettle();
+    await tester.tap(knitting);
+    await tester.pumpAndSettle();
+    expect(queries.last.craftTypes, [ProjectOptionCatalogs.knittingCraftToken]);
+    final readsBeforeReselect = queries.length;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomePage)),
     );
     container.read(feedReselectProvider.notifier).reselect();
     await tester.pumpAndSettle();
-    expect(timelineReads, 2);
+
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    expect(scroll.offset, scroll.position.minScrollExtent);
+    expect(queries, hasLength(readsBeforeReselect + 1));
+    expect(queries.last.craftTypes, isEmpty);
   });
 
   testWidgets('Feed retains its loaded rows and offset between craft tabs', (
@@ -600,7 +674,21 @@ void main() {
       tabs.tabs
           .skip(2)
           .map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
-      ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
+      [
+        'Quilting',
+        'Sewing',
+        'Knitting',
+        'Crochet',
+        'Embroidery',
+        if (ProjectTaxonomy.releasePhase >= 2) ...[
+          'Spinning',
+          'Dyeing',
+          'Punch Needle',
+          'Macramé',
+          'Weaving',
+          'Felting',
+        ],
+      ],
     );
     expect(tabs.controller!.index, 0);
     expect(requestedCrafts, isEmpty);
@@ -775,7 +863,7 @@ void main() {
     expect(find.text('Project 1'), findsOneWidget);
   });
 
-  testWidgets('Embroidery filters omit project type and subtype fields', (
+  testWidgets('Embroidery filters offer independent method and style', (
     tester,
   ) async {
     await _pumpProjects(
@@ -800,15 +888,121 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Filter Embroidery projects'), findsOneWidget);
-    expect(find.text('Project type'), findsNothing);
-    expect(find.text('Project subtype'), findsNothing);
     expect(find.text('Pattern difficulty'), findsOneWidget);
-    expect(find.text('Color'), findsOneWidget);
+    expect(find.text('Materials and style'), findsNothing);
+    expect(find.text('Embroidery method'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const Key('Embroidery style-search-input')),
+          )
+          .enabled,
+      isTrue,
+    );
+    expect(find.text('Project type'), findsOneWidget);
+    expect(find.text('Project subtype'), findsNothing);
   });
 
-  testWidgets('filter sheet orders and enables dependent controls', (
+  testWidgets('Sewing item filters reach the feed and can be removed', (
     tester,
   ) async {
+    final requests = <ProjectBrowseQuery>[];
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async {
+          requests.add(query);
+          return const PostPage(items: []);
+        },
+      ),
+      craftTypes: [
+        ProjectOptionCatalogs.craftTypes.singleWhere(
+          (craft) => craft.value == ProjectOptionCatalogs.sewingCraftToken,
+        ),
+      ],
+    );
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    final typeFilter = find.byKey(const Key('Project type-select-button'));
+    await tester.ensureVisible(typeFilter);
+    await tester.pumpAndSettle();
+    await tester.tap(typeFilter);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('Project type-search-input')),
+      'Garment',
+    );
+    await tester.pumpAndSettle();
+    final option = find.widgetWithText(CheckboxListTile, 'Garment');
+    await tester.ensureVisible(option);
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('Project type-search-input')),
+      'overalls',
+    );
+    await tester.pumpAndSettle();
+    final dungarees = find.widgetWithText(CheckboxListTile, 'Dungarees');
+    expect(
+      find.descendant(of: dungarees, matching: find.text('Overalls')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(dungarees);
+    await tester.tap(dungarees);
+    await tester.pumpAndSettle();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply filters'));
+    await tester.pumpAndSettle();
+
+    final chip = find.widgetWithText(InputChip, 'Garment');
+    final subtypeChip = find.widgetWithText(InputChip, 'Garment · Dungarees');
+    expect(chip, findsOneWidget);
+    expect(subtypeChip, findsOneWidget);
+    expect(requests.last.filters.toQueryParameters(), {
+      'projectItem': [
+        'social.craftsky.project.defs#garment',
+        'social.craftsky.project.sewing.defs#dungarees',
+      ],
+    });
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+    CraftskySearchableMultiSelectInput<String> filter(String label) =>
+        tester.widget(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CraftskySearchableMultiSelectInput<String> &&
+                widget.label == label,
+          ),
+        );
+    expect(filter('Project type').values, [
+      'social.craftsky.project.defs#garment',
+      'social.craftsky.project.sewing.defs#dungarees',
+    ]);
+    await tester.tap(find.widgetWithText(TextButton, 'Clear all').last);
+    await tester.pumpAndSettle();
+    expect(filter('Project type').values, isEmpty);
+    await tester.tap(find.widgetWithIcon(IconButton, CraftskyIconsBold.close));
+    await tester.pumpAndSettle();
+    tester.widget<InputChip>(chip).onDeleted!();
+    await tester.pumpAndSettle();
+    expect(chip, findsNothing);
+    expect(requests.last.filters.toQueryParameters(), {
+      'projectItem': ['social.craftsky.project.sewing.defs#dungarees'],
+    });
+    tester.widget<InputChip>(subtypeChip).onDeleted!();
+    await tester.pumpAndSettle();
+    expect(requests.last.filters.toQueryParameters(), isEmpty);
+  });
+
+  testWidgets('filter sheet orders controls and nests item options', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
     await _pumpProjects(
       tester,
       FakeProjectRepository(
@@ -825,53 +1019,118 @@ void main() {
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
 
-    CraftskySearchableMultiSelectInput<String> subtypeInput() => tester.widget(
+    CraftskySearchableMultiSelectInput<String> itemInput() => tester.widget(
       find.byWidgetPredicate(
         (widget) =>
             widget is CraftskySearchableMultiSelectInput<String> &&
-            widget.label == 'Project subtype',
+            widget.label == 'Project type',
       ),
     );
-    CraftskySearchableMultiSelectInput<String> inputWithLabel(String label) =>
-        tester.widget(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is CraftskySearchableMultiSelectInput<String> &&
-                widget.label == label,
-          ),
-        );
-    void expectAlphabetical(String label) {
-      final labels = [
-        for (final option in inputWithLabel(label).options) option.label,
-      ];
+    expect(find.byKey(const Key('Status-search-input')), findsOneWidget);
+    expect(find.byType(ExpansionTile), findsNothing);
+    expect(find.text('Pattern details'), findsNothing);
+    expect(find.text('Craft details'), findsNothing);
+    final positions = [
+      for (final label in [
+        'Status',
+        'Pattern difficulty',
+        'Self drafted',
+        'Project type',
+        'Knitting methods',
+      ])
+        tester.getTopLeft(find.text(label)).dy,
+    ];
+    expect(positions, [...positions]..sort());
+    expect(find.text('Project subtype'), findsNothing);
+    for (final input
+        in tester.widgetList<CraftskySearchableMultiSelectInput<String>>(
+          find.byType(CraftskySearchableMultiSelectInput<String>),
+        )) {
+      final labels = input.options
+          .where((option) => option.parentValue == null)
+          .map((option) => option.label)
+          .toList();
+      if (input.label == 'Project type') {
+        expect(labels.removeLast(), 'Other');
+      }
       expect(labels, [...labels]..sort());
     }
 
-    expect(find.text('Project subtype'), findsOneWidget);
-    expect(subtypeInput().enabled, isFalse);
-    expectAlphabetical('Project type');
-
     await tester.tap(find.byKey(const Key('Project type-select-button')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'Garment'));
-    await tester.pumpAndSettle();
-
-    expect(subtypeInput().enabled, isTrue);
-    expectAlphabetical('Project subtype');
-
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Design'), findsOneWidget);
-    expect(find.text('Design tag'), findsNothing);
-    expectAlphabetical('Color');
-    expectAlphabetical('Design');
-    expect(
-      tester.getTopLeft(find.text('Status')).dy,
-      lessThan(tester.getTopLeft(find.text('Self drafted')).dy),
+    final itemOptions = itemInput().options;
+    final nextGroup = itemOptions.indexWhere(
+      (option) => option.parentValue == null,
+      1,
     );
+    Finder itemTile(int index) =>
+        find.byKey(Key('Project type-option-${itemOptions[index].value}'));
+    final firstGroup = itemTile(0);
+    final firstChild = itemTile(1);
+    final secondGroup = itemTile(nextGroup);
+    final previousChild = itemTile(nextGroup - 1);
+    final panel = find.byKey(const Key('Project type-options-panel'));
+    expect(
+      tester.getTopLeft(firstGroup).dy - tester.getTopLeft(panel).dy,
+      8,
+    );
+    expect(
+      tester.getTopLeft(firstChild).dy,
+      tester.getBottomLeft(firstGroup).dy,
+    );
+    expect(
+      tester.getTopLeft(secondGroup).dy -
+          tester.getBottomLeft(previousChild).dy,
+      6,
+    );
+    expect(
+      itemOptions
+          .where((option) => option.parentValue?.endsWith('#garment') ?? false)
+          .map((option) => option.label),
+      containsAll(['Jumper', 'Coat or jacket']),
+    );
+    final itemSearch = find.byKey(const Key('Project type-search-input'));
+    await tester.enterText(itemSearch, 'costume');
+    await tester.pumpAndSettle();
+    final costume = find.widgetWithText(CheckboxListTile, 'Costume');
+    expect(
+      (tester.widget<CheckboxListTile>(costume).title! as Text)
+          .style
+          ?.fontWeight,
+      FontWeight.bold,
+    );
+    await tester.enterText(itemSearch, 'pullover');
+    await tester.pumpAndSettle();
+    final jumper = find.widgetWithText(CheckboxListTile, 'Jumper');
+    final garment = find.widgetWithText(CheckboxListTile, 'Garment');
+    expect(garment, findsOneWidget);
+    expect(
+      (tester.widget<CheckboxListTile>(garment).title! as Text)
+          .style
+          ?.fontWeight,
+      FontWeight.bold,
+    );
+    expect(
+      (tester.widget<CheckboxListTile>(jumper).title! as Text).style,
+      isNull,
+    );
+    expect(
+      tester.getTopLeft(garment).dx,
+      lessThan(tester.getTopLeft(jumper).dx),
+    );
+    expect(
+      find.descendant(of: jumper, matching: find.text('Pullover')),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(jumper);
+    await tester.tap(jumper);
+    await tester.pumpAndSettle();
+    expect(itemInput().values, [
+      'social.craftsky.project.knitting.defs#pullover',
+    ]);
+    for (final retired in ['Color', 'Design', 'Yarn weight', 'Techniques']) {
+      expect(find.text(retired), findsNothing);
+    }
   });
 
   testWidgets('each active project list refreshes, including empty data', (
@@ -1193,8 +1452,6 @@ void main() {
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
-    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
     tester
@@ -1214,8 +1471,6 @@ void main() {
     expect(find.text('Project 0'), findsNothing);
 
     await tester.tap(find.text('Filters'));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
@@ -1246,8 +1501,6 @@ void main() {
 
     Future<void> openFilters({required bool selected}) async {
       await tester.tap(find.text('Filters'));
-      await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
       await tester.pumpAndSettle();
       final checkbox = find.widgetWithText(CheckboxListTile, 'Self drafted');
       await tester.ensureVisible(checkbox);
@@ -1361,7 +1614,8 @@ void main() {
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Crochet', findRichText: true), findsOneWidget);
+    expect(find.text('Filter Crochet projects'), findsOneWidget);
+    expect(find.text('Crochet methods'), findsOneWidget);
   });
 }
 

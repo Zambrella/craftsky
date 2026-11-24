@@ -471,6 +471,7 @@ type indexedProjectCommon struct {
 	Title      *string                  `json:"title"`
 	Duration   *string                  `json:"duration"`
 	Pattern    *indexedProjectPattern   `json:"pattern"`
+	Patterns   []*indexedProjectPattern `json:"patterns"`
 	Materials  []indexedProjectMaterial `json:"materials"`
 	Colors     []string                 `json:"colors"`
 	DesignTags []string                 `json:"designTags"`
@@ -548,7 +549,7 @@ func projectSearchTags(project *indexedProject) []string {
 	}
 	return postutil.ExtractProjectTags(
 		project.Common.Tags,
-		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedPatternFacetedTexts(project.Common),
 		indexedMaterialFacetedTexts(project.Common.Materials),
 	)
 }
@@ -558,20 +559,34 @@ func projectMentionDIDs(project *indexedProject) []string {
 		return nil
 	}
 	return postutil.ExtractProjectMentionDIDs(
-		indexedPatternFacetedTexts(project.Common.Pattern),
+		indexedPatternFacetedTexts(project.Common),
 		indexedMaterialFacetedTexts(project.Common.Materials),
 	)
 }
 
-func indexedPatternFacetedTexts(pattern *indexedProjectPattern) []postutil.FacetedText {
-	if pattern == nil {
-		return nil
+func (common indexedProjectCommon) effectivePatterns() []*indexedProjectPattern {
+	if common.Patterns != nil {
+		return common.Patterns
 	}
-	return []postutil.FacetedText{
-		{Text: stringPtrValue(pattern.Name), Facets: postutil.DecodeFacets(pattern.NameFacets)},
-		{Text: stringPtrValue(pattern.Designer), Facets: postutil.DecodeFacets(pattern.DesignerFacets)},
-		{Text: stringPtrValue(pattern.Publisher), Facets: postutil.DecodeFacets(pattern.PublisherFacets)},
+	if common.Pattern != nil {
+		return []*indexedProjectPattern{common.Pattern}
 	}
+	return nil
+}
+
+func indexedPatternFacetedTexts(common indexedProjectCommon) []postutil.FacetedText {
+	var out []postutil.FacetedText
+	for _, pattern := range common.effectivePatterns() {
+		if pattern == nil {
+			continue
+		}
+		out = append(out,
+			postutil.FacetedText{Text: stringPtrValue(pattern.Name), Facets: postutil.DecodeFacets(pattern.NameFacets)},
+			postutil.FacetedText{Text: stringPtrValue(pattern.Designer), Facets: postutil.DecodeFacets(pattern.DesignerFacets)},
+			postutil.FacetedText{Text: stringPtrValue(pattern.Publisher), Facets: postutil.DecodeFacets(pattern.PublisherFacets)},
+		)
+	}
+	return out
 }
 
 func indexedMaterialFacetedTexts(materials []indexedProjectMaterial) []postutil.FacetedText {
@@ -597,16 +612,17 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	var patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher *string
 	var patternSelfDrafted *bool
 	var patternNameFacets, patternDesignerFacets, patternPublisherFacets json.RawMessage
-	if common.Pattern != nil {
-		patternURL = common.Pattern.URL
-		patternName = common.Pattern.Name
-		patternDifficulty = common.Pattern.Difficulty
-		patternSelfDrafted = common.Pattern.SelfDrafted
-		patternDesigner = common.Pattern.Designer
-		patternPublisher = common.Pattern.Publisher
-		patternNameFacets = common.Pattern.NameFacets
-		patternDesignerFacets = common.Pattern.DesignerFacets
-		patternPublisherFacets = common.Pattern.PublisherFacets
+	if patterns := common.effectivePatterns(); len(patterns) == 1 && patterns[0] != nil {
+		pattern := patterns[0]
+		patternURL = pattern.URL
+		patternName = pattern.Name
+		patternDifficulty = pattern.Difficulty
+		patternSelfDrafted = pattern.SelfDrafted
+		patternDesigner = pattern.Designer
+		patternPublisher = pattern.Publisher
+		patternNameFacets = pattern.NameFacets
+		patternDesignerFacets = pattern.DesignerFacets
+		patternPublisherFacets = pattern.PublisherFacets
 	}
 	detailCols := craftDetailColumnsFor(project)
 	const q = `

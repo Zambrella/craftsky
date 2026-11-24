@@ -1,0 +1,167 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.spinning",
+  "description": "Compatibility definitions for spinning project details.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Saved tool, technique and finished yarn details for older spinning projects.",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: tool used to spin the yarn. Use the project description or hashtags for new posts.",
+          "knownValues": [
+            "social.craftsky.project.spinning#spindle",
+            "social.craftsky.project.spinning#wheel",
+            "social.craftsky.project.spinning#eSpinner"
+          ]
+        },
+        "fibrePreparation": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: form in which the fibre was prepared for spinning. Use the project description for new posts.",
+          "knownValues": [
+            "social.craftsky.project.spinning#rolag",
+            "social.craftsky.project.spinning#batt",
+            "social.craftsky.project.spinning#combedTop"
+          ]
+        },
+        "draftingTechniques": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: drafting techniques used to draw out the fibre. Use the project description or hashtags for new posts.",
+          "items": {
+            "type": "ref",
+            "ref": "#draftingTechnique"
+          }
+        },
+        "plyingTechniques": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: plying techniques used to combine the spun strands. Use the project description or hashtags for new posts.",
+          "items": {
+            "type": "ref",
+            "ref": "#plyingTechnique"
+          }
+        },
+        "plyCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Deprecated: number of strands in the finished yarn. Use one for singles. Use the project description for new posts."
+        },
+        "finishedYarn": {
+          "type": "ref",
+          "ref": "#finishedYarn",
+          "description": "Deprecated: measured yield and thickness of the finished yarn. Use the project description for new posts."
+        }
+      }
+    },
+    "draftingTechnique": {
+      "type": "object",
+      "description": "One drafting technique.",
+      "required": [
+        "technique"
+      ],
+      "properties": {
+        "technique": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "How the fibre was drawn out while spinning.",
+          "knownValues": [
+            "social.craftsky.project.spinning#shortDraw",
+            "social.craftsky.project.spinning#longDraw"
+          ]
+        }
+      }
+    },
+    "plyingTechnique": {
+      "type": "object",
+      "description": "One plying technique.",
+      "required": [
+        "technique"
+      ],
+      "properties": {
+        "technique": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "How spun strands were combined.",
+          "knownValues": [
+            "social.craftsky.project.spinning#conventionalPlying",
+            "social.craftsky.project.spinning#chainPlying",
+            "social.craftsky.project.spinning#andeanPlying"
+          ]
+        }
+      }
+    },
+    "finishedYarn": {
+      "type": "object",
+      "description": "Optional measurements of the finished yarn.",
+      "properties": {
+        "mass": {
+          "type": "ref",
+          "ref": "social.craftsky.project.defs#massMeasurement",
+          "description": "Total mass of finished yarn."
+        },
+        "length": {
+          "type": "ref",
+          "ref": "social.craftsky.project.defs#lengthMeasurement",
+          "description": "Total length of finished yarn."
+        },
+        "wrapsPerInch": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of wraps of the finished yarn that fit in one inch."
+        }
+      }
+    },
+    "spindle": {
+      "type": "token",
+      "description": "Spun with a hand spindle."
+    },
+    "wheel": {
+      "type": "token",
+      "description": "Spun on a mechanically driven spinning wheel."
+    },
+    "eSpinner": {
+      "type": "token",
+      "description": "Spun on an electric spinner."
+    },
+    "rolag": {
+      "type": "token",
+      "description": "A carded roll of fibre."
+    },
+    "batt": {
+      "type": "token",
+      "description": "A carded sheet of fibre."
+    },
+    "combedTop": {
+      "type": "token",
+      "description": "Combed fibre arranged into a continuous bundle."
+    },
+    "shortDraw": {
+      "type": "token",
+      "description": "Fibre drawn out in short increments."
+    },
+    "longDraw": {
+      "type": "token",
+      "description": "Fibre drawn out over a longer distance."
+    },
+    "conventionalPlying": {
+      "type": "token",
+      "description": "Plying separate singles together."
+    },
+    "chainPlying": {
+      "type": "token",
+      "description": "Plying one single by drawing it through successive loops."
+    },
+    "andeanPlying": {
+      "type": "token",
+      "description": "Plying the two ends of a single using an Andean plying bracelet."
+    }
+  }
+}

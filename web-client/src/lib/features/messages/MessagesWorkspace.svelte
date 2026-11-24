@@ -1819,7 +1819,7 @@
 		color: var(--surface);
 		border-color: var(--ink-3);
 		opacity: 1;
-		box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 25%, transparent);
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--shadow) 25%, transparent);
 	}
 	.composer-actions .send-button {
 		grid-column: 2;
@@ -1834,7 +1834,7 @@
 		border-radius: 50%;
 		background: var(--primary);
 		color: var(--on-primary);
-		box-shadow: 3px 3px 0 var(--ink);
+		box-shadow: 3px 3px 0 var(--shadow);
 	}
 	.pending-message {
 		opacity: 0.85;
@@ -1934,7 +1934,7 @@
 		min-height: 48px;
 		border-radius: 24px;
 		border: 1.5px solid var(--ink);
-		box-shadow: 3px 3px 0 var(--ink);
+		box-shadow: 3px 3px 0 var(--shadow);
 		background: var(--surface);
 		color: var(--ink);
 		font-size: 16px;

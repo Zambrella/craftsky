@@ -129,7 +129,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 				($1 <> '' AND lower($1) = ANY(p.tags))
 				OR ($7 <> '' AND (
 					to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $7)
-					OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $7)
+					OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(` + patternNamesSQL + `, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $7)
 				))
 			  )
 			` + relationshipTopLevelPredicate("$8") + `
@@ -163,7 +163,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			($1 <> '' AND lower($1) = ANY(p.tags))
 			OR ($5 <> '' AND (
 				to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $5)
-				OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $5)
+				OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(` + patternNamesSQL + `, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $5)
 			))
 		  )
 		` + relationshipTopLevelPredicate("$6") + `

@@ -67,15 +67,16 @@
 }
 .composer label {
 	display: grid;
-	gap: 10px;
+	gap: var(--field-label-gap);
 	font-size: 16px;
 	font-weight: 700;
+	line-height: 1.3;
 }
 .composer input:not([type='checkbox'], [type='radio'], [type='file']),
 .composer textarea,
 .composer select {
 	width: 100%;
-	padding: 14px 12px;
+	padding: var(--field-padding-block) var(--field-padding-inline);
 	border: 1.5px solid var(--ink-3);
 	border-radius: 14px;
 	background: var(--surface);
@@ -83,15 +84,15 @@
 	font: inherit;
 	font-size: 16px;
 	font-weight: 400;
+	line-height: 1.5;
 	min-width: 0;
 }
 .composer textarea {
 	resize: vertical;
-	line-height: 1.5;
 }
-.composer input:focus-visible:not([aria-invalid='true']),
-.composer textarea:focus-visible:not([aria-invalid='true']),
-.composer select:focus-visible:not([aria-invalid='true']) {
+.composer input:focus:not([aria-invalid='true']),
+.composer textarea:focus:not([aria-invalid='true']),
+.composer select:focus:not([aria-invalid='true']) {
 	outline: 2px solid var(--ink);
 	outline-offset: -2px;
 	box-shadow: 3px 3px var(--shadow);
@@ -122,7 +123,7 @@
 	background: var(--primary);
 	color: var(--on-primary);
 	border-color: var(--ink);
-	box-shadow: 3px 3px 0 var(--ink);
+	box-shadow: 3px 3px 0 var(--shadow);
 	font-weight: 700;
 }
 .composer button.primary:hover {
@@ -166,13 +167,17 @@
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 16px;
 }
-.composer .stack,
-.composer .project-basics {
+.composer .stack {
 	display: grid;
 	gap: 16px;
 }
 .composer .fields.gauge {
 	grid-template-columns: repeat(4, minmax(0, 1fr));
+	row-gap: var(--field-label-gap);
+}
+.composer .fields.gauge > :is(label, .native-single-select) {
+	grid-row: span 2;
+	grid-template-rows: subgrid;
 }
 .composer .chips,
 .composer .toolbar {
@@ -210,16 +215,6 @@
 	display: grid;
 	gap: 16px;
 	min-width: 0;
-}
-.composer .project-main {
-	border: 0;
-	padding: 0;
-}
-.composer .project-composer .attachment-section {
-	order: -3;
-}
-.composer .project-composer .project-main {
-	order: -2;
 }
 .composer details {
 	border: 1px solid var(--hairline);
@@ -411,14 +406,6 @@
 .composer .over-limit {
 	color: var(--red-ink);
 }
-.composer .more-details-heading {
-	margin-top: 4px;
-	display: grid;
-	gap: 6px;
-}
-.composer .more-details-heading h2 {
-	font-size: 20px;
-}
 .composer .media-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -568,14 +555,6 @@
 .composer form:not(.project-composer) .link-preview-section {
 	order: 3;
 }
-.composer .post-text:focus:not([aria-invalid='true']) {
-	border-color: var(--ink);
-	box-shadow: 3px 3px 0 var(--ink);
-	outline: none;
-}
-.composer .more-details-heading h2 {
-	font-size: 20px;
-}
 .composer .craft-picker {
 	border: 0;
 	padding: 0;
@@ -609,15 +588,8 @@
 	border: 0;
 	padding: 0;
 }
-.composer .more-details-heading {
-	margin-top: 0;
-}
 .composer .schedule-toggle > span {
 	display: none;
-}
-
-.composer .more-details-heading .muted {
-	font-size: 14px;
 }
 
 .composer .attachment-picker {
@@ -748,7 +720,7 @@
 	color: var(--on-primary);
 	background: var(--primary);
 	border: 1.5px solid var(--ink);
-	box-shadow: 3px 3px 0 var(--ink);
+	box-shadow: 3px 3px 0 var(--shadow);
 }
 .composer-close-actions button:disabled {
 	opacity: 0.5;
@@ -780,7 +752,7 @@
 		[role='combobox']
 	),
 .composer .facet-input textarea {
-	width: calc(100% - 3px);
+	max-width: calc(100% - 3px);
 	margin-bottom: 3px;
 	transform: translate(3px, 3px);
 	transition:

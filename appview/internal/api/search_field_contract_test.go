@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"social.craftsky/appview/internal/projectcatalog"
 )
 
 // Adding a public field requires an explicit search decision; silently leaving
@@ -15,24 +17,54 @@ func TestSearchFieldContractCoversProjectSchemas(t *testing.T) {
 	for _, field := range submittedSearchFields {
 		covered[field.Name] = true
 	}
+	for _, field := range patternSearchFields {
+		covered[field.Name] = true
+	}
 	aliases := map[string]string{
 		"project.common.craftType":                  "project.common.craftType/additionalCrafts",
 		"project.common.additionalCrafts.craftType": "project.common.craftType/additionalCrafts",
-		"project.details.needleSizeMm":              "project.details.needleSizeMm/hookSizeMm",
-		"project.details.hookSizeMm":                "project.details.needleSizeMm/hookSizeMm",
+		"project.details.needleSizeMm":              "project.details.needleSizeMm/needleSizesMm",
+		"project.details.needleSizesMm":             "project.details.needleSizeMm/needleSizesMm",
+		"project.details.hookSizeMm":                "project.details.hookSizeMm/hookSizesMm",
+		"project.details.hookSizesMm":               "project.details.hookSizeMm/hookSizesMm",
 		"project.details.finishedSize":              "project.details.finishedSize/size/sizeMade",
 		"project.details.size":                      "project.details.finishedSize/size/sizeMade",
 		"project.details.sizeMade":                  "project.details.finishedSize/size/sizeMade",
+		"project.details.materialForm":              "project.details.projectType",
+		"project.details.methods.method":            "project.details.method",
+		"project.details.methods.styles.style":      "project.details.style",
 	}
 	for _, name := range []string{"stitches", "rows", "measurement", "unit"} {
 		aliases["project.details.gauge."+name] = "project.details.gauge"
 	}
+	for _, field := range []string{"name", "designer", "publisher", "difficulty", "selfDrafted"} {
+		aliases["project.common.pattern."+field] = "project.common.patterns." + field
+	}
 	excluded := map[string]bool{
-		"project.common.pattern.url":             true,
-		"project.common.pattern.nameFacets":      true,
-		"project.common.pattern.designerFacets":  true,
-		"project.common.pattern.publisherFacets": true,
-		"project.common.materials.facets":        true,
+		"project.common.materials.facets":  true,
+		"project.details.machineModel":     true,
+		"project.details.machineGaugeMm":   true,
+		"project.details.tool":             true,
+		"project.details.fibrePreparation": true,
+		"project.details.plyCount":         true,
+		"project.details.finishedYarn":     true,
+		"project.details.dyeType":          true,
+		"project.details.colorEffect":      true,
+		"project.details.recipeNotes":      true,
+		"project.details.foundationFabric": true,
+		"project.details.needle":           true,
+		"project.details.loopHeight":       true,
+		"project.details.cords":            true,
+		"project.details.materials":        true,
+		"project.details.sett":             true,
+		"project.details.needleGauges":     true,
+		"project.details.core":             true,
+		"project.details.armature":         true,
+	}
+	for _, shape := range []string{"pattern", "patterns"} {
+		for _, field := range []string{"url", "nameFacets", "designerFacets", "publisherFacets"} {
+			excluded["project.common."+shape+"."+field] = true
+		}
 	}
 	root := "../../../lexicon/social/craftsky"
 	docs := map[string]map[string]any{}
@@ -98,8 +130,8 @@ func TestSearchFieldContractCoversProjectSchemas(t *testing.T) {
 	}
 	shared := docs["social.craftsky.project.defs"]["defs"].(map[string]any)
 	walk("social.craftsky.project.defs", "project.common", shared["projectCommon"].(map[string]any))
-	for _, craft := range []string{"knitting", "crochet", "sewing", "quilting"} {
-		nsid := "social.craftsky.project." + craft
-		walk(nsid, "project.details", docs[nsid]["defs"].(map[string]any)["details"].(map[string]any))
+	for _, craft := range projectcatalog.PrimaryCrafts() {
+		nsid, definition, _ := strings.Cut(craft.DetailsType, "#")
+		walk(nsid, "project.details", docs[nsid]["defs"].(map[string]any)[definition].(map[string]any))
 	}
 }

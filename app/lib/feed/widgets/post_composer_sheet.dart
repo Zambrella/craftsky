@@ -698,7 +698,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                               ? l10n.postComposeQuoteHint
                               : isResponse
                               ? null
-                              : l10n.postComposeBodyHint,
+                              : '${l10n.postComposeBodyHint}\n\n'
+                                    '${l10n.composerBodyInputHelp}',
                           controller: _controller,
                           focusNode: _focusNode,
                           required: true,

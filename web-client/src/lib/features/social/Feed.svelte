@@ -30,6 +30,8 @@
 	import EmptyState from './EmptyState.svelte';
 	import LoadMore from '#lib/LoadMore.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
+	import { craftIconMask } from './craft-icons';
+	import { craftChoice } from '../composer/project-options';
 	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
 	const guest = $derived(api.audience === 'guest');
 	const tabStripId = 'home-feed-tabs';
@@ -81,7 +83,9 @@
 		if (loaded)
 			historyView?.save({ profile, items, cursor, pages: loadedPages });
 	}
-	const craft = page.url.searchParams.get('craft') || '';
+	const requestedCraft = page.url.searchParams.get('craft') || '';
+	const craft =
+		craftChoice(requestedCraft)?.offered === false ? '' : requestedCraft;
 	const extendedNetwork = $derived(
 		!guest &&
 			!craft &&
@@ -148,9 +152,10 @@
 						...options,
 						craftType: craft
 							? [
-									craft.includes('#')
-										? craft
-										: `social.craftsky.feed.defs#${craft}`
+									craftChoice(craft)?.id ??
+										(craft.includes('#')
+											? craft
+											: `social.craftsky.feed.defs#${craft}`)
 								]
 							: undefined,
 						sort:
@@ -276,12 +281,12 @@
 				><Icon name="extendedNetwork" size={18} />Extended network</a
 			>{/if}
 		{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
-				craftKey(item.id)}<a
+				craftKey(item.id)}{@const icon = craftIconMask(key)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
-				>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
+				>{#if icon}<span
 						class="feed-craft-icon"
-						style:--craft-icon={`url('/craft_icons/${key}.svg')`}
+						style:--craft-icon={icon}
 						aria-hidden="true"
 					></span>{/if}{label(key)}</a
 			>{/each}

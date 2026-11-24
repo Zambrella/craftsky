@@ -41,6 +41,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
     super.key,
     this.options = const [],
     this.initialValue,
+    this.selectedLabels = const {},
     this.helperText,
     this.enabled = true,
     this.validator,
@@ -61,6 +62,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
   final String label;
   final List<CraftskySelectOption<T>> options;
   final List<T>? initialValue;
+  final Map<T, String> selectedLabels;
   final String? helperText;
   final bool enabled;
   final FormFieldValidator<List<T>>? validator;
@@ -99,6 +101,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
       name: name,
       label: label,
       options: options,
+      selectedLabels: selectedLabels,
       initialValue: initialValue,
       helperText: helperText,
       enabled: enabled,

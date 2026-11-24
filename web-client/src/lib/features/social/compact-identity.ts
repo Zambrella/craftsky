@@ -1,17 +1,11 @@
 import { label } from '#lib/public.ts';
-
-const branded = new Set([
-	'sewing',
-	'knitting',
-	'crochet',
-	'quilting',
-	'embroidery'
-]);
+import { craftKey } from './craft-feeds';
+import { craftIconMask } from './craft-icons';
 
 export interface IdentityCraft {
 	id: string;
 	name: string;
-	icon: boolean;
+	icon?: string;
 }
 
 export function identityCrafts(
@@ -19,13 +13,13 @@ export function identityCrafts(
 ): IdentityCraft[] {
 	const entries = new Map<string, string>();
 	for (const craft of crafts ?? []) {
-		const id = craft.split('#').at(-1)?.trim().toLowerCase() || '';
+		const id = craftKey(craft);
 		if (id) entries.set(id, label(id));
 	}
 	return [...entries].map(([id, name]) => ({
 		id,
 		name,
-		icon: branded.has(id)
+		icon: craftIconMask(id)
 	}));
 }
 

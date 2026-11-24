@@ -182,7 +182,14 @@ func MentionDIDs(rec craftskylex.FeedPost) []string {
 	sets := [][]string{postutil.ExtractMentionDIDsForText(rec.Text, rec.Facets)}
 	if rec.Project != nil && rec.Project.Common != nil {
 		common := rec.Project.Common
-		if p := common.Pattern; p != nil {
+		patterns := common.Patterns
+		if patterns == nil && common.Pattern != nil {
+			patterns = []*craftskylex.ProjectDefs_Pattern{common.Pattern}
+		}
+		for _, p := range patterns {
+			if p == nil {
+				continue
+			}
 			if p.Name != nil {
 				sets = append(sets, postutil.ExtractMentionDIDsForText(*p.Name, p.NameFacets))
 			}

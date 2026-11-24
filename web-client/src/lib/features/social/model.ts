@@ -6,6 +6,7 @@ import type {
 	ProfileCustomisation
 } from '#lib/api/types.ts';
 import type { Post as PublicPost } from '#lib/public.ts';
+import { craftBackgroundIds } from './craft-icons';
 import palettes from './palette.json';
 export function visible(value: PostPresentation): value is Post {
 	return (
@@ -132,13 +133,9 @@ export function profileStyle(value?: ProfileCustomisation) {
 		: '';
 }
 export function texture(value?: ProfileCustomisation) {
-	if (
-		['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].some(
-			(craft) => value?.profileBackground === 'craft-' + craft
-		)
-	)
-		return `url('/profile_backgrounds/${value!.profileBackground}.svg')`;
-	return undefined;
+	const background = value?.profileBackground;
+	if (background && craftBackgroundIds.includes(background))
+		return `url('/profile_backgrounds/${background}.svg')`;
 }
 export const name = (author: Author) =>
 	author.displayName || author.handle || author.did;

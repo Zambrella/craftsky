@@ -76,7 +76,7 @@ for (const entry of ['link', 'banner'] as const) {
 // REG-003 / FR-007, NFR-004: return context preserves supported public
 // selections without carrying unrelated authentication query values.
 for (const destination of [
-	'/feed?craft=sewing&sort=popular&color=blue&color=green',
+	'/feed?craft=sewing&sort=popular&projectType=garment&projectType=accessory',
 	'/search?q=linen&tab=projects'
 ]) {
 	test(`AT-006 sanitized banner return retains ${destination}`, async ({

@@ -227,7 +227,7 @@ void main() {
       () => find.text('Frozen pattern').evaluate().isNotEmpty,
     );
 
-    await tester.tap(find.byTooltip('Dismiss link previews'));
+    await _tapDismissLinkPreviews(tester);
     await tester.pump();
 
     expect(find.text('Frozen pattern'), findsNothing);
@@ -267,14 +267,14 @@ void main() {
         () => find.text('Frozen pattern').evaluate().isNotEmpty,
       );
 
-      await tester.tap(find.byTooltip('Dismiss link previews'));
+      await _tapDismissLinkPreviews(tester);
       await tester.pump();
       tester
           .widget<CraftskySnackBarContent>(find.byType(CraftskySnackBarContent))
           .action!
           .onPressed();
       await tester.pump();
-      await tester.tap(find.byTooltip('Dismiss link previews'));
+      await _tapDismissLinkPreviews(tester);
       await tester.pump();
 
       await tester.pump(const Duration(milliseconds: 300));
@@ -457,7 +457,7 @@ void main() {
         tester,
         () => find.text('Frozen pattern').evaluate().isNotEmpty,
       );
-      await tester.tap(find.byTooltip('Dismiss link previews'));
+      await _tapDismissLinkPreviews(tester);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(seconds: 1));
@@ -931,6 +931,13 @@ Future<void> _selectLater(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
+}
+
+Future<void> _tapDismissLinkPreviews(WidgetTester tester) async {
+  final dismiss = find.byTooltip('Dismiss link previews');
+  await tester.ensureVisible(dismiss);
+  await tester.pump();
+  await tester.tap(dismiss);
 }
 
 Future<void> _pumpUntilEnabled(WidgetTester tester, String label) async {

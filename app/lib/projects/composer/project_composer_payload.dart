@@ -1,11 +1,14 @@
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/composer/project_specialized_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 enum ProjectComposerValidationCode {
   required,
   invalidGauge,
+  invalidDetail,
   tooManyValues,
   tooLong,
 }
@@ -30,6 +33,8 @@ class ProjectComposerPayloadResult {
 
 ProjectComposerPayloadResult buildProjectComposerPayload({
   required Map<String, dynamic> formValues,
+  Map<String, dynamic>? originalFormValues,
+  ProjectPattern? savedFirstPattern,
 }) {
   final craftType = _stringValue(formValues[ProjectComposerFields.craftType]);
   if (craftType == null) {
@@ -41,8 +46,14 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
     ]);
   }
 
+  final patterns = projectComposerPatterns(
+    formValues,
+    savedFirstPattern: savedFirstPattern,
+  );
   final textLimits = <String, RecordTextLimit>{
     ProjectComposerFields.title: RecordTextLimits.projectTitle,
+    ProjectComposerFields.projectSubtypeFor(craftType):
+        RecordTextLimits.projectSubtype,
     ProjectComposerFields.duration: RecordTextLimits.projectDuration,
     ProjectComposerFields.patternName: RecordTextLimits.patternText,
     ProjectComposerFields.patternDesigner: RecordTextLimits.patternText,
@@ -65,6 +76,20 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
           fieldName: entry.key,
           code: ProjectComposerValidationCode.tooLong,
         ),
+    if (patterns.length > 5)
+      const ProjectComposerValidationError(
+        fieldName: ProjectComposerFields.patterns,
+        code: ProjectComposerValidationCode.tooManyValues,
+      ),
+    if (patterns.any(
+      (pattern) => [pattern.name, pattern.designer, pattern.publisher].any(
+        (text) => !RecordTextLimits.patternText.accepts(text ?? ''),
+      ),
+    ))
+      const ProjectComposerValidationError(
+        fieldName: ProjectComposerFields.patterns,
+        code: ProjectComposerValidationCode.tooLong,
+      ),
     if (_materialsList(formValues[ProjectComposerFields.materials])?.any(
           (material) => !RecordTextLimits.material.accepts(material.text),
         ) ??
@@ -78,6 +103,19 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
     return ProjectComposerPayloadResult.errors(textErrors);
   }
 
+  final specialized = ProjectSpecializedFields.fromForm(
+    craftType,
+    formValues,
+    originalForm: originalFormValues,
+  );
+  if (!specialized.valid) {
+    return ProjectComposerPayloadResult.errors([
+      ProjectComposerValidationError(
+        fieldName: ProjectDetailFields.formName(craftType),
+        code: ProjectComposerValidationCode.invalidDetail,
+      ),
+    ]);
+  }
   final detailErrors = _detailErrorsFrom(craftType, formValues);
   if (detailErrors.isNotEmpty) {
     return ProjectComposerPayloadResult.errors(detailErrors);
@@ -97,25 +135,70 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
         : ProjectOptionCatalogs.finishedStatusToken,
     title: _stringValue(formValues[ProjectComposerFields.title]),
     duration: _stringValue(formValues[ProjectComposerFields.duration]),
-    pattern: _patternFrom(formValues),
+    patterns:
+        patterns.isEmpty &&
+            !formValues.containsKey(ProjectComposerFields.patterns)
+        ? null
+        : patterns,
     materials: _materialsList(formValues[ProjectComposerFields.materials]),
     colors: _stringList(formValues[ProjectComposerFields.colours]),
     designTags: _stringList(formValues[ProjectComposerFields.designTags]),
   );
 
   return ProjectComposerPayloadResult.project(
-    Project(common: common, details: _detailsFrom(craftType, formValues)),
+    Project(
+      common: common,
+      details: _detailsFrom(craftType, formValues, specialized.values),
+    ),
   );
 }
 
-ProjectDetails? _detailsFrom(String craftType, Map<String, dynamic> values) {
+ProjectDetails? _detailsFrom(
+  String craftType,
+  Map<String, dynamic> values,
+  ProjectDetailValues specialized,
+) {
   return switch (craftType) {
-    ProjectOptionCatalogs.sewingCraftToken => _sewingDetailsFrom(values),
-    ProjectOptionCatalogs.knittingCraftToken => _knittingDetailsFrom(values),
-    ProjectOptionCatalogs.crochetCraftToken => _crochetDetailsFrom(values),
+    ProjectOptionCatalogs.sewingCraftToken => _sewingDetailsFrom(
+      values,
+      specialized,
+    ),
+    ProjectOptionCatalogs.knittingCraftToken => _knittingDetailsFrom(
+      values,
+      specialized,
+    ),
+    ProjectOptionCatalogs.crochetCraftToken => _crochetDetailsFrom(
+      values,
+      specialized,
+    ),
     ProjectOptionCatalogs.quiltingCraftToken => _quiltingDetailsFrom(values),
-    _ => null,
+    _ => _otherCraftDetailsFrom(craftType, values, specialized),
   };
+}
+
+ProjectDetails? _otherCraftDetailsFrom(
+  String craftType,
+  Map<String, dynamic> values,
+  ProjectDetailValues specialized,
+) {
+  final raw = Map<String, dynamic>.from(specialized);
+  final authoringFields = {
+    'projectType': ProjectComposerFields.projectTypeFor(craftType),
+    'projectSubtype': ProjectComposerFields.projectSubtypeFor(craftType),
+  };
+  for (final entry in authoringFields.entries) {
+    if (!values.containsKey(entry.value)) continue;
+    raw.remove(entry.key);
+    if (_stringValue(values[entry.value]) case final value?) {
+      raw[entry.key] = value;
+    }
+  }
+  return raw.isEmpty
+      ? null
+      : UnknownProjectDetails(
+          type: ProjectDetailFields.typeForCraft(craftType),
+          raw: raw,
+        );
 }
 
 List<ProjectComposerValidationError> _detailErrorsFrom(
@@ -141,8 +224,12 @@ List<ProjectComposerValidationError> _detailErrorsFrom(
   };
 }
 
-SewingProjectDetails? _sewingDetailsFrom(Map<String, dynamic> values) {
+SewingProjectDetails? _sewingDetailsFrom(
+  Map<String, dynamic> values,
+  ProjectDetailValues specialized,
+) {
   final details = SewingProjectDetails(
+    extraFields: specialized,
     projectType: _stringValue(values[ProjectComposerFields.sewingProjectType]),
     projectSubtype: _stringValue(
       values[ProjectComposerFields.sewingProjectSubtype],
@@ -151,7 +238,8 @@ SewingProjectDetails? _sewingDetailsFrom(Map<String, dynamic> values) {
     fitNotes: _stringValue(values[ProjectComposerFields.sewingFitNotes]),
   );
 
-  if (details.projectType == null &&
+  if (specialized.isEmpty &&
+      details.projectType == null &&
       details.projectSubtype == null &&
       details.sizeMade == null &&
       details.fitNotes == null) {
@@ -160,7 +248,10 @@ SewingProjectDetails? _sewingDetailsFrom(Map<String, dynamic> values) {
   return details;
 }
 
-KnittingProjectDetails? _knittingDetailsFrom(Map<String, dynamic> values) {
+KnittingProjectDetails? _knittingDetailsFrom(
+  Map<String, dynamic> values,
+  ProjectDetailValues specialized,
+) {
   final gauge = _gaugeFrom(
     stitchesField: ProjectComposerFields.knittingGaugeStitches,
     rowsField: ProjectComposerFields.knittingGaugeRows,
@@ -169,6 +260,7 @@ KnittingProjectDetails? _knittingDetailsFrom(Map<String, dynamic> values) {
     values: values,
   );
   final details = KnittingProjectDetails(
+    extraFields: specialized,
     projectType: _stringValue(
       values[ProjectComposerFields.knittingProjectType],
     ),
@@ -176,8 +268,10 @@ KnittingProjectDetails? _knittingDetailsFrom(Map<String, dynamic> values) {
       values[ProjectComposerFields.knittingProjectSubtype],
     ),
     yarnWeight: _stringValue(values[ProjectComposerFields.knittingYarnWeight]),
-    needleSizeMm: _stringValue(
-      values[ProjectComposerFields.knittingNeedleSize],
+    needleSizesMm: _toolSizes(
+      values,
+      ProjectComposerFields.knittingNeedleSizes,
+      ProjectComposerFields.knittingNeedleSize,
     ),
     gauge: gauge,
     finishedSize: _stringValue(
@@ -185,10 +279,11 @@ KnittingProjectDetails? _knittingDetailsFrom(Map<String, dynamic> values) {
     ),
   );
 
-  if (details.projectType == null &&
+  if (specialized.isEmpty &&
+      details.projectType == null &&
       details.projectSubtype == null &&
       details.yarnWeight == null &&
-      details.needleSizeMm == null &&
+      details.needleSizesMm == null &&
       details.gauge == null &&
       details.finishedSize == null) {
     return null;
@@ -196,7 +291,10 @@ KnittingProjectDetails? _knittingDetailsFrom(Map<String, dynamic> values) {
   return details;
 }
 
-CrochetProjectDetails? _crochetDetailsFrom(Map<String, dynamic> values) {
+CrochetProjectDetails? _crochetDetailsFrom(
+  Map<String, dynamic> values,
+  ProjectDetailValues specialized,
+) {
   final gauge = _gaugeFrom(
     stitchesField: ProjectComposerFields.crochetGaugeStitches,
     rowsField: ProjectComposerFields.crochetGaugeRows,
@@ -205,22 +303,28 @@ CrochetProjectDetails? _crochetDetailsFrom(Map<String, dynamic> values) {
     values: values,
   );
   final details = CrochetProjectDetails(
+    extraFields: specialized,
     projectType: _stringValue(values[ProjectComposerFields.crochetProjectType]),
     projectSubtype: _stringValue(
       values[ProjectComposerFields.crochetProjectSubtype],
     ),
     yarnWeight: _stringValue(values[ProjectComposerFields.crochetYarnWeight]),
-    hookSizeMm: _stringValue(values[ProjectComposerFields.crochetHookSize]),
+    hookSizesMm: _toolSizes(
+      values,
+      ProjectComposerFields.crochetHookSizes,
+      ProjectComposerFields.crochetHookSize,
+    ),
     gauge: gauge,
     finishedSize: _stringValue(
       values[ProjectComposerFields.crochetFinishedSize],
     ),
   );
 
-  if (details.projectType == null &&
+  if (specialized.isEmpty &&
+      details.projectType == null &&
       details.projectSubtype == null &&
       details.yarnWeight == null &&
-      details.hookSizeMm == null &&
+      details.hookSizesMm == null &&
       details.gauge == null &&
       details.finishedSize == null) {
     return null;
@@ -322,27 +426,88 @@ int? _positiveInt(Object? value) {
   return parsed > 0 ? parsed : null;
 }
 
-ProjectPattern? _patternFrom(Map<String, dynamic> values) {
-  final pattern = ProjectPattern(
-    url: _stringValue(values[ProjectComposerFields.patternUrl]),
-    name: _patternNameValue(values[ProjectComposerFields.patternName]),
-    difficulty: _stringValue(values[ProjectComposerFields.patternDifficulty]),
-    selfDrafted: values[ProjectComposerFields.patternSelfDrafted] == true
-        ? true
-        : null,
-    designer: _stringValue(values[ProjectComposerFields.patternDesigner]),
-    publisher: _stringValue(values[ProjectComposerFields.patternPublisher]),
+List<ProjectPattern> projectComposerPatterns(
+  Map<String, dynamic> values, {
+  ProjectPattern? savedFirstPattern,
+}) {
+  final retained =
+      (values[ProjectComposerFields.patterns] as List?)
+          ?.whereType<ProjectPattern>()
+          .toList() ??
+      const <ProjectPattern>[];
+  final first = _firstPatternFrom(
+    values,
+    retained.firstOrNull,
+    savedFirstPattern,
   );
+  return [?first, ...retained.skip(1).where(_hasPatternFields)];
+}
 
-  if (pattern.url == null &&
-      pattern.name == null &&
-      pattern.difficulty == null &&
-      pattern.selfDrafted == null &&
-      pattern.designer == null &&
-      pattern.publisher == null) {
-    return null;
+bool _hasPatternFields(ProjectPattern pattern) =>
+    pattern.url != null ||
+    pattern.name != null ||
+    pattern.difficulty != null ||
+    pattern.selfDrafted == true ||
+    pattern.designer != null ||
+    pattern.publisher != null ||
+    pattern.extraFields.isNotEmpty;
+
+ProjectPattern? _firstPatternFrom(
+  Map<String, dynamic> values,
+  ProjectPattern? original,
+  ProjectPattern? savedPattern,
+) {
+  String? text(
+    String field,
+    String? current, {
+    String? saved,
+    String? Function(Object?) normalize = _stringValue,
+  }) {
+    final value = values[field];
+    // Preserve the exact saved text so its facet byte ranges stay valid.
+    if (!values.containsKey(field) || value == current) return current;
+    return value == saved ? saved : normalize(value);
   }
-  return pattern;
+
+  final name = text(
+    ProjectComposerFields.patternName,
+    original?.name,
+    saved: savedPattern?.name,
+    normalize: _patternNameValue,
+  );
+  final designer = text(
+    ProjectComposerFields.patternDesigner,
+    original?.designer,
+    saved: savedPattern?.designer,
+  );
+  final publisher = text(
+    ProjectComposerFields.patternPublisher,
+    original?.publisher,
+    saved: savedPattern?.publisher,
+  );
+  final pattern = (original ?? const ProjectPattern()).copyWith(
+    url: text(ProjectComposerFields.patternUrl, original?.url),
+    name: name,
+    difficulty: text(
+      ProjectComposerFields.patternDifficulty,
+      original?.difficulty,
+    ),
+    selfDrafted: switch (values[ProjectComposerFields.patternSelfDrafted]) {
+      true => true,
+      false when original?.selfDrafted != null => false,
+      _ => original?.selfDrafted,
+    },
+    designer: designer,
+    publisher: publisher,
+    nameFacets: name == original?.name ? original?.nameFacets : null,
+    designerFacets: designer == original?.designer
+        ? original?.designerFacets
+        : null,
+    publisherFacets: publisher == original?.publisher
+        ? original?.publisherFacets
+        : null,
+  );
+  return _hasPatternFields(pattern) ? pattern : null;
 }
 
 String? _patternNameValue(Object? value) {
@@ -378,4 +543,17 @@ List<ProjectMaterial>? _materialsList(Object? value) {
       .nonNulls
       .toList(growable: false);
   return values.isEmpty ? null : values;
+}
+
+List<String>? _toolSizes(
+  Map<String, dynamic> values,
+  String listField,
+  String scalarField,
+) {
+  if (values[listField] case final Iterable<Object?> list) {
+    return list.whereType<String>().toSet().toList();
+  }
+  if (values.containsKey(listField)) return null;
+  final scalar = _stringValue(values[scalarField]);
+  return scalar == null ? null : [scalar];
 }

@@ -1,29 +1,25 @@
 package api
 
-import "strings"
+import (
+	"strings"
+
+	"social.craftsky/appview/internal/projectcatalog"
+)
 
 const craftTypePrefix = "social.craftsky.feed.defs#"
 
-var defaultSupportedCraftTypes = []string{
-	craftTypePrefix + "knitting",
-	craftTypePrefix + "crochet",
-	craftTypePrefix + "sewing",
-	craftTypePrefix + "embroidery",
-	craftTypePrefix + "quilting",
-}
-
-var supportedCraftTypeAliases = map[string]string{
-	"knitting":                     craftTypePrefix + "knitting",
-	craftTypePrefix + "knitting":   craftTypePrefix + "knitting",
-	"crochet":                      craftTypePrefix + "crochet",
-	craftTypePrefix + "crochet":    craftTypePrefix + "crochet",
-	"sewing":                       craftTypePrefix + "sewing",
-	craftTypePrefix + "sewing":     craftTypePrefix + "sewing",
-	"embroidery":                   craftTypePrefix + "embroidery",
-	craftTypePrefix + "embroidery": craftTypePrefix + "embroidery",
-	"quilting":                     craftTypePrefix + "quilting",
-	craftTypePrefix + "quilting":   craftTypePrefix + "quilting",
-}
+var defaultSupportedCraftTypes, supportedCraftTypeAliases = func() ([]string, map[string]string) {
+	crafts := projectcatalog.PrimaryCrafts()
+	defaults := make([]string, 0, len(crafts))
+	aliases := make(map[string]string, 3*len(crafts))
+	for _, craft := range crafts {
+		defaults = append(defaults, craft.ID)
+		aliases[strings.ToLower(craft.ID)] = craft.ID
+		aliases[strings.ToLower(strings.TrimPrefix(craft.ID, craftTypePrefix))] = craft.ID
+		aliases[craft.ProfileID] = craft.ID
+	}
+	return defaults, aliases
+}()
 
 func CanonicalCraftType(raw string) (string, error) {
 	key := strings.ToLower(strings.TrimSpace(raw))

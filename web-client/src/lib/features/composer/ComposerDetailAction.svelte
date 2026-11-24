@@ -69,7 +69,7 @@
 		border-radius: 999px;
 		background: var(--primary);
 		color: var(--on-primary, white);
-		box-shadow: 3px 3px var(--ink);
+		box-shadow: 3px 3px var(--shadow);
 		font-weight: 800;
 	}
 	.detail-action.compact {

@@ -57,15 +57,6 @@ final class OnboardingFlowState {
        unknownCraftIds = List.unmodifiable(unknownCraftIds);
 
   factory fromProfile(Profile profile) {
-    final known = <String>{};
-    final unknown = <String>[];
-    for (final id in profile.crafts) {
-      if (!isCanonicalSelectableCraft(id)) {
-        unknown.add(id);
-      } else {
-        known.add(id);
-      }
-    }
     return OnboardingFlowState(
       step: OnboardingStep.profile,
       baseline: profile,
@@ -75,8 +66,10 @@ final class OnboardingFlowState {
         bio: profile.description ?? '',
         links: List.unmodifiable(profile.editingLinks),
       ),
-      selectedCraftIds: known,
-      unknownCraftIds: unknown,
+      selectedCraftIds: selectableCraftIdsFrom(profile.crafts).toSet(),
+      unknownCraftIds: profile.crafts
+          .where((id) => !isCanonicalSelectableCraft(id))
+          .toList(),
     );
   }
 
@@ -103,13 +96,10 @@ final class OnboardingFlowState {
       linksDirty ||
       avatarBlob != null;
 
-  bool get craftsDirty {
-    final baselineKnown = baseline.crafts.where(isCanonicalSelectableCraft);
-    return !listEquals(
-      baselineKnown.toSet().toList(),
-      selectedCraftIds.toList(),
-    );
-  }
+  bool get craftsDirty => !listEquals(
+    selectableCraftIdsFrom(baseline.crafts),
+    selectedCraftIds.toList(),
+  );
 
   OnboardingFlowState copyWith({
     OnboardingStep? step,

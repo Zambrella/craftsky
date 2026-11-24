@@ -9,7 +9,7 @@ void main() {
   test('every craft background key maps to a bundled craft icon', () {
     expect(
       profileCraftBackgrounds.keys,
-      profileBackgroundCatalogue.skip(1).take(5),
+      profileBackgroundCatalogue.where((key) => key.startsWith('craft-')),
     );
     for (final craft in profileCraftBackgrounds.values) {
       expect(CraftIcon.assetPathFor(craft), isNotNull);
@@ -91,7 +91,7 @@ void main() {
           child: ProfileHeaderBackground(
             customisation: ProfileCustomisation(
               colour: 'seafoam',
-              background: 'craft-crochet',
+              background: 'craft-punch-needle',
             ),
           ),
         ),
@@ -100,7 +100,7 @@ void main() {
 
     final icons = tester.widgetList<CraftIcon>(find.byType(CraftIcon)).toList();
     expect(icons.length, greaterThan(1));
-    expect(icons.every((icon) => icon.craft == 'crochet'), isTrue);
+    expect(icons.every((icon) => icon.craft == 'punch-needle'), isTrue);
     expect(icons.every((icon) => icon.color?.a == 0.18), isTrue);
     expect(
       find.byKey(const Key('profile-header-background-texture')),

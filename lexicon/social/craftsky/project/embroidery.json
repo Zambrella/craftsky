@@ -1,0 +1,136 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.embroidery",
+  "description": "Embroidery-specific fields in the open project details union.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Optional embroidery method and style choices.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
+          "knownValues": [
+            "social.craftsky.project.defs#decorativePiece",
+            "social.craftsky.project.defs#homeGoods",
+            "social.craftsky.project.defs#garment",
+            "social.craftsky.project.defs#accessory",
+            "social.craftsky.project.defs#toyHobby",
+            "social.craftsky.project.defs#alteration",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.",
+          "knownValues": [
+            "social.craftsky.project.embroidery.defs#hoopedFramedPicture",
+            "social.craftsky.project.embroidery.defs#wallHanging",
+            "social.craftsky.project.embroidery.defs#sampler",
+            "social.craftsky.project.embroidery.defs#ornament",
+            "social.craftsky.project.embroidery.defs#freestandingPiece",
+            "social.craftsky.project.embroidery.defs#cushion",
+            "social.craftsky.project.embroidery.defs#tableLinen",
+            "social.craftsky.project.embroidery.defs#towel",
+            "social.craftsky.project.embroidery.defs#pincushion",
+            "social.craftsky.project.embroidery.defs#top",
+            "social.craftsky.project.embroidery.defs#coatJacket",
+            "social.craftsky.project.embroidery.defs#dressSkirt",
+            "social.craftsky.project.embroidery.defs#patchBadge",
+            "social.craftsky.project.embroidery.defs#bagPouch",
+            "social.craftsky.project.embroidery.defs#jewelry",
+            "social.craftsky.project.embroidery.defs#bookmark",
+            "social.craftsky.project.embroidery.defs#needleCase",
+            "social.craftsky.project.embroidery.defs#softToy",
+            "social.craftsky.project.embroidery.defs#puppet",
+            "social.craftsky.project.embroidery.defs#repair"
+          ]
+        },
+        "method": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "minLength": 1,
+          "description": "Primary method for this project. Suggested values are Hand and Machine.",
+          "knownValues": [
+            "social.craftsky.project.embroidery.defs#hand",
+            "social.craftsky.project.embroidery.defs#machine"
+          ]
+        },
+        "style": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "minLength": 1,
+          "description": "Primary embroidery style. This choice is independent of the method. Suggested values are Cross-stitch and Needlepoint.",
+          "knownValues": [
+            "social.craftsky.project.embroidery.defs#crossStitch",
+            "social.craftsky.project.embroidery.defs#needlepoint"
+          ]
+        },
+        "methods": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: Legacy list of embroidery methods with associated styles. Use the independent method and style fields for new projects.",
+          "items": {
+            "type": "ref",
+            "ref": "#methodSelection"
+          }
+        }
+      }
+    },
+    "methodSelection": {
+      "type": "object",
+      "description": "One embroidery method and the styles worked with it.",
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The embroidery method, such as Hand or Machine.",
+          "minLength": 1,
+          "knownValues": [
+            "social.craftsky.project.embroidery.defs#hand",
+            "social.craftsky.project.embroidery.defs#machine"
+          ]
+        },
+        "styles": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Styles used with this method. Suggest Cross-stitch and Needlepoint for Hand embroidery. Existing styles remain readable for either method.",
+          "items": {
+            "type": "ref",
+            "ref": "#styleSelection"
+          }
+        }
+      }
+    },
+    "styleSelection": {
+      "type": "object",
+      "description": "One style associated with the enclosing embroidery method.",
+      "required": [
+        "style"
+      ],
+      "properties": {
+        "style": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The style worked with this method. Cross-stitch and Needlepoint are suggested for Hand embroidery.",
+          "minLength": 1,
+          "knownValues": [
+            "social.craftsky.project.embroidery.defs#crossStitch",
+            "social.craftsky.project.embroidery.defs#needlepoint"
+          ]
+        }
+      }
+    }
+  }
+}

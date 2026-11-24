@@ -1,0 +1,603 @@
+{
+  "projectItems": {
+    "social.craftsky.feed.defs#knitting": [
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#pullover",
+          "social.craftsky.project.knitting.defs#cardigan",
+          "social.craftsky.project.knitting.defs#top",
+          "social.craftsky.project.knitting.defs#vest",
+          "social.craftsky.project.knitting.defs#coatJacket",
+          "social.craftsky.project.knitting.defs#shrugBolero",
+          "social.craftsky.project.knitting.defs#poncho",
+          "social.craftsky.project.knitting.defs#dress",
+          "social.craftsky.project.knitting.defs#skirt",
+          "social.craftsky.project.knitting.defs#babyOnesie"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#hat",
+          "social.craftsky.project.knitting.defs#hood",
+          "social.craftsky.project.knitting.defs#headband",
+          "social.craftsky.project.knitting.defs#scarf",
+          "social.craftsky.project.knitting.defs#cowl",
+          "social.craftsky.project.knitting.defs#shawlWrap",
+          "social.craftsky.project.knitting.defs#glovesMittens",
+          "social.craftsky.project.knitting.defs#socks",
+          "social.craftsky.project.knitting.defs#slippers",
+          "social.craftsky.project.knitting.defs#bag"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#blanket",
+          "social.craftsky.project.knitting.defs#babyBlanket",
+          "social.craftsky.project.knitting.defs#pillow",
+          "social.craftsky.project.knitting.defs#rug",
+          "social.craftsky.project.knitting.defs#washcloth",
+          "social.craftsky.project.knitting.defs#teaTowel",
+          "social.craftsky.project.knitting.defs#coasterPlacemat",
+          "social.craftsky.project.knitting.defs#cozy",
+          "social.craftsky.project.knitting.defs#ornament"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#softToy",
+          "social.craftsky.project.knitting.defs#dollClothes",
+          "social.craftsky.project.knitting.defs#playFood"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#pet",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#petSweater",
+          "social.craftsky.project.knitting.defs#petBedding",
+          "social.craftsky.project.knitting.defs#petToy",
+          "social.craftsky.project.knitting.defs#petAccessory"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#medical",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#prosthesis",
+          "social.craftsky.project.knitting.defs#adaptiveClothing"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#component",
+        "subtypes": [
+          "social.craftsky.project.knitting.defs#swatch",
+          "social.craftsky.project.knitting.defs#motif",
+          "social.craftsky.project.knitting.defs#trim"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#costume",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#crochet": [
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#pullover",
+          "social.craftsky.project.crochet.defs#cardigan",
+          "social.craftsky.project.crochet.defs#top",
+          "social.craftsky.project.crochet.defs#vest",
+          "social.craftsky.project.crochet.defs#coatJacket",
+          "social.craftsky.project.crochet.defs#poncho",
+          "social.craftsky.project.crochet.defs#dress",
+          "social.craftsky.project.crochet.defs#skirt",
+          "social.craftsky.project.crochet.defs#trousersShorts",
+          "social.craftsky.project.crochet.defs#swimwear",
+          "social.craftsky.project.crochet.defs#babyOnesie"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#hat",
+          "social.craftsky.project.crochet.defs#hood",
+          "social.craftsky.project.crochet.defs#headband",
+          "social.craftsky.project.crochet.defs#scarf",
+          "social.craftsky.project.crochet.defs#cowl",
+          "social.craftsky.project.crochet.defs#shawlWrap",
+          "social.craftsky.project.crochet.defs#glovesMittens",
+          "social.craftsky.project.crochet.defs#socks",
+          "social.craftsky.project.crochet.defs#slippers",
+          "social.craftsky.project.crochet.defs#bag",
+          "social.craftsky.project.crochet.defs#bookmark"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#blanket",
+          "social.craftsky.project.crochet.defs#babyBlanket",
+          "social.craftsky.project.crochet.defs#pillow",
+          "social.craftsky.project.crochet.defs#rug",
+          "social.craftsky.project.crochet.defs#basket",
+          "social.craftsky.project.crochet.defs#coaster",
+          "social.craftsky.project.crochet.defs#potholder",
+          "social.craftsky.project.crochet.defs#doily",
+          "social.craftsky.project.crochet.defs#plantHanger",
+          "social.craftsky.project.crochet.defs#wallHanging",
+          "social.craftsky.project.crochet.defs#decorativePlant",
+          "social.craftsky.project.crochet.defs#washcloth",
+          "social.craftsky.project.crochet.defs#ornament"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#amigurumi",
+          "social.craftsky.project.crochet.defs#dollClothes",
+          "social.craftsky.project.crochet.defs#playFood"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#pet",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#petClothing",
+          "social.craftsky.project.crochet.defs#petBedding",
+          "social.craftsky.project.crochet.defs#petToy",
+          "social.craftsky.project.crochet.defs#petAccessory"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#medical",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#prosthesis",
+          "social.craftsky.project.crochet.defs#adaptiveClothing"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#component",
+        "subtypes": [
+          "social.craftsky.project.crochet.defs#swatch",
+          "social.craftsky.project.crochet.defs#grannySquare",
+          "social.craftsky.project.crochet.defs#trim"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#costume",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#sewing": [
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#dress",
+          "social.craftsky.project.sewing.defs#top",
+          "social.craftsky.project.sewing.defs#shirt",
+          "social.craftsky.project.sewing.defs#sweatshirtHoodie",
+          "social.craftsky.project.sewing.defs#cardigan",
+          "social.craftsky.project.sewing.defs#coatJacket",
+          "social.craftsky.project.sewing.defs#waistcoat",
+          "social.craftsky.project.sewing.defs#pants",
+          "social.craftsky.project.sewing.defs#shorts",
+          "social.craftsky.project.sewing.defs#leggings",
+          "social.craftsky.project.sewing.defs#skirt",
+          "social.craftsky.project.sewing.defs#jumpsuit",
+          "social.craftsky.project.sewing.defs#dungarees",
+          "social.craftsky.project.sewing.defs#babyOnesie",
+          "social.craftsky.project.sewing.defs#sleepwear",
+          "social.craftsky.project.sewing.defs#intimateApparel",
+          "social.craftsky.project.sewing.defs#swimwear",
+          "social.craftsky.project.sewing.defs#apron"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#bag",
+          "social.craftsky.project.sewing.defs#tote",
+          "social.craftsky.project.sewing.defs#backpack",
+          "social.craftsky.project.sewing.defs#crossbodyBag",
+          "social.craftsky.project.sewing.defs#pouch",
+          "social.craftsky.project.sewing.defs#wallet",
+          "social.craftsky.project.sewing.defs#belt",
+          "social.craftsky.project.sewing.defs#hat",
+          "social.craftsky.project.sewing.defs#scarf"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#pillow",
+          "social.craftsky.project.sewing.defs#bedding",
+          "social.craftsky.project.sewing.defs#blanket",
+          "social.craftsky.project.sewing.defs#curtain",
+          "social.craftsky.project.sewing.defs#tableLinen",
+          "social.craftsky.project.sewing.defs#towel",
+          "social.craftsky.project.sewing.defs#potholder",
+          "social.craftsky.project.sewing.defs#container",
+          "social.craftsky.project.sewing.defs#equipmentCover",
+          "social.craftsky.project.sewing.defs#rug"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#softToy",
+          "social.craftsky.project.sewing.defs#dollClothes",
+          "social.craftsky.project.sewing.defs#playMat"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#pet",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#petClothing",
+          "social.craftsky.project.sewing.defs#petBedding",
+          "social.craftsky.project.sewing.defs#petToy"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#medical",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#adaptiveClothing",
+          "social.craftsky.project.sewing.defs#wheelchairAccessory",
+          "social.craftsky.project.sewing.defs#heatColdPack"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#alteration",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#fitAdjustment",
+          "social.craftsky.project.sewing.defs#repair",
+          "social.craftsky.project.sewing.defs#refashion"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#costume",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#component",
+        "subtypes": [
+          "social.craftsky.project.sewing.defs#patch",
+          "social.craftsky.project.sewing.defs#strap",
+          "social.craftsky.project.sewing.defs#toile"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#quilting": [
+      {
+        "type": "social.craftsky.project.defs#quilt",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#bedQuilt",
+          "social.craftsky.project.quilting.defs#babyQuilt",
+          "social.craftsky.project.quilting.defs#throwQuilt",
+          "social.craftsky.project.quilting.defs#wallHanging",
+          "social.craftsky.project.quilting.defs#miniQuilt",
+          "social.craftsky.project.quilting.defs#artQuilt"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#pillow",
+          "social.craftsky.project.quilting.defs#tableRunner",
+          "social.craftsky.project.quilting.defs#placemat",
+          "social.craftsky.project.quilting.defs#potholder",
+          "social.craftsky.project.quilting.defs#bowlCozy",
+          "social.craftsky.project.quilting.defs#coaster",
+          "social.craftsky.project.quilting.defs#rug"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#bag",
+          "social.craftsky.project.quilting.defs#pouch"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#jacket",
+          "social.craftsky.project.quilting.defs#vest"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#softToy",
+          "social.craftsky.project.quilting.defs#playMat"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#pet",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#petBedding",
+          "social.craftsky.project.quilting.defs#petCoat"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#component",
+        "subtypes": [
+          "social.craftsky.project.quilting.defs#quiltBlock",
+          "social.craftsky.project.quilting.defs#quiltTop"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#embroidery": [
+      {
+        "type": "social.craftsky.project.defs#decorativePiece",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#hoopedFramedPicture",
+          "social.craftsky.project.embroidery.defs#wallHanging",
+          "social.craftsky.project.embroidery.defs#sampler",
+          "social.craftsky.project.embroidery.defs#ornament",
+          "social.craftsky.project.embroidery.defs#freestandingPiece"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#cushion",
+          "social.craftsky.project.embroidery.defs#tableLinen",
+          "social.craftsky.project.embroidery.defs#towel",
+          "social.craftsky.project.embroidery.defs#pincushion"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#top",
+          "social.craftsky.project.embroidery.defs#coatJacket",
+          "social.craftsky.project.embroidery.defs#dressSkirt"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#patchBadge",
+          "social.craftsky.project.embroidery.defs#bagPouch",
+          "social.craftsky.project.embroidery.defs#jewelry",
+          "social.craftsky.project.embroidery.defs#bookmark",
+          "social.craftsky.project.embroidery.defs#needleCase"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#softToy",
+          "social.craftsky.project.embroidery.defs#puppet"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#alteration",
+        "subtypes": [
+          "social.craftsky.project.embroidery.defs#repair"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#punchNeedle": [
+      {
+        "type": "social.craftsky.project.punchNeedle#rug",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.punchNeedle#wallHanging",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.punchNeedle#hoopArt",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.punchNeedle#cushion",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.punchNeedle#coaster",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.punchNeedle#tableMatRunner",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#macrame": [
+      {
+        "type": "social.craftsky.project.macrame#plantHanger",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.macrame#wallHanging",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.macrame#bag",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.macrame#keyringCharm",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.macrame#jewelry",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.macrame#tableDecor",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#weaving": [
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.weaving#top",
+          "social.craftsky.project.weaving#coatJacket"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.weaving#bag",
+          "social.craftsky.project.weaving#scarf",
+          "social.craftsky.project.weaving#shawlWrap"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.weaving#towel",
+          "social.craftsky.project.weaving#tableLinen",
+          "social.craftsky.project.weaving#rug",
+          "social.craftsky.project.weaving#blanket",
+          "social.craftsky.project.weaving#cushionCover"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#artDecoration",
+        "subtypes": [
+          "social.craftsky.project.weaving#wallHanging"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#fabricComponents",
+        "subtypes": [
+          "social.craftsky.project.weaving#fabricYardage",
+          "social.craftsky.project.weaving#bandTrim",
+          "social.craftsky.project.weaving#swatchSampler"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#felting": [
+      {
+        "type": "social.craftsky.project.defs#garment",
+        "subtypes": [
+          "social.craftsky.project.felting#top",
+          "social.craftsky.project.felting#coatJacket",
+          "social.craftsky.project.felting#dress"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#accessory",
+        "subtypes": [
+          "social.craftsky.project.felting#bag",
+          "social.craftsky.project.felting#hat",
+          "social.craftsky.project.felting#scarf",
+          "social.craftsky.project.felting#slippers"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#homeGoods",
+        "subtypes": [
+          "social.craftsky.project.felting#bowlVessel",
+          "social.craftsky.project.felting#cushion"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#artDecoration",
+        "subtypes": [
+          "social.craftsky.project.felting#wallHanging",
+          "social.craftsky.project.felting#figurine",
+          "social.craftsky.project.felting#ornament"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#toyHobby",
+        "subtypes": [
+          "social.craftsky.project.felting#softToy"
+        ]
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ],
+    "social.craftsky.feed.defs#dyeing": [
+      {
+        "type": "social.craftsky.project.dyeing#unspunFibre",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.dyeing#yarnThread",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.dyeing#fabric",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.dyeing#finishedItem",
+        "subtypes": []
+      },
+      {
+        "type": "social.craftsky.project.defs#other",
+        "subtypes": []
+      }
+    ]
+  },
+  "projectDetailOptions": {
+    "knittingMethod": [
+      "social.craftsky.project.knitting.defs#hand",
+      "social.craftsky.project.knitting.defs#machine",
+      "social.craftsky.project.knitting.defs#loom"
+    ],
+    "crochetMethod": [
+      "social.craftsky.project.crochet.defs#standardCrochet",
+      "social.craftsky.project.crochet.defs#tunisianCrochet"
+    ],
+    "embroideryMethod": [
+      "social.craftsky.project.embroidery.defs#hand",
+      "social.craftsky.project.embroidery.defs#machine"
+    ],
+    "embroideryStyle": [
+      "social.craftsky.project.embroidery.defs#crossStitch",
+      "social.craftsky.project.embroidery.defs#needlepoint"
+    ],
+    "feltingMethod": [
+      "social.craftsky.project.felting#needle",
+      "social.craftsky.project.felting#wet"
+    ],
+    "loomType": [
+      "social.craftsky.project.weaving#rigidHeddle",
+      "social.craftsky.project.weaving#shaftLoom",
+      "social.craftsky.project.weaving#frameLoom"
+    ]
+  }
+}

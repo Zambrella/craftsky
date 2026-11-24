@@ -1,4 +1,5 @@
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
+import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
@@ -33,7 +34,10 @@ final class OnboardingProfilePayload {
           : (state.baseline.description ?? '').trim(),
       crafts: savesIdentity
           ? List.of(state.baseline.crafts)
-          : [...state.selectedCraftIds, ...state.unknownCraftIds],
+          : storedCraftSelection(
+              state.baseline.crafts,
+              state.selectedCraftIds.toList(),
+            ),
       links: savesLinks ? List.unmodifiable(state.identity.links) : null,
       removedLinks: savesLinks
           ? List.unmodifiable(

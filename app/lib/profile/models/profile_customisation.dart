@@ -17,28 +17,6 @@ const profileColourCatalogue = <String>[
   'chocolate',
 ];
 
-const profileBackgroundCatalogue = <String>[
-  'none',
-  'craft-sewing',
-  'craft-knitting',
-  'craft-crochet',
-  'craft-quilting',
-  'craft-embroidery',
-  'animated-flow',
-  'animated-waves',
-  'animated-weave',
-  'animated-grain',
-  'animated-marble',
-  'animated-textile',
-  'animated-ribbons',
-  'animated-silk',
-  'animated-bloom',
-  'animated-sunbeams',
-  'animated-lagoon',
-  'animated-nebula',
-  'animated-prism',
-];
-
 const profileShaderBackgrounds = <String, int>{
   'animated-flow': 0,
   'animated-waves': 1,
@@ -61,7 +39,19 @@ const profileCraftBackgrounds = <String, String>{
   'craft-crochet': 'crochet',
   'craft-quilting': 'quilting',
   'craft-embroidery': 'embroidery',
+  'craft-spinning': 'spinning',
+  'craft-dyeing': 'dyeing',
+  'craft-punch-needle': 'punch-needle',
+  'craft-macrame': 'macrame',
+  'craft-weaving': 'weaving',
+  'craft-felting': 'felting',
 };
+
+final profileBackgroundCatalogue = List<String>.unmodifiable([
+  'none',
+  ...profileCraftBackgrounds.keys,
+  ...profileShaderBackgrounds.keys,
+]);
 
 @immutable
 class ProfileColourBundle {

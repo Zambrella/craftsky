@@ -23,7 +23,9 @@
 	import { prepareImage } from '../composer/media';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
-	import catalog from './catalog.json';
+	import { primaryCrafts } from '../composer/project-options';
+	import { craftKey } from './craft-feeds';
+	import { craftIconMask } from './craft-icons';
 	import Icon from '../shell/Icon.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { profileStyle, safeLink } from './model';
@@ -76,22 +78,20 @@
 		'quilting',
 		'embroidery'
 	];
-	const choices = catalog
-		.filter((item) => item.family === 'craft')
-		.sort(
-			(a, b) =>
-				craftOrder.indexOf(craftKey(a.id)) - craftOrder.indexOf(craftKey(b.id))
-		);
-	function craftKey(value: string) {
-		return value.split('#').at(-1)?.trim().toLowerCase() || '';
-	}
+	const choices = [...primaryCrafts].sort((a, b) => {
+		const order = (id: string) => {
+			const index = craftOrder.indexOf(craftKey(id));
+			return index < 0 ? craftOrder.length : index;
+		};
+		return order(a.id) - order(b.id);
+	});
 	const craftRows = $derived([
 		...crafts.map((value, index) => ({
 			value,
 			key: craftKey(value),
 			label:
-				choices.find((item) => craftKey(item.id) === craftKey(value))?.labels
-					.en || label(craftKey(value)),
+				choices.find((item) => craftKey(item.id) === craftKey(value))?.label ||
+				label(craftKey(value)),
 			index
 		})),
 		...choices
@@ -99,9 +99,9 @@
 				(item) => !crafts.some((value) => craftKey(value) === craftKey(item.id))
 			)
 			.map((item) => ({
-				value: item.id,
+				value: item.phase === 2 ? craftKey(item.id) : item.id,
 				key: craftKey(item.id),
-				label: item.labels.en,
+				label: item.label,
 				index: -1
 			}))
 	]);
@@ -110,6 +110,7 @@
 		const selected = crafts.some(
 			(craft) => craftKey(craft) === craftKey(value)
 		);
+		if (!selected && crafts.length >= 10) return;
 		crafts = selected
 			? crafts.filter((craft) => craftKey(craft) !== craftKey(value))
 			: [...crafts, value];
@@ -498,7 +499,7 @@
 {#if scope !== 'all'}<p class="onboarding-description">
 		{scope === 'identity'
 			? 'Add a name, pronouns, bio, and photo so other crafters can recognize you.'
-			: 'Choose as many crafts as you like. You can change these later.'}
+			: 'Choose up to ten crafts. You can change these later.'}
 	</p>{/if}
 <Status {work} />
 {#if original}<form
@@ -706,7 +707,9 @@
 					<legend>Crafts</legend>
 					<p class="crafts-helper">Pick the crafts you make</p>
 					<div class="craft-rows">
-						{#each craftRows as craft (craft.value)}<div
+						{#each craftRows as craft (craft.value)}{@const icon =
+								craftIconMask(craft.key)}
+							<div
 								class="craft-row"
 								use:reorderRow={{
 									group: 'profile-crafts',
@@ -722,13 +725,14 @@
 										type="checkbox"
 										aria-label={craft.label}
 										checked={craft.index >= 0}
+										disabled={craft.index < 0 && crafts.length >= 10}
 										onchange={() => toggleCraft(craft.value)}
 										onkeydown={(event) => reorderCraftKey(event, craft.index)}
 									/><span class="craft-copy"
 										><span class="craft-name"
-											>{#if craftOrder.includes(craft.key)}<span
+											>{#if icon}<span
 													class="craft-glyph"
-													style:--craft-icon={`url('/craft_icons/${craft.key}.svg')`}
+													style:--craft-icon={icon}
 													aria-hidden="true"
 												></span>{/if}{craft.label}</span
 										>{#if craft.index === 0}<small class="default-craft"

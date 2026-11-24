@@ -1,5 +1,6 @@
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 
 Map<String, dynamic> hydrateScheduledProjectComposer(
@@ -40,7 +41,17 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
           ),
     ];
   }
-  if (common['pattern'] case final Map<Object?, Object?> pattern) {
+  final patterns = common.containsKey('patterns')
+      ? common['patterns'] as List? ?? const []
+      : [?common['pattern']];
+  if (common.containsKey('patterns') || common['pattern'] is Map) {
+    values[ProjectComposerFields.patterns] = [
+      for (final pattern in patterns)
+        if (pattern is Map)
+          ProjectPatternMapper.fromMap(Map<String, dynamic>.from(pattern)),
+    ];
+  }
+  if (patterns.firstOrNull case final Map<Object?, Object?> pattern) {
     values
       ..[ProjectComposerFields.patternUrl] = pattern['url']
       ..[ProjectComposerFields.patternName] = pattern['name']
@@ -54,6 +65,38 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
   final details = project['details'];
   if (details is! Map<Object?, Object?>) return values;
   final craftType = common['craftType'];
+  if (craftType is String &&
+      details[r'$type'] == ProjectDetailFields.typeForCraft(craftType)) {
+    if (details.containsKey('projectType')) {
+      values[ProjectComposerFields.projectTypeFor(craftType)] =
+          details['projectType'];
+    }
+    if (details.containsKey('projectSubtype')) {
+      values[ProjectComposerFields.projectSubtypeFor(craftType)] =
+          details['projectSubtype'];
+    }
+    final fields = ProjectDetailFields.forCraft(craftType);
+    if (fields.isNotEmpty) {
+      values[ProjectDetailFields.formName(craftType)] = {
+        for (final field in fields)
+          if (details.containsKey(field.key)) field.key: details[field.key],
+      };
+    }
+  }
+  if (craftType == ProjectOptionCatalogs.knittingCraftToken) {
+    values[ProjectComposerFields.knittingNeedleSizes] = _toolSizes(
+      details,
+      'needleSizesMm',
+      'needleSizeMm',
+    );
+  }
+  if (craftType == ProjectOptionCatalogs.crochetCraftToken) {
+    values[ProjectComposerFields.crochetHookSizes] = _toolSizes(
+      details,
+      'hookSizesMm',
+      'hookSizeMm',
+    );
+  }
   final prefix = switch (craftType) {
     ProjectOptionCatalogs.sewingCraftToken => 'sewing',
     ProjectOptionCatalogs.knittingCraftToken => 'knitting',
@@ -98,4 +141,19 @@ List<Map<String, dynamic>>? _facetMaps(Object? value) {
       if (item is Map) Map<String, dynamic>.from(item),
   ];
   return facets.isEmpty ? null : facets;
+}
+
+List<String>? _toolSizes(
+  Map<Object?, Object?> details,
+  String listKey,
+  String scalarKey,
+) {
+  if (details.containsKey(listKey)) {
+    return [
+      for (final item in details[listKey] as List? ?? const [])
+        if (item is String) item,
+    ];
+  }
+  if (details[scalarKey] case final String size) return [size];
+  return null;
 }

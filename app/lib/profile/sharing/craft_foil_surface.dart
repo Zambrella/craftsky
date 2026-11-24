@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:craftsky_app/profile/data/crafts_catalog.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/sharing/share_card_motion.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -73,8 +73,8 @@ class _CraftFoilSurfaceState extends State<CraftFoilSurface> {
   static Future<ui.Picture?> _buildPattern() async {
     final icons = <PictureInfo>[];
     try {
-      for (final craft in canonicalSelectableCrafts) {
-        final path = CraftIcon.assetPathFor(craft.id);
+      for (final craft in profileCraftBackgrounds.values) {
+        final path = CraftIcon.assetPathFor(craft);
         if (path != null) {
           icons.add(await vg.loadPicture(SvgAssetLoader(path), null));
         }

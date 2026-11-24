@@ -2,11 +2,27 @@
 package api_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
 )
+
+func TestProfilePutKeepsOrderedCraftInterestIDs(t *testing.T) {
+	t.Parallel()
+	req, err := api.DecodeProfilePut(strings.NewReader(`{"crafts":["punch-needle","spinning","crochet","dyeing","macrame","weaving","felting","paper-crafts"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := api.ValidateProfilePut(req); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"punch-needle", "spinning", "crochet", "dyeing", "macrame", "weaving", "felting", "paper-crafts"}
+	if !slices.Equal(req.Crafts, want) {
+		t.Fatalf("craft interests=%v, want %v", req.Crafts, want)
+	}
+}
 
 func TestDecodeProfilePut_HappyPath(t *testing.T) {
 	t.Parallel()

@@ -2001,8 +2001,8 @@ void main() {
       expect(find.text('PATTERN'), findsOneWidget);
       expect(find.text('Wiksten Haori'), findsOneWidget);
       expect(find.text('Jenny Gordy'), findsOneWidget);
-      expect(find.text('SIZE'), findsOneWidget);
-      expect(find.text('Medium'), findsOneWidget);
+      expect(find.text('SIZE'), findsNothing);
+      expect(find.text('Medium'), findsNothing);
       expect(find.text('Process shots, swipe through.'), findsOneWidget);
       expect(
         tester.getCenter(find.byKey(const Key('post-image-carousel'))).dy,
@@ -2031,11 +2031,6 @@ void main() {
           epsilon: 1,
         ),
       );
-      expect(
-        tester.getCenter(find.text('SIZE')).dy,
-        moreOrLessEquals(tester.getCenter(find.text('Medium')).dy, epsilon: 1),
-      );
-
       expect(
         tester.getBottomLeft(find.byKey(const Key('post-image-carousel'))).dy,
         lessThan(
@@ -2163,7 +2158,7 @@ void main() {
       expect(find.text('PATTERN'), findsNothing);
     });
 
-    testWidgets('renders craft-specific size metadata', (tester) async {
+    testWidgets('hides retired craft-specific size metadata', (tester) async {
       await _pump(
         tester,
         PostCard(
@@ -2177,8 +2172,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('FINISHED SIZE'), findsOneWidget);
-      expect(find.text('40 in bust'), findsOneWidget);
+      expect(find.text('FINISHED SIZE'), findsNothing);
+      expect(find.text('40 in bust'), findsNothing);
 
       await _pump(
         tester,
@@ -2193,8 +2188,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('FINISHED SIZE'), findsOneWidget);
-      expect(find.text('Baby blanket'), findsOneWidget);
+      expect(find.text('FINISHED SIZE'), findsNothing);
+      expect(find.text('Baby blanket'), findsNothing);
 
       await _pump(
         tester,
@@ -2209,8 +2204,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('SIZE'), findsOneWidget);
-      expect(find.text('60 x 72 in'), findsOneWidget);
+      expect(find.text('SIZE'), findsNothing);
+      expect(find.text('60 x 72 in'), findsNothing);
 
       await _pump(
         tester,

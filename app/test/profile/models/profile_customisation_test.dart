@@ -37,6 +37,12 @@ void main() {
         'craft-crochet',
         'craft-quilting',
         'craft-embroidery',
+        'craft-spinning',
+        'craft-dyeing',
+        'craft-punch-needle',
+        'craft-macrame',
+        'craft-weaving',
+        'craft-felting',
         'animated-flow',
         'animated-waves',
         'animated-weave',
@@ -53,13 +59,19 @@ void main() {
       ]);
 
       expect(profileColourCatalogue.toSet(), hasLength(13));
-      expect(profileBackgroundCatalogue.toSet(), hasLength(19));
+      expect(profileBackgroundCatalogue.toSet(), hasLength(25));
       expect(profileCraftBackgrounds, {
         'craft-sewing': 'sewing',
         'craft-knitting': 'knitting',
         'craft-crochet': 'crochet',
         'craft-quilting': 'quilting',
         'craft-embroidery': 'embroidery',
+        'craft-spinning': 'spinning',
+        'craft-dyeing': 'dyeing',
+        'craft-punch-needle': 'punch-needle',
+        'craft-macrame': 'macrame',
+        'craft-weaving': 'weaving',
+        'craft-felting': 'felting',
       });
       expect(ProfileCustomisation.defaults.toMap(), {
         'colour': 'cobalt',

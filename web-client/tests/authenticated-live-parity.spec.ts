@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import taxonomy from '../src/lib/features/composer/project-taxonomy.json' with { type: 'json' };
 
 const account = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
@@ -35,6 +36,9 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 }) => {
 	await page.goto('/feed');
 	const feeds = page.getByRole('navigation', { name: 'Home feeds' });
+	const expanded = (taxonomy as { phase?: number; offered?: boolean }[]).some(
+		(craft) => craft.phase === 2 && craft.offered !== false
+	);
 	await expect(feeds.getByRole('link')).toHaveText([
 		'Following',
 		'Extended network',
@@ -42,20 +46,47 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 		'Sewing',
 		'Crochet',
 		'Embroidery',
-		'Quilting'
+		'Quilting',
+		...(expanded
+			? ['Spinning', 'Dyeing', 'Punch Needle', 'Macramé', 'Weaving', 'Felting']
+			: [])
 	]);
+	if (expanded)
+		await expect(
+			feeds.getByRole('link', { name: 'Punch Needle', exact: true })
+		).toHaveAttribute(
+			'href',
+			'/feed?craft=social.craftsky.feed.defs%23punchNeedle'
+		);
 	const following = feeds.getByRole('link', { name: 'Following', exact: true });
 	await expect(following).toHaveAttribute('aria-current', 'page');
 	await expect(following.locator('svg')).toHaveAttribute('width', '18');
-	for (const craft of ['knitting', 'sewing']) {
+	const icons = [
+		['Knitting', 'knitting'],
+		['Sewing', 'sewing'],
+		...(expanded
+			? [
+					['Spinning', 'spinning'],
+					['Dyeing', 'dyeing'],
+					['Punch Needle', 'punch-needle'],
+					['Macramé', 'macrame'],
+					['Weaving', 'weaving'],
+					['Felting', 'felting']
+				]
+			: [])
+	];
+	for (const [name, craft] of icons) {
 		const icon = feeds
-			.getByRole('link', { name: new RegExp(`^${craft}$`, 'i') })
+			.getByRole('link', { name, exact: true })
 			.locator('.feed-craft-icon');
 		await expect(icon).toHaveCSS('width', '18px');
 		await expect(icon).toHaveCSS('height', '18px');
 		expect(
 			await icon.evaluate((node) => getComputedStyle(node).maskImage)
 		).toContain(`/craft_icons/${craft}.svg`);
+		const asset = await page.request.get(`/craft_icons/${craft}.svg`);
+		expect(asset.ok()).toBe(true);
+		expect(asset.headers()['content-type']).toContain('image/svg+xml');
 	}
 	const author = page.locator('.post-card .author').first();
 	await expect(
@@ -77,6 +108,19 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 		'16px'
 	);
 	await expect(author.locator('.craft-badge')).toHaveCount(0);
+	if (expanded) {
+		await feeds
+			.getByRole('link', { name: 'Punch Needle', exact: true })
+			.click();
+		await page.getByRole('button', { name: 'Filter projects' }).click();
+		const heading = page.getByRole('heading', {
+			name: 'Filter Punch Needle projects'
+		});
+		await expect(heading.locator('.feed-craft-icon')).toHaveCSS(
+			'mask-image',
+			/\/craft_icons\/punch-needle\.svg/
+		);
+	}
 });
 
 test('desktop discovery follows the native breakpoint, isolates retry and selects short craft links', async ({
@@ -169,7 +213,7 @@ test('compact author crafts normalize lexicon IDs, retain unknown accessible lab
 									'crochet',
 									'embroidery',
 									'quilting',
-									'weaving'
+									'pottery'
 								]
 							},
 							createdAt: '2026-11-01T12:00:00Z',
@@ -195,7 +239,7 @@ test('compact author crafts normalize lexicon IDs, retain unknown accessible lab
 	const author = page.locator('.post-card .author').first();
 	await expect(
 		author.getByRole('img', {
-			name: 'Crafts: Knitting, Sewing, Crochet, Embroidery, Quilting, Weaving',
+			name: 'Crafts: Knitting, Sewing, Crochet, Embroidery, Quilting, Pottery',
 			exact: true
 		})
 	).toBeVisible();

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+
 	"social.craftsky/appview/internal/projectcatalog"
 )
 
@@ -14,16 +15,8 @@ const (
 )
 
 func IsSupportedProjectCraftType(craftType string) bool {
-	switch craftType {
-	case ProjectCraftTypeKnitting,
-		ProjectCraftTypeCrochet,
-		ProjectCraftTypeSewing,
-		ProjectCraftTypeEmbroidery,
-		ProjectCraftTypeQuilting:
-		return true
-	default:
-		return false
-	}
+	craft, known := projectcatalog.Craft(craftType)
+	return known && craft.Phase <= projectcatalog.Current.ReleasePhase
 }
 
 // Project mirrors social.craftsky.project.defs#project for /v1 post request
@@ -43,6 +36,7 @@ type ProjectCommon struct {
 	Title            *string                    `json:"title,omitempty"`
 	Duration         *string                    `json:"duration,omitempty"`
 	Pattern          *ProjectPattern            `json:"pattern,omitempty"`
+	Patterns         []*ProjectPattern          `json:"patterns,omitzero"`
 	Materials        []ProjectMaterial          `json:"materials,omitempty"`
 	Colors           []string                   `json:"colors,omitempty"`
 	DesignTags       []string                   `json:"designTags,omitempty"`

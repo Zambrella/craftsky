@@ -6,6 +6,8 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
     required this.options,
     super.key,
     this.values = const [],
+    this.selectedLabels = const {},
+    this.showLabel = true,
     this.helperText,
     this.required = false,
     this.errorText,
@@ -20,9 +22,11 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
   });
 
   final String label;
+  final bool showLabel;
   final bool required;
   final List<CraftskySelectOption<T>> options;
   final List<T> values;
+  final Map<T, String> selectedLabels;
   final String? helperText;
   final String? errorText;
   final bool enabled;
@@ -161,8 +165,13 @@ class _CraftskySearchableMultiSelectInputState<T>
       case LogicalKeyboardKey.enter ||
           LogicalKeyboardKey.numpadEnter ||
           LogicalKeyboardKey.select:
-        if (_filteredOptions.isNotEmpty) {
-          _toggle(_filteredOptions.first.value);
+        final options = _filteredOptions;
+        final match = _firstMatchingOption(
+          options,
+          _query.trim().toLowerCase(),
+        );
+        if (match >= 0) {
+          _toggle(options[match].value);
           return KeyEventResult.handled;
         }
     }
@@ -187,15 +196,14 @@ class _CraftskySearchableMultiSelectInputState<T>
   }
 
   Map<T, String> get _labelByValue => {
-    for (final option in widget.options) option.value: option.label,
+    ...widget.selectedLabels,
+    for (final option in widget.options)
+      option.value: option.selectedLabel ?? option.label,
   };
 
   List<CraftskySelectOption<T>> get _filteredOptions {
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return widget.options;
-    return widget.options
-        .where((option) => _optionMatchesQuery(option, query))
-        .toList(growable: false);
+    return _matchingOptions(widget.options, query);
   }
 
   void _setValues(List<T> values) {
@@ -242,6 +250,7 @@ class _CraftskySearchableMultiSelectInputState<T>
     final errorText = widget.errorText ?? _limitText;
     return CraftskyFieldScaffold(
       label: widget.label,
+      showLabel: widget.showLabel,
       required: widget.required,
       focusNode: _searchFocusNode,
       helperText: errorText == null ? widget.helperText : null,
@@ -359,29 +368,53 @@ class _CraftskySearchableMultiSelectInputState<T>
     final selectedTileShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radii.r2),
     );
+    final filtered = _filteredOptions;
+    final parents = _optionParentValues(filtered);
+    final hierarchical = widget.options.any(
+      (option) => option.parentValue != null,
+    );
+    final firstMatch = _firstMatchingOption(
+      filtered,
+      _query.trim().toLowerCase(),
+    );
     return CraftskyOptionsPanel(
       key: Key('${widget.keyPrefix ?? widget.label}-options-panel'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_filteredOptions.isEmpty)
+          if (filtered.isEmpty)
             const ListTile(title: Text('No results'))
           else
-            for (final (index, option) in _filteredOptions.indexed)
-              CheckboxListTile(
-                key: Key(
-                  _optionKey(widget.keyPrefix, widget.label, option.value),
+            for (final (index, option) in filtered.indexed) ...[
+              if (option.group case final group?
+                  when index == 0 || filtered[index - 1].group != group)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                    child: Text(group, style: theme.textTheme.labelMedium),
+                  ),
                 ),
-                value: _values.contains(option.value),
-                tileColor: index == 0 ? selectedTileColor : null,
-                shape: selectedTileShape,
-                title: Text(option.label),
-                subtitle: option.description == null
-                    ? null
-                    : Text(option.description!),
-                controlAffinity: ListTileControlAffinity.leading,
-                onChanged: widget.enabled ? (_) => _toggle(option.value) : null,
+              Padding(
+                padding: _optionRowPadding(filtered, parents, index),
+                child: CheckboxListTile(
+                  key: Key(
+                    _optionKey(widget.keyPrefix, widget.label, option.value),
+                  ),
+                  value: _values.contains(option.value),
+                  tileColor: index == firstMatch ? selectedTileColor : null,
+                  shape: selectedTileShape,
+                  title: _optionTitle(option, hierarchical: hierarchical),
+                  subtitle: option.description == null
+                      ? null
+                      : Text(option.description!),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: widget.enabled
+                      ? (_) => _toggle(option.value)
+                      : null,
+                ),
               ),
+            ],
         ],
       ),
     );

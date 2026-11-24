@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
@@ -196,4 +197,63 @@ func indexedEditHandler(store *api.PostStore, resolver api.HandleResolver, pool 
 		ctx = middleware.WithOAuthSessionID(ctx, "indexed-seed-fixture")
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func TestPostEditSeedProjectListsUseFieldPresence(t *testing.T) {
+	for _, tc := range []struct {
+		name, patterns, sizes       string
+		wantPatterns, wantToolSizes int
+	}{
+		{"legacy", `"pattern":{"name":"Old"}`, `"needleSizeMm":"4.0mm"`, 1, 1},
+		{"canonical", `"patterns":[{"name":"New"}]`, `"needleSizesMm":["4.5mm"]`, 1, 1},
+		{"multiple overrides legacy", `"pattern":{"name":"Stale"},"patterns":[{"name":"First"},{"name":"Second"}]`,
+			`"needleSizeMm":"3.5mm","needleSizesMm":["4.0mm","4.5mm"]`, 2, 2},
+		{"empty overrides legacy", `"patterns":[],"pattern":{"name":"Stale"}`, `"needleSizesMm":[],"needleSizeMm":"3.5mm"`, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newNotificationPipeline(t)
+			event := notificationEvent(101, "did:plc:actor", "3aaaaaaaaaaa5",
+				`,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting",`+tc.patterns+`},"details":{"$type":"social.craftsky.project.knitting#details",`+tc.sizes+`}}`)
+			f.ingest(event)
+			f.drain()
+			handler := indexedEditHandler(api.NewPostStore(f.pool), postEditProjectionResolver{}, f.pool)
+			request := httptest.NewRequest(http.MethodGet, "/edit", nil)
+			request.SetPathValue("did", event.DID.String())
+			request.SetPathValue("rkey", event.Rkey.String())
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request.WithContext(middleware.WithDID(request.Context(), event.DID)))
+			var result struct {
+				Post     api.PostResponse
+				Editable struct{ Project *api.Project }
+			}
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			for _, project := range []*api.Project{result.Post.Project, result.Editable.Project} {
+				if project == nil || project.Common.Patterns == nil || len(project.Common.Patterns) != tc.wantPatterns ||
+					(project.Common.Pattern != nil) != (tc.wantPatterns == 1) {
+					t.Fatalf("wrong pattern projection: %s", response.Body.String())
+				}
+				var details struct {
+					NeedleSizeMm  *string
+					NeedleSizesMm []string
+				}
+				if err := json.Unmarshal(project.Details, &details); err != nil {
+					t.Fatal(err)
+				}
+				if details.NeedleSizesMm == nil || len(details.NeedleSizesMm) != tc.wantToolSizes ||
+					(details.NeedleSizeMm != nil) != (tc.wantToolSizes == 1) {
+					t.Fatalf("wrong size projection: %s", response.Body.String())
+				}
+			}
+			for i, pattern := range result.Editable.Project.Common.Patterns {
+				if string(pattern.ExtraFields["existingIndex"]) != strconv.Itoa(i) {
+					t.Fatalf("missing source identity: %s", response.Body.String())
+				}
+			}
+		})
+	}
 }

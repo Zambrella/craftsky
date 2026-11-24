@@ -5,6 +5,7 @@
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
+	import { craftIconMask } from './craft-icons';
 	import type {
 		CraftskyAPI,
 		Author,
@@ -452,13 +453,16 @@
 			</section>{/if}
 		{#if top?.groups.length}<section class="search-discovery stack">
 				<h2>Trending hashtags</h2>
-				{#each top.groups as group}<div class="stack">
+				{#each top.groups as group}{@const icon = craftIconMask(
+						group.craftType
+					)}
+					<div class="stack">
 						<h3>
-							<span
-								class="trending-craft"
-								style:--craft-icon={`url('/craft_icons/${group.craftType.split('#').at(-1)}.svg')`}
-								aria-hidden="true"
-							></span>{label(group.craftType)}
+							{#if icon}<span
+									class="trending-craft"
+									style:--craft-icon={icon}
+									aria-hidden="true"
+								></span>{/if}{label(group.craftType)}
 						</h3>
 						<div class="tag-chips">
 							{#each group.items as tag}<a
@@ -618,7 +622,7 @@
 	.tag-chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px;
+		gap: 4px 8px;
 	}
 	.tag-chips a {
 		display: inline-flex;

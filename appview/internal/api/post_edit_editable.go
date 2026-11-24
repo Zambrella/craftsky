@@ -45,6 +45,10 @@ func postEditEditable(raw json.RawMessage) (map[string]json.RawMessage, error) {
 		}
 	}
 	if project, present := fields["project"]; present {
+		var source struct{ Project *Project }
+		if err := json.Unmarshal(raw, &source); err != nil {
+			return nil, err
+		}
 		var values map[string]json.RawMessage
 		if err := json.Unmarshal(project, &values); err != nil {
 			return nil, err
@@ -53,12 +57,41 @@ func postEditEditable(raw json.RawMessage) (map[string]json.RawMessage, error) {
 		if err := json.Unmarshal(values["common"], &common); err != nil {
 			return nil, err
 		}
-		for _, name := range []string{"materials", "additionalCrafts"} {
+		if list := source.Project.Common.Patterns; list != nil && len(list) == 0 {
+			common["patterns"] = json.RawMessage("[]")
+		}
+		projectPatternFields.project(common)
+		for _, name := range []string{"materials", "additionalCrafts", "patterns"} {
 			if entries, present := common[name]; present {
 				common[name], err = postEditIndexedEntries(entries)
 				if err != nil {
 					return nil, err
 				}
+			}
+		}
+		if details, present := values["details"]; present {
+			var detailFields map[string]json.RawMessage
+			if err := json.Unmarshal(details, &detailFields); err != nil {
+				return nil, err
+			}
+			var variant string
+			_ = json.Unmarshal(detailFields["$type"], &variant)
+			if keys := projectToolSizeFields(variant); keys.list != "" {
+				var rawDetails map[string]json.RawMessage
+				if err := json.Unmarshal(source.Project.Details, &rawDetails); err != nil {
+					return nil, err
+				}
+				if list, present := rawDetails[keys.list]; present {
+					detailFields[keys.list] = list
+				}
+				keys.project(detailFields)
+			}
+			if err := projectDetailEdits[variant].indexChildren(detailFields); err != nil {
+				return nil, err
+			}
+			values["details"], err = json.Marshal(detailFields)
+			if err != nil {
+				return nil, err
 			}
 		}
 		values["common"], err = json.Marshal(common)

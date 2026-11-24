@@ -188,7 +188,7 @@ void main() {
     expect(find.text('Save your draft?'), findsOneWidget);
   });
 
-  testWidgets('AT-009 confirms before discarding material edits', (
+  testWidgets('AT-009 confirms before discarding craft detail edits', (
     tester,
   ) async {
     await _openProjectComposer(
@@ -207,17 +207,22 @@ void main() {
       ],
     );
 
-    await _selectCraft(tester, 'Embroidery');
-    final commonDetails = find.byKey(
-      const Key('project-composer-common-details-action'),
+    await _selectCraft(tester, 'Sewing');
+    final craftDetails = find.byKey(
+      const Key('project-composer-craft-details-action'),
     );
-    await tester.ensureVisible(commonDetails);
+    await tester.ensureVisible(craftDetails);
     await tester.pumpAndSettle();
-    await tester.tap(commonDetails);
+    await tester.tap(craftDetails);
     await tester.pumpAndSettle();
-    await tester.enterText(_materialsTextField(), 'Wool roving');
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.tap(find.byKey(const Key('sewingProjectType-select-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('sewingProjectType-search-input')),
+      'garment',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Garment'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Back'));
@@ -249,7 +254,12 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
-  await tester.tap(find.text(craftLabel).last);
+  final search = find.byKey(const Key('craftType-search-input'));
+  if (search.evaluate().isNotEmpty) {
+    await tester.enterText(search, craftLabel);
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.widgetWithText(ListTile, craftLabel));
   await tester.pumpAndSettle();
 }
 
@@ -266,13 +276,6 @@ Future<void> _selectStatus(WidgetTester tester, String statusLabel) async {
 Finder _bodyTextField() {
   return find.descendant(
     of: find.byKey(const Key('project-composer-body-editor')),
-    matching: find.byType(TextField),
-  );
-}
-
-Finder _materialsTextField() {
-  return find.descendant(
-    of: find.byKey(const Key('materials-custom-input')),
     matching: find.byType(TextField),
   );
 }

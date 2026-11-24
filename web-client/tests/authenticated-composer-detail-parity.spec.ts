@@ -230,7 +230,7 @@ test('root comments and nested replies show native identity and the full plain-t
 	).toBeVisible();
 	await expect(
 		page.getByRole('textbox', { name: 'Write your comment', exact: true })
-	).toBeVisible();
+	).toHaveAttribute('placeholder', 'Add your comment…');
 	const context = page.getByRole('blockquote', { name: 'Replying to' });
 	await expect(context).toContainText('Bob Maker');
 	await expect(context).toContainText('@bob.test');
@@ -249,7 +249,7 @@ test('root comments and nested replies show native identity and the full plain-t
 	).toBeVisible();
 	await expect(
 		page.getByRole('textbox', { name: 'Write your reply', exact: true })
-	).toBeVisible();
+	).toHaveAttribute('placeholder', 'Add your reply…');
 	expect(
 		(await calls()).filter(
 			(call) => call.method === 'POST' && /\/v1\/posts(?:\/|$)/.test(call.path)
@@ -269,12 +269,15 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 	await page.goto(
 		'/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=current-image'
 	);
-	await page
-		.getByRole('textbox', {
-			name: 'What would you like to share?',
-			exact: true
-		})
-		.fill('Selected image quote');
+	const editor = page.getByRole('textbox', {
+		name: 'What would you like to share?',
+		exact: true
+	});
+	await expect(editor).toHaveAttribute(
+		'placeholder',
+		"Share what you're making, learning, or thinking..."
+	);
+	await editor.fill('Selected image quote');
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
 	).toHaveCount(0);
@@ -1261,17 +1264,222 @@ for (const width of [402, 1280]) {
 	});
 }
 
+test('composer searches project option aliases and shows only their labels', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	const primary = page.getByRole('combobox', {
+		name: 'Primary craft required',
+		exact: true
+	});
+	const crafts = page.getByRole('listbox', { name: 'Primary craft options' });
+	if (await primary.isEditable()) {
+		await primary.fill('macrame');
+		await expect(crafts.getByRole('option')).toHaveText(['Macramé']);
+		await primary.press('Escape');
+	}
+	await primary.click();
+	await crafts.getByRole('option', { name: 'Knitting', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Knitting details', exact: true })
+		.click();
+	await page
+		.getByRole('searchbox', { name: 'Knitting methods', exact: true })
+		.fill('Machine knitting');
+	const methods = page.getByRole('group', {
+		name: 'Knitting methods options',
+		exact: true
+	});
+	await expect(methods.getByRole('checkbox')).toHaveCount(1);
+	await expect(
+		methods.getByRole('checkbox', { name: 'Machine' })
+	).toBeVisible();
+	await expect(methods).toHaveText('Machine');
+});
+
+for (const { theme, width } of [
+	{ theme: 'light', width: 1280 },
+	{ theme: 'dark', width: 402 }
+]) {
+	test(`Crochet detail controls align in ${theme} mode at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await page.addInitScript(
+			(theme) => localStorage.setItem('craftsky.theme', theme),
+			theme
+		);
+		await page.goto('/compose/project');
+		const primary = page.getByRole('combobox', {
+			name: 'Primary craft required'
+		});
+		const title = page.getByRole('textbox', {
+			name: 'Project title',
+			exact: true
+		});
+		const pattern = page.getByRole('textbox', {
+			name: 'Pattern name',
+			exact: true
+		});
+		const main = (await primary.boundingBox())!;
+		expect((await title.boundingBox())!.height).toBeCloseTo(main.height, 0);
+		await page
+			.getByRole('button', { name: 'Pattern details', exact: true })
+			.click();
+		expect((await pattern.boundingBox())!.height).toBeCloseTo(main.height, 0);
+		await page
+			.getByRole('button', { name: 'Back to project', exact: true })
+			.click();
+		await primary.click();
+		await page.getByRole('option', { name: 'Crochet', exact: true }).click();
+		await page
+			.getByRole('button', { name: 'Crochet details', exact: true })
+			.click();
+		const type = page.getByRole('combobox', {
+			name: 'Project type',
+			exact: true
+		});
+		await type.click();
+		await page.getByRole('option', { name: 'Other', exact: true }).click();
+		const custom = page.getByRole('textbox', {
+			name: 'What did you make?',
+			exact: true
+		});
+		const methods = page.getByRole('searchbox', {
+			name: 'Crochet methods',
+			exact: true
+		});
+		const methodsField = page
+			.locator('.selection-field')
+			.filter({ has: methods });
+		const typeField = page.locator('.single-field').filter({ has: type });
+		await expect(methods).toHaveAttribute(
+			'placeholder',
+			'Search crochet methods'
+		);
+		await page.evaluate(async () => {
+			await document.fonts.ready;
+		});
+		for (const field of [type, custom, methodsField])
+			expect((await field.boundingBox())!.height).toBeCloseTo(main.height, 0);
+		const color =
+			theme === 'dark' ? 'rgb(150, 141, 132)' : 'rgb(115, 106, 100)';
+		await expect
+			.poll(() =>
+				methods.evaluate(
+					(node) => getComputedStyle(node, '::placeholder').color
+				)
+			)
+			.toBe(color);
+		await expect
+			.poll(() =>
+				type.evaluate((node) => getComputedStyle(node, '::placeholder').color)
+			)
+			.toBe(color);
+		// Clear the type to restore the search icon from the clear affordance.
+		await page
+			.getByRole('button', { name: 'Clear Project type', exact: true })
+			.click();
+		await page
+			.getByRole('heading', { name: 'Crochet details', exact: true })
+			.click();
+		for (const [box, icon] of [
+			[await type.boundingBox(), await typeField.locator('svg').boundingBox()],
+			[
+				await methodsField.boundingBox(),
+				await methodsField.locator('svg').boundingBox()
+			]
+		]) {
+			expect(icon!.y + icon!.height / 2).toBeCloseTo(
+				box!.y + box!.height / 2,
+				0
+			);
+		}
+		const shadow = theme === 'dark' ? 'rgb(9, 8, 7)' : 'rgb(22, 18, 16)';
+		await methods.focus();
+		await expect(methodsField).toHaveCSS(
+			'box-shadow',
+			`${shadow} 3px 3px 0px 0px`
+		);
+	});
+}
+
+test('flat embroidery choices leave every legacy group out of the edit patch', async ({
+	page
+}) => {
+	const defs = 'social.craftsky.project.embroidery.defs';
+	const project = {
+		common: {
+			craftType: 'social.craftsky.feed.defs#embroidery',
+			status: 'social.craftsky.feed.defs#finished'
+		},
+		details: {
+			$type: 'social.craftsky.project.embroidery#details',
+			methods: [
+				{ existingIndex: 0, method: `${defs}#hand` },
+				{
+					existingIndex: 1,
+					method: `${defs}#machine`,
+					styles: [{ existingIndex: 0, style: `${defs}#threeDimensionalPuff` }]
+				},
+				{
+					existingIndex: 2,
+					method: `${defs}#machine`,
+					styles: [{ existingIndex: 0, style: `${defs}#trapunto` }]
+				}
+			]
+		}
+	};
+	await page.route(
+		/\/api\/appview\/v1\/posts\/[^/]+\/first\/edit$/,
+		async (route) => {
+			const response = await route.fetch();
+			const seed = await response.json();
+			await route.fulfill({
+				response,
+				json: { ...seed, editable: { ...seed.editable, project } }
+			});
+		}
+	);
+	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
+	await page
+		.getByRole('button', { name: 'Embroidery details', exact: true })
+		.click();
+	await page.getByRole('combobox', { name: 'Style', exact: true }).click();
+	await page.getByRole('option', { name: 'Cross-stitch', exact: true }).click();
+	await page.getByRole('combobox', { name: 'Method', exact: true }).click();
+	await page.getByRole('option', { name: 'Machine', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Back to project', exact: true })
+		.click();
+	const edit = page.waitForRequest(
+		(request) =>
+			request.method() === 'PATCH' && request.url().endsWith('/first')
+	);
+	await page.getByRole('button', { name: 'Save changes' }).click();
+	expect((await edit).postDataJSON()?.changes?.project?.details).toEqual({
+		method: `${defs}#machine`,
+		style: `${defs}#crossStitch`
+	});
+});
+
 test('project composers share ten hashtag slots and repaint when an earlier tag is removed', async ({
 	page
 }) => {
 	await page.goto('/compose/project');
+	const openPatterns = () =>
+		page.getByRole('button', { name: 'Pattern details', exact: true }).click();
+	const backToProject = () =>
+		page.getByRole('button', { name: 'Back to project', exact: true }).click();
 	const caption = page.locator('textarea.post-text');
 	const pattern = page.getByRole('textbox', {
-		name: 'Pattern tag or name',
+		name: 'Pattern name',
 		exact: true
 	});
 	const first = Array.from({ length: 9 }, (_, i) => `#tag${i}`).join(' ');
 	await caption.fill(first);
+	await openPatterns();
 	await pattern.fill('#tenth #overflow #TAG0');
 	const paint = page
 		.locator('.facet-input')
@@ -1282,12 +1490,22 @@ test('project composers share ten hashtag slots and repaint when an earlier tag 
 	const duplicate = paint.locator('span').filter({ hasText: /^#TAG0$/ });
 	const color = (locator: typeof tenth) =>
 		locator.evaluate((node) => getComputedStyle(node).color);
+	const expectOverflowIsHighlighted = () =>
+		expect
+			.poll(async () => {
+				const highlighted = await color(tenth);
+				return highlighted !== '' && (await color(overflow)) === highlighted;
+			})
+			.toBe(true);
 	await expect
 		.poll(async () => (await color(tenth)) !== (await color(overflow)))
 		.toBe(true);
 	expect(await color(duplicate)).toBe(await color(tenth));
+	await backToProject();
 	await caption.fill(first.replace('#tag8', ''));
-	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+	await openPatterns();
+	await expectOverflowIsHighlighted();
+	await backToProject();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page).toHaveURL(/\/feed$/);
 	await page.goto('/drafts');
@@ -1295,6 +1513,7 @@ test('project composers share ten hashtag slots and repaint when an earlier tag 
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
 	await expect(caption).toHaveValue(first.replace('#tag8', ''));
+	await openPatterns();
 	await expect(pattern).toHaveValue('#tenth #overflow #TAG0');
-	await expect.poll(async () => color(overflow)).toBe(await color(tenth));
+	await expectOverflowIsHighlighted();
 });

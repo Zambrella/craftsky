@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:craftsky_app/projects/models/project.dart';
-import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Set<String> _knownSubtypeValues(String craft) {
@@ -28,12 +28,27 @@ void main() {
       () {
         expect(
           ProjectOptionCatalogs.craftTypesForPreferences([
-            'quilting',
+            'punch-needle',
+            ProjectOptionCatalogs.quiltingCraftToken,
             'sewing',
-            'sewing',
+            ProjectOptionCatalogs.sewingCraftToken,
             'pottery',
           ]).map((option) => option.label),
-          ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
+          [
+            if (ProjectTaxonomy.releasePhase >= 2) 'Punch Needle',
+            'Quilting',
+            'Sewing',
+            'Knitting',
+            'Crochet',
+            'Embroidery',
+            if (ProjectTaxonomy.releasePhase >= 2) ...[
+              'Spinning',
+              'Dyeing',
+              'Macramé',
+              'Weaving',
+              'Felting',
+            ],
+          ],
         );
         expect(
           ProjectOptionCatalogs.craftTypesForPreferences([]),
@@ -129,23 +144,21 @@ void main() {
     });
 
     test('UT-006 includes every craft subtype known by the lexicons', () {
-      final catalogs = <String, List<ProjectOption>>{
-        'sewing': ProjectOptionCatalogs.sewingProjectSubtypes,
-        'knitting': ProjectOptionCatalogs.knittingProjectSubtypes,
-        'crochet': ProjectOptionCatalogs.crochetProjectSubtypes,
-        'quilting': ProjectOptionCatalogs.quiltingProjectSubtypes,
-      };
       final craftTokens = <String, String>{
         'sewing': ProjectOptionCatalogs.sewingCraftToken,
         'knitting': ProjectOptionCatalogs.knittingCraftToken,
         'crochet': ProjectOptionCatalogs.crochetCraftToken,
         'quilting': ProjectOptionCatalogs.quiltingCraftToken,
+        'embroidery': ProjectOptionCatalogs.embroideryCraftToken,
+        'felting': ProjectOptionCatalogs.feltingCraftToken,
+        'weaving': ProjectOptionCatalogs.weavingCraftToken,
       };
 
-      for (final MapEntry(key: craft, value: options) in catalogs.entries) {
-        final validParents = ProjectOptionCatalogs.projectTypesForCraft(
-          craftTokens[craft]!,
-        ).map((option) => option.value).toSet();
+      for (final MapEntry(key: craft, value: token) in craftTokens.entries) {
+        final options = ProjectOptionCatalogs.projectSubtypesForCraft(token);
+        final validParents = ProjectOptionCatalogs.projectTypesForCraft(token)
+            .map((option) => option.value)
+            .toSet();
         expect(
           options.map((option) => option.value).toSet(),
           _knownSubtypeValues(craft),

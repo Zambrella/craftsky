@@ -38,6 +38,26 @@ type ProjectDefs_Gauge struct {
 	Unit string `json:"unit" cborgen:"unit"`
 }
 
+// ProjectDefs_LengthMeasurement is a "lengthMeasurement" in the social.craftsky.project.defs schema.
+//
+// A length with an explicit unit.
+type ProjectDefs_LengthMeasurement struct {
+	// amount: The measured quantity as a decimal string.
+	Amount string `json:"amount" cborgen:"amount"`
+	// unit: The length unit for the amount.
+	Unit string `json:"unit" cborgen:"unit"`
+}
+
+// ProjectDefs_MassMeasurement is a "massMeasurement" in the social.craftsky.project.defs schema.
+//
+// A mass with an explicit unit.
+type ProjectDefs_MassMeasurement struct {
+	// amount: The measured quantity as a decimal string.
+	Amount string `json:"amount" cborgen:"amount"`
+	// unit: The mass unit for the amount.
+	Unit string `json:"unit" cborgen:"unit"`
+}
+
 // ProjectDefs_Material is a "material" in the social.craftsky.project.defs schema.
 //
 // One visible material entry for a project. Rich-text annotations are scoped to text.
@@ -58,7 +78,7 @@ type ProjectDefs_Pattern struct {
 	DesignerFacets []*appbsky.RichtextFacet `json:"designerFacets,omitempty" cborgen:"designerFacets,omitempty"`
 	// difficulty: Pattern difficulty. A property of the pattern, not the post. Self-drafted patterns may include the author's own rating. knownValues are tokens.
 	Difficulty *string `json:"difficulty,omitempty" cborgen:"difficulty,omitempty"`
-	// name: Pattern name or visible pattern hashtag, e.g. 'Simplicity 8265', 'Hitchhiker Shawl', or '#hitchhiker'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label. Rich-text annotations for this string live in nameFacets.
+	// name: Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. This field also supports hashtags such as '#hitchhiker'. Rich-text annotations for the name live in nameFacets.
 	Name *string `json:"name,omitempty" cborgen:"name,omitempty"`
 	// nameFacets: Byte-range annotations over 'name'. Used for pattern hashtags and future links/mentions in the visible pattern name string.
 	NameFacets []*appbsky.RichtextFacet `json:"nameFacets,omitempty" cborgen:"nameFacets,omitempty"`
@@ -88,18 +108,20 @@ type ProjectDefs_Project struct {
 type ProjectDefs_ProjectCommon struct {
 	// additionalCrafts: Other crafts involved in this project. Clients should omit the primary craft and duplicates. These crafts also participate in discovery; details remain associated with the primary craft.
 	AdditionalCrafts []*ProjectDefs_AdditionalCraft `json:"additionalCrafts,omitempty" cborgen:"additionalCrafts,omitempty"`
-	// colors: Primary colors used in the project, normalized by clients for search and filtering. knownValues are open suggestions; clients may write other bounded color strings when needed.
+	// colors: Deprecated: Primary colors used in a project. Use the post description or hashtags for colors in new projects.
 	Colors []string `json:"colors,omitempty" cborgen:"colors,omitempty"`
 	// craftType: Primary craft for this project. Determines the craft-specific details; additionalCrafts records other participating crafts. knownValues are open tokens.
 	CraftType string `json:"craftType" cborgen:"craftType"`
-	// designTags: Visual design, motif, or aesthetic tags for the project, normalized by clients for cross-craft search and filtering. knownValues are open suggestions; clients may write other bounded design strings when needed.
+	// designTags: Deprecated: Visual design, motif, or aesthetic tags. Use regular hashtags for these details in new projects.
 	DesignTags []string `json:"designTags,omitempty" cborgen:"designTags,omitempty"`
-	// duration: Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable.
+	// duration: Deprecated: Free-text time spent on a project. Use the post description for duration in new projects.
 	Duration *string `json:"duration,omitempty" cborgen:"duration,omitempty"`
-	// materials: Materials used in the project as visible rich-text entries. Each entry is indexed for search by text and may carry mention or hashtag facets over that text.
+	// materials: Deprecated: Materials used in the project as rich-text entries. Use the post description for materials in new projects. Existing entries retain their text and facets.
 	Materials []*ProjectDefs_Material `json:"materials,omitempty" cborgen:"materials,omitempty"`
-	// pattern: Optional pattern reference.
+	// pattern: Deprecated: Legacy single pattern reference. Use patterns for new records.
 	Pattern *ProjectDefs_Pattern `json:"pattern,omitempty" cborgen:"pattern,omitempty"`
+	// patterns: Patterns used in the project, in saved order. A present list, including an empty list, takes precedence over the legacy pattern field.
+	Patterns []*ProjectDefs_Pattern `json:"patterns,omitempty" cborgen:"patterns,omitempty"`
 	// status: Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.
 	Status *string `json:"status,omitempty" cborgen:"status,omitempty"`
 	// tags: Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$). AppView search materialisation also merges hashtag facets from post text and faceted project metadata, so this field is not required to duplicate every visible hashtag.
@@ -110,11 +132,18 @@ type ProjectDefs_ProjectCommon struct {
 
 // Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
 type ProjectDefs_Project_Details struct {
-	Unknown                 *recordjson.OpenUnion `json:"-"`
-	ProjectSewing_Details   *ProjectSewing_Details
-	ProjectQuilting_Details *ProjectQuilting_Details
-	ProjectCrochet_Details  *ProjectCrochet_Details
-	ProjectKnitting_Details *ProjectKnitting_Details
+	Unknown                    *recordjson.OpenUnion `json:"-"`
+	ProjectSewing_Details      *ProjectSewing_Details
+	ProjectQuilting_Details    *ProjectQuilting_Details
+	ProjectCrochet_Details     *ProjectCrochet_Details
+	ProjectKnitting_Details    *ProjectKnitting_Details
+	ProjectEmbroidery_Details  *ProjectEmbroidery_Details
+	ProjectSpinning_Details    *ProjectSpinning_Details
+	ProjectDyeing_Details      *ProjectDyeing_Details
+	ProjectPunchNeedle_Details *ProjectPunchNeedle_Details
+	ProjectMacrame_Details     *ProjectMacrame_Details
+	ProjectWeaving_Details     *ProjectWeaving_Details
+	ProjectFelting_Details     *ProjectFelting_Details
 }
 
 func (t *ProjectDefs_Project_Details) MarshalJSON() ([]byte, error) {
@@ -133,6 +162,34 @@ func (t *ProjectDefs_Project_Details) MarshalJSON() ([]byte, error) {
 	if t.ProjectKnitting_Details != nil {
 		t.ProjectKnitting_Details.LexiconTypeID = "social.craftsky.project.knitting#details"
 		return json.Marshal(t.ProjectKnitting_Details)
+	}
+	if t.ProjectEmbroidery_Details != nil {
+		t.ProjectEmbroidery_Details.LexiconTypeID = "social.craftsky.project.embroidery#details"
+		return json.Marshal(t.ProjectEmbroidery_Details)
+	}
+	if t.ProjectSpinning_Details != nil {
+		t.ProjectSpinning_Details.LexiconTypeID = "social.craftsky.project.spinning#details"
+		return json.Marshal(t.ProjectSpinning_Details)
+	}
+	if t.ProjectDyeing_Details != nil {
+		t.ProjectDyeing_Details.LexiconTypeID = "social.craftsky.project.dyeing#details"
+		return json.Marshal(t.ProjectDyeing_Details)
+	}
+	if t.ProjectPunchNeedle_Details != nil {
+		t.ProjectPunchNeedle_Details.LexiconTypeID = "social.craftsky.project.punchNeedle#details"
+		return json.Marshal(t.ProjectPunchNeedle_Details)
+	}
+	if t.ProjectMacrame_Details != nil {
+		t.ProjectMacrame_Details.LexiconTypeID = "social.craftsky.project.macrame#details"
+		return json.Marshal(t.ProjectMacrame_Details)
+	}
+	if t.ProjectWeaving_Details != nil {
+		t.ProjectWeaving_Details.LexiconTypeID = "social.craftsky.project.weaving#details"
+		return json.Marshal(t.ProjectWeaving_Details)
+	}
+	if t.ProjectFelting_Details != nil {
+		t.ProjectFelting_Details.LexiconTypeID = "social.craftsky.project.felting#details"
+		return json.Marshal(t.ProjectFelting_Details)
 	}
 	if t.Unknown != nil {
 		return t.Unknown.MarshalJSON()
@@ -160,6 +217,27 @@ func (t *ProjectDefs_Project_Details) UnmarshalJSON(b []byte) error {
 	case "social.craftsky.project.knitting#details":
 		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
 		return json.Unmarshal(b, t.ProjectKnitting_Details)
+	case "social.craftsky.project.embroidery#details":
+		t.ProjectEmbroidery_Details = new(ProjectEmbroidery_Details)
+		return json.Unmarshal(b, t.ProjectEmbroidery_Details)
+	case "social.craftsky.project.spinning#details":
+		t.ProjectSpinning_Details = new(ProjectSpinning_Details)
+		return json.Unmarshal(b, t.ProjectSpinning_Details)
+	case "social.craftsky.project.dyeing#details":
+		t.ProjectDyeing_Details = new(ProjectDyeing_Details)
+		return json.Unmarshal(b, t.ProjectDyeing_Details)
+	case "social.craftsky.project.punchNeedle#details":
+		t.ProjectPunchNeedle_Details = new(ProjectPunchNeedle_Details)
+		return json.Unmarshal(b, t.ProjectPunchNeedle_Details)
+	case "social.craftsky.project.macrame#details":
+		t.ProjectMacrame_Details = new(ProjectMacrame_Details)
+		return json.Unmarshal(b, t.ProjectMacrame_Details)
+	case "social.craftsky.project.weaving#details":
+		t.ProjectWeaving_Details = new(ProjectWeaving_Details)
+		return json.Unmarshal(b, t.ProjectWeaving_Details)
+	case "social.craftsky.project.felting#details":
+		t.ProjectFelting_Details = new(ProjectFelting_Details)
+		return json.Unmarshal(b, t.ProjectFelting_Details)
 	default:
 		t.Unknown = &recordjson.OpenUnion{}
 		return t.Unknown.UnmarshalJSON(b)
@@ -183,6 +261,27 @@ func (t *ProjectDefs_Project_Details) MarshalCBOR(w io.Writer) error {
 	}
 	if t.ProjectKnitting_Details != nil {
 		return t.ProjectKnitting_Details.MarshalCBOR(w)
+	}
+	if t.ProjectEmbroidery_Details != nil {
+		return t.ProjectEmbroidery_Details.MarshalCBOR(w)
+	}
+	if t.ProjectSpinning_Details != nil {
+		return t.ProjectSpinning_Details.MarshalCBOR(w)
+	}
+	if t.ProjectDyeing_Details != nil {
+		return t.ProjectDyeing_Details.MarshalCBOR(w)
+	}
+	if t.ProjectPunchNeedle_Details != nil {
+		return t.ProjectPunchNeedle_Details.MarshalCBOR(w)
+	}
+	if t.ProjectMacrame_Details != nil {
+		return t.ProjectMacrame_Details.MarshalCBOR(w)
+	}
+	if t.ProjectWeaving_Details != nil {
+		return t.ProjectWeaving_Details.MarshalCBOR(w)
+	}
+	if t.ProjectFelting_Details != nil {
+		return t.ProjectFelting_Details.MarshalCBOR(w)
 	}
 	if t.Unknown != nil {
 		return t.Unknown.MarshalCBOR(w)
@@ -210,6 +309,27 @@ func (t *ProjectDefs_Project_Details) UnmarshalCBOR(r io.Reader) error {
 	case "social.craftsky.project.knitting#details":
 		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
 		return t.ProjectKnitting_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.embroidery#details":
+		t.ProjectEmbroidery_Details = new(ProjectEmbroidery_Details)
+		return t.ProjectEmbroidery_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.spinning#details":
+		t.ProjectSpinning_Details = new(ProjectSpinning_Details)
+		return t.ProjectSpinning_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.dyeing#details":
+		t.ProjectDyeing_Details = new(ProjectDyeing_Details)
+		return t.ProjectDyeing_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.punchNeedle#details":
+		t.ProjectPunchNeedle_Details = new(ProjectPunchNeedle_Details)
+		return t.ProjectPunchNeedle_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.macrame#details":
+		t.ProjectMacrame_Details = new(ProjectMacrame_Details)
+		return t.ProjectMacrame_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.weaving#details":
+		t.ProjectWeaving_Details = new(ProjectWeaving_Details)
+		return t.ProjectWeaving_Details.UnmarshalCBOR(bytes.NewReader(b))
+	case "social.craftsky.project.felting#details":
+		t.ProjectFelting_Details = new(ProjectFelting_Details)
+		return t.ProjectFelting_Details.UnmarshalCBOR(bytes.NewReader(b))
 	default:
 		t.Unknown = &recordjson.OpenUnion{}
 		return t.Unknown.UnmarshalCBOR(bytes.NewReader(b))

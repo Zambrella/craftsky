@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 POST = "social.craftsky.feed.post"
 TEMPLATE = ROOT / "scripts/project-schema/explorer.html"
+CATALOG = ROOT / "appview/internal/projectcatalog/catalog-v1.json"
 
 
 def schema_data():
@@ -53,7 +54,17 @@ def schema_data():
             qualify(reference, identifier)
             for reference in collect_references(entry["definition"])
         )
-    return {"post": POST, "definitions": reachable}
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    labels = {
+        entry["id"]: entry.get("displayLabel", entry["labels"]["en"])
+        for entry in catalog["entries"] if entry["id"] in reachable
+    }
+    project_items = {
+        entry["detailsType"]: catalog.get("projectItems", {}).get(entry["id"], [])
+        for entry in catalog["entries"]
+        if "detailsType" in entry
+    }
+    return {"post": POST, "definitions": reachable, "labels": labels, "projectItems": project_items}
 
 
 def main():

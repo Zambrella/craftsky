@@ -3,6 +3,7 @@
 	import { useSubscriptionFeature } from '../shell/subscription-feature';
 	const premium = useSubscriptionFeature();
 	import { profileShaderStyle } from '../social/profile-background-shader.ts';
+	import { texture } from '../social/model';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
 
@@ -75,13 +76,7 @@
 			danger: true
 		}
 	);
-	let pattern = $derived(
-		background === 'none' || profileShaderStyle(background) !== undefined
-			? ''
-			: background.startsWith('craft-')
-				? `/profile_backgrounds/${background}.svg`
-				: `/profile_backgrounds/${background}.png`
-	);
+	let pattern = $derived(texture({ colour, profileBackground: background }));
 	let loadedPlus = $state(false);
 	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
 	let canSetPolicy = $state(false),
@@ -497,7 +492,7 @@
 					{#if pattern}<div
 							class="preview-pattern"
 							aria-hidden="true"
-							style={`mask-image:url('${pattern}')`}
+							style:mask-image={pattern}
 						></div>{/if}
 					<Avatar
 						author={{
@@ -708,7 +703,7 @@
 		background: color-mix(in srgb, var(--ink) 30%, var(--paper));
 		color: var(--surface);
 		border-color: color-mix(in srgb, var(--ink) 40%, var(--paper));
-		box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 20%, var(--paper));
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--shadow) 20%, var(--paper));
 	}
 	.notification-intro {
 		margin: 16px 0 24px;

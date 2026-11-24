@@ -141,6 +141,7 @@ void main() {
                     common: ProjectCommon(
                       craftType: 'social.craftsky.feed.defs#sewing',
                       title: 'Linen shirt',
+                      status: ProjectOptionCatalogs.finishedStatusToken,
                     ),
                   )
                 : null,
@@ -179,6 +180,7 @@ void main() {
                   'common': {
                     'craftType': 'social.craftsky.feed.defs#sewing',
                     'title': 'Linen shirt',
+                    'status': ProjectOptionCatalogs.finishedStatusToken,
                   },
                 },
               if (retainedVideo)
@@ -437,10 +439,16 @@ void main() {
           );
           expect(find.text('Save changes'), findsOneWidget);
           if (projectEdit && pending && lag) {
-            expect(
-              find.byKey(const Key('project-composer-craft-details-action')),
-              findsNothing,
+            final craftDetails = find.byKey(
+              const Key('project-composer-craft-details-action'),
             );
+            await tester.ensureVisible(craftDetails);
+            await tester.tap(craftDetails);
+            await tester.pumpAndSettle();
+            expect(find.text('Project type'), findsNothing);
+            expect(find.text('Additional crafts'), findsOneWidget);
+            await tester.pageBack();
+            await tester.pumpAndSettle();
           }
           if (!pending && !retainedVideo) {
             expect(

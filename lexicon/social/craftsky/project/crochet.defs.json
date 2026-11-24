@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "social.craftsky.project.crochet.defs",
-  "description": "Subtype tokens for crochet projects. Referenced from social.craftsky.project.crochet#details.projectSubtype via knownValues.",
+  "description": "Subtype and method tokens for crochet projects, including legacy technique options.",
   "defs": {
     "sweater": { "type": "token", "description": "Crocheted sweaters." },
     "cardigan": { "type": "token", "description": "Crocheted cardigans." },
@@ -68,6 +68,62 @@
     "swatch": { "type": "token", "description": "Crocheted swatches." },
     "trim": { "type": "token", "description": "Crocheted trims." },
     "cord": { "type": "token", "description": "Crocheted cords." },
-    "flower": { "type": "token", "description": "Crocheted flowers." }
+    "flower": { "type": "token", "description": "Crocheted flowers." },
+    "standardCrochet": {"type": "token", "description": "Standard crochet."},
+    "filetCrochet": {"type": "token", "description": "Filet crochet."},
+    "freeformCrochet": {"type": "token", "description": "Freeform crochet."},
+    "frontBackPostStitch": {"type": "token", "description": "Crochet stitches worked around the front or back of a post."},
+    "grannySquareTechnique": {"type": "token", "description": "Granny square construction used in a crochet project."},
+    "irishCrochet": {"type": "token", "description": "Irish crochet."},
+    "mosaicCrochet": {"type": "token", "description": "Mosaic crochet."},
+    "tunisianCrochet": {"type": "token", "description": "Tunisian crochet, also known as Afghan crochet."},
+    "pineappleCrochet": {"type": "token", "description": "Pineapple crochet."},
+    "slipStitchCrochet": {"type": "token", "description": "Slip stitch crochet."},
+    "surfaceCrochet": {"type": "token", "description": "Surface crochet."},
+    "tapestryCrochet": {"type": "token", "description": "Tapestry crochet."},
+    "coatJacket": {
+      "type": "token",
+      "description": "Coat or jacket."
+    },
+    "trousersShorts": {
+      "type": "token",
+      "description": "Trousers or shorts."
+    },
+    "hood": {
+      "type": "token",
+      "description": "Hood or balaclava."
+    },
+    "socks": {
+      "type": "token",
+      "description": "Socks."
+    },
+    "slippers": {
+      "type": "token",
+      "description": "Slippers."
+    },
+    "bookmark": {
+      "type": "token",
+      "description": "Bookmark."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "Wall hanging."
+    },
+    "decorativePlant": {
+      "type": "token",
+      "description": "Decorative plant or flower."
+    },
+    "washcloth": {
+      "type": "token",
+      "description": "Washcloth or dishcloth."
+    },
+    "ornament": {
+      "type": "token",
+      "description": "Ornament."
+    },
+    "prosthesis": {
+      "type": "token",
+      "description": "Prosthesis."
+    }
   }
 }

@@ -68,7 +68,7 @@
 						.filter((craft) => craft.icon)
 						.slice(0, visible) as craft}<span
 							class="inline-craft"
-							style:--craft-icon={`url('/craft_icons/${craft.id}.svg')`}
+							style:--craft-icon={craft.icon}
 							aria-hidden="true"
 						></span>{/each}
 					{#if crafts.length > visible}<span

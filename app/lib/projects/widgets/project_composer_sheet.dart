@@ -54,12 +54,14 @@ import 'package:craftsky_app/projects/composer/project_composer_payload.dart';
 import 'package:craftsky_app/projects/composer/project_composer_submit_adapter.dart';
 import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_detail_page.dart';
+import 'package:craftsky_app/projects/widgets/project_craft_fields.dart';
 import 'package:craftsky_app/projects/widgets/project_facet_field.dart';
-import 'package:craftsky_app/projects/widgets/project_materials_field.dart';
+import 'package:craftsky_app/projects/widgets/project_pattern_editor.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
@@ -94,7 +96,6 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
@@ -172,53 +173,20 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     with WidgetsBindingObserver {
   late final Map<String, dynamic> _initialFormValues;
+  late final Project? _existingScheduledProject = _readScheduledProject();
   bool _craftChosen = false;
   late final Map<String, dynamic> _detailFormValues;
   static const List<String> _patternDetailFieldNames = [
+    ProjectComposerFields.patternName,
     ProjectComposerFields.patternDesigner,
     ProjectComposerFields.patternPublisher,
     ProjectComposerFields.patternUrl,
     ProjectComposerFields.patternDifficulty,
     ProjectComposerFields.patternSelfDrafted,
   ];
-  static const List<String> _commonDetailFieldNames = [
-    ProjectComposerFields.materials,
-    ProjectComposerFields.colours,
-    ProjectComposerFields.designTags,
-  ];
-  static const List<String> _craftDetailFieldNames = [
-    ProjectComposerFields.sewingProjectType,
-    ProjectComposerFields.sewingProjectSubtype,
-    ProjectComposerFields.sewingSizeMade,
-    ProjectComposerFields.sewingFitNotes,
-    ProjectComposerFields.knittingProjectType,
-    ProjectComposerFields.knittingProjectSubtype,
-    ProjectComposerFields.knittingYarnWeight,
-    ProjectComposerFields.knittingNeedleSize,
-    ProjectComposerFields.knittingGaugeStitches,
-    ProjectComposerFields.knittingGaugeRows,
-    ProjectComposerFields.knittingGaugeMeasurement,
-    ProjectComposerFields.knittingGaugeUnit,
-    ProjectComposerFields.knittingFinishedSize,
-    ProjectComposerFields.crochetProjectType,
-    ProjectComposerFields.crochetProjectSubtype,
-    ProjectComposerFields.crochetYarnWeight,
-    ProjectComposerFields.crochetHookSize,
-    ProjectComposerFields.crochetGaugeStitches,
-    ProjectComposerFields.crochetGaugeRows,
-    ProjectComposerFields.crochetGaugeMeasurement,
-    ProjectComposerFields.crochetGaugeUnit,
-    ProjectComposerFields.crochetFinishedSize,
-    ProjectComposerFields.quiltingProjectType,
-    ProjectComposerFields.quiltingProjectSubtype,
-    ProjectComposerFields.quiltingSize,
-    ProjectComposerFields.quiltingPiecingTechnique,
-    ProjectComposerFields.quiltingMethod,
-  ];
-
+  final _extraPatternKeys = <UniqueKey>[];
   final _formKey = GlobalKey<FormBuilderState>();
   final _patternDetailsFormKey = GlobalKey<FormBuilderState>();
-  final _commonDetailsFormKey = GlobalKey<FormBuilderState>();
   final _craftDetailsFormKey = GlobalKey<FormBuilderState>();
   final _scrollController = ScrollController();
   final _bodyController = FacetTextEditingController();
@@ -229,13 +197,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   final _patternDetailsFocusNode = FocusNode(
     debugLabel: 'projectPatternDetailsAction',
   );
-  final _commonDetailsFocusNode = FocusNode(
-    debugLabel: 'projectCommonDetailsAction',
-  );
   final _craftDetailsFocusNode = FocusNode(
     debugLabel: 'projectCraftDetailsAction',
   );
-  final _patternNameController = FacetTextEditingController(text: '#');
+  final _patternNameController = FacetTextEditingController();
   final _patternDesignerController = FacetTextEditingController();
   final _patternPublisherController = FacetTextEditingController();
   final _patternNameFocusNode = FocusNode(debugLabel: 'projectPatternName');
@@ -248,10 +213,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   late final String _composerId;
   String _bodyText = '';
   String? _activeCraftType;
-  String? _sewingProjectType;
-  String? _knittingProjectType;
-  String? _crochetProjectType;
-  String? _quiltingProjectType;
   bool _attemptedSubmit = false;
   String? _formValidationError;
   int? _lastImageNoticeId;
@@ -306,7 +267,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           );
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
-    final project = widget.scheduledPost?.payload['project'];
     _initialFormValues = widget.publishedEdit != null
         ? hydratePublishedProjectComposer(widget.publishedEdit!.seed)
         : draftContent is ProjectDraftContent
@@ -314,7 +274,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             Map<String, dynamic>.from(draftContent.knownProjectFieldValues),
           )
         : hydrateScheduledProjectComposer(
-            project is Map<String, dynamic> ? project : null,
+            _existingScheduledProject?.toMap(),
           );
     if (widget.draftSeed == null &&
         widget.scheduledPost == null &&
@@ -340,12 +300,19 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     _detailFormValues = {
       for (final name in [
         ..._patternDetailFieldNames,
-        ..._commonDetailFieldNames,
-        ..._craftDetailFieldNames,
+        ProjectComposerFields.patterns,
+        ProjectComposerFields.additionalCrafts,
+        if (_initialFormValues[ProjectComposerFields.craftType]
+            case final String craft) ...[
+          ProjectComposerFields.projectTypeFor(craft),
+          ProjectComposerFields.projectSubtypeFor(craft),
+          ProjectDetailFields.formName(craft),
+        ],
       ])
         if (_initialFormValues.containsKey(name))
           name: _initialFormValues[name],
     };
+    _extraPatternKeys.addAll(_patternEntries.skip(1).map((_) => UniqueKey()));
     _patternNameController.text = _patternDisplayText(
       _initialFormValues[ProjectComposerFields.patternName],
     );
@@ -357,16 +324,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         '';
     _activeCraftType =
         _initialFormValues[ProjectComposerFields.craftType] as String?;
-    _sewingProjectType =
-        _initialFormValues[ProjectComposerFields.sewingProjectType] as String?;
-    _knittingProjectType =
-        _initialFormValues[ProjectComposerFields.knittingProjectType]
-            as String?;
-    _crochetProjectType =
-        _initialFormValues[ProjectComposerFields.crochetProjectType] as String?;
-    _quiltingProjectType =
-        _initialFormValues[ProjectComposerFields.quiltingProjectType]
-            as String?;
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
     _mediaUploader = ComposerMediaUploader();
@@ -466,7 +423,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     _bodyFocusNode.dispose();
     _primaryActionFocusNode.dispose();
     _patternDetailsFocusNode.dispose();
-    _commonDetailsFocusNode.dispose();
     _craftDetailsFocusNode.dispose();
     _patternNameController.dispose();
     _patternDesignerController.dispose();
@@ -742,9 +698,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                _pageOne(
+                                _projectFields(
                                   l10n: l10n,
-                                  theme: theme,
                                   spacing: spacing,
                                   imagesState: imagesState,
                                   selectedVideo: selectedVideo,
@@ -778,7 +733,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                       ),
                                 ),
                                 SizedBox(height: spacing.sp4),
-                                _pageThree(
+                                _descriptionField(
                                   l10n: l10n,
                                   controlsEnabled: controlsEnabled,
                                   bodyErrorText: bodyErrorText,
@@ -867,76 +822,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                               ],
                             ),
                           ),
-                          Text(
-                            l10n.projectComposerMoreDetailsHeading,
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          SizedBox(height: spacing.sp2),
-                          Text(
-                            l10n.projectComposerMoreDetailsPrompt,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          SizedBox(height: spacing.sp2),
-                          ProjectDetailActionTile(
-                            key: const Key(
-                              'project-composer-pattern-details-action',
-                            ),
-                            focusNode: _patternDetailsFocusNode,
-                            icon: CraftskyIcons.pattern,
-                            title: l10n.projectComposerPatternDetailsTitle,
-                            subtitle: _detailSummary(
-                              _patternDetailFieldNames,
-                              empty:
-                                  l10n.projectComposerPatternDetailsDescription,
-                              l10n: l10n,
-                            ),
-                            enabled: controlsEnabled,
-                            onTap: _openPatternDetails,
-                          ),
-                          ProjectDetailActionTile(
-                            key: const Key(
-                              'project-composer-common-details-action',
-                            ),
-                            focusNode: _commonDetailsFocusNode,
-                            icon: CraftskyIcons.palette,
-                            title: l10n.projectComposerCommonDetailsTitle,
-                            subtitle: _detailSummary(
-                              _commonDetailFieldNames,
-                              empty:
-                                  l10n.projectComposerCommonDetailsDescription,
-                              l10n: l10n,
-                            ),
-                            enabled: controlsEnabled,
-                            onTap: _openCommonDetails,
-                          ),
-                          if (widget
-                                  .publishedEdit
-                                  ?.seed
-                                  .editable['unsupportedProjectDetails'] !=
-                              true)
-                            if (_craftDetailsTitle(l10n)
-                                case final craftDetailsTitle?)
-                              ProjectDetailActionTile(
-                                key: const Key(
-                                  'project-composer-craft-details-action',
-                                ),
-                                focusNode: _craftDetailsFocusNode,
-                                icon: CraftskyIcons.adjustments,
-                                title: craftDetailsTitle,
-                                subtitle: _detailSummary(
-                                  _activeCraftDetailFieldNames,
-                                  empty: l10n
-                                      .projectComposerCraftDetailsDescription,
-                                  l10n: l10n,
-                                ),
-                                errorText: _formValidationError,
-                                enabled: controlsEnabled,
-                                onTap: _openCraftDetails,
-                              ),
                           SizedBox(height: spacing.sp4),
                           SizedBox(
                             key: const Key(
@@ -1288,21 +1173,34 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     List<ProjectOption> options, {
     bool includeCraftIcons = false,
     bool alphabetize = true,
+    String? retained,
   }) {
-    final selectOptions = [
-      for (final option in options)
+    final choices = [
+      for (final option in [
+        ...options,
+        if (retained != null &&
+            retained.trim().isNotEmpty &&
+            !options.any((option) => option.value == retained))
+          ProjectOption(value: retained, label: _retainedOptionLabel(retained)),
+      ])
         CraftskySelectOption<String>(
           value: option.value,
           label: option.label,
-          description: option.description,
+          aliases: option.aliases,
           leadingBuilder: includeCraftIcons
               ? (_) => CraftIcon(craft: option.value)
               : null,
         ),
     ];
-    return alphabetize
-        ? alphabetizedSelectOptions(selectOptions)
-        : selectOptions;
+    return alphabetize ? alphabetizedSelectOptions(choices) : choices;
+  }
+
+  String _retainedOptionLabel(String value) {
+    final knownLabel = ProjectOptionCatalogs.projectValueLabel(value);
+    if (knownLabel != value) return knownLabel;
+    final fragment = value.split('#').last;
+    final label = fragment.isEmpty ? value : fragment;
+    return label[0].toUpperCase() + label.substring(1);
   }
 
   List<String> _hashtagPrefix({
@@ -1312,7 +1210,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }) => [
     ...hashtagsInText(_bodyController.text),
     ...?(widget.publishedEdit == null
-            ? _existingScheduledProject()
+            ? _existingScheduledProject
             : ProjectMapper.fromMap(
                 Map<String, dynamic>.from(
                   widget.publishedEdit!.seed.editable['project']! as Map,
@@ -1325,6 +1223,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (designer || publisher)
       ...hashtagsInText(_patternDesignerController.text),
     if (publisher) ...hashtagsInText(_patternPublisherController.text),
+    if (publisher)
+      for (final pattern in _patternEntries.skip(1))
+        ..._patternHashtags(pattern),
   ];
 
   Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
@@ -1347,155 +1248,248 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (values == null || !mounted) return;
     setState(() {
       for (final name in names) {
-        _detailFormValues[name] = values[name];
+        if (values.containsKey(name)) _detailFormValues[name] = values[name];
       }
       _formValidationError = null;
     });
   }
 
   bool _hasAnyDetail(Iterable<String> names) => names.any(
-    (name) => switch (_detailFormValues[name]) {
-      final String value => value.trim().isNotEmpty,
-      final Iterable<Object?> values => values.isNotEmpty,
-      final num value => value > 0,
-      true => true,
-      _ => false,
-    },
+    _hasDetail,
   );
+
+  bool _hasDetail(String name) {
+    final value = _detailFormValues[name];
+    if (name == ProjectComposerFields.patternName && value == '#') return false;
+    final craft = _activeCraftType;
+    if (craft != null &&
+        name == ProjectDetailFields.formName(craft) &&
+        value is Map<Object?, Object?>) {
+      return ProjectDetailFields.authoringForCraft(craft).any(
+        (field) => _hasDetailValue(
+          ProjectDetailFields.authoringValue(craft, field.key, value),
+        ),
+      );
+    }
+    return _hasDetailValue(value);
+  }
+
+  bool _hasDetailValue(Object? value) => switch (value) {
+    final String text => text.trim().isNotEmpty,
+    final Iterable<Object?> values => values.isNotEmpty,
+    final num number => number > 0,
+    true => true,
+    _ => false,
+  };
 
   String _detailSummary(
     Iterable<String> names, {
     required String empty,
     required AppLocalizations l10n,
   }) {
-    final count = names.where((name) {
-      final value = _detailFormValues[name];
-      return switch (value) {
-        final String text => text.trim().isNotEmpty,
-        final Iterable<Object?> values => values.isNotEmpty,
-        final num number => number > 0,
-        true => true,
-        _ => false,
-      };
-    }).length;
+    final count = names.where(_hasDetail).length;
     return count == 0 ? empty : l10n.projectComposerDetailsAdded(count);
   }
 
-  List<String> get _activeCraftDetailFieldNames => switch (_activeCraftType) {
-    ProjectOptionCatalogs.sewingCraftToken =>
-      _craftDetailFieldNames
-          .where((name) => name.startsWith('sewing'))
-          .toList(growable: false),
-    ProjectOptionCatalogs.knittingCraftToken =>
-      _craftDetailFieldNames
-          .where((name) => name.startsWith('knitting'))
-          .toList(growable: false),
-    ProjectOptionCatalogs.crochetCraftToken =>
-      _craftDetailFieldNames
-          .where((name) => name.startsWith('crochet'))
-          .toList(growable: false),
-    ProjectOptionCatalogs.quiltingCraftToken =>
-      _craftDetailFieldNames
-          .where((name) => name.startsWith('quilting'))
-          .toList(growable: false),
-    _ => const [],
-  };
+  List<String> get _activeCraftDetailFieldNames {
+    final craft = _activeCraftType;
+    if (craft == null) return const [];
+    return [
+      if (ProjectOptionCatalogs.projectTypesForCraft(craft).isNotEmpty) ...[
+        ProjectComposerFields.projectTypeFor(craft),
+        ProjectComposerFields.projectSubtypeFor(craft),
+      ],
+      if (ProjectDetailFields.authoringForCraft(craft).isNotEmpty)
+        ProjectDetailFields.formName(craft),
+    ];
+  }
 
-  String? _craftDetailsTitle(AppLocalizations l10n) {
-    if (_activeCraftDetailFieldNames.isEmpty) return null;
+  bool get _canEditSpecializedDetails =>
+      widget.publishedEdit?.seed.editable['unsupportedProjectDetails'] != true;
+
+  List<String> get _craftDetailsPageFieldNames => [
+    if (_canEditSpecializedDetails) ..._activeCraftDetailFieldNames,
+    ProjectComposerFields.additionalCrafts,
+  ];
+
+  String _craftDetailsTitle(AppLocalizations l10n) {
     final craft = ProjectOptionCatalogs.craftTypes
         .where((option) => option.value == _activeCraftType)
         .firstOrNull;
     return craft == null
-        ? null
+        ? l10n.projectComposerGenericCraftDetailsTitle
         : l10n.projectComposerCraftDetailsTitle(craft.label);
   }
+
+  String? get _craftItemSummary {
+    final craft = _activeCraftType;
+    if (craft == null ||
+        !_canEditSpecializedDetails ||
+        ProjectOptionCatalogs.projectTypesForCraft(craft).isEmpty) {
+      return null;
+    }
+    final type = _detailFormValues[ProjectComposerFields.projectTypeFor(craft)];
+    final subtype =
+        _detailFormValues[ProjectComposerFields.projectSubtypeFor(craft)];
+    final summary = [
+      if (type case final String text when text.trim().isNotEmpty)
+        ProjectOptionCatalogs.projectValueLabel(text.trim()),
+      if (subtype case final String text when text.trim().isNotEmpty)
+        if (type == ProjectOptionCatalogs.otherProjectTypeToken)
+          text.trim()
+        else
+          ProjectOptionCatalogs.projectValueLabel(text.trim()),
+    ].join(' · ');
+    return summary.isEmpty ? null : summary;
+  }
+
+  String? get _primaryCraftId {
+    final craft = _activeCraftType;
+    return craft == null
+        ? null
+        : ProjectOptionCatalogs.profileIdForCraftToken(craft);
+  }
+
+  static const _craftsWithoutPatterns = {'spinning', 'dyeing'};
+
+  bool get _showPatternDetails {
+    if (!_craftsWithoutPatterns.contains(_primaryCraftId)) return true;
+    final additionalCrafts =
+        _detailFormValues[ProjectComposerFields.additionalCrafts];
+    if (additionalCrafts is List<String> &&
+        additionalCrafts
+            .map(ProjectOptionCatalogs.profileIdForCraftToken)
+            .any(_supportsPatterns)) {
+      return true;
+    }
+    return projectComposerPatterns(
+      _detailFormValues,
+      savedFirstPattern: _savedPatternFor(_patternEntries.firstOrNull),
+    ).any(
+      (pattern) => pattern.toMap().entries.any(
+        (field) =>
+            field.key != 'existingIndex' &&
+            switch (field.value) {
+              final String text => text.trim().isNotEmpty,
+              final List<Object?> values => values.isNotEmpty,
+              final value => value != null && value != false,
+            },
+      ),
+    );
+  }
+
+  static bool _supportsPatterns(String id) =>
+      !_craftsWithoutPatterns.contains(id) &&
+      ProjectOptionCatalogs.allCraftTypes.any(
+        (craft) =>
+            ProjectOptionCatalogs.profileIdForCraftToken(craft.value) == id,
+      );
+
+  ({String title, String description, String name}) _patternCopy(
+    AppLocalizations l10n,
+  ) => switch (_primaryCraftId) {
+    'weaving' => (
+      title: l10n.projectComposerPatternOrDraftTitle,
+      description: l10n.projectComposerPatternOrDraftDescription,
+      name: l10n.projectComposerPatternOrDraftName,
+    ),
+    'felting' => (
+      title: l10n.projectComposerPatternOrTemplateTitle,
+      description: l10n.projectComposerPatternOrTemplateDescription,
+      name: l10n.projectComposerPatternOrTemplateName,
+    ),
+    _ => (
+      title: l10n.projectComposerPatternDetailsTitle,
+      description: l10n.projectComposerPatternDetailsDescription,
+      name: l10n.projectComposerPatternNameLabel,
+    ),
+  };
 
   Future<void> _openPatternDetails() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => ProjectComposerDetailPage(
-          title: l10n.projectComposerPatternDetailsTitle,
-          child: FormBuilder(
-            key: _patternDetailsFormKey,
-            initialValue: _detailInitialValues(_patternDetailFieldNames),
-            onChanged: () => _syncDetailForm(
-              _patternDetailsFormKey,
-              _patternDetailFieldNames,
-            ),
-            child: ListenableBuilder(
-              listenable: Listenable.merge([
-                _patternDesignerController,
-                _patternPublisherController,
-              ]),
-              builder: (context, child) => _patternDetailFields(l10n),
-            ),
-          ),
-        ),
-      ),
-    );
-    if (mounted) _patternDetailsFocusNode.requestFocus();
-  }
-
-  Future<void> _openCommonDetails() async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    final l10n = AppLocalizations.of(context);
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ProjectComposerDetailPage(
-          title: l10n.projectComposerCommonDetailsTitle,
-          child: FormBuilder(
-            key: _commonDetailsFormKey,
-            initialValue: _detailInitialValues(_commonDetailFieldNames),
-            onChanged: () => _syncDetailForm(
-              _commonDetailsFormKey,
-              _commonDetailFieldNames,
-            ),
-            child: _pageTwo(
-              l10n: l10n,
-              spacing: Theme.of(context).extension<SpacingTheme>()!,
-              controlsEnabled: true,
+        builder: (_) => StatefulBuilder(
+          builder: (context, setRouteState) => ProjectComposerDetailPage(
+            title: _patternCopy(l10n).title,
+            errorText: _formValidationError,
+            child: FormBuilder(
+              key: _patternDetailsFormKey,
+              initialValue: _detailInitialValues(_patternDetailFieldNames),
+              onChanged: () {
+                _syncDetailForm(
+                  _patternDetailsFormKey,
+                  _patternDetailFieldNames,
+                );
+                setRouteState(() {});
+              },
+              child: ListenableBuilder(
+                listenable: Listenable.merge([
+                  _patternNameController,
+                  _patternDesignerController,
+                  _patternPublisherController,
+                ]),
+                builder: (context, child) =>
+                    _patternDetailFields(l10n, setRouteState),
+              ),
             ),
           ),
         ),
       ),
     );
-    if (mounted) _commonDetailsFocusNode.requestFocus();
+    if (!mounted) return;
+    (_showPatternDetails ? _patternDetailsFocusNode : _craftDetailsFocusNode)
+        .requestFocus();
   }
 
   Future<void> _openCraftDetails() async {
+    final craft = _activeCraftType;
+    if (craft == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
     final l10n = AppLocalizations.of(context);
-    final title = _craftDetailsTitle(l10n);
-    if (title == null) return;
+    final fieldNames = _craftDetailsPageFieldNames;
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => StatefulBuilder(
           builder: (context, setRouteState) => ProjectComposerDetailPage(
-            title: title,
+            title: _craftDetailsTitle(l10n),
             errorText: _formValidationError,
             child: FormBuilder(
               key: _craftDetailsFormKey,
-              initialValue: _detailInitialValues(
-                _activeCraftDetailFieldNames,
-              ),
+              initialValue: _detailInitialValues(fieldNames),
               onChanged: () {
                 _syncDetailForm(
                   _craftDetailsFormKey,
-                  _activeCraftDetailFieldNames,
+                  fieldNames,
                 );
                 setRouteState(() {});
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: _detailFields(
-                  l10n,
-                  Theme.of(context).extension<SpacingTheme>()!,
-                  true,
-                  routeSetState: setRouteState,
-                ),
+                spacing: spacing.sp4,
+                children: [
+                  if (_canEditSpecializedDetails &&
+                      _activeCraftDetailFieldNames.isNotEmpty)
+                    ProjectCraftFields(craft: craft),
+                  CraftskyFormBuilderMultiSelectField<String>(
+                    name: ProjectComposerFields.additionalCrafts,
+                    label: l10n.projectComposerAdditionalCraftsLabel,
+                    options: _selectOptions(
+                      ProjectOptionCatalogs.craftTypes
+                          .where((option) => option.value != craft)
+                          .toList(),
+                      includeCraftIcons: true,
+                    ),
+                    maxSelected: 10,
+                    searchHintText:
+                        l10n.projectComposerAdditionalCraftsSearchHint,
+                    disabledText: l10n.projectComposerFieldDisabledLabel,
+                    maxSelectedErrorText: l10n
+                        .projectComposerMultiSelectMaxSelectedError(10),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1505,12 +1499,126 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (mounted) _craftDetailsFocusNode.requestFocus();
   }
 
-  Widget _patternDetailFields(AppLocalizations l10n) {
+  List<ProjectPattern> get _patternEntries =>
+      _detailFormValues[ProjectComposerFields.patterns]
+          as List<ProjectPattern>? ??
+      const [];
+
+  late final _savedPatternsByIndex = <int, ProjectPattern>{
+    for (final pattern
+        in _initialFormValues[ProjectComposerFields.patterns]
+                as List<ProjectPattern>? ??
+            const <ProjectPattern>[])
+      if (pattern.extraFields['existingIndex'] case final int index)
+        index: pattern,
+  };
+
+  ProjectPattern? _savedPatternFor(ProjectPattern? pattern) =>
+      _savedPatternsByIndex[pattern?.extraFields['existingIndex']];
+
+  List<String> _patternHashtags(ProjectPattern pattern) => [
+    ...hashtagsInText(pattern.name ?? ''),
+    ...hashtagsInText(pattern.designer ?? ''),
+    ...hashtagsInText(pattern.publisher ?? ''),
+  ];
+
+  List<String> _extraPatternHashtagPrefix(int index, String field) => [
+    ..._hashtagPrefix(designer: true),
+    ...hashtagsInText(_patternPublisherController.text),
+    for (final pattern in _patternEntries.skip(1).take(index - 1))
+      ..._patternHashtags(pattern),
+    if (field != 'name') ...hashtagsInText(_patternEntries[index].name ?? ''),
+    if (field == 'publisher')
+      ...hashtagsInText(_patternEntries[index].designer ?? ''),
+  ];
+
+  void _writePatternEntries(List<ProjectPattern> entries) {
+    setState(() {
+      _detailFormValues[ProjectComposerFields.patterns] = entries;
+      _formValidationError = null;
+    });
+  }
+
+  void _removeFirstPattern() {
+    final rest = _patternEntries.skip(1).toList();
+    final next = rest.firstOrNull;
+    if (_extraPatternKeys.isNotEmpty) _extraPatternKeys.removeAt(0);
+    _writePatternEntries(rest);
+    _patternNameController.text = _patternDisplayText(next?.name);
+    _patternDesignerController.text = next?.designer ?? '';
+    _patternPublisherController.text = next?.publisher ?? '';
+    final firstFields = <String, Object?>{
+      ProjectComposerFields.patternName: next?.name,
+      ProjectComposerFields.patternDesigner: next?.designer,
+      ProjectComposerFields.patternPublisher: next?.publisher,
+      ProjectComposerFields.patternUrl: next?.url,
+      ProjectComposerFields.patternDifficulty: next?.difficulty,
+      ProjectComposerFields.patternSelfDrafted: next?.selfDrafted,
+    };
+    _detailFormValues.addAll(firstFields);
+    _patternDetailsFormKey.currentState?.patchValue(firstFields);
+  }
+
+  Widget _patternDetailFields(
+    AppLocalizations l10n,
+    StateSetter setRouteState,
+  ) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final copy = _patternCopy(l10n);
+
+    Widget patternHeader(int number, VoidCallback onRemove) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (number > 1) const Divider(),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Semantics(
+              headingLevel: 2,
+              child: Text(
+                l10n.projectComposerPatternNumber(number),
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onRemove,
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+                iconColor: theme.colorScheme.error,
+              ),
+              icon: const Icon(CraftskyIconsBold.delete),
+              label: Text(l10n.projectComposerRemovePattern),
+            ),
+          ],
+        ),
+      ],
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_patternEntries.length > 1)
+          patternHeader(1, () {
+            _removeFirstPattern();
+            setRouteState(() {});
+          }),
+        ProjectFacetField(
+          name: ProjectComposerFields.patternName,
+          key: const Key('project-composer-pattern-name-field'),
+          editorKey: const Key('project-composer-pattern-name-editor'),
+          label: copy.name,
+          hintText: l10n.projectComposerPatternNameHint,
+          controller: _patternNameController,
+          limit: RecordTextLimits.patternText,
+          allowedTokenKinds: const {ActiveFacetTokenKind.hashtag},
+          precedingHashtags: _hashtagPrefix,
+          textCapitalization: TextCapitalization.none,
+          focusNode: _patternNameFocusNode,
+          normalizeValue: _patternFormValue,
+        ),
+        SizedBox(height: spacing.sp4),
         ProjectFacetField(
           name: ProjectComposerFields.patternDesigner,
           limit: RecordTextLimits.patternText,
@@ -1538,6 +1646,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ),
         SizedBox(height: spacing.sp4),
         CraftskyFormBuilderTextField(
+          key: const ValueKey(ProjectComposerFields.patternUrl),
           name: ProjectComposerFields.patternUrl,
           label: l10n.projectComposerPatternUrlLabel,
           hintText: l10n.projectComposerPatternUrlHint,
@@ -1546,20 +1655,22 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ),
         SizedBox(height: spacing.sp4),
         CraftskyFormBuilderDropdownField<String>(
+          key: const ValueKey(ProjectComposerFields.patternDifficulty),
           name: ProjectComposerFields.patternDifficulty,
           label: l10n.projectComposerPatternDifficultyLabel,
-          options: _selectOptions(
-            ProjectOptionCatalogs.patternDifficulties,
-            alphabetize: false,
-          ),
+          options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
         ),
         SizedBox(height: spacing.sp4),
         FormBuilderField<bool>(
+          key: const ValueKey(ProjectComposerFields.patternSelfDrafted),
           name: ProjectComposerFields.patternSelfDrafted,
           builder: (field) => SwitchListTile(
             key: const Key('project-composer-self-drafted-switch'),
             contentPadding: EdgeInsets.zero,
-            title: Text(l10n.projectComposerPatternSelfDraftedTitle),
+            title: Text(
+              l10n.projectComposerPatternSelfDraftedTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Text(l10n.projectComposerPatternSelfDraftedDescription),
             value: field.value ?? false,
             onChanged: field.didChange,
@@ -1567,13 +1678,48 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             activeThumbColor: theme.colorScheme.onPrimary,
           ),
         ),
+        for (var index = 1; index < _patternEntries.length; index++) ...[
+          SizedBox(height: spacing.sp4),
+          patternHeader(index + 1, () {
+            _extraPatternKeys.removeAt(index - 1);
+            _writePatternEntries([..._patternEntries]..removeAt(index));
+            setRouteState(() {});
+          }),
+          ProjectPatternEditor(
+            key: _extraPatternKeys[index - 1],
+            pattern: _patternEntries[index],
+            savedPattern: _savedPatternFor(_patternEntries[index]),
+            nameLabel: copy.name,
+            precedingHashtags: (field) =>
+                _extraPatternHashtagPrefix(index, field),
+            onChanged: (pattern) => _writePatternEntries(
+              [..._patternEntries]..[index] = pattern,
+            ),
+          ),
+        ],
+        if (_patternEntries.length < 5)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () {
+                _extraPatternKeys.add(UniqueKey());
+                _writePatternEntries([
+                  if (_patternEntries.isEmpty) const ProjectPattern(),
+                  ..._patternEntries,
+                  const ProjectPattern(),
+                ]);
+                setRouteState(() {});
+              },
+              icon: const Icon(CraftskyIconsBold.add),
+              label: Text(l10n.projectComposerAddPattern),
+            ),
+          ),
       ],
     );
   }
 
-  Widget _pageOne({
+  Widget _projectFields({
     required AppLocalizations l10n,
-    required ThemeData theme,
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
     required LocalVideoSelection? selectedVideo,
@@ -1589,6 +1735,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     onReplaceUnavailable,
     required void Function(int fromIndex, int toIndex) onReorderImages,
   }) {
+    final patternCopy = _patternCopy(l10n);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1662,6 +1809,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             ref.watch(preferredProjectCraftsProvider),
             includeCraftIcons: true,
             alphabetize: false,
+            retained: _activeCraftType,
           ),
           enabled: controlsEnabled,
           validator: (value) =>
@@ -1669,31 +1817,57 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           onChanged: _onCraftTypeChanged,
         ),
         SizedBox(height: spacing.sp4),
-        CraftskyFormBuilderMultiSelectField<String>(
-          name: ProjectComposerFields.additionalCrafts,
-          label: l10n.projectComposerAdditionalCraftsLabel,
-          options: _selectOptions(
-            ProjectOptionCatalogs.craftTypes
-                .where((craft) => craft.value != _activeCraftType)
-                .toList(),
-            includeCraftIcons: true,
+        ProjectDetailActionTile(
+          key: const Key('project-composer-craft-details-action'),
+          focusNode: _craftDetailsFocusNode,
+          icon: CraftskyIcons.adjustments,
+          title: _craftDetailsTitle(l10n),
+          subtitle:
+              _craftItemSummary ??
+              _detailSummary(
+                _craftDetailsPageFieldNames,
+                empty:
+                    _canEditSpecializedDetails &&
+                        _activeCraftDetailFieldNames.isNotEmpty
+                    ? l10n.projectComposerCraftDetailsDescription
+                    : l10n.projectComposerAdditionalCraftsDescription,
+                l10n: l10n,
+              ),
+          errorText: _formValidationError,
+          enabled: controlsEnabled && _activeCraftType != null,
+          onTap: _openCraftDetails,
+        ),
+        if (_showPatternDetails)
+          ProjectDetailActionTile(
+            key: const Key('project-composer-pattern-details-action'),
+            focusNode: _patternDetailsFocusNode,
+            icon: CraftskyIcons.pattern,
+            title: patternCopy.title,
+            subtitle: _detailSummary(
+              _patternDetailFieldNames,
+              empty: patternCopy.description,
+              l10n: l10n,
+            ),
+            enabled: controlsEnabled,
+            onTap: _openPatternDetails,
           ),
-          maxSelected: 10,
-          searchHintText: l10n.projectComposerAdditionalCraftsSearchHint,
-          disabledText: l10n.projectComposerFieldDisabledLabel,
-          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
-            10,
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderDropdownField<String>(
+          name: ProjectComposerFields.status,
+          label: l10n.projectComposerStatusLabel,
+          required: true,
+          requiredLabel: l10n.projectComposerRequiredLabel,
+          options: _selectOptions(
+            ProjectOptionCatalogs.statuses,
+            retained:
+                _initialFormValues[ProjectComposerFields.status] as String?,
           ),
           enabled: controlsEnabled,
+          validator: (value) => value == null || value.trim().isEmpty
+              ? l10n.projectComposerStatusRequiredError
+              : null,
         ),
         SizedBox(height: spacing.sp4),
-        Text(
-          l10n.projectComposerDetailsPrompt,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        SizedBox(height: spacing.sp3),
         CraftskyFormBuilderTextField(
           name: ProjectComposerFields.title,
           maxLength: RecordTextLimits.projectTitle.graphemes,
@@ -1704,101 +1878,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           textFieldKey: const Key('project-title-input'),
           enabled: controlsEnabled,
         ),
-        SizedBox(height: spacing.sp4),
-        CraftskyFormBuilderDropdownField<String>(
-          name: ProjectComposerFields.status,
-          label: l10n.projectComposerStatusLabel,
-          initialValue:
-              _initialFormValues.containsKey(ProjectComposerFields.status)
-              ? _initialFormValues[ProjectComposerFields.status] as String?
-              : ProjectOptionCatalogs.finishedStatusToken,
-          options: _selectOptions(ProjectOptionCatalogs.statuses),
-          enabled: controlsEnabled,
-        ),
-        SizedBox(height: spacing.sp4),
-        ProjectFacetField(
-          name: ProjectComposerFields.patternName,
-          limit: RecordTextLimits.patternText,
-          key: const Key('project-composer-pattern-name-field'),
-          editorKey: const Key('project-composer-pattern-name-editor'),
-          label: l10n.projectComposerPatternNameLabel,
-          hintText: l10n.projectComposerPatternNameHint,
-          controller: _patternNameController,
-          precedingHashtags: _hashtagPrefix,
-          textCapitalization: TextCapitalization.none,
-          focusNode: _patternNameFocusNode,
-          enabled: controlsEnabled,
-          initialDisplayText: '#',
-          allowedTokenKinds: const {ActiveFacetTokenKind.hashtag},
-          normalizeValue: _patternFormValue,
-          onChanged: _onPatternNameChanged,
-        ),
-        SizedBox(height: spacing.sp4),
-        CraftskyFormBuilderTextField(
-          name: ProjectComposerFields.duration,
-          label: l10n.projectComposerDurationLabel,
-          hintText: l10n.projectComposerDurationHint,
-          maxLength: RecordTextLimits.projectDuration.graphemes,
-          maxBytes: RecordTextLimits.projectDuration.bytes,
-          textFieldKey: const Key('project-duration-input'),
-          enabled: controlsEnabled,
-        ),
       ],
     );
   }
 
-  Widget _pageTwo({
-    required AppLocalizations l10n,
-    required SpacingTheme spacing,
-    required bool controlsEnabled,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ProjectMaterialsField(
-          precedingHashtags: () => _hashtagPrefix(publisher: true),
-          name: ProjectComposerFields.materials,
-          label: l10n.projectComposerMaterialsLabel,
-          inputHintText: l10n.projectComposerMaterialsAddHint,
-          addButtonLabel: l10n.projectComposerMaterialsAddAction,
-          disabledText: l10n.projectComposerFieldDisabledLabel,
-          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
-            10,
-          ),
-          maxLengthErrorText: l10n.projectComposerMaterialsMaxLengthError(100),
-          enabled: controlsEnabled,
-        ),
-        SizedBox(height: spacing.sp4),
-        CraftskyFormBuilderMultiSelectField<String>(
-          name: ProjectComposerFields.colours,
-          label: l10n.projectComposerColoursLabel,
-          options: _selectOptions(ProjectOptionCatalogs.colours),
-          maxSelected: 10,
-          searchHintText: l10n.projectComposerColoursSearchHint,
-          disabledText: l10n.projectComposerFieldDisabledLabel,
-          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
-            10,
-          ),
-          enabled: controlsEnabled,
-        ),
-        SizedBox(height: spacing.sp4),
-        CraftskyFormBuilderMultiSelectField<String>(
-          name: ProjectComposerFields.designTags,
-          label: l10n.projectComposerDesignTagsLabel,
-          options: _selectOptions(ProjectOptionCatalogs.designTags),
-          maxSelected: 10,
-          searchHintText: l10n.projectComposerDesignTagsSearchHint,
-          disabledText: l10n.projectComposerFieldDisabledLabel,
-          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
-            10,
-          ),
-          enabled: controlsEnabled,
-        ),
-      ],
-    );
-  }
-
-  Widget _pageThree({
+  Widget _descriptionField({
     required AppLocalizations l10n,
     required bool controlsEnabled,
     required String? bodyErrorText,
@@ -1813,7 +1897,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerDescriptionLabel,
           required: true,
           requiredLabel: l10n.projectComposerRequiredLabel,
-          hintText: l10n.projectComposerDescriptionHint,
+          hintText:
+              '${l10n.projectComposerDescriptionHint}\n\n'
+              '${l10n.composerBodyInputHelp}',
           controller: _bodyController,
           focusNode: _bodyFocusNode,
           minLines: 6,
@@ -1832,24 +1918,31 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   void _onCraftTypeChanged(String? value) {
     _craftChosen = true;
     if (value == _activeCraftType) return;
-    final additionalField =
-        _formKey.currentState?.fields[ProjectComposerFields.additionalCrafts];
-    final selected = additionalField?.value;
-    if (selected is Iterable) {
-      additionalField?.didChange(
-        selected.whereType<String>().where((craft) => craft != value).toList(),
-      );
-    }
-    final clearedDetails = _hasAnyDetail(_craftDetailFieldNames);
+    final selected = _detailFormValues[ProjectComposerFields.additionalCrafts];
+    final previousFields = _activeCraftDetailFieldNames;
+    final previousCraft = _activeCraftType;
+    final clearedDetails = _hasAnyDetail(previousFields);
     setState(() {
       _activeCraftType = value;
       _formValidationError = null;
-      _sewingProjectType = null;
-      _knittingProjectType = null;
-      _crochetProjectType = null;
-      _quiltingProjectType = null;
-      for (final name in _craftDetailFieldNames) {
-        _detailFormValues[name] = null;
+      if (selected is Iterable) {
+        _detailFormValues[ProjectComposerFields.additionalCrafts] = selected
+            .whereType<String>()
+            .where((craft) => craft != value)
+            .toList();
+      }
+      for (final name in previousFields) {
+        final saved = _detailFormValues[name];
+        if (previousCraft != null &&
+            name == ProjectDetailFields.formName(previousCraft) &&
+            saved is Map<String, Object?>) {
+          // Keep prior details available if the user returns to this craft.
+          final fields = ProjectDetailFields.authoringForCraft(previousCraft);
+          _detailFormValues[name] = {...saved}
+            ..removeWhere((key, _) => fields.any((field) => field.key == key));
+        } else {
+          _detailFormValues[name] = null;
+        }
       }
     });
     if (clearedDetails) {
@@ -1859,407 +1952,26 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     }
   }
 
-  void _onPatternNameChanged(String value) {
-    setState(() {});
-  }
-
   static String _patternDisplayText(Object? value) {
-    if (value is! String) return '#';
-    final trimmed = value.trim();
-    if (trimmed.isEmpty || trimmed == '#') return '#';
-    return trimmed;
+    if (value is! String || value.trim().isEmpty) return '';
+    return value;
   }
 
-  static String? _patternFormValue(String value) {
+  String? _patternFormValue(String value) {
+    final first = _patternEntries.firstOrNull;
+    if (value == _savedPatternFor(first)?.name || value == first?.name) {
+      return value;
+    }
     final trimmed = value.trim();
     if (trimmed.isEmpty || trimmed == '#') return null;
     return trimmed;
-  }
-
-  List<Widget> _detailFields(
-    AppLocalizations l10n,
-    SpacingTheme spacing,
-    bool controlsEnabled, {
-    StateSetter? routeSetState,
-  }) {
-    return switch (_activeCraftType) {
-      ProjectOptionCatalogs.sewingCraftToken => _sewingDetailFields(
-        l10n,
-        spacing,
-        controlsEnabled,
-        routeSetState,
-      ),
-      ProjectOptionCatalogs.knittingCraftToken => _knittingDetailFields(
-        l10n,
-        spacing,
-        controlsEnabled,
-        routeSetState,
-      ),
-      ProjectOptionCatalogs.crochetCraftToken => _crochetDetailFields(
-        l10n,
-        spacing,
-        controlsEnabled,
-        routeSetState,
-      ),
-      ProjectOptionCatalogs.quiltingCraftToken => _quiltingDetailFields(
-        l10n,
-        spacing,
-        controlsEnabled,
-        routeSetState,
-      ),
-      ProjectOptionCatalogs.embroideryCraftToken => const <Widget>[],
-      null => [
-        _SelectCraftTypeEmptyState(
-          text: l10n.projectComposerSelectCraftTypeEmptyState,
-        ),
-      ],
-      _ => [
-        _SelectCraftTypeEmptyState(
-          text: l10n.projectComposerSelectCraftTypeEmptyState,
-        ),
-      ],
-    };
-  }
-
-  List<Widget> _sewingDetailFields(
-    AppLocalizations l10n,
-    SpacingTheme spacing,
-    bool controlsEnabled,
-    StateSetter? routeSetState,
-  ) {
-    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
-      craftToken: ProjectOptionCatalogs.sewingCraftToken,
-      projectTypeToken: _sewingProjectType,
-    );
-    return [
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.sewingProjectType,
-        label: l10n.projectComposerSewingProjectTypeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.projectTypesForCraft(
-            ProjectOptionCatalogs.sewingCraftToken,
-          ),
-        ),
-        enabled: controlsEnabled,
-        onChanged: (value) {
-          setState(() {
-            _sewingProjectType = value;
-            _craftDetailsFormKey
-                .currentState
-                ?.fields[ProjectComposerFields.sewingProjectSubtype]
-                ?.didChange(null);
-          });
-          routeSetState?.call(() {});
-        },
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.sewingProjectSubtype,
-        label: l10n.projectComposerProjectSubtypeLabel,
-        options: _selectOptions(subtypeOptions),
-        enabled: controlsEnabled && subtypeOptions.isNotEmpty,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
-        name: ProjectComposerFields.sewingSizeMade,
-        maxLength: RecordTextLimits.projectSize.graphemes,
-        maxBytes: RecordTextLimits.projectSize.bytes,
-        label: l10n.projectComposerSizeMadeLabel,
-        hintText: l10n.projectComposerSizeMadeHint,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderMultilineTextField(
-        name: ProjectComposerFields.sewingFitNotes,
-        maxLength: RecordTextLimits.fitNotes.graphemes,
-        maxBytes: RecordTextLimits.fitNotes.bytes,
-        label: l10n.projectComposerFitNotesLabel,
-        hintText: l10n.projectComposerFitNotesHint,
-        enabled: controlsEnabled,
-      ),
-    ];
-  }
-
-  List<Widget> _knittingDetailFields(
-    AppLocalizations l10n,
-    SpacingTheme spacing,
-    bool controlsEnabled,
-    StateSetter? routeSetState,
-  ) {
-    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
-      craftToken: ProjectOptionCatalogs.knittingCraftToken,
-      projectTypeToken: _knittingProjectType,
-    );
-    return [
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.knittingProjectType,
-        label: l10n.projectComposerKnittingProjectTypeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.projectTypesForCraft(
-            ProjectOptionCatalogs.knittingCraftToken,
-          ),
-        ),
-        enabled: controlsEnabled,
-        onChanged: (value) {
-          setState(() {
-            _knittingProjectType = value;
-            _craftDetailsFormKey
-                .currentState
-                ?.fields[ProjectComposerFields.knittingProjectSubtype]
-                ?.didChange(null);
-          });
-          routeSetState?.call(() {});
-        },
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.knittingProjectSubtype,
-        label: l10n.projectComposerProjectSubtypeLabel,
-        options: _selectOptions(subtypeOptions),
-        enabled: controlsEnabled && subtypeOptions.isNotEmpty,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.knittingYarnWeight,
-        label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.yarnWeights,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.knittingNeedleSize,
-        label: l10n.projectComposerNeedleSizeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.needleSizes,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
-        name: ProjectComposerFields.knittingFinishedSize,
-        maxLength: RecordTextLimits.projectSize.graphemes,
-        maxBytes: RecordTextLimits.projectSize.bytes,
-        label: l10n.projectComposerKnittingSizeMadeLabel,
-        hintText: l10n.projectComposerKnittingSizeMadeHint,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.knittingGaugeStitches,
-        label: l10n.projectComposerGaugeStitchesLabel,
-        hintText: l10n.projectComposerGaugeStitchesHint,
-        mode: CraftskyNumberInputMode.integer,
-        textFieldKey: const Key('knitting-gauge-stitches-input'),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.knittingGaugeRows,
-        label: l10n.projectComposerGaugeRowsLabel,
-        hintText: l10n.projectComposerGaugeRowsHint,
-        mode: CraftskyNumberInputMode.integer,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.knittingGaugeMeasurement,
-        label: l10n.projectComposerGaugeMeasurementLabel,
-        hintText: l10n.projectComposerGaugeMeasurementHint,
-        mode: CraftskyNumberInputMode.integer,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.knittingGaugeUnit,
-        label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.gaugeUnits,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-    ];
-  }
-
-  List<Widget> _crochetDetailFields(
-    AppLocalizations l10n,
-    SpacingTheme spacing,
-    bool controlsEnabled,
-    StateSetter? routeSetState,
-  ) {
-    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
-      craftToken: ProjectOptionCatalogs.crochetCraftToken,
-      projectTypeToken: _crochetProjectType,
-    );
-    return [
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.crochetProjectType,
-        label: l10n.projectComposerCrochetProjectTypeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.projectTypesForCraft(
-            ProjectOptionCatalogs.crochetCraftToken,
-          ),
-        ),
-        enabled: controlsEnabled,
-        onChanged: (value) {
-          setState(() {
-            _crochetProjectType = value;
-            _craftDetailsFormKey
-                .currentState
-                ?.fields[ProjectComposerFields.crochetProjectSubtype]
-                ?.didChange(null);
-          });
-          routeSetState?.call(() {});
-        },
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.crochetProjectSubtype,
-        label: l10n.projectComposerProjectSubtypeLabel,
-        options: _selectOptions(subtypeOptions),
-        enabled: controlsEnabled && subtypeOptions.isNotEmpty,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.crochetYarnWeight,
-        label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.yarnWeights,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.crochetHookSize,
-        label: l10n.projectComposerHookSizeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.hookSizes,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.crochetGaugeStitches,
-        label: l10n.projectComposerGaugeStitchesLabel,
-        hintText: l10n.projectComposerGaugeStitchesHint,
-        mode: CraftskyNumberInputMode.integer,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.crochetGaugeRows,
-        label: l10n.projectComposerGaugeRowsLabel,
-        hintText: l10n.projectComposerGaugeRowsHint,
-        mode: CraftskyNumberInputMode.integer,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormNumberField(
-        name: ProjectComposerFields.crochetGaugeMeasurement,
-        label: l10n.projectComposerGaugeMeasurementLabel,
-        hintText: l10n.projectComposerGaugeMeasurementHint,
-        mode: CraftskyNumberInputMode.integer,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.crochetGaugeUnit,
-        label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.gaugeUnits,
-          alphabetize: false,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
-        name: ProjectComposerFields.crochetFinishedSize,
-        maxLength: RecordTextLimits.projectSize.graphemes,
-        maxBytes: RecordTextLimits.projectSize.bytes,
-        label: l10n.projectComposerFinishedSizeLabel,
-        hintText: l10n.projectComposerFinishedSizeHint,
-        enabled: controlsEnabled,
-      ),
-    ];
-  }
-
-  List<Widget> _quiltingDetailFields(
-    AppLocalizations l10n,
-    SpacingTheme spacing,
-    bool controlsEnabled,
-    StateSetter? routeSetState,
-  ) {
-    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
-      craftToken: ProjectOptionCatalogs.quiltingCraftToken,
-      projectTypeToken: _quiltingProjectType,
-    );
-    return [
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.quiltingProjectType,
-        label: l10n.projectComposerQuiltingProjectTypeLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.projectTypesForCraft(
-            ProjectOptionCatalogs.quiltingCraftToken,
-          ),
-        ),
-        enabled: controlsEnabled,
-        onChanged: (value) {
-          setState(() {
-            _quiltingProjectType = value;
-            _craftDetailsFormKey
-                .currentState
-                ?.fields[ProjectComposerFields.quiltingProjectSubtype]
-                ?.didChange(null);
-          });
-          routeSetState?.call(() {});
-        },
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.quiltingProjectSubtype,
-        label: l10n.projectComposerProjectSubtypeLabel,
-        options: _selectOptions(subtypeOptions),
-        enabled: controlsEnabled && subtypeOptions.isNotEmpty,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
-        name: ProjectComposerFields.quiltingSize,
-        maxLength: RecordTextLimits.projectSize.graphemes,
-        maxBytes: RecordTextLimits.projectSize.bytes,
-        label: l10n.projectComposerSizeLabel,
-        hintText: l10n.projectComposerFinishedSizeHint,
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.quiltingPiecingTechnique,
-        label: l10n.projectComposerPiecingTechniqueLabel,
-        options: _selectOptions(
-          ProjectOptionCatalogs.quiltingPiecingTechniques,
-        ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderDropdownField<String>(
-        name: ProjectComposerFields.quiltingMethod,
-        label: l10n.projectComposerQuiltingMethodLabel,
-        options: _selectOptions(ProjectOptionCatalogs.quiltingMethods),
-        enabled: controlsEnabled,
-      ),
-    ];
   }
 
   Future<void> _savePublishedProject(
     PostEditOrigin edit,
     Project project,
     ComposerImagesState images,
-    String trimmedBody,
+    String bodyText,
   ) async {
     FocusScope.of(context).unfocus();
     await _runSubmission(edit.ownership, () async {
@@ -2267,6 +1979,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ..requireCurrent();
       final initialPayload = buildProjectComposerPayload(
         formValues: _initialFormValues,
+        originalFormValues: _initialFormValues,
       ).project!;
       final initial = restorePublishedProjectEntries(
         seed: edit.seed,
@@ -2279,7 +1992,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         formValues: _combinedFormValues(saved: true),
       );
       final args = await buildProjectComposerSubmitArguments(
-        text: trimmedBody,
+        text: bodyText,
         langs: _languages!.values,
         project: current,
         imagesState: images,
@@ -2292,6 +2005,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           Map<String, dynamic>.from(edit.seed.editable['project']! as Map),
         ),
         materializeImagesFromState: false,
+        preserveSavedFacets: true,
       );
       operation.requireCurrent();
       final changes = <String, Object?>{...?_publishedEmbed?.changes};
@@ -2385,25 +2099,27 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     });
     final form = _formKey.currentState;
     if (form == null) return;
-    final isFormValid = form.saveAndValidate();
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final hasRequiredBody = trimmedBody.isNotEmpty;
     final hasRequiredPhoto =
         imagesState.images.isNotEmpty ||
         _videoController.selection != null ||
         _publishedEmbed?.hasRetainedVideo == true;
+    final isFormValid = form.saveAndValidate(
+      autoScrollWhenFocusOnInvalid: hasRequiredPhoto,
+    );
     final isBodyLengthValid = RecordTextLimits.post.accepts(_bodyText);
     if (!isFormValid ||
         !hasRequiredBody ||
         !hasRequiredPhoto ||
         !isBodyLengthValid) {
-      if (!hasRequiredPhoto || !isFormValid) {
+      if (!hasRequiredPhoto) {
         await _scrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
-      } else {
+      } else if (isFormValid) {
         _bodyFocusNode.requestFocus();
         if (_bodyFocusNode.context case final bodyContext?) {
           await Scrollable.ensureVisible(bodyContext);
@@ -2414,6 +2130,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
     final payload = buildProjectComposerPayload(
       formValues: _combinedFormValues(saved: true),
+      savedFirstPattern: _savedPatternFor(_patternEntries.firstOrNull),
+      originalFormValues: widget.publishedEdit == null
+          ? null
+          : _initialFormValues,
     );
     final project = payload.project;
     if (project == null) {
@@ -2428,18 +2148,29 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                 (error) => error.code == ProjectComposerValidationCode.tooLong,
               )
             ? AppLocalizations.of(context).textInputTooLong
+            : payload.errors.any(
+                (error) =>
+                    error.code == ProjectComposerValidationCode.invalidDetail,
+              )
+            ? AppLocalizations.of(context).projectComposerInvalidCraftDetails
+            : payload.errors.any(
+                (error) =>
+                    error.code == ProjectComposerValidationCode.tooManyValues,
+              )
+            ? AppLocalizations.of(context)
+                  .projectComposerMultiSelectMaxSelectedError(5)
             : null;
       });
       if (_formValidationError != null) {
         final field = payload.errors.first.fieldName;
-        if (field == ProjectComposerFields.patternName ||
-            field == ProjectComposerFields.patternDesigner ||
-            field == ProjectComposerFields.patternPublisher) {
+        if (field == ProjectComposerFields.patterns ||
+            _patternDetailFieldNames.contains(field)) {
           await _openPatternDetails();
-        } else if (field == ProjectComposerFields.materials) {
-          await _openCommonDetails();
-        } else {
+        } else if (_activeCraftType != null &&
+            _craftDetailsPageFieldNames.contains(field)) {
           await _openCraftDetails();
+        } else {
+          context.showError(_formValidationError!);
         }
       }
       return;
@@ -2459,20 +2190,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     }
 
     if (widget.publishedEdit case final edit?) {
-      await _savePublishedProject(edit, project, imagesState, trimmedBody);
+      await _savePublishedProject(edit, project, imagesState, _bodyText);
       return;
     }
 
     final args = await buildProjectComposerSubmitArguments(
-      text: trimmedBody,
+      text: _bodyText,
       langs: _languages!.values,
       project: project,
       imagesState: imagesState,
       generateFacets: ref.read(facetGeneratorProvider).generate,
       existingText: widget.scheduledPost?.payload['text'] as String?,
       existingFacets: _scheduledProjectFacets('facets'),
-      existingProject: _existingScheduledProject(),
+      existingProject: _existingScheduledProject,
       materializeImagesFromState: false,
+      preserveSavedFacets: widget.scheduledPost != null,
     );
     if (!mounted) return;
     final submissionOwner = ref
@@ -2762,10 +2494,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ];
   }
 
-  Project? _existingScheduledProject() {
+  Project? _readScheduledProject() {
     final value = widget.scheduledPost?.payload['project'];
     if (value is! Map<String, dynamic>) return null;
-    return ProjectMapper.fromMap(value);
+    final project = ProjectMapper.fromMap(value);
+    final common = project.common;
+    if (common.patterns == null && common.pattern == null) return project;
+    return project.copyWith.common(
+      pattern: null,
+      patterns: [
+        for (final (index, pattern) in common.effectivePatterns.indexed)
+          pattern.copyWith(
+            extraFields: {...pattern.extraFields, 'existingIndex': index},
+          ),
+      ],
+    );
   }
 
   String _projectLocalTimeLabel(BuildContext context, DateTime value) {
@@ -2887,15 +2630,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   Map<String, dynamic> _scheduledProjectPayload(
     ProjectComposerSubmitArguments args,
     List<Map<String, dynamic>> media,
-  ) => {
-    'kind': 'project',
-    'text': args.text,
-    'langs': args.langs,
-    'sponsored': _sponsored,
-    'facets': ?args.facets,
-    'project': args.project.toCreateMap(),
-    'media': media,
-  };
+  ) {
+    final project = args.project.toCreateMap();
+    final common = project['common'] as Map<String, dynamic>;
+    if (common['patterns'] case final List<dynamic> patterns) {
+      for (final pattern in patterns.cast<Map<String, dynamic>>()) {
+        pattern.remove('existingIndex');
+      }
+    }
+    return {
+      'kind': 'project',
+      'text': args.text,
+      'langs': args.langs,
+      'sponsored': _sponsored,
+      'facets': ?args.facets,
+      'project': project,
+      'media': media,
+    };
+  }
 
   Future<void> _scheduleProject({
     required ProjectComposerSubmitArguments args,
@@ -3021,24 +2773,5 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         });
       }
     }
-  }
-}
-
-class _SelectCraftTypeEmptyState extends StatelessWidget {
-  const new({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
   }
 }

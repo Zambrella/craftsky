@@ -1,6 +1,8 @@
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 
 /// The ordinary payload builder normalizes material text. Carry only the
 /// editor's retained indices across that normalization, never raw extensions.
@@ -55,15 +57,16 @@ Project restorePublishedProjectEntries({
         ),
       )
       .toList();
+  final legacyPattern = rawCommon['pattern'] as Map<String, Object?>?;
   return payload.copyWith(
     common: payload.common.copyWith(
       materials: payload.common.materials == null ? null : restored,
       additionalCrafts: crafts,
       pattern:
           payload.common.pattern ??
-          ((rawCommon['pattern'] as Map<String, Object?>?)?['selfDrafted']
-                      is bool &&
-                  formValues[ProjectComposerFields.patternSelfDrafted] == false
+          ((payload.common.patterns == null &&
+                  legacyPattern?['selfDrafted'] is bool &&
+                  formValues[ProjectComposerFields.patternSelfDrafted] == false)
               ? const ProjectPattern(selfDrafted: false)
               : null),
     ),
@@ -109,6 +112,47 @@ Map<String, Object?> buildPublishedProjectPatch({
       ]),
     },
   );
+  const patternFields = [
+    'url',
+    'name',
+    'nameFacets',
+    'difficulty',
+    'selfDrafted',
+    'designer',
+    'designerFacets',
+    'publisher',
+    'publisherFacets',
+  ];
+  final beforePatterns = _knownEntries(
+    (before['common'] as Map<String, Object?>)['patterns'],
+    patternFields,
+  );
+  final afterPatterns = _knownEntries(
+    (after['common'] as Map<String, Object?>)['patterns'],
+    patternFields,
+  );
+  List<Map<String, Object?>>? withoutFacets(
+    List<Map<String, Object?>>? entries,
+  ) => entries
+      ?.map(
+        (entry) => {
+          for (final field in entry.entries)
+            if (!field.key.endsWith('Facets')) field.key: field.value,
+        },
+      )
+      .toList();
+  // Caption edits may change the hashtag budget; the pattern text and retained
+  // index determine whether these existing pattern rows were edited.
+  if (!_sameEditValue(
+    withoutFacets(beforePatterns),
+    withoutFacets(afterPatterns),
+  )) {
+    common['patterns'] = _retainedEntries(
+      beforePatterns ?? const [],
+      afterPatterns ?? const [],
+      patternFields,
+    );
+  }
   final beforeMaterials = _knownEntries(
     (before['common'] as Map<String, Object?>)['materials'],
     const ['text', 'facets'],
@@ -141,6 +185,9 @@ Map<String, Object?> buildPublishedProjectPatch({
           ]);
   }
   final result = <String, Object?>{if (common.isNotEmpty) 'common': common};
+  final craft =
+      (after['common'] as Map<String, Object?>)['craftType']! as String;
+  final specialized = ProjectDetailFields.forCraft(craft);
   final beforeDetails = before['details'] as Map<String, Object?>?;
   final afterDetails = after['details'] as Map<String, Object?>?;
   if (beforeDetails == null || _detailKeys(beforeDetails[r'$type']) != null) {
@@ -150,13 +197,16 @@ Map<String, Object?> buildPublishedProjectPatch({
             (before['common'] as Map<String, Object?>)['craftType'] ==
             (after['common'] as Map<String, Object?>)['craftType'];
         if (sameCraft) {
-          final details = _diffKnownObject(
-            beforeDetails,
-            const {},
-            _detailKeys(beforeDetails[r'$type'])!
-                .where((key) => key != r'$type')
-                .toList(),
-          );
+          final details =
+              _diffKnownObject(
+                beforeDetails,
+                const {},
+                _detailKeys(beforeDetails[r'$type'])!
+                    .where((key) => key != r'$type')
+                    .toList(),
+              )..addAll(
+                _diffSpecializedFields(beforeDetails, const {}, specialized),
+              );
           if (details.isNotEmpty) result['details'] = details;
         } else {
           result['details'] = null;
@@ -166,19 +216,27 @@ Map<String, Object?> buildPublishedProjectPatch({
       final keys = _detailKeys(afterDetails[r'$type']);
       if (keys != null) {
         final sameType = beforeDetails?[r'$type'] == afterDetails[r'$type'];
-        final details = _diffKnownObject(
-          sameType ? beforeDetails ?? const {} : const {},
-          afterDetails,
-          keys,
-          {
-            'gauge': (before, after) => _diffKnownObject(before, after, const [
-              'stitches',
-              'rows',
-              'measurement',
-              'unit',
-            ]),
-          },
-        );
+        final details =
+            _diffKnownObject(
+              sameType ? beforeDetails ?? const {} : const {},
+              afterDetails,
+              keys,
+              {
+                'gauge': (before, after) =>
+                    _diffKnownObject(before, after, const [
+                      'stitches',
+                      'rows',
+                      'measurement',
+                      'unit',
+                    ]),
+              },
+            )..addAll(
+              _diffSpecializedFields(
+                sameType ? beforeDetails ?? const {} : const {},
+                afterDetails,
+                specialized,
+              ),
+            );
         if (details.isNotEmpty) result['details'] = details;
       }
     }
@@ -199,7 +257,7 @@ List<String>? _detailKeys(Object? type) => switch (type) {
     'projectType',
     'projectSubtype',
     'yarnWeight',
-    'needleSizeMm',
+    'needleSizesMm',
     'gauge',
     'finishedSize',
   ],
@@ -208,7 +266,7 @@ List<String>? _detailKeys(Object? type) => switch (type) {
     'projectType',
     'projectSubtype',
     'yarnWeight',
-    'hookSizeMm',
+    'hookSizesMm',
     'gauge',
     'finishedSize',
   ],
@@ -220,7 +278,73 @@ List<String>? _detailKeys(Object? type) => switch (type) {
     'piecingTechnique',
     'quiltingMethod',
   ],
+  final String type
+      when ProjectTaxonomy.entries.any(
+        (entry) => entry.family == 'craft' && entry.detailsType == type,
+      ) =>
+    const [r'$type', 'projectType', 'projectSubtype'],
   _ => null,
+};
+
+Map<String, Object?> _diffSpecializedFields(
+  Map<String, Object?> before,
+  Map<String, Object?> after,
+  List<ProjectDetailField> fields,
+) {
+  final result = <String, Object?>{};
+  for (final field in fields) {
+    final original = before[field.key];
+    final value = after[field.key];
+    if (_sameEditValue(original, value)) continue;
+    switch (field.input) {
+      case ProjectDetailInput.selection || ProjectDetailInput.entries
+          when value is List:
+        final originals = {
+          for (final entry
+              in (original as List? ?? const [])
+                  .whereType<Map<String, Object?>>())
+            if (entry['existingIndex'] is int) entry['existingIndex']: entry,
+        };
+        result[field.key] = [
+          for (final entry in value.whereType<Map<String, Object?>>())
+            _diffSpecializedEntry(
+              originals[entry['existingIndex']] ?? const {},
+              entry,
+              field,
+            ),
+        ];
+      case ProjectDetailInput.object when value is Map<String, Object?>:
+        final values = _diffSpecializedFields(
+          original as Map<String, Object?>? ?? const {},
+          value,
+          field.children,
+        );
+        if (values.isNotEmpty) result[field.key] = values;
+      case ProjectDetailInput.text ||
+          ProjectDetailInput.decimal ||
+          ProjectDetailInput.count ||
+          ProjectDetailInput.choice ||
+          ProjectDetailInput.choices ||
+          ProjectDetailInput.selection ||
+          ProjectDetailInput.entries ||
+          ProjectDetailInput.object:
+        result[field.key] = value;
+    }
+  }
+  return result;
+}
+
+Map<String, Object?> _diffSpecializedEntry(
+  Map<String, Object?> before,
+  Map<String, Object?> after,
+  ProjectDetailField field,
+) => {
+  if (after.containsKey('existingIndex'))
+    'existingIndex': after['existingIndex'],
+  if (field.entryKey case final key?
+      when !_sameEditValue(before[key], after[key]))
+    key: after[key],
+  ..._diffSpecializedFields(before, after, field.children),
 };
 
 List<Map<String, Object?>>? _knownEntries(Object? raw, List<String> keys) {
@@ -289,7 +413,11 @@ Map<String, Object?> _diffKnownObject(
       );
       if (changes.isNotEmpty) result[key] = changes;
     } else {
-      result[key] = value;
+      result[key] =
+          value ??
+          (const {'needleSizesMm', 'hookSizesMm'}.contains(key)
+              ? const <String>[]
+              : null);
     }
   }
   return result;

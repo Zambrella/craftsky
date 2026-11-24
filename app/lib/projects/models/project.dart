@@ -38,6 +38,7 @@ class Project with ProjectMappable {
     'title',
     'duration',
     'pattern',
+    'patterns',
     'materials',
     'colors',
     'designTags',
@@ -52,6 +53,7 @@ class ProjectCommon with ProjectCommonMappable {
     this.title,
     this.duration,
     this.pattern,
+    this.patterns,
     this.materials,
     this.colors,
     this.designTags,
@@ -67,6 +69,9 @@ class ProjectCommon with ProjectCommonMappable {
   final String? title;
   final String? duration;
   final ProjectPattern? pattern;
+  final List<ProjectPattern>? patterns;
+
+  List<ProjectPattern> get effectivePatterns => patterns ?? [?pattern];
   final List<ProjectMaterial>? materials;
   final List<String>? colors;
   final List<String>? designTags;
@@ -173,6 +178,7 @@ sealed class ProjectDetails {
     'projectSubtype',
     'yarnWeight',
     'needleSizeMm',
+    'needleSizesMm',
     'gauge',
     'finishedSize',
   ]),
@@ -184,6 +190,7 @@ final class KnittingProjectDetails extends ProjectDetails
     this.projectSubtype,
     this.yarnWeight,
     this.needleSizeMm,
+    this.needleSizesMm,
     this.gauge,
     this.finishedSize,
     this.extraFields = const {},
@@ -195,6 +202,9 @@ final class KnittingProjectDetails extends ProjectDetails
   final String? projectSubtype;
   final String? yarnWeight;
   final String? needleSizeMm;
+  final List<String>? needleSizesMm;
+
+  List<String> get effectiveNeedleSizesMm => needleSizesMm ?? [?needleSizeMm];
   final ProjectGauge? gauge;
   final String? finishedSize;
 }
@@ -206,6 +216,7 @@ final class KnittingProjectDetails extends ProjectDetails
     'projectSubtype',
     'yarnWeight',
     'hookSizeMm',
+    'hookSizesMm',
     'gauge',
     'finishedSize',
   ]),
@@ -217,6 +228,7 @@ final class CrochetProjectDetails extends ProjectDetails
     this.projectSubtype,
     this.yarnWeight,
     this.hookSizeMm,
+    this.hookSizesMm,
     this.gauge,
     this.finishedSize,
     this.extraFields = const {},
@@ -228,6 +240,9 @@ final class CrochetProjectDetails extends ProjectDetails
   final String? projectSubtype;
   final String? yarnWeight;
   final String? hookSizeMm;
+  final List<String>? hookSizesMm;
+
+  List<String> get effectiveHookSizesMm => hookSizesMm ?? [?hookSizeMm];
   final ProjectGauge? gauge;
   final String? finishedSize;
 }

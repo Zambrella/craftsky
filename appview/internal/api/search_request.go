@@ -477,6 +477,7 @@ var allowedRecentProjectFilterKeys = map[string]bool{
 var allowedProjectBrowseFilterKeys = map[string]bool{
 	"craftType":         true,
 	"status":            true,
+	"projectItem":       true,
 	"projectType":       true,
 	"projectSubtype":    true,
 	"patternDifficulty": true,
@@ -485,11 +486,17 @@ var allowedProjectBrowseFilterKeys = map[string]bool{
 	"yarnWeight":        true,
 	"piecingTechnique":  true,
 	"quiltingMethod":    true,
+	"knittingMethod":    true,
+	"feltingMethod":     true,
 	"selfDrafted":       true,
 }
 
 var allowedProjectQueryKeys = map[string]bool{
 	"q": true, "limit": true, "cursor": true,
+}
+
+func projectBrowseFilterAllowed(key string) bool {
+	return allowedProjectBrowseFilterKeys[key] || isAllowedCraftDetailBrowseFilter(key)
 }
 
 func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
@@ -517,9 +524,12 @@ func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
 func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
 	q := r.URL.Query()
 	for key := range q {
-		if key != "sort" && key != "limit" && key != "cursor" && !allowedProjectBrowseFilterKeys[key] {
+		if key != "sort" && key != "limit" && key != "cursor" && !projectBrowseFilterAllowed(key) {
 			return ProjectListRequest{}, ErrSearchValidation
 		}
+	}
+	if q.Has("feltingMethod") && !IsSupportedProjectCraftType(craftTypePrefix+"felting") {
+		return ProjectListRequest{}, ErrSearchValidation
 	}
 	sort, err := parseSearchSort(q.Get("sort"))
 	if err != nil {
@@ -551,7 +561,11 @@ func parseProjectBrowseFilters(q url.Values) (map[string][]string, error) {
 		if key == "sort" || key == "limit" || key == "cursor" || key == "selfDrafted" {
 			continue
 		}
-		if !allowedProjectBrowseFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
+		maxValues := ProjectFilterMaxPerFamily
+		if key == "craftType" {
+			maxValues = len(defaultSupportedCraftTypes)
+		}
+		if !projectBrowseFilterAllowed(key) || len(values) == 0 || len(values) > maxValues {
 			return nil, ErrSearchValidation
 		}
 		if key == "craftType" {

@@ -31,15 +31,9 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
       ProjectOptionCatalogs.craftTypes,
       widget.craftType,
     );
-    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesForTypes(
-      craftToken: widget.craftType,
-      projectTypeTokens: _filters.projectType,
-    );
-    final usesYarn =
-        widget.craftType == ProjectOptionCatalogs.knittingCraftToken ||
-        widget.craftType == ProjectOptionCatalogs.crochetCraftToken;
-    final isQuilting =
-        widget.craftType == ProjectOptionCatalogs.quiltingCraftToken;
+    final itemOptions = projectItemSelectOptions(widget.craftType);
+    final selectedItems = _filters.selectedProjectItems;
+    final detailFilters = ProjectDetailFilters.forCraft(widget.craftType);
     return SizedBox.expand(
       child: Scaffold(
         appBar: AppBar(
@@ -53,113 +47,78 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        body: ListView(
+        body: SingleChildScrollView(
           padding: EdgeInsets.all(spacing.sp4),
-          children: [
-            _OptionFilterGroup(
-              title: l10n.projectsFilterProjectType,
-              options: _alphabetizedOptions(
-                ProjectOptionCatalogs.projectTypesForCraft(widget.craftType),
-              ),
-              selectedValues: _filters.projectType,
-              onChanged: _replaceProjectTypes,
-            ),
-            _OptionFilterGroup(
-              title: l10n.projectsFilterProjectSubtype,
-              options: _alphabetizedOptions(subtypeOptions),
-              selectedValues: _filters.projectSubtype,
-              enabled: subtypeOptions.isNotEmpty,
-              showWhenEmpty: ProjectOptionCatalogs.projectSubtypesForCraft(
-                widget.craftType,
-              ).isNotEmpty,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.projectSubtype,
-                values,
-              ),
-            ),
-            _OptionFilterGroup(
-              title: l10n.projectsFilterDifficulty,
-              options: ProjectOptionCatalogs.patternDifficulties,
-              selectedValues: _filters.patternDifficulty,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.patternDifficulty,
-                values,
-              ),
-            ),
-            _OptionFilterGroup(
-              title: l10n.projectsFilterColor,
-              options: _alphabetizedOptions(ProjectOptionCatalogs.colours),
-              selectedValues: _filters.color,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.color,
-                values,
-              ),
-            ),
-            _OptionFilterGroup(
-              title: l10n.projectsFilterDesignTag,
-              options: _alphabetizedOptions(ProjectOptionCatalogs.designTags),
-              selectedValues: _filters.designTag,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.designTag,
-                values,
-              ),
-            ),
-            if (usesYarn)
-              _OptionFilterGroup(
-                title: l10n.projectsFilterYarnWeight,
-                options: ProjectOptionCatalogs.yarnWeights,
-                selectedValues: _filters.yarnWeight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _OptionFilterField(
+                title: l10n.projectsFilterStatus,
+                options: ProjectOptionCatalogs.statuses,
+                selectedValues: _filters.status,
                 onChanged: (values) => _replaceValues(
-                  ProjectBrowseFilterFamily.yarnWeight,
+                  ProjectBrowseFilterFamily.status,
                   values,
                 ),
               ),
-            if (isQuilting) ...[
-              _OptionFilterGroup(
-                title: l10n.projectsFilterPiecingTechnique,
-                options: _alphabetizedOptions(
-                  ProjectOptionCatalogs.quiltingPiecingTechniques,
-                ),
-                selectedValues: _filters.piecingTechnique,
+              _OptionFilterField(
+                title: l10n.projectsFilterDifficulty,
+                options: ProjectOptionCatalogs.patternDifficulties,
+                selectedValues: _filters.patternDifficulty,
                 onChanged: (values) => _replaceValues(
-                  ProjectBrowseFilterFamily.piecingTechnique,
+                  ProjectBrowseFilterFamily.patternDifficulty,
                   values,
                 ),
               ),
-              _OptionFilterGroup(
-                title: l10n.projectsFilterQuiltingMethod,
-                options: _alphabetizedOptions(
-                  ProjectOptionCatalogs.quiltingMethods,
-                ),
-                selectedValues: _filters.quiltingMethod,
-                onChanged: (values) => _replaceValues(
-                  ProjectBrowseFilterFamily.quiltingMethod,
-                  values,
-                ),
-              ),
-            ],
-            _OptionFilterGroup(
-              title: l10n.projectsFilterStatus,
-              options: ProjectOptionCatalogs.statuses,
-              selectedValues: _filters.status,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.status,
-                values,
-              ),
-            ),
-            _FilterFieldPadding(
-              child: CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.projectsFilterSelfDrafted),
-                value: _filters.selfDrafted,
-                onChanged: (value) => setState(
-                  () => _filters = _filters.copyWith(
-                    selfDrafted: value ?? false,
+              _FilterFieldPadding(
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    l10n.projectsFilterSelfDrafted,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  value: _filters.selfDrafted,
+                  onChanged: (value) => setState(
+                    () => _filters = _filters.copyWith(
+                      selfDrafted: value ?? false,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              if (itemOptions.isNotEmpty || selectedItems.isNotEmpty)
+                _FilterFieldPadding(
+                  child: CraftskySearchableMultiSelectInput<String>(
+                    label:
+                        widget.craftType ==
+                            ProjectOptionCatalogs.dyeingCraftToken
+                        ? l10n.projectComposerDyedItemLabel
+                        : l10n.projectsFilterProjectType,
+                    options: itemOptions,
+                    values: selectedItems,
+                    selectedLabels: {
+                      for (final value in selectedItems)
+                        value: projectItemFilterLabel(itemOptions, value),
+                    },
+                    maxSelected: ProjectOptionCatalogs.maxFilterValuesPerFamily,
+                    maxSelectedErrorText: l10n
+                        .projectComposerMultiSelectMaxSelectedError(
+                          ProjectOptionCatalogs.maxFilterValuesPerFamily,
+                        ),
+                    onChanged: (values) => _replaceValues(
+                      ProjectBrowseFilterFamily.projectItem,
+                      values,
+                    ),
+                  ),
+                ),
+              for (final filter in detailFilters)
+                _OptionFilterField(
+                  title: filter.labelFor(widget.craftType),
+                  options: filter.allOptionsFor(widget.craftType),
+                  selectedValues: _filters.valuesFor(filter.family),
+                  onChanged: (values) => _replaceValues(filter.family, values),
+                ),
+            ],
+          ),
         ),
         bottomNavigationBar: SafeArea(
           child: Padding(
@@ -185,52 +144,55 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
   }
 
   void _replaceValues(ProjectBrowseFilterFamily family, List<String> values) {
-    setState(() => _filters = _filters.withValues(family, values));
+    _setFilters(
+      ProjectDetailFilters.retainCompatibleSelections(
+        widget.craftType,
+        _filters,
+        _filters.withValues(family, values),
+      ),
+    );
   }
 
-  void _replaceProjectTypes(List<String> values) {
-    setState(() {
-      _filters = _filters
-          .withValues(ProjectBrowseFilterFamily.projectType, values)
-          .withValues(
-            ProjectBrowseFilterFamily.projectSubtype,
-            ProjectOptionCatalogs.retainValidSubtypes(
-              craftToken: widget.craftType,
-              projectTypeTokens: values,
-              subtypeTokens: _filters.projectSubtype,
-            ),
-          );
-    });
+  void _setFilters(ProjectBrowseFilters filters) {
+    final available =
+        ProjectOptionCatalogs.maxFilterValues -
+        (widget.craftType.isEmpty ? 0 : 1);
+    if (filters.selectedValueCount > available) {
+      // Re-apply the previous values because the picker updates optimistically.
+      setState(() {});
+      context.showError(
+        AppLocalizations.of(context)
+            .projectComposerMultiSelectMaxSelectedError(available),
+      );
+      return;
+    }
+    setState(() => _filters = filters);
   }
 }
 
-class _OptionFilterGroup extends StatelessWidget {
+class _OptionFilterField extends StatelessWidget {
   const new({
     required this.title,
     required this.options,
     required this.selectedValues,
     required this.onChanged,
-    this.enabled = true,
-    this.showWhenEmpty = false,
   });
 
   final String title;
   final List<ProjectOption> options;
   final List<String> selectedValues;
   final ValueChanged<List<String>> onChanged;
-  final bool enabled;
-  final bool showWhenEmpty;
 
   @override
   Widget build(BuildContext context) {
-    if (options.isEmpty && !showWhenEmpty) return const SizedBox.shrink();
+    if (options.isEmpty) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     return _FilterFieldPadding(
       child: CraftskySearchableMultiSelectInput<String>(
         label: title,
         options: _selectOptions(options),
         values: selectedValues,
-        enabled: enabled,
+        enabled: options.isNotEmpty,
         maxSelected: ProjectOptionCatalogs.maxFilterValuesPerFamily,
         maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
           ProjectOptionCatalogs.maxFilterValuesPerFamily,
@@ -257,18 +219,16 @@ class _FilterFieldPadding extends StatelessWidget {
   }
 }
 
-List<CraftskySelectOption<String>> _selectOptions(List<ProjectOption> options) {
-  return [
+List<CraftskySelectOption<String>> _selectOptions(
+  List<ProjectOption> options,
+) {
+  return alphabetizedSelectOptions([
     for (final option in options)
       CraftskySelectOption<String>(
         value: option.value,
         label: option.label,
-        description: option.description,
+        group: option.group,
+        aliases: option.aliases,
       ),
-  ];
-}
-
-List<ProjectOption> _alphabetizedOptions(Iterable<ProjectOption> options) {
-  return options.toList()
-    ..sort((left, right) => left.label.compareTo(right.label));
+  ], lastValue: ProjectOptionCatalogs.otherProjectTypeToken);
 }

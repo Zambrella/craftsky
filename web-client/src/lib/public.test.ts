@@ -27,22 +27,6 @@ describe('public content boundaries', () => {
 		).toBe('/posts/did%3Aplc%3Aa/a%2Fb'));
 });
 
-it('renders structured gauge without exposing unfamiliar fields', async () => {
-	const { gaugeText } = await import('./public');
-	expect(
-		gaugeText({
-			stitches: 20,
-			rows: 28,
-			measurement: 10,
-			unit: 'cm',
-			internal: 'ignored'
-		})
-	).toBe('20 stitches × 28 rows over 10 cm');
-	expect(
-		gaugeText({ stitches: 'bad', measurement: 10, unit: 'cm' })
-	).toBeUndefined();
-});
-
 it('matches Flutter compact dates including the seven-day boundary', async () => {
 	const { compactDate } = await import('./public');
 	const when = '2026-10-01T12:00:00Z',

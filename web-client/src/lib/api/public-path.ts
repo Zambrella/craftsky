@@ -1,6 +1,9 @@
+import { projectDetailFilterKeys } from './project-detail-filter-keys';
+
 const filters = new Set([
 	'craftType',
 	'status',
+	'projectItem',
 	'projectType',
 	'projectSubtype',
 	'patternDifficulty',
@@ -9,6 +12,9 @@ const filters = new Set([
 	'yarnWeight',
 	'piecingTechnique',
 	'quiltingMethod',
+	'knittingMethod',
+	'feltingMethod',
+	...projectDetailFilterKeys,
 	'selfDrafted'
 ]);
 const invalid = (): never => {

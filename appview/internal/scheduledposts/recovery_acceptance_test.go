@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,8 +15,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/recordjson"
+	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t *testing.T) {
@@ -100,6 +107,7 @@ func TestIT010ScheduledFinalPublicationRecoversThroughCommandJournal(t *testing.
 		0,
 		false,
 		true,
+		nil,
 	)
 	fixture.pds.panicAfterPut = true
 
@@ -161,7 +169,97 @@ func TestIT010ScheduledFinalPublicationReconcilesReturnedLostResponse(t *testing
 		0,
 		false,
 		true,
+		nil,
 	)
+	frozen := reconcileScheduledPublicationLostResponse(t, fixture)
+	fixture.assertFinalizedWithRecord(t, frozen)
+}
+
+// IT-004 proves that the worker and source projection retain the revised project
+// shape after an ambiguous append has reconciled to the single committed post.
+func TestScheduledProjectRetryPreservesPublishedProjection(t *testing.T) {
+	for _, tc := range []struct{ craft, project string }{
+		{"knitting", `{"common":{"craftType":"social.craftsky.feed.defs#knitting","tags":["one","two","three","four","five","six","seven","eight","nine"],"patterns":[{"name":"Cuffs","url":"https://patterns.example/cuffs"},{"name":"Collar #lace","nameFacets":[{"index":{"byteStart":7,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"lace"}]}],"designer":"Woven Studio"}]},"details":{"$type":"social.craftsky.project.knitting#details","needleSizesMm":["4.0mm","4.5mm"],"techniques":[{"technique":"colourwork","subtypes":[{"subtype":"intarsia"},{"subtype":"stranded"}]}]}}`},
+		{"macrame", `{"common":{"craftType":"social.craftsky.feed.defs#macrame"},"details":{"$type":"social.craftsky.project.macrame#details","projectType":"social.craftsky.project.macrame#plantHanger","projectSubtype":"Window herb sling","cords":[{"material":"Cotton","construction":"threePly","diameterMm":"4.0"},{"material":"Jute","construction":"singleTwist","diameterMm":"2.5"}]}}`},
+	} {
+		t.Run(tc.craft, func(t *testing.T) {
+			pool := testdb.WithMigratedSchema(t)
+			// Freeze canonical JSON so the fixture can check wire equality after
+			// its PDS double re-encodes the published object.
+			parsed, err := recordjson.Parse([]byte(tc.project))
+			if err != nil {
+				t.Fatal(err)
+			}
+			project, err := json.Marshal(parsed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture := newPublicationRecoveryFixtureWithPool(t, pool, 0, false, true, project)
+			resource, err := fixture.store.Get(t.Context(), fixture.owner, fixture.id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload, err := DecodePayload(resource.PayloadBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertScheduledProjectValue(t, "reopened schedule", payload.Project, project)
+			frozen := reconcileScheduledPublicationLostResponse(t, fixture)
+			fixture.assertSingleFinalizedRecord(t, frozen)
+			published, err := json.Marshal(fixture.pds.record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var record struct{ Project json.RawMessage }
+			if err := json.Unmarshal(published, &record); err != nil {
+				t.Fatal(err)
+			}
+			assertScheduledProjectValue(t, "PDS record", record.Project, project)
+			rkey, err := syntax.ParseRecordKey(fixture.pds.rkey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			event := tap.Event{
+				DID: fixture.owner, Rkey: rkey, Collection: "social.craftsky.feed.post", Action: "create",
+				URI: syntax.ATURI("at://" + fixture.owner.String() + "/social.craftsky.feed.post/" + rkey.String()),
+				CID: "bafyreischeduled", Rev: "3aaaaaaaaaaa2", Record: published,
+			}
+			postIndex := index.NewCraftskyPost(pool, testlog.Discard(), notifications.NewService())
+			if err := postIndex.Handle(t.Context(), event); err != nil {
+				t.Fatal(err)
+			}
+			var projected json.RawMessage
+			if err := pool.QueryRow(t.Context(), `SELECT raw_project FROM craftsky_project_posts WHERE uri=$1`, event.URI).Scan(&projected); err != nil {
+				t.Fatal(err)
+			}
+			assertScheduledProjectValue(t, "indexed project", projected, project)
+			if tc.craft == "knitting" {
+				var tags []string
+				if err := pool.QueryRow(t.Context(), `SELECT tags FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&tags); err != nil {
+					t.Fatal(err)
+				}
+				if len(tags) != 10 || !slices.Contains(tags, "lace") {
+					t.Fatalf("indexed tags = %v, want nine project tags and the later pattern tag", tags)
+				}
+			}
+		})
+	}
+}
+
+func assertScheduledProjectValue(t *testing.T, boundary string, actual, expected json.RawMessage) {
+	t.Helper()
+	want, err := recordjson.Parse(expected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := recordjson.Parse(actual)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s project = %s, want %s: %v", boundary, actual, expected, err)
+	}
+}
+
+func reconcileScheduledPublicationLostResponse(t *testing.T, fixture *publicationRecoveryFixture) []byte {
+	t.Helper()
 	fixture.pds.commitThenErr = true
 	fixture.pds.putErr = errors.New("synthetic lost create response")
 
@@ -208,7 +306,7 @@ func TestIT010ScheduledFinalPublicationReconcilesReturnedLostResponse(t *testing
 	if commandState != "accepted" {
 		t.Fatalf("recovered command state=%q, want accepted", commandState)
 	}
-	fixture.assertFinalizedWithRecord(t, frozen)
+	return frozen
 }
 
 type publicationRecoveryFixture struct {
@@ -233,6 +331,7 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int, externalThumbna
 		mediaCount,
 		externalThumbnail,
 		false,
+		nil,
 	)
 }
 
@@ -242,6 +341,7 @@ func newPublicationRecoveryFixtureWithPool(
 	mediaCount int,
 	externalThumbnail bool,
 	journaled bool,
+	project json.RawMessage,
 ) *publicationRecoveryFixture {
 	t.Helper()
 	store := NewStore(pool)
@@ -290,13 +390,19 @@ func newPublicationRecoveryFixtureWithPool(
 		}
 		mediaIDs = append(mediaIDs, id)
 	}
-	payload, err := EncodePayload(Payload{
+	contents := Payload{
 		Kind: PostKindStandard, Text: "recover exactly once", Media: payloadMedia,
 		External: &PayloadExternal{
 			SourceURI: "https://source.example/recovery", URI: "https://final.example/recovery",
 			Title: "Frozen recovery", Description: "Never refetched", ThumbMediaID: thumbMediaID,
 		},
-	})
+	}
+	if project != nil {
+		contents.Kind = PostKindProject
+		contents.Project = project
+		contents.External = nil
+	}
+	payload, err := EncodePayload(contents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +568,7 @@ func (f *publicationRecoveryFixture) status(t *testing.T) Status {
 	return status
 }
 
-func (f *publicationRecoveryFixture) assertFinalizedWithRecord(t *testing.T, frozen []byte) {
+func (f *publicationRecoveryFixture) assertSingleFinalizedRecord(t *testing.T, frozen []byte) {
 	t.Helper()
 	if _, err := f.store.Get(context.Background(), f.owner, f.id); !errors.Is(err, ErrScheduleNotFound) {
 		t.Fatalf("finalized schedule get error = %v", err)
@@ -477,6 +583,11 @@ func (f *publicationRecoveryFixture) assertFinalizedWithRecord(t *testing.T, fro
 	if f.pds.putCalls != 1 {
 		t.Fatalf("record writes = %d, want exactly one visible record write", f.pds.putCalls)
 	}
+}
+
+func (f *publicationRecoveryFixture) assertFinalizedWithRecord(t *testing.T, frozen []byte) {
+	t.Helper()
+	f.assertSingleFinalizedRecord(t, frozen)
 	embed := f.pds.record["embed"].(map[string]any)
 	external := embed["external"].(map[string]any)
 	thumb, hasThumb := external["thumb"]
