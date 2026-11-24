@@ -1,5 +1,9 @@
 # App Changelog
 
+## 1.14.1+22 - 2026-11-24
+
+- fix(android): use native playback for local video previews
+
 ## 1.14.0+21 - 2026-11-22
 
 - feat(web): add a generated project schema explorer
