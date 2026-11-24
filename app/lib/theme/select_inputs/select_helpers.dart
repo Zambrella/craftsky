@@ -252,8 +252,7 @@ int _firstMatchingOption<T>(
 ) => options.indexWhere((option) => _optionMatchesQuery(option, query));
 
 Set<T> _optionParentValues<T>(Iterable<CraftskySelectOption<T>> options) => {
-  for (final option in options)
-    if (option.parentValue case final parent?) parent,
+  for (final option in options) ?option.parentValue,
 };
 
 Text _optionTitle<T>(
