@@ -42,6 +42,14 @@
     "handQuilted": { "type": "token", "description": "Quilted by hand." },
     "machineQuilted": { "type": "token", "description": "Quilted on a domestic or sit-down sewing machine." },
     "longarm": { "type": "token", "description": "Quilted on a longarm machine." },
-    "tied": { "type": "token", "description": "Layers secured by tying instead of stitched quilting." }
+    "tied": { "type": "token", "description": "Layers secured by tying instead of stitched quilting." },
+    "bowlCozy": {
+      "type": "token",
+      "description": "Bowl cosy."
+    },
+    "petCoat": {
+      "type": "token",
+      "description": "Pet coat."
+    }
   }
 }

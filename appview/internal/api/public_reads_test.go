@@ -179,13 +179,20 @@ func TestPublicSearchUsesOnlyEligibleCandidates(t *testing.T) {
 func TestPublicCursorBindsResourceAndFilters(t *testing.T) {
 	pool, store := publicReadFixture(t)
 	ctx := context.Background()
+	const garment = "social.craftsky.project.defs#garment"
 	for i := 0; i < 3; i++ {
 		uri := seedSearchProject(t, pool, "did:plc:public", fmt.Sprint("p", i), "knitting", api.ProjectCraftTypeKnitting, "knitting", time.Now().Add(-time.Duration(i+1)*time.Minute))
 		if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts WHERE uri=$1`, uri); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET knitting_project_type=$2 WHERE uri=$1`, uri, garment); err != nil {
+			t.Fatal(err)
+		}
 	}
-	req := api.ProjectListRequest{Limit: 1, Sort: api.SearchSortChronological, Filters: map[string][]string{"craftType": {"knitting"}}}
+	req := api.ProjectListRequest{Limit: 1, Sort: api.SearchSortChronological, Filters: map[string][]string{
+		"craftType":   {"knitting"},
+		"projectItem": {garment},
+	}}
 	page, err := store.PublicProjects(ctx, req)
 	if err != nil || page.Cursor == "" {
 		t.Fatalf("page=%+v %v", page, err)
@@ -195,6 +202,11 @@ func TestPublicCursorBindsResourceAndFilters(t *testing.T) {
 	if _, err := store.PublicProjects(ctx, req); err == nil {
 		t.Fatal("cursor accepted for different craft filter")
 	}
+	req.Filters["craftType"] = []string{"knitting"}
+	req.Filters["projectItem"] = []string{"social.craftsky.project.defs#accessory"}
+	if _, err := store.PublicProjects(ctx, req); err == nil {
+		t.Fatal("cursor accepted for different project item")
+	}
 	if _, err := store.PublicSearch(ctx, "projects", "knitting", 1, page.Cursor); err == nil {
 		t.Fatal("feed cursor accepted for submitted search")
 	}
@@ -202,7 +214,7 @@ func TestPublicCursorBindsResourceAndFilters(t *testing.T) {
 	if err != nil || len(memberRows) != 1 || memberCursor == "" {
 		t.Fatalf("member fixture=%d cursor=%q %v", len(memberRows), memberCursor, err)
 	}
-	req.Filters["craftType"] = []string{"knitting"}
+	req.Filters["projectItem"] = []string{garment}
 	req.Cursor = memberCursor
 	if _, err := store.PublicProjects(ctx, req); err == nil {
 		t.Fatal("member cursor accepted by guest feed")

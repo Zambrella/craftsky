@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -35,14 +36,63 @@ func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
 		if indexed {
 			name = "alreadyIndexed"
 		}
-		t.Run(name, func(t *testing.T) { testPostEditHTTPCommandAndProjectionConverge(t, indexed) })
+		t.Run(name, func(t *testing.T) { testPostEditHTTPCommandAndProjectionConverge(t, indexed, projectEditFixture{}) })
 	}
 }
-func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
+
+type projectEditFixture struct {
+	craft, initialDetails, changes, wantDetails string
+}
+
+// IT-003 exercises the grouped project fields at both write and indexed read boundaries.
+func TestPostProjectDetailsEditHTTPAndProjection(t *testing.T) {
+	for _, tc := range []projectEditFixture{
+		{
+			craft:          "knitting",
+			initialDetails: `{"$type":"social.craftsky.project.knitting#details","techniques":[{"technique":"colourwork","subtypes":[{"subtype":"intarsia"},{"subtype":"stranded","future":true}]},{"technique":"cables"}]}`,
+			changes:        `{"techniques":[{"existingIndex":0,"subtypes":[{"existingIndex":1}]},{"existingIndex":1}]}`,
+			wantDetails:    `{"$type":"social.craftsky.project.knitting#details","techniques":[{"technique":"colourwork","subtypes":[{"subtype":"stranded","future":true}]},{"technique":"cables"}]}`,
+		},
+		{
+			craft:          "embroidery",
+			initialDetails: `{"$type":"social.craftsky.project.embroidery#details","methods":[{"method":"hand","styles":[{"style":"sashiko"}]},{"method":"machine","future":"keep","styles":[{"style":"threeDimensionalPuff"}]}]}`,
+			changes:        `{"methods":[{"existingIndex":1}]}`,
+			wantDetails:    `{"$type":"social.craftsky.project.embroidery#details","methods":[{"method":"machine","future":"keep","styles":[{"style":"threeDimensionalPuff"}]}]}`,
+		},
+		{
+			craft:       "macrame",
+			changes:     `{"$type":"social.craftsky.project.macrame#details","cords":[{"material":"Cotton","construction":"threePly","diameterMm":"4.0"},{"material":"Jute","construction":"singleTwist","diameterMm":"2.0"}]}`,
+			wantDetails: `{"$type":"social.craftsky.project.macrame#details","cords":[{"material":"Cotton","construction":"threePly","diameterMm":"4.0"},{"material":"Jute","construction":"singleTwist","diameterMm":"2.0"}]}`,
+		},
+		{
+			craft:          "macrame",
+			initialDetails: `{"$type":"social.craftsky.project.macrame#details","cords":[{"material":"Cotton","construction":"threePly","diameterMm":"4.0","future":9007199254740993},{"material":"Jute","construction":"singleTwist","diameterMm":"2.0"}]}`,
+			changes:        `{"cords":[{"existingIndex":0},{"existingIndex":1,"diameterMm":"2.5"}]}`,
+			wantDetails:    `{"$type":"social.craftsky.project.macrame#details","cords":[{"material":"Cotton","construction":"threePly","diameterMm":"4.0","future":9007199254740993},{"material":"Jute","construction":"singleTwist","diameterMm":"2.5"}]}`,
+		},
+	} {
+		name := tc.craft + " update details"
+		if tc.initialDetails == "" {
+			name = tc.craft + " add details"
+		}
+		t.Run(name, func(t *testing.T) { testPostEditHTTPCommandAndProjectionConverge(t, true, tc) })
+	}
+}
+
+func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool, project projectEditFixture) {
 	f := newNotificationPipeline(t)
 	ctx := context.Background()
-	event := notificationEvent(901, "did:plc:actor", "3aaaaaaaaaaa5", `,"futureValue":9007199254740993`)
+	extra := `,"futureValue":9007199254740993`
+	if project.craft != "" {
+		extra += `,"project":{"common":{"craftType":"social.craftsky.feed.defs#` + project.craft + `"}`
+		if project.initialDetails != "" {
+			extra += `,"details":` + project.initialDetails
+		}
+		extra += `}`
+	}
+	event := notificationEvent(901, "did:plc:actor", "3aaaaaaaaaaa5", extra)
 	event.CID = httpEditRecordCID(t, event.Record)
+	originalCID := event.CID
 	if indexed {
 		f.ingest(event)
 		f.drain()
@@ -124,6 +174,9 @@ func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	}
 	key := uuid.NewString()
 	body := `{"changes":{"text":"edited over HTTP"}}`
+	if project.changes != "" {
+		body = `{"changes":{"text":"edited over HTTP","project":{"details":` + project.changes + `}}}`
+	}
 	status, raw := call("PATCH", "", body, key, event.CID)
 	if status != 200 {
 		t.Fatalf("save=%d %s", status, raw)
@@ -138,6 +191,13 @@ func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	if !bytes.Contains(pds.record, []byte(`9007199254740993`)) {
 		t.Fatalf("lost opaque value: %s", pds.record)
 	}
+	if project.wantDetails != "" {
+		var published struct{ Project api.Project }
+		if err := json.Unmarshal(pds.record, &published); err != nil {
+			t.Fatal(err)
+		}
+		assertProjectJSON(t, "PDS project details", published.Project.Details, project.wantDetails)
+	}
 	event.ID++
 	event.Action = "update"
 	event.CID = pds.recordCID
@@ -145,13 +205,22 @@ func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	event.Rev = pds.commit.Revision
 	f.ingest(event)
 	f.drain()
+	if project.wantDetails != "" {
+		post, err := posts.ReadPostByURI(ctx, event.URI.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if post.URI != event.URI.String() || post.CID != event.CID.String() || post.Project == nil {
+			t.Fatalf("indexed project did not retain URI and accepted CID: %+v", post)
+		}
+		assertProjectJSON(t, "indexed project details", post.Project.Details, project.wantDetails)
+	}
 	status, raw = call("PATCH", "", body, key, syntax.CID("bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"))
 	// An operation key cannot be reused with a different expected CID.
 	if status != 409 || pds.writes != 1 {
 		t.Fatalf("mutated retry=%d %s writes=%d", status, raw, pds.writes)
 	}
 	// Replay the exact immutable request; it hydrates only the accepted visible version.
-	originalCID := httpEditRecordCID(t, json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-05-04T12:00:00Z","futureValue":9007199254740993}`))
 	status, raw = call("PATCH", "", body, key, originalCID)
 	var replay api.PostEditResult
 	if err := json.Unmarshal(raw, &replay); err != nil {
@@ -160,7 +229,7 @@ func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	if status != 200 || replay.AcceptedCID != accepted.AcceptedCID || pds.writes != 1 {
 		t.Fatalf("replay=%d %s writes=%d", status, raw, pds.writes)
 	}
-	status, raw = call("PATCH", "", body, uuid.NewString(), event.CID)
+	status, raw = call("PATCH", "", `{"changes":{"text":"edited over HTTP"}}`, uuid.NewString(), event.CID)
 	var unchanged api.PostEditResult
 	if err := json.Unmarshal(raw, &unchanged); err != nil {
 		t.Fatal(err)
@@ -171,6 +240,18 @@ func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	status, raw = call("PATCH", "", `{"changes":{"text":"stale overwrite"}}`, uuid.NewString(), originalCID)
 	if status != 409 || pds.writes != 1 {
 		t.Fatalf("stale=%d %s writes=%d", status, raw, pds.writes)
+	}
+}
+
+func assertProjectJSON(t *testing.T, name string, actual json.RawMessage, expected string) {
+	t.Helper()
+	want, err := recordjson.Parse([]byte(expected))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := recordjson.Parse(actual)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s = %s, want %s: %v", name, actual, expected, err)
 	}
 }
 

@@ -24,6 +24,40 @@ void main() {
   });
 
   group('ProjectBrowseFilters', () {
+    test('legacy item intersections stay until the picker changes', () {
+      const legacy = ProjectBrowseFilters(
+        status: ['finished'],
+        projectType: ['garment'],
+        projectSubtype: ['dress'],
+      );
+      expect(legacy.selectedProjectItems, ['dress']);
+      expect(legacy.copyWith(status: ['wip']).toQueryParameters(), {
+        'status': ['wip'],
+        'projectType': ['garment'],
+        'projectSubtype': ['dress'],
+      });
+
+      final updated = legacy.withValues(
+        ProjectBrowseFilterFamily.projectItem,
+        ['dress', 'accessory'],
+      );
+      final restored = ProjectBrowseFiltersMapper.fromMap(updated.toMap());
+      expect(restored, updated);
+      expect(restored.selectedValueCount, 3);
+      expect(restored.toQueryParameters(), {
+        'status': ['finished'],
+        'projectItem': ['dress', 'accessory'],
+      });
+      expect(
+        legacy
+            .withoutValue(ProjectBrowseFilterFamily.projectItem, 'dress')
+            .toQueryParameters(),
+        {
+          'status': ['finished'],
+        },
+      );
+    });
+
     test(
       'toQueryParameters omits empty families and keeps selected values',
       () {
@@ -125,6 +159,44 @@ void main() {
 
       expect(result.color, ['green']);
       expect(result.yarnWeight, ['worsted']);
+    });
+
+    test('craft-specific choices round-trip and use flat query keys', () {
+      final filters = const ProjectBrowseFilters(
+        status: ['finished'],
+      ).withValues(ProjectBrowseFilterFamily.technique, ['printMatching']);
+      final reopened = ProjectBrowseFiltersMapper.fromMap(filters.toMap());
+
+      expect(reopened, filters);
+      expect(reopened.selectedValueCount, 2);
+      expect(reopened.toQueryParameters(), {
+        'status': ['finished'],
+        'technique': ['printMatching'],
+      });
+      expect(
+        reopened
+            .withoutValue(
+              ProjectBrowseFilterFamily.technique,
+              'printMatching',
+            )
+            .toQueryParameters(),
+        {
+          'status': ['finished'],
+        },
+      );
+      expect(
+        reopened
+            .copyWith(
+              detailFilters: {
+                'status': ['wip'],
+                'unknownField': ['option'],
+              },
+            )
+            .toQueryParameters(),
+        {
+          'status': ['finished'],
+        },
+      );
     });
   });
 }

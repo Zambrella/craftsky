@@ -2,12 +2,13 @@ import QRCode from 'qrcode';
 import { createShareCardShader } from './share-card-shader';
 import type { Profile } from '#lib/api/client.ts';
 import { label, origin, safeURL } from '#lib/public.ts';
+import { craftKey } from './craft-feeds';
+import { craftIconIds, craftIconPath } from './craft-icons';
 
 export const shareCardSize = { width: 1200, height: 1500 } as const;
 const blue = '#1535d6',
 	paper = '#f5efe4',
 	ink = '#161210';
-const crafts = ['sewing', 'knitting', 'crochet', 'quilting', 'embroidery'];
 const swatches = ['#f6d966', '#c9b9e5', '#9dc4dc', '#c8d3ae', '#e8a590'];
 export function shareCardAvatarURL(value?: string | null) {
 	const safe = safeURL(value ?? undefined);
@@ -39,6 +40,16 @@ function image(src: string): Promise<HTMLImageElement> {
 		};
 		img.src = src;
 	});
+}
+
+async function loadCraftIcons() {
+	return new Map<string, HTMLImageElement>(
+		await Promise.all(
+			craftIconIds.map(
+				async (craft) => [craft, await image(craftIconPath(craft)!)] as const
+			)
+		)
+	);
 }
 
 function shape(
@@ -95,10 +106,11 @@ export async function renderProfileShareCard(
 	profile: Pick<Profile, 'did' | 'handle' | 'displayName' | 'avatar' | 'crafts'>
 ): Promise<File> {
 	const name = profile.displayName?.trim() || profile.handle;
+	const selected = [...new Set(profile.crafts.map(craftKey))];
 	const [logo, mark, icons, avatar] = await Promise.all([
 		image('/app-icon.png'),
 		image('/profile-share-mark.png'),
-		Promise.all(crafts.map((craft) => image(`/craft_icons/${craft}.svg`))),
+		loadCraftIcons(),
 		shareCardAvatarURL(profile.avatar)
 			? image(shareCardAvatarURL(profile.avatar)!).catch(() => null)
 			: null,
@@ -121,7 +133,7 @@ export async function renderProfileShareCard(
 	// Neutral craft sequence remains consistent in the exported PNG.
 	ctx.globalAlpha = 0.08;
 	ctx.filter = 'invert(1)';
-	paintCraftSequence(ctx, icons);
+	paintCraftSequence(ctx, [...icons.values()]);
 	ctx.globalAlpha = 1;
 	ctx.filter = 'none';
 	ctx.strokeStyle = '#ffffff77';
@@ -167,18 +179,12 @@ export async function renderProfileShareCard(
 	ctx.restore();
 	text(ctx, name, 201, 32, true);
 	text(ctx, `@${profile.handle}`, 229, 14);
-	const selected = [
-		...new Set(
-			profile.crafts.map((craft) => craft.split('#').at(-1)!.toLowerCase())
-		)
-	];
 	// Measure the whole craft block, then scale it uniformly to fit the fixed slot.
 	ctx.font = '600 14px Outfit';
 	const pills = selected.map((craft, index) => ({
 		craft,
 		index,
-		width:
-			ctx.measureText(label(craft)).width + (crafts.includes(craft) ? 44 : 22)
+		width: ctx.measureText(label(craft)).width + (icons.has(craft) ? 44 : 22)
 	}));
 	const rows: (typeof pills)[] = [[]];
 	let rowWidth = 0;
@@ -206,7 +212,7 @@ export async function renderProfileShareCard(
 			ctx.strokeStyle = ink;
 			ctx.lineWidth = 1.5;
 			ctx.stroke();
-			const icon = icons[crafts.indexOf(craft)];
+			const icon = icons.get(craft);
 			if (icon) ctx.drawImage(icon, x + 9, y + 5, 16, 16);
 			ctx.fillStyle = ink;
 			ctx.font = '600 14px Outfit';
@@ -280,15 +286,13 @@ export async function shareProfileCard(file: File, url: string) {
 
 /** Foil affects only the repeating glyphs, never the identity, crafts or QR. */
 export async function createShareCardFoilMask() {
-	const icons = await Promise.all(
-		crafts.map((craft) => image(`/craft_icons/${craft}.svg`))
-	);
+	const icons = await loadCraftIcons();
 	const canvas = document.createElement('canvas');
 	canvas.width = 480;
 	canvas.height = 600;
 	const ctx = canvas.getContext('2d');
 	if (!ctx) throw new Error('Share card mask unavailable');
-	paintCraftSequence(ctx, icons);
+	paintCraftSequence(ctx, [...icons.values()]);
 	for (const [x, y, width, height] of [
 		[172, 20, 144, 36],
 		[30, 180, 420, 62],

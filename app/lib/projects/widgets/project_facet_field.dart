@@ -5,7 +5,7 @@ import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:material_ui/material_ui.dart';
 
-class ProjectFacetField extends StatefulWidget {
+class ProjectFacetField extends StatelessWidget {
   const new({
     required this.name,
     required this.label,
@@ -17,7 +17,6 @@ class ProjectFacetField extends StatefulWidget {
     this.hintText,
     this.enabled = true,
     this.textCapitalization = TextCapitalization.words,
-    this.initialDisplayText,
     this.allowedTokenKinds,
     this.precedingHashtags,
     this.normalizeValue,
@@ -33,55 +32,37 @@ class ProjectFacetField extends StatefulWidget {
   final String? hintText;
   final bool enabled;
   final TextCapitalization textCapitalization;
-  final String? initialDisplayText;
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
   final List<String> Function()? precedingHashtags;
   final String? Function(String value)? normalizeValue;
   final ValueChanged<String>? onChanged;
 
   @override
-  State<ProjectFacetField> createState() => _ProjectFacetFieldState();
-}
-
-class _ProjectFacetFieldState extends State<ProjectFacetField> {
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialDisplayText case final initialDisplayText?
-        when widget.controller.text.isEmpty) {
-      widget.controller.text = initialDisplayText;
-      widget.controller.selection = TextSelection.collapsed(
-        offset: initialDisplayText.length,
-      );
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     return FormBuilderField<String>(
-      name: widget.name,
-      enabled: widget.enabled,
-      validator: (value) => widget.limit.accepts(value ?? '')
+      name: name,
+      enabled: enabled,
+      validator: (value) => limit.accepts(value ?? '')
           ? null
           : AppLocalizations.of(context).textInputTooLong,
       builder: (field) {
         return FacetAutocompleteEditor(
-          key: widget.editorKey,
-          label: widget.label,
-          maxLength: widget.limit.graphemes,
-          maxBytes: widget.limit.bytes,
+          key: editorKey,
+          label: label,
+          maxLength: limit.graphemes,
+          maxBytes: limit.bytes,
           errorText: field.errorText,
-          hintText: widget.hintText,
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          textCapitalization: widget.textCapitalization,
+          hintText: hintText,
+          controller: controller,
+          focusNode: focusNode,
+          textCapitalization: textCapitalization,
           enabled: field.widget.enabled,
           textInputAction: TextInputAction.next,
-          allowedTokenKinds: widget.allowedTokenKinds,
-          precedingHashtags: widget.precedingHashtags,
+          allowedTokenKinds: allowedTokenKinds,
+          precedingHashtags: precedingHashtags,
           onChanged: (value) {
-            field.didChange(widget.normalizeValue?.call(value) ?? value);
-            widget.onChanged?.call(value);
+            field.didChange(normalizeValue?.call(value) ?? value);
+            onChanged?.call(value);
           },
         );
       },

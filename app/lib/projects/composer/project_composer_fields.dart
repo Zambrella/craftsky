@@ -1,3 +1,5 @@
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+
 abstract final class ProjectComposerFields {
   static const craftType = 'craftType';
   static const additionalCrafts = 'additionalCrafts';
@@ -9,6 +11,7 @@ abstract final class ProjectComposerFields {
   static const designTags = 'designTags';
 
   static const patternUrl = 'patternUrl';
+  static const patterns = 'patterns';
   static const patternName = 'patternName';
   static const patternDifficulty = 'patternDifficulty';
   static const patternSelfDrafted = 'patternSelfDrafted';
@@ -24,6 +27,7 @@ abstract final class ProjectComposerFields {
   static const knittingProjectSubtype = 'knittingProjectSubtype';
   static const knittingYarnWeight = 'knittingYarnWeight';
   static const knittingNeedleSize = 'knittingNeedleSize';
+  static const knittingNeedleSizes = 'knittingNeedleSizes';
   static const knittingGaugeStitches = 'knittingGaugeStitches';
   static const knittingGaugeRows = 'knittingGaugeRows';
   static const knittingGaugeMeasurement = 'knittingGaugeMeasurement';
@@ -34,6 +38,7 @@ abstract final class ProjectComposerFields {
   static const crochetProjectSubtype = 'crochetProjectSubtype';
   static const crochetYarnWeight = 'crochetYarnWeight';
   static const crochetHookSize = 'crochetHookSize';
+  static const crochetHookSizes = 'crochetHookSizes';
   static const crochetGaugeStitches = 'crochetGaugeStitches';
   static const crochetGaugeRows = 'crochetGaugeRows';
   static const crochetGaugeMeasurement = 'crochetGaugeMeasurement';
@@ -45,4 +50,20 @@ abstract final class ProjectComposerFields {
   static const quiltingSize = 'quiltingSize';
   static const quiltingPiecingTechnique = 'quiltingPiecingTechnique';
   static const quiltingMethod = 'quiltingMethod';
+
+  static String projectTypeFor(String craft) => switch (craft) {
+    ProjectOptionCatalogs.sewingCraftToken => sewingProjectType,
+    ProjectOptionCatalogs.knittingCraftToken => knittingProjectType,
+    ProjectOptionCatalogs.crochetCraftToken => crochetProjectType,
+    ProjectOptionCatalogs.quiltingCraftToken => quiltingProjectType,
+    _ => 'projectType:$craft',
+  };
+
+  static String projectSubtypeFor(String craft) => switch (craft) {
+    ProjectOptionCatalogs.sewingCraftToken => sewingProjectSubtype,
+    ProjectOptionCatalogs.knittingCraftToken => knittingProjectSubtype,
+    ProjectOptionCatalogs.crochetCraftToken => crochetProjectSubtype,
+    ProjectOptionCatalogs.quiltingCraftToken => quiltingProjectSubtype,
+    _ => 'projectSubtype:$craft',
+  };
 }

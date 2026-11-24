@@ -906,9 +906,6 @@
   "projectComposerRequiredLabel": "required",
   "@projectComposerRequiredLabel": { "description": "Small marker shown beside project composer field labels when the field is required." },
 
-  "projectComposerDetailsPrompt": "Fill in the details about your project",
-  "@projectComposerDetailsPrompt": { "description": "Short helper text shown above the project title on the first project composer page." },
-
   "projectComposerOptionalDetailsPrompt": "This information is optional but will help others find your project",
   "@projectComposerOptionalDetailsPrompt": { "description": "Short helper text shown at the top of the optional details page in the project composer." },
 
@@ -923,7 +920,7 @@
   "projectComposerDescriptionLabel": "Project description",
   "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
 
-  "projectComposerDescriptionHint": "Tell everyone about your project",
+  "projectComposerDescriptionHint": "Tell everyone about your project.",
   "@projectComposerDescriptionHint": { "description": "Hint text inside the main project description text field in the project composer." },
 
   "projectComposerCraftTypeLabel": "Primary craft",
@@ -992,17 +989,18 @@
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
 
-  "projectComposerMoreDetailsHeading": "Add more details",
-  "@projectComposerMoreDetailsHeading": { "description": "Heading above the optional detail actions in the project composer." },
-
-  "projectComposerMoreDetailsPrompt": "Optional details help other crafters discover and understand your project.",
-  "@projectComposerMoreDetailsPrompt": { "description": "Helper text above the optional detail actions in the project composer." },
-
   "projectComposerPatternDetailsTitle": "Pattern details",
   "@projectComposerPatternDetailsTitle": { "description": "Title of the optional pattern details action and page." },
 
-  "projectComposerPatternDetailsDescription": "Add designer, publisher, link and difficulty",
+  "projectComposerPatternDetailsDescription": "Add patterns and their details",
   "@projectComposerPatternDetailsDescription": { "description": "Description shown when no optional pattern details have been added." },
+
+  "projectComposerPatternOrDraftTitle": "Pattern or draft",
+  "projectComposerPatternOrDraftDescription": "Add patterns or weaving drafts",
+  "projectComposerPatternOrDraftName": "Pattern or draft name",
+  "projectComposerPatternOrTemplateTitle": "Pattern or template",
+  "projectComposerPatternOrTemplateDescription": "Add patterns or felting templates",
+  "projectComposerPatternOrTemplateName": "Pattern or template name",
 
   "projectComposerCommonDetailsTitle": "Materials and style",
   "@projectComposerCommonDetailsTitle": { "description": "Title of the common optional project metadata action and page." },
@@ -1016,8 +1014,14 @@
     "placeholders": { "craft": { "type": "String", "example": "Knitting" } }
   },
 
-  "projectComposerCraftDetailsDescription": "Add project type and craft-specific details",
+  "projectComposerGenericCraftDetailsTitle": "Craft details",
+  "@projectComposerGenericCraftDetailsTitle": { "description": "Title of the project composer craft details action when the craft name is unavailable." },
+
+  "projectComposerCraftDetailsDescription": "Add other crafts and details about what you made",
   "@projectComposerCraftDetailsDescription": { "description": "Description shown when no craft-specific details have been added." },
+
+  "projectComposerAdditionalCraftsDescription": "Add other crafts used in this project",
+  "@projectComposerAdditionalCraftsDescription": { "description": "Description for the craft details action when only additional crafts can be added." },
 
   "projectComposerDetailsAdded": "{count, plural, =1{1 detail added} other{{count} details added}}",
   "@projectComposerDetailsAdded": {
@@ -1064,9 +1068,11 @@
   "projectComposerYarnWeightLabel": "Yarn weight",
   "@projectComposerYarnWeightLabel": { "description": "Label for yarn-weight detail fields." },
 
+  "projectComposerNeedleSizesLabel": "Needle sizes",
   "projectComposerNeedleSizeLabel": "Needle size",
   "@projectComposerNeedleSizeLabel": { "description": "Label for the knitting needle-size detail field." },
 
+  "projectComposerHookSizesLabel": "Hook sizes",
   "projectComposerHookSizeLabel": "Hook size",
   "@projectComposerHookSizeLabel": { "description": "Label for the crochet hook-size detail field." },
 
@@ -1118,16 +1124,30 @@
   "projectComposerCraftRequiredError": "Choose a craft type.",
   "@projectComposerCraftRequiredError": { "description": "Validation error shown when submitting a project post without selecting a craft type." },
 
+  "projectComposerStatusRequiredError": "Choose a status.",
+  "@projectComposerStatusRequiredError": { "description": "Validation error shown when submitting a project post without selecting a status." },
+
   "projectComposerPhotoRequiredError": "Add at least one photo.",
   "@projectComposerPhotoRequiredError": { "description": "Validation error shown when submitting a project post without a photo." },
 
   "projectComposerGaugeInvalidError": "Complete the gauge or clear it.",
   "@projectComposerGaugeInvalidError": { "description": "Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers." },
 
-  "projectComposerPatternNameLabel": "Pattern tag or name",
-  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern tag-or-name field in the project composer." },
+  "projectComposerAddDetailEntry": "Add entry",
+  "projectComposerRemoveDetailEntry": "Remove entry",
+  "projectComposerInvalidCraftDetails": "Check the measurements and complete any added entries.",
+  "projectComposerAddPattern": "Add another pattern",
+  "projectComposerRemovePattern": "Remove pattern",
+  "projectComposerPatternNumber": "Pattern {number}",
+  "@projectComposerPatternNumber": {
+    "placeholders": { "number": { "type": "int" } }
+  },
+  "projectComposerDyedItemLabel": "What did you dye?",
+  "projectComposerCustomSubtypeLabel": "What did you make?",
+  "projectComposerPatternNameLabel": "Pattern name",
+  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern name field in the project composer." },
 
-  "projectComposerPatternNameHint": "Add pattern name",
+  "projectComposerPatternNameHint": "#PatternName",
   "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },
 
   "projectComposerPatternUrlLabel": "Link",
@@ -1151,13 +1171,13 @@
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
-  "projectComposerPatternDesignerHint": "Add pattern designer",
+  "projectComposerPatternDesignerHint": "Add or @mention pattern designer",
   "@projectComposerPatternDesignerHint": { "description": "Placeholder text for the optional pattern designer field in the project composer." },
 
   "projectComposerPatternPublisherLabel": "Publisher",
   "@projectComposerPatternPublisherLabel": { "description": "Label for the optional pattern publisher field in the project composer." },
 
-  "projectComposerPatternPublisherHint": "Add pattern publisher",
+  "projectComposerPatternPublisherHint": "Add or @mention pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeQuoteLabel": "Your thoughts",
@@ -1171,6 +1191,9 @@
 
   "postComposeBodyHint": "Share what you're making, learning, or thinking...",
   "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
+  "composerBodyInputHelp": "You can @mention people, use #hashtags or add https://links.com.",
+  "@composerBodyInputHelp": { "description": "Second paragraph of the placeholder in regular and project post body fields." },
 
   "postComposeRequiredLabel": "required",
   "@postComposeRequiredLabel": { "description": "Small marker shown beside required text fields in the regular post composer." },
@@ -2024,6 +2047,10 @@
   "craftWeaving": "Weaving",
   "@craftWeaving": { "description": "Display label for the 'weaving' craft option." },
 
+  "craftDyeing": "Dyeing",
+  "craftPunchNeedle": "Punch Needle",
+  "projectsFilterKnittingMethod": "Knitting method",
+  "projectsFilterFeltingMethod": "Felting method",
   "craftSpinning": "Spinning",
   "@craftSpinning": { "description": "Display label for the 'spinning' craft option." },
 

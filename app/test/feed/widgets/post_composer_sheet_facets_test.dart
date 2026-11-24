@@ -108,6 +108,13 @@ void main() {
       await _openComposer(tester);
       await _pumpUntilPostEnabled(tester);
 
+      expect(
+        find.text(
+          "Share what you're making, learning, or thinking...\n\n"
+          'You can @mention people, use #hashtags or add https://links.com.',
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
       await tester.pump();
 

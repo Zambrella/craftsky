@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"social.craftsky/appview/internal/projectcatalog"
 )
 
@@ -20,8 +21,8 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
 	// Posts use empty filter arrays; project filters retain their existing semantics.
 	scope += `
    AND (cardinality($8::text[]) = 0 OR lower(pp.common_craft_type) = ANY($8::text[]))
-   AND (cardinality($9::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty,'')) = ANY($9))
-   AND (cardinality($10::text[]) = 0 OR lower(coalesce(pp.knitting_project_type,'')) = ANY($10) OR lower(coalesce(pp.crochet_project_type,'')) = ANY($10) OR lower(coalesce(pp.quilting_project_type,'')) = ANY($10) OR lower(coalesce(pp.sewing_project_type,'')) = ANY($10))
+   AND ` + patternFilterSQL("$9", "false") + `
+   AND ` + projectItemFilterSQL("$10", "projectType") + `
    AND (cardinality($11::text[]) = 0 OR EXISTS(SELECT 1 FROM unnest(pp.colors) v WHERE lower(v) = ANY($11)))
    AND (cardinality($12::text[]) = 0 OR EXISTS(SELECT 1 FROM unnest(pp.materials) v WHERE lower(v) = ANY($12)))
    AND (cardinality($13::text[]) = 0 OR EXISTS(SELECT 1 FROM unnest(pp.design_tags) v WHERE lower(v) = ANY($13)))

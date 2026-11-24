@@ -25,6 +25,7 @@ import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/projects/widgets/project_pattern_editor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -103,9 +104,6 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    final duration = find.byKey(const Key('project-duration-input'));
-    await tester.ensureVisible(duration);
-    await tester.enterText(duration, '  4 weeks  ');
     await _goNext(tester);
     await _goNext(tester);
     await tester.enterText(
@@ -136,7 +134,7 @@ void main() {
       capturedProject!.common.craftType,
       ProjectOptionCatalogs.embroideryCraftToken,
     );
-    expect(capturedProject!.common.duration, '4 weeks');
+    expect(capturedProject!.common.duration, isNull);
     expect(capturedProject!.details, isNull);
     expect(capturedProject!.common.title, isNull);
     expect(capturedProject!.common.materials, isNull);
@@ -212,12 +210,12 @@ void main() {
     );
 
     await _selectCraft(tester, 'Sewing');
-    await tester.enterText(_patternNameTextField(), 'Garden dress');
-    await tester.pumpAndSettle();
     await _openDetail(
       tester,
       const Key('project-composer-pattern-details-action'),
     );
+    await tester.enterText(_patternNameTextField(), 'Garden dress');
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('pattern-url-input')),
       'https://patterns.example/garden-dress',
@@ -228,52 +226,54 @@ void main() {
     await tester.ensureVisible(selfDrafted);
     await tester.pumpAndSettle();
     await tester.tap(selfDrafted);
+    final addPattern = find.text('Add another pattern');
+    await tester.ensureVisible(addPattern);
+    await tester.tap(addPattern);
+    await tester.pumpAndSettle();
+    final secondPattern = find.byType(ProjectPatternEditor);
+    final secondName = find
+        .descendant(of: secondPattern, matching: find.byType(TextField))
+        .first;
+    final secondLink = find.descendant(
+      of: secondPattern,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.keyboardType == TextInputType.url,
+      ),
+    );
+    await tester.ensureVisible(secondName);
+    await tester.enterText(secondName, '#Sleeves');
+    await tester.enterText(secondName, '');
+    await tester.ensureVisible(secondLink);
+    await tester.enterText(secondLink, 'https://patterns.example/sleeves');
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     await _openDetail(
       tester,
-      const Key('project-composer-common-details-action'),
+      const Key('project-composer-craft-details-action'),
     );
-
-    await tester.ensureVisible(_materialTextField());
-    await tester.enterText(_materialTextField(), 'Cotton lawn');
-    await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.materials}-add-custom')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('${ProjectComposerFields.materials}-add-custom')),
-    );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-    );
+    await tester.tap(find.byKey(const Key('additionalCrafts-select-button')));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-      'Blue',
+      find.byKey(const Key('additionalCrafts-search-input')),
+      'Knitting',
     );
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('${ProjectComposerFields.colours}-option-blue')),
-    );
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Knitting'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.designTags}-search-input')),
-    );
+    await tester.tap(find.byKey(const Key('sewingProjectType-select-button')));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('${ProjectComposerFields.designTags}-search-input')),
-      'Floral',
+      find.byKey(const Key('sewingProjectType-search-input')),
+      'other',
     );
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(
-        const Key(
-          '${ProjectComposerFields.designTags}-option-'
-          'social.craftsky.project.defs#floral',
-        ),
-      ),
+    await tester.tap(find.text('Other'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('project-custom-subtype')),
+      '  Drafting weights  ',
     );
     await tester.pumpAndSettle();
 
@@ -287,13 +287,25 @@ void main() {
 
     expect(capturedProject, isNotNull);
     final common = capturedProject!.common;
-    expect(common.materials, const [ProjectMaterial(text: 'Cotton lawn')]);
-    expect(common.colors, ['blue']);
-    expect(common.designTags, ['social.craftsky.project.defs#floral']);
-    expect(common.pattern, isNotNull);
-    expect(common.pattern!.name, 'Garden dress');
-    expect(common.pattern!.url, 'https://patterns.example/garden-dress');
-    expect(common.pattern!.selfDrafted, isTrue);
+    expect(common.materials, isNull);
+    expect(common.colors, isNull);
+    expect(common.designTags, isNull);
+    expect(
+      common.additionalCrafts?.single.craftType,
+      ProjectOptionCatalogs.knittingCraftToken,
+    );
+    final details = capturedProject!.details! as SewingProjectDetails;
+    expect(details.projectType, 'social.craftsky.project.defs#other');
+    expect(details.projectSubtype, 'Drafting weights');
+    expect(common.patterns, hasLength(2));
+    expect(common.patterns!.first.name, 'Garden dress');
+    expect(
+      common.patterns!.first.url,
+      'https://patterns.example/garden-dress',
+    );
+    expect(common.patterns!.first.selfDrafted, isTrue);
+    expect(common.patterns!.last.name, isNull);
+    expect(common.patterns!.last.url, 'https://patterns.example/sleeves');
   });
 
   testWidgets(
@@ -714,15 +726,6 @@ Finder _patternNameTextField() {
   );
 }
 
-Finder _materialTextField() {
-  return find.descendant(
-    of: find.byKey(
-      const Key('${ProjectComposerFields.materials}-custom-input'),
-    ),
-    matching: find.byType(TextField),
-  );
-}
-
 Future<void> _goNext(WidgetTester tester) async {
   await tester.ensureVisible(
     find.byKey(const Key('project-composer-body-editor')),
@@ -744,7 +747,12 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
   await tester.pumpAndSettle();
   await tester.tap(craftDropdown);
   await tester.pumpAndSettle();
-  await tester.tap(find.text(craftLabel).last);
+  final search = find.byKey(const Key('craftType-search-input'));
+  if (search.evaluate().isNotEmpty) {
+    await tester.enterText(search, craftLabel);
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.widgetWithText(ListTile, craftLabel));
   await tester.pumpAndSettle();
 }
 

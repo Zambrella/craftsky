@@ -12,6 +12,7 @@ class FormActionLayout extends StatelessWidget {
     required this.label,
     required this.onPressed,
     required this.actionKey,
+    this.overlayAction = false,
     this.doneKey = const Key('form-keyboard-done'),
     this.actionChild,
     this.actionStyle,
@@ -23,6 +24,10 @@ class FormActionLayout extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final Key actionKey;
+
+  /// Lets content scroll behind the action. The scrollable supplies clearance
+  /// at its end so the last field can still scroll above the action.
+  final bool overlayAction;
   final Key doneKey;
   final Widget? actionChild;
   final ButtonStyle? actionStyle;
@@ -34,12 +39,15 @@ class FormActionLayout extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: spacing.sp9 + MediaQuery.paddingOf(context).bottom,
+          if (overlayAction)
+            child
+          else
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: spacing.sp9 + MediaQuery.paddingOf(context).bottom,
+              ),
+              child: child,
             ),
-            child: child,
-          ),
           PositionedDirectional(
             start: spacing.sp4,
             end: spacing.sp4,

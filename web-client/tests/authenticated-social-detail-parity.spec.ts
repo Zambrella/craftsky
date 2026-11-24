@@ -1,5 +1,6 @@
 import palettes from '../src/lib/features/social/palette.json' with { type: 'json' };
 import { nativeIconPaths } from '../src/lib/features/shell/native-icons';
+import taxonomy from '../src/lib/features/composer/project-taxonomy.json' with { type: 'json' };
 import { test, expect, type Page } from '@playwright/test';
 
 const account = {
@@ -121,7 +122,7 @@ test('following feed retains distinct original and repost entries for the same p
 	await expect(page.getByText('We couldn’t load this page.')).toHaveCount(0);
 });
 
-test('project feed summaries retain pattern facets, credits, size and compact edit metadata', async ({
+test('project feed summaries retain pattern facets, credits and compact edit metadata', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 402, height: 874 });
@@ -159,8 +160,8 @@ test('project feed summaries retain pattern facets, credits, size and compact ed
 	await expect(metadata).toContainText('Pattern');
 	await expect(metadata).toContainText('by Martha, Studio');
 	await expect(metadata).toContainText('Studio · Self-drafted');
-	await expect(metadata).toContainText('Finished size');
-	await expect(metadata).toContainText('Medium');
+	await expect(metadata.locator('dt')).toHaveText(['Pattern']);
+	await expect(metadata).not.toContainText('Medium');
 	await expect(
 		metadata.getByRole('link', { name: '#cardigan' })
 	).toHaveAttribute('href', /cardigan/);
@@ -857,12 +858,18 @@ test('native profile editor app bar saves ordered flat craft rows and their defa
 		'Crafts'
 	]);
 	const crafts = page.getByRole('group', { name: 'Crafts', exact: true });
+	const expanded = (taxonomy as { phase?: number; offered?: boolean }[]).some(
+		(craft) => craft.phase === 2 && craft.offered !== false
+	);
 	await expect(crafts.locator('.craft-name')).toHaveText([
 		'Knitting',
 		'Sewing',
 		'Crochet',
 		'Quilting',
-		'Embroidery'
+		'Embroidery',
+		...(expanded
+			? ['Spinning', 'Dyeing', 'Punch Needle', 'Macramé', 'Weaving', 'Felting']
+			: [])
 	]);
 	await expect(
 		crafts.getByRole('checkbox', { name: 'Knitting', exact: true })
@@ -906,13 +913,18 @@ test('native profile editor app bar saves ordered flat craft rows and their defa
 			.getByText('Default', { exact: true })
 	).toBeVisible();
 	await crafts.getByRole('checkbox', { name: 'Knitting', exact: true }).check();
+	if (expanded)
+		await crafts
+			.getByRole('checkbox', { name: 'Punch Needle', exact: true })
+			.check();
 	expect(writes).toHaveLength(0);
 	await save.click();
 	await expect.poll(() => writes.length).toBe(1);
 	expect(writes[0].accountId).toBe(account.id);
 	expect(writes[0].body.crafts).toEqual([
 		'social.craftsky.feed.defs#sewing',
-		'social.craftsky.feed.defs#knitting'
+		'social.craftsky.feed.defs#knitting',
+		...(expanded ? ['punch-needle'] : [])
 	]);
 });
 
@@ -1352,7 +1364,7 @@ test('inline carousel arrows and mouse swipe retain the feed and centre mixed ra
 	);
 });
 
-test('project card surface opens native metadata and material chips', async ({
+test('project cards and details show only current fields on older posts', async ({
 	page
 }) => {
 	await timeline(
@@ -1371,7 +1383,9 @@ test('project card surface opens native metadata and material chips', async ({
 						difficulty: 'beginner'
 					},
 					materials: [{ text: 'Blue linen' }],
-					colors: ['blue']
+					colors: ['blue'],
+					designTags: ['floral'],
+					tags: ['SewingProject']
 				},
 				details: {
 					projectType: 'social.craftsky.project.defs#garment',
@@ -1383,6 +1397,9 @@ test('project card surface opens native metadata and material chips', async ({
 		})
 	);
 	await page.goto('/feed');
+	await expect(
+		page.locator('.project-preview-metadata').locator('dt')
+	).toHaveText(['Pattern']);
 	await page.locator('.status-badge').click();
 	await expect(page).toHaveURL(/\/posts\/.*\/details$/);
 	await expect(
@@ -1391,18 +1408,93 @@ test('project card surface opens native metadata and material chips', async ({
 	const metadata = page.locator('.project-detail-metadata');
 	await expect(metadata.locator('dt')).toHaveText([
 		'Pattern',
-		'Duration',
 		'Difficulty',
 		'Link',
-		'Project type',
-		'Size made',
-		'Fit notes'
+		'Project type'
 	]);
 	await expect(metadata).toContainText('Garment >');
-	await expect(page.locator('.detail-chips').first()).toHaveText('Blue linen');
+	await expect(page.locator('.detail-chips')).toHaveText('SewingProject');
+	for (const retired of ['5 days', 'Blue linen', 'Floral', 'Relaxed fit'])
+		await expect(page.getByText(retired, { exact: true })).toHaveCount(0);
 	await expect(
 		page.getByText('The project details', { exact: true })
 	).toHaveCount(0);
+});
+
+test('project details display a compatible Crochet method without retired techniques', async ({
+	page
+}) => {
+	await timeline(
+		page,
+		post('crochet-method', {
+			project: {
+				common: {
+					title: 'Crochet scarf',
+					craftType: 'social.craftsky.feed.defs#crochet',
+					status: 'social.craftsky.feed.defs#finished'
+				},
+				details: {
+					$type: 'social.craftsky.project.crochet#details',
+					techniques: [
+						{ technique: 'tunisianCrochet' },
+						{ technique: 'grannySquare' }
+					],
+					hookSizeMm: '4mm'
+				}
+			}
+		})
+	);
+	await page.goto('/feed');
+	await page.locator('.status-badge').click();
+	const metadata = page.locator('.project-detail-metadata');
+	await expect(metadata.locator('dt')).toHaveText(['Crochet methods']);
+	await expect(metadata.locator('dd')).toHaveText(['Tunisian']);
+});
+
+test('project details keep difficulties and links attached to each pattern', async ({
+	page
+}) => {
+	await timeline(
+		page,
+		post('multiple-patterns', {
+			project: {
+				common: {
+					title: 'Combined patterns',
+					craftType: 'social.craftsky.feed.defs#sewing',
+					status: 'social.craftsky.feed.defs#finished',
+					pattern: { name: 'Legacy pattern' },
+					patterns: [
+						{
+							name: 'Flax sleeves',
+							url: 'https://example.com/sleeves',
+							difficulty: 'social.craftsky.feed.defs#beginner'
+						},
+						{
+							name: 'Wool collar',
+							url: 'https://example.com/collar',
+							difficulty: 'social.craftsky.feed.defs#advanced'
+						}
+					]
+				}
+			}
+		})
+	);
+	await page.goto('/feed');
+	await page.locator('.status-badge').click();
+	const metadata = page.locator('.project-detail-metadata');
+	await expect(metadata.locator('dt')).toHaveText(['Pattern 1', 'Pattern 2']);
+	for (const [index, [name, difficulty, slug]] of [
+		['Flax sleeves', 'Beginner', 'sleeves'],
+		['Wool collar', 'Advanced', 'collar']
+	].entries()) {
+		const row = metadata.locator('dd').nth(index);
+		await expect(row).toContainText(name);
+		await expect(row).toContainText(difficulty);
+		await expect(
+			row.getByRole('link', { name: 'Pattern link' })
+		).toHaveAttribute('href', `https://example.com/${slug}`);
+	}
+	await expect(metadata.getByText('Legacy pattern')).toHaveCount(0);
 });
 
 test('returning authors get the compact post context menu and matching search focus', async ({

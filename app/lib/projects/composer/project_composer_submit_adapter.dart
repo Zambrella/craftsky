@@ -2,6 +2,8 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
+import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/hashtag_budget.dart';
 
 typedef ProjectFacetGenerator = Future<List<Map<String, dynamic>>> Function(
@@ -39,135 +41,182 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   List<Map<String, dynamic>>? existingFacets,
   Project? existingProject,
   bool materializeImagesFromState = true,
+  bool preserveSavedFacets = false,
 }) async {
-  final trimmedText = text.trim();
-  final facets = existingText == trimmedText
-      ? existingFacets ?? const <Map<String, dynamic>>[]
-      : await generateFacets(trimmedText);
+  final submittedText = preserveSavedFacets && text == existingText
+      ? text
+      : text.trim();
+  final sameText = existingText == submittedText;
+  final facets = sameText
+      ? existingFacets
+      : await generateFacets(submittedText);
   final preserved = _preserveProjectExtensions(project, existingProject);
-  final generatedProject = await _projectWithPatternFacets(
-    preserved,
-    generateFacets,
-    existingProject: existingProject,
-  );
-  final common = generatedProject.common;
-  final pattern = common.pattern;
-  final accepted = acceptedHashtags([
-    ...hashtagsInText(trimmedText),
-    ...?common.tags,
-    ...hashtagsInText(pattern?.name ?? ''),
-    ...hashtagsInText(pattern?.designer ?? ''),
-    ...hashtagsInText(pattern?.publisher ?? ''),
-    for (final material in common.materials ?? const <ProjectMaterial>[])
-      ...hashtagsInText(material.text),
-  ]);
+  final common = preserved.common;
+
+  final accepted = <String>{};
+  bool acceptTag(String raw) {
+    final tag = raw.trim().toLowerCase();
+    return tag.isNotEmpty &&
+        (accepted.contains(tag) ||
+            (accepted.length < maxPostHashtags && accepted.add(tag)));
+  }
+
   List<Map<String, dynamic>>? fieldFacets(
     String text,
-    List<Map<String, dynamic>>? facets,
-  ) {
-    final limited = budgetedFacets(text, facets, accepted);
+    List<Map<String, dynamic>>? facets, {
+    bool unchanged = false,
+  }) {
+    // An unchanged saved field keeps its authored facets. New tags can only
+    // spend a slot after overlap with other facets is ruled out.
+    final retained = preserveSavedFacets && unchanged;
+    final eligible = retained
+        ? facets ?? const <Map<String, dynamic>>[]
+        : budgetedFacets(
+            text,
+            facets,
+            hashtagsInText(text).map((tag) => tag.toLowerCase()).toSet(),
+          );
+    final limited = <Map<String, dynamic>>[];
+    for (final facet in eligible) {
+      final rawFeatures = facet['features'];
+      if (rawFeatures is! List) continue;
+      final features = rawFeatures.where((feature) {
+        if (feature is! Map || feature[r'$type'] != FacetFeatureType.tag) {
+          return true;
+        }
+        final tag = feature['tag'];
+        return tag is String && acceptTag(tag);
+      }).toList();
+      if (features.isNotEmpty) limited.add({...facet, 'features': features});
+    }
+    if (retained) return facets;
     return limited.isEmpty ? null : limited;
   }
 
-  final limitedFacets = budgetedFacets(trimmedText, facets, accepted);
-  final projectWithPatternFacets = generatedProject.copyWith.common(
-    tags: common.tags
-        ?.where((tag) => accepted.contains(tag.trim().toLowerCase()))
-        .toList(),
-    pattern: pattern?.copyWith(
+  final limitedFacets = fieldFacets(submittedText, facets, unchanged: sameText);
+  final tags = common.tags?.where(acceptTag).toList();
+  final existingCommon = existingProject?.common;
+  final retainedPatterns = {
+    for (final pattern
+        in existingCommon?.effectivePatterns ?? const <ProjectPattern>[])
+      if (pattern.extraFields['existingIndex'] is int)
+        pattern.extraFields['existingIndex']: pattern,
+  };
+
+  Future<ProjectPattern> submitPattern(
+    ProjectPattern pattern,
+    ProjectPattern? previous,
+  ) async {
+    final annotated = await _patternWithFacets(
+      pattern,
+      generateFacets,
+      previous,
+    );
+    return annotated.copyWith(
       nameFacets: fieldFacets(
-        pattern.name ?? '',
-        pattern.nameFacets,
+        annotated.name ?? '',
+        annotated.nameFacets,
+        unchanged: annotated.name == previous?.name,
       ),
       designerFacets: fieldFacets(
-        pattern.designer ?? '',
-        pattern.designerFacets,
+        annotated.designer ?? '',
+        annotated.designerFacets,
+        unchanged: annotated.designer == previous?.designer,
       ),
       publisherFacets: fieldFacets(
-        pattern.publisher ?? '',
-        pattern.publisherFacets,
+        annotated.publisher ?? '',
+        annotated.publisherFacets,
+        unchanged: annotated.publisher == previous?.publisher,
       ),
-    ),
-    materials: common.materials
+    );
+  }
+
+  final patterns = common.patterns == null
+      ? null
+      : [
+          for (final pattern in common.patterns!)
+            await submitPattern(
+              pattern,
+              retainedPatterns[pattern.extraFields['existingIndex']],
+            ),
+        ];
+  final pattern = patterns == null && common.pattern != null
+      ? await submitPattern(common.pattern!, existingCommon?.pattern)
+      : common.pattern;
+  final materials = _preserveUnchangedMaterialFacets(
+    common.materials,
+    existingCommon?.materials,
+  );
+  final projectWithFacets = preserved.copyWith.common(
+    tags: tags,
+    pattern: pattern,
+    patterns: patterns,
+    materials: materials
         ?.map(
-          (material) => ProjectMaterial(
-            text: material.text,
+          (material) => material.copyWith(
             facets: fieldFacets(material.text, material.facets),
-            extraFields: material.extraFields,
           ),
         )
         .toList(),
   );
   return ProjectComposerSubmitArguments(
-    text: trimmedText,
+    text: submittedText,
     langs: List.unmodifiable(langs),
-    project: projectWithPatternFacets,
+    project: projectWithFacets,
     reply: null,
     images: materializeImagesFromState
         ? imagesState.toCreatePostImages()
         : null,
-    facets: limitedFacets.isEmpty ? null : limitedFacets,
+    facets: limitedFacets,
   );
 }
 
-Future<Project> _projectWithPatternFacets(
-  Project project,
-  ProjectFacetGenerator generateFacets, {
-  Project? existingProject,
-}) async {
-  final pattern = project.common.pattern;
-  final existingPattern = existingProject?.common.pattern;
-  final materials = _preserveUnchangedMaterialFacets(
-    project.common.materials,
-    existingProject?.common.materials,
-  );
-  if (pattern == null) {
-    if (identical(materials, project.common.materials)) return project;
-    return _projectWith(project, materials: materials);
-  }
+Future<ProjectPattern> _patternWithFacets(
+  ProjectPattern pattern,
+  ProjectFacetGenerator generateFacets,
+  ProjectPattern? existingPattern,
+) async {
+  final nameFacets =
+      pattern.nameFacets ??
+      (pattern.name == existingPattern?.name
+          ? existingPattern?.nameFacets
+          : await _fieldFacets(
+              pattern.name,
+              generateFacets,
+              includeMentions: false,
+              includeLinks: false,
+              includeTags: true,
+            ));
+  final designerFacets =
+      pattern.designerFacets ??
+      (pattern.designer == existingPattern?.designer
+          ? existingPattern?.designerFacets
+          : await _fieldFacets(
+              pattern.designer,
+              generateFacets,
+              includeMentions: true,
+              includeLinks: false,
+              includeTags: true,
+            ));
+  final publisherFacets =
+      pattern.publisherFacets ??
+      (pattern.publisher == existingPattern?.publisher
+          ? existingPattern?.publisherFacets
+          : await _fieldFacets(
+              pattern.publisher,
+              generateFacets,
+              includeMentions: true,
+              includeLinks: false,
+              includeTags: true,
+            ));
 
-  final nameFacets = pattern.name == existingPattern?.name
-      ? existingPattern?.nameFacets
-      : await _fieldFacets(
-          pattern.name,
-          generateFacets,
-          includeMentions: false,
-          includeLinks: false,
-          includeTags: true,
-        );
-  final designerFacets = pattern.designer == existingPattern?.designer
-      ? existingPattern?.designerFacets
-      : await _fieldFacets(
-          pattern.designer,
-          generateFacets,
-          includeMentions: true,
-          includeLinks: false,
-          includeTags: false,
-        );
-  final publisherFacets = pattern.publisher == existingPattern?.publisher
-      ? existingPattern?.publisherFacets
-      : await _fieldFacets(
-          pattern.publisher,
-          generateFacets,
-          includeMentions: true,
-          includeLinks: false,
-          includeTags: false,
-        );
-
-  final nextPattern = pattern.copyWith(
+  return pattern.copyWith(
     extraFields: {...?existingPattern?.extraFields, ...pattern.extraFields},
     nameFacets: nameFacets,
     designerFacets: designerFacets,
     publisherFacets: publisherFacets,
   );
-  return _projectWith(project, pattern: nextPattern, materials: materials);
 }
-
-Project _projectWith(
-  Project project, {
-  ProjectPattern? pattern,
-  List<ProjectMaterial>? materials,
-}) => project.copyWith.common(pattern: pattern, materials: materials);
 
 List<ProjectMaterial>? _preserveUnchangedMaterialFacets(
   List<ProjectMaterial>? materials,
@@ -226,13 +275,24 @@ Project _preserveProjectExtensions(Project project, Project? existing) {
       : const ProjectDetailsMapper().encode(existing.details!)
             as Map<String, dynamic>;
   if (sameCraft && oldDetails != null) {
-    final oldExtra = switch (existing.details) {
-      KnittingProjectDetails(:final extraFields) => extraFields,
-      CrochetProjectDetails(:final extraFields) => extraFields,
-      SewingProjectDetails(:final extraFields) => extraFields,
-      QuiltingProjectDetails(:final extraFields) => extraFields,
-      _ => <String, dynamic>{},
+    final oldExtra = {
+      ...switch (existing.details) {
+        KnittingProjectDetails(:final extraFields) => extraFields,
+        CrochetProjectDetails(:final extraFields) => extraFields,
+        SewingProjectDetails(:final extraFields) => extraFields,
+        QuiltingProjectDetails(:final extraFields) => extraFields,
+        UnknownProjectDetails(:final type, :final raw)
+            when type == ProjectDetailFields.typeForCraft(common.craftType) =>
+          raw,
+        _ => <String, dynamic>{},
+      },
     };
+    for (final field in ProjectDetailFields.forCraft(common.craftType)) {
+      oldExtra.remove(field.key);
+    }
+    oldExtra
+      ..remove('projectType')
+      ..remove('projectSubtype');
     if (rawDetails != null && rawDetails[r'$type'] == oldDetails[r'$type']) {
       // Retain unfamiliar detail keys while replacing the known form values.
       final gauge = rawDetails['gauge'];
@@ -253,7 +313,10 @@ Project _preserveProjectExtensions(Project project, Project? existing) {
         ...oldExtra,
         ...rawDetails,
       });
-    } else if (details == null && existing.details is UnknownProjectDetails) {
+    } else if (details == null &&
+        existing.details is UnknownProjectDetails &&
+        oldDetails[r'$type'] !=
+            ProjectDetailFields.typeForCraft(common.craftType)) {
       details = existing.details;
     } else if (details == null && oldExtra.isNotEmpty) {
       details = const ProjectDetailsMapper().decode({
@@ -290,7 +353,7 @@ Project _preserveProjectExtensions(Project project, Project? existing) {
                   },
                 ),
             ],
-      pattern: preservedPattern,
+      pattern: common.pattern == null ? null : preservedPattern,
       tags: common.tags ?? original.tags,
     ),
     details: details,

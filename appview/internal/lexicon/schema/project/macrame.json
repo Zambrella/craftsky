@@ -1,0 +1,155 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.macrame",
+  "description": "Macramé-specific details for a project post.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "What was made in a macramé project.",
+      "properties": {
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type."
+        },
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
+          "knownValues": [
+            "social.craftsky.project.macrame#plantHanger",
+            "social.craftsky.project.macrame#wallHanging",
+            "social.craftsky.project.macrame#bag",
+            "social.craftsky.project.macrame#keyringCharm",
+            "social.craftsky.project.macrame#jewelry",
+            "social.craftsky.project.macrame#tableDecor",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "cords": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: cords used. Each entry keeps the cord's material, construction and diameter together. Use the project description for new posts.",
+          "items": {
+            "type": "ref",
+            "ref": "#cord"
+          }
+        },
+        "knots": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: knots used in the project. Use the project description or hashtags for new posts.",
+          "items": {
+            "type": "ref",
+            "ref": "#knotSelection"
+          }
+        },
+        "finishedSize": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: finished dimensions, for example 30 cm × 60 cm. Use the project description for new posts."
+        }
+      }
+    },
+    "plantHanger": {
+      "type": "token",
+      "description": "A knotted hanger for a plant pot."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "A knotted piece intended for display on a wall."
+    },
+    "cord": {
+      "type": "object",
+      "description": "A cord used in the project.",
+      "properties": {
+        "material": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Material of this cord, for example cotton or jute."
+        },
+        "construction": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "How this cord is constructed.",
+          "knownValues": [
+            "social.craftsky.project.macrame#singleTwist",
+            "social.craftsky.project.macrame#threePly",
+            "social.craftsky.project.macrame#braided"
+          ]
+        },
+        "diameterMm": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "Diameter in millimetres as a decimal string, for example 4.0."
+        }
+      }
+    },
+    "knotSelection": {
+      "type": "object",
+      "description": "One macramé knot.",
+      "required": [
+        "knot"
+      ],
+      "properties": {
+        "knot": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Name of the knot used.",
+          "knownValues": [
+            "social.craftsky.project.macrame#squareKnot",
+            "social.craftsky.project.macrame#larksHead",
+            "social.craftsky.project.macrame#doubleHalfHitch"
+          ]
+        }
+      }
+    },
+    "singleTwist": {
+      "type": "token",
+      "description": "Single-twist cord."
+    },
+    "threePly": {
+      "type": "token",
+      "description": "Three-ply cord."
+    },
+    "braided": {
+      "type": "token",
+      "description": "Braided cord."
+    },
+    "squareKnot": {
+      "type": "token",
+      "description": "Square knot."
+    },
+    "larksHead": {
+      "type": "token",
+      "description": "Lark’s head knot."
+    },
+    "doubleHalfHitch": {
+      "type": "token",
+      "description": "Double half hitch."
+    },
+    "bag": {
+      "type": "token",
+      "description": "Bag."
+    },
+    "keyringCharm": {
+      "type": "token",
+      "description": "Keyring or charm."
+    },
+    "jewelry": {
+      "type": "token",
+      "description": "Jewellery."
+    },
+    "tableDecor": {
+      "type": "token",
+      "description": "Table décor."
+    }
+  }
+}

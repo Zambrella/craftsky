@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -74,11 +75,91 @@ func TestCatalogCoversStableTokensAndValidAcyclicParents(t *testing.T) {
 
 func TestSearchTermsIncludeAliasesAndDirectionalAncestors(t *testing.T) {
 	terms := SearchTerms()
+	for _, entry := range Current.Entries {
+		if _, active := terms[strings.ToLower(entry.ID)]; entry.PreviewOnly && active {
+			t.Errorf("preview token %s appeared in search vocabulary", entry.ID)
+		}
+	}
 	cardigan := terms["social.craftsky.project.knitting.defs#cardigan"]
 	if !slices.Contains(cardigan, "Sweater") || !slices.Contains(cardigan, "jumper") || !slices.Contains(cardigan, "Garment") {
 		t.Fatalf("cardigan terms=%v", cardigan)
 	}
 	if slices.Contains(terms["social.craftsky.project.knitting.defs#sweater"], "Cardigan") {
 		t.Fatal("broad category expanded to a specific child")
+	}
+	for _, craft := range []string{"knitting", "crochet"} {
+		pullover := terms["social.craftsky.project."+craft+".defs#pullover"]
+		if !slices.Contains(pullover, "Jumper") || !slices.Contains(pullover, "Pullover") ||
+			!slices.Contains(pullover, "Jumper or pullover") {
+			t.Errorf("%s jumper terms=%v, want current and previous names", craft, pullover)
+		}
+	}
+	for _, craft := range []string{"sewing", "embroidery"} {
+		repair := terms["social.craftsky.project."+craft+".defs#repair"]
+		if !slices.Contains(repair, "Repair") || !slices.Contains(repair, "Mending") ||
+			!slices.Contains(repair, "Repair or mending") {
+			t.Errorf("%s repair terms=%v, want current and previous names", craft, repair)
+		}
+	}
+	tunisian := terms["social.craftsky.project.crochet.defs#tunisiancrochet"]
+	if !slices.Contains(tunisian, "Afghan crochet") {
+		t.Fatalf("Tunisian crochet terms=%v, want Afghan crochet alias", tunisian)
+	}
+	fairIsle := terms["social.craftsky.project.knitting.defs#fairisle"]
+	if !slices.Contains(fairIsle, "Colourwork") {
+		t.Fatalf("Fair Isle terms=%v, want Colourwork ancestor", fairIsle)
+	}
+}
+
+func TestPrimaryCraftMappingsAndScopedDesignSuggestions(t *testing.T) {
+	counts := map[string]int{"knitting": 21, "crochet": 21, "sewing": 26, "embroidery": 17, "quilting": 19}
+	crafts := primaryCraftsForPhase(2)
+	if len(crafts) != 11 {
+		t.Fatalf("primary crafts=%d, want 11", len(crafts))
+	}
+	for i, craft := range crafts {
+		wantPhase := 1
+		if i >= 5 {
+			wantPhase = 2
+		}
+		if craft.ProfileID == "" || craft.Phase != wantPhase {
+			t.Fatalf("incomplete craft mapping: %+v", craft)
+		}
+		if got, ok := DetailCraft(craft.DetailsType); !ok || got != craft.ID {
+			t.Fatalf("detail %q maps to %q, want %q", craft.DetailsType, got, craft.ID)
+		}
+		wantCount := 26
+		if count, ok := counts[craft.ProfileID]; ok {
+			wantCount = count
+		}
+		got := 0
+		for _, entry := range Current.Entries {
+			if entry.Family == "designTag" && (len(entry.Crafts) == 0 || slices.Contains(entry.Crafts, craft.ID)) {
+				got++
+			}
+		}
+		if got != wantCount {
+			t.Fatalf("%s has %d design suggestions, want %d", craft.ProfileID, got, wantCount)
+		}
+	}
+	punchNeedle, _ := Craft("social.craftsky.feed.defs#punchNeedle")
+	if punchNeedle.ProfileID != "punch-needle" || punchNeedle.DetailsType != "social.craftsky.project.punchNeedle#details" {
+		t.Fatalf("incorrect Punch Needle identifier mapping: %+v", punchNeedle)
+	}
+}
+
+func TestReleasePhaseFiltersOffersWithoutLosingKnownCrafts(t *testing.T) {
+	first := primaryCraftsForPhase(1)
+	want := []string{"knitting", "crochet", "sewing", "embroidery", "quilting"}
+	if len(first) != len(want) {
+		t.Fatalf("Phase 1 offers %d crafts, want %d", len(first), len(want))
+	}
+	for i, craft := range first {
+		if craft.ProfileID != want[i] {
+			t.Fatalf("Phase 1 craft %d=%s, want %s", i, craft.ProfileID, want[i])
+		}
+	}
+	if craft, ok := DetailCraft("social.craftsky.project.weaving#details"); !ok || craft != "social.craftsky.feed.defs#weaving" {
+		t.Fatalf("Weaving remains readable before its offer is enabled: %q", craft)
 	}
 }

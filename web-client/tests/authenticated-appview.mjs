@@ -96,6 +96,44 @@ const post = (owner, rkey = 'first', payload = {}) => ({
 	viewerHasSaved: false,
 	...payload
 });
+
+function editableProject(project) {
+	const patterns = project.common?.patterns;
+	if (!Array.isArray(patterns)) return project;
+	return {
+		...project,
+		common: {
+			...project.common,
+			patterns: patterns.map((pattern, existingIndex) => ({
+				...pattern,
+				existingIndex
+			}))
+		}
+	};
+}
+
+// Reopen the fixture's actual retained-entry edits using the AppView patch shape.
+function mergePatternEdit(before, changes) {
+	const { patterns, ...common } = changes.common;
+	const previous = before.common?.patterns ?? [];
+	return {
+		...before,
+		...changes,
+		common: {
+			...before.common,
+			...common,
+			patterns: patterns.map(({ existingIndex, ...patch }) => {
+				const pattern = { ...previous[existingIndex] };
+				for (const [key, value] of Object.entries(patch)) {
+					if (value === null) delete pattern[key];
+					else pattern[key] = value;
+				}
+				return pattern;
+			})
+		}
+	};
+}
+
 // Rich, account-scoped read models are opt-in review fixtures, never live chat/PDS data.
 const visualImage = {
 	cid: 'bafyvisualillustration',
@@ -1408,9 +1446,10 @@ createServer(async (req, res) => {
 				recordRevision: null,
 				editable: {
 					text: value.text,
+					facets: value.facets,
 					sponsored: value.sponsored,
 					langs: value.langs,
-					...(value.project ? { project: value.project } : {}),
+					...(value.project ? { project: editableProject(value.project) } : {}),
 					images: (value.images || []).map((image, index) => ({
 						...image,
 						existingIndex: index
@@ -1445,7 +1484,10 @@ createServer(async (req, res) => {
 					error: 'post_edit_conflict',
 					message: 'The post changed since you opened it'
 				});
-			Object.assign(value, body.changes, {
+			const changes = { ...body.changes };
+			if (value.project && Array.isArray(changes.project?.common?.patterns))
+				changes.project = mergePatternEdit(value.project, changes.project);
+			Object.assign(value, changes, {
 				cid: `${value.cid}-edited`,
 				editedAt: new Date().toISOString()
 			});

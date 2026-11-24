@@ -41,7 +41,12 @@
 	} from '../drafts/store.ts';
 	import {
 		buildFacets,
+		facetHashtags,
+		patternRows,
+		projectPatternLabels,
 		projectFacets,
+		projectWrite,
+		label as projectLabel,
 		defaultProject,
 		editChanges,
 		freezeWrite,
@@ -81,6 +86,9 @@
 	import { ComposerRecovery } from './recovery';
 	import { reportFailure } from '../diagnostics/client.ts';
 	import './composer.css';
+	const postPrompt = "Share what you're making, learning, or thinking...";
+	const postFormattingHelp =
+		'You can @mention people, use #hashtags or add https://links.com.';
 	let {
 		api,
 		path,
@@ -391,6 +399,15 @@
 			} else if (scheduled) {
 				const item = await ownedApi.schedules.get(scheduled);
 				const payload = item.payload;
+				const project = payload.project ? record(payload.project) : undefined;
+				const common = record(project?.common);
+				const patterns =
+					common.patterns !== undefined || common.pattern
+						? patternRows(common).map((pattern, existingIndex) => ({
+								...pattern,
+								existingIndex
+							}))
+						: undefined;
 				next = {
 					...next,
 					kind: payload.kind === 'project' ? 'project' : 'standard',
@@ -399,7 +416,22 @@
 						? (payload.langs as string[])
 						: ['en'],
 					sponsored: payload.sponsored === true,
-					project: payload.project ? record(payload.project) : undefined,
+					project:
+						project && patterns
+							? {
+									...project,
+									common: { ...common, pattern: undefined, patterns }
+								}
+							: project,
+					scheduleBaseline: project
+						? {
+								text: str(payload.text),
+								facets: Array.isArray(payload.facets)
+									? payload.facets.map(record)
+									: [],
+								patterns
+							}
+						: undefined,
 					scheduleId: item.id,
 					scheduledAt: item.scheduledAt,
 					scheduleLater: true
@@ -826,17 +858,27 @@
 			langs: value.langs,
 			sponsored: value.sponsored
 		};
-		const facets = await buildFacets(
-			value.text,
-			async (handle) => (await api.search.resolveMention(handle, signal)).did
-		);
+		const baseline = value.scheduleBaseline;
+		const facets =
+			baseline?.text === value.text
+				? baseline.facets
+				: await buildFacets(
+						value.text,
+						async (handle) =>
+							(await api.search.resolveMention(handle, signal)).did
+					);
 		if (facets.length) payload.facets = facets as unknown as JsonObject[];
 		if (value.kind === 'project' && value.project)
-			payload.project = await projectFacets(
-				value.project,
-				undefined,
-				async (handle) => (await api.search.resolveMention(handle, signal)).did,
-				hashtagsInText(value.text)
+			payload.project = projectWrite(
+				await projectFacets(
+					value.project,
+					baseline?.patterns
+						? { common: { patterns: baseline.patterns } }
+						: undefined,
+					async (handle) =>
+						(await api.search.resolveMention(handle, signal)).did,
+					facetHashtags(value.text, facets)
+				)
 			);
 		const media: JsonObject[] = [];
 		for (const image of value.images) {
@@ -887,7 +929,8 @@
 			publicationController.signal
 		]);
 		const working = $state.snapshot(draft as unknown) as Draft;
-		working.text = working.text.trim();
+		const savedCaption = working.edit?.editable ?? working.scheduleBaseline;
+		if (working.text !== savedCaption?.text) working.text = working.text.trim();
 		previews?.pause();
 		busy = true;
 		error = '';
@@ -913,24 +956,23 @@
 				);
 				const mapped: string[] = [];
 				const groups = new Map<HTMLElement, string[]>();
+				const craft = str(record(working.project?.common).craftType);
 				const labels: [RegExp, string][] = [
 					[/^Choose a primary craft/, 'Primary craft'],
+					[/^Choose a project status/, 'Status'],
 					[/^Project title/, 'Project title'],
-					[/^Duration/, 'Duration'],
-					[/^Pattern name/, 'Pattern tag or name'],
-					[/^(Designer|Publisher)/, 'Pattern details'],
+					[
+						/^(Pattern |Designer|Publisher|Use up to five patterns)/,
+						projectPatternLabels(craft).title
+					],
 					[/languages/, 'Post languages'],
-					[/materials/, 'Materials and style'],
 					[/^Video descriptions/, 'Video description'],
 					[/images|Image descriptions|^The video/, 'Photos'],
 					[/^Link previews|link preview URL/, 'Link preview']
 				];
 				for (const message of remaining) {
-					const craft = str(record(working.project?.common).craftType)
-						.split('#')
-						.at(-1);
-					const label = /^(Gauge|Fit notes)/.test(message)
-						? `${craft} details`
+					const label = /^(Gauge|Fit notes|Project subtype)/.test(message)
+						? `${craft ? projectLabel(craft) : 'Craft'} details`
 						: labels.find(([pattern]) => pattern.test(message))?.[1];
 					const field =
 						(label && findField(label)) || findField('Post options');
@@ -1001,14 +1043,19 @@
 					async (handle) =>
 						(await api.search.resolveMention(handle, signal)).did
 				);
-				if (working.kind === 'project' && working.project)
+				if (working.kind === 'project' && working.project) {
+					const before = working.edit?.editable;
 					working.project = await projectFacets(
 						working.project,
-						working.edit ? record(working.edit.editable.project) : undefined,
+						before ? record(before.project) : undefined,
 						async (handle) =>
 							(await api.search.resolveMention(handle, signal)).did,
-						hashtagsInText(working.text)
+						facetHashtags(
+							working.text,
+							before?.text === working.text ? before.facets : facets
+						)
 					);
+				}
 				let body: JsonObject;
 				if (working.edit) {
 					body = editChanges(working, facets) as unknown as JsonObject;
@@ -1282,13 +1329,70 @@
 						<ComposerTarget post={context} fullText={!!draft.reply} />
 					</div>{/if}
 				<fieldset disabled={locked} class="editor-fields">
+					{#snippet attachments()}
+						<section
+							class="composer-section attachment-section"
+							data-field="Photos"
+						>
+							{#if !draft.video && !retainedVideo && !retainedExternal}<PhotoAttachments
+									images={draft.images}
+									required={draft.kind === 'project'}
+									disabled={locked}
+									{canAddVideo}
+									onadd={addAttachments}
+									onchange={(images) => (draft.images = images)}
+									onBusyChange={mediaBusy}
+									onEditingChange={mediaEditing}
+								/>{/if}
+							{#if draft.video}<VideoAttachment
+									media={draft.video}
+									autoOpen={videoDetailsRequest === draft.video.id}
+									disabled={locked}
+									onalt={(value) => {
+										if (draft.video) draft.video.alt = value;
+									}}
+									onremove={() => {
+										draft.video = undefined;
+										draft.videoRecovery = 0;
+									}}
+								/>{/if}
+							{#if retainedVideo && draft.edit?.post.video}
+								<div class="video-editor">
+									<VideoPlayer
+										video={draft.edit.post.video}
+										{api}
+										did={draft.edit.post.author.did}
+										rkey={draft.edit.post.rkey}
+									/>
+									<label
+										>Video description<textarea
+											rows="2"
+											maxlength="1000"
+											value={str(
+												draft.embedChanges?.alt ??
+													record(draft.edit.editable.embed).alt
+											)}
+											oninput={(e) =>
+												(draft.embedChanges = { alt: e.currentTarget.value })}
+										></textarea></label
+									>
+									<button
+										type="button"
+										class="danger"
+										onclick={() => (draft.embedChanges = null)}
+										>Remove published video</button
+									>
+								</div>
+							{/if}
+						</section>
+					{/snippet}
+					{#if draft.kind === 'project'}{@render attachments()}{/if}
 					{#if draft.kind === 'project' && draft.project}<ProjectEditor
 							{api}
 							owner={session.id + ':' + session.did}
 							disabled={locked}
 							precedingHashtags={hashtagsInText(draft.text)}
 							project={draft.project}
-							part="main"
 							onchange={(value) => (draft.project = value)}
 						/>{/if}
 					<div class="post-text-label">
@@ -1302,75 +1406,29 @@
 							hint="required"
 							value={draft.text}
 							onchange={(value) => (draft.text = value)}
-							rows={draft.reply ? 5 : draft.kind === 'project' ? 6 : 3}
+							rows={draft.reply
+								? 5
+								: draft.kind === 'project'
+									? 6
+									: draft.quote
+										? 3
+										: 5}
 							disabled={locked}
 							className="post-text"
 							placeholder={draft.reply
 								? `Add your ${responseLabel(draft).toLowerCase()}…`
 								: draft.kind === 'project'
-									? 'Tell everyone about your project'
-									: "Share what you're making, learning, or thinking..."}
+									? `Tell everyone about your project.\n\n${postFormattingHelp}`
+									: draft.quote
+										? postPrompt
+										: `${postPrompt}\n\n${postFormattingHelp}`}
 						/>
 					</div>
 					<p class:over-limit={draftSize > 2000} class="character-count">
 						{draftSize}/2000
 					</p>
 
-					<section
-						class="composer-section attachment-section"
-						data-field="Photos"
-					>
-						{#if !draft.video && !retainedVideo && !retainedExternal}<PhotoAttachments
-								images={draft.images}
-								required={draft.kind === 'project'}
-								disabled={locked}
-								{canAddVideo}
-								onadd={addAttachments}
-								onchange={(images) => (draft.images = images)}
-								onBusyChange={mediaBusy}
-								onEditingChange={mediaEditing}
-							/>{/if}
-						{#if draft.video}<VideoAttachment
-								media={draft.video}
-								autoOpen={videoDetailsRequest === draft.video.id}
-								disabled={locked}
-								onalt={(value) => {
-									if (draft.video) draft.video.alt = value;
-								}}
-								onremove={() => {
-									draft.video = undefined;
-									draft.videoRecovery = 0;
-								}}
-							/>{/if}
-						{#if retainedVideo && draft.edit?.post.video}
-							<div class="video-editor">
-								<VideoPlayer
-									video={draft.edit.post.video}
-									{api}
-									did={draft.edit.post.author.did}
-									rkey={draft.edit.post.rkey}
-								/>
-								<label
-									>Video description<textarea
-										rows="2"
-										maxlength="1000"
-										value={str(
-											draft.embedChanges?.alt ??
-												record(draft.edit.editable.embed).alt
-										)}
-										oninput={(e) =>
-											(draft.embedChanges = { alt: e.currentTarget.value })}
-									></textarea></label
-								>
-								<button
-									type="button"
-									class="danger"
-									onclick={() => (draft.embedChanges = null)}
-									>Remove published video</button
-								>
-							</div>
-						{/if}
-					</section>
+					{#if draft.kind !== 'project'}{@render attachments()}{/if}
 					{#if draft.external && !draft.images.length && !draft.quote && !draft.video && !retainedVideo}<div
 							class="link-preview-section"
 							data-field="Link preview"
@@ -1439,15 +1497,6 @@
 							You can't schedule another post because you already have 3
 							scheduled posts. <a href="/scheduled">Manage scheduled posts</a>
 						</p>{/if}
-					{#if draft.kind === 'project' && draft.project}<ProjectEditor
-							{api}
-							owner={session.id + ':' + session.did}
-							disabled={locked}
-							precedingHashtags={hashtagsInText(draft.text)}
-							project={draft.project}
-							part="details"
-							onchange={(value) => (draft.project = value)}
-						/>{/if}
 				</fieldset>
 			</div>
 			<footer class="composer-actions">

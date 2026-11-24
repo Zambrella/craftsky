@@ -35,9 +35,16 @@ final preferredProjectCraftsProvider = Provider<List<ProjectOption>>((ref) {
 
 /// Empty/unsupported preferences leave new composers unselected.
 final defaultProjectCraftProvider = Provider<String?>((ref) {
-  final crafts = ref.watch(_profileCraftsProvider).toSet();
+  final crafts = ref
+      .watch(_profileCraftsProvider)
+      .map(ProjectOptionCatalogs.profileIdForCraftToken)
+      .toSet();
   for (final option in ProjectOptionCatalogs.craftTypesForPreferences(crafts)) {
-    if (crafts.contains(option.value.split('#').last)) return option.value;
+    if (crafts.contains(
+      ProjectOptionCatalogs.profileIdForCraftToken(option.value),
+    )) {
+      return option.value;
+    }
   }
   return null;
 });

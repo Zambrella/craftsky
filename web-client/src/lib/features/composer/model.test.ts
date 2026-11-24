@@ -11,6 +11,8 @@ import {
 	freezeWrite,
 	options,
 	postPayload,
+	projectFacets,
+	projectWrite,
 	validateDraft,
 	textLength
 } from './model.ts';
@@ -18,6 +20,21 @@ import { newDraft } from '../drafts/store.ts';
 import type { JsonObject, PostEditSeed } from '#lib/api/client.ts';
 
 describe('composer data contracts', () => {
+	it('writes custom item text with its selected parent type', () => {
+		const project = {
+			common: { craftType: 'social.craftsky.feed.defs#knitting' },
+			details: {
+				$type: 'social.craftsky.project.knitting#details',
+				projectType: 'social.craftsky.project.defs#homeGoods',
+				projectSubtype: '  Lampshade  ',
+				machineModel: 'Existing machine'
+			}
+		};
+		expect(projectWrite(project).details).toEqual({
+			...project.details,
+			projectSubtype: 'Lampshade'
+		});
+	});
 	it('uses profile craft preference order and leaves unsupported or empty preferences unselected', () => {
 		expect(defaultProject(['unknown', 'sewing', 'knitting']).common).toEqual({
 			craftType: 'social.craftsky.feed.defs#sewing',
@@ -73,6 +90,231 @@ describe('composer data contracts', () => {
 			)
 		).toBe(true);
 	});
+	it('publishes older project drafts with canonical size and pattern lists', () => {
+		const draft = newDraft('did:plc:maker');
+		draft.kind = 'project';
+		draft.project = {
+			common: {
+				craftType: 'social.craftsky.feed.defs#knitting',
+				pattern: { name: 'Hat', designer: 'Ada' }
+			},
+			details: {
+				$type: 'social.craftsky.project.knitting#details',
+				needleSizeMm: '4.0mm'
+			}
+		};
+		expect(postPayload(draft, []).project).toEqual({
+			common: {
+				craftType: 'social.craftsky.feed.defs#knitting',
+				patterns: [{ name: 'Hat', designer: 'Ada' }]
+			},
+			details: {
+				$type: 'social.craftsky.project.knitting#details',
+				needleSizesMm: ['4.0mm']
+			}
+		});
+	});
+
+	it('keeps untouched project leaves and emits indexed pattern edits with explicit size clearing', () => {
+		const draft = newDraft('did:plc:maker');
+		draft.kind = 'project';
+		draft.text = 'Hat';
+		const original = {
+			common: {
+				craftType: 'social.craftsky.feed.defs#knitting',
+				patterns: [
+					{
+						existingIndex: 0,
+						name: 'First',
+						designer: 'Ada',
+						futureField: true
+					},
+					{ existingIndex: 1, name: 'Second' }
+				],
+				pattern: { name: 'Legacy' }
+			},
+			details: {
+				$type: 'social.craftsky.project.knitting#details',
+				needleSizeMm: '4.0mm',
+				needleSizesMm: ['4.0mm']
+			}
+		};
+		draft.edit = {
+			editable: {
+				text: draft.text,
+				langs: [...draft.langs],
+				sponsored: false,
+				project: original
+			}
+		} as unknown as PostEditSeed;
+		draft.project = structuredClone(original);
+		expect(editChanges(draft, [])).toEqual({});
+		draft.project = {
+			common: {
+				...original.common,
+				patterns: [{ existingIndex: 0, name: 'Revised', futureField: true }]
+			},
+			details: { ...original.details, needleSizesMm: [] }
+		};
+		expect(editChanges(draft, [])).toEqual({
+			project: {
+				common: {
+					patterns: [{ existingIndex: 0, name: 'Revised', designer: null }]
+				},
+				details: { needleSizesMm: [] }
+			}
+		});
+	});
+	it('retains sibling patterns and their authored facets when replacing another', async () => {
+		const draft = newDraft('did:plc:maker');
+		draft.kind = 'project';
+		draft.text = 'Scarf';
+		const retainedFacet = {
+			index: { byteStart: 0, byteEnd: 10 },
+			features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'wool-blue' }]
+		};
+		const oldMention = {
+			index: { byteStart: 0, byteEnd: 14 },
+			features: [
+				{ $type: 'app.bsky.richtext.facet#mention', did: 'did:plc:old' }
+			]
+		};
+		const original = {
+			common: {
+				craftType: 'social.craftsky.feed.defs#knitting',
+				patterns: [
+					{ existingIndex: 0 },
+					{ existingIndex: 1, name: '#wool-blue', nameFacets: [retainedFacet] },
+					{
+						existingIndex: 2,
+						name: 'Original',
+						designer: '@maker.example',
+						designerFacets: [oldMention]
+					}
+				]
+			}
+		};
+		draft.edit = {
+			editable: {
+				text: draft.text,
+				langs: [...draft.langs],
+				sponsored: false,
+				project: original
+			}
+		} as unknown as PostEditSeed;
+		const handles: string[] = [];
+		draft.project = await projectFacets(
+			{
+				common: {
+					...original.common,
+					patterns: [
+						...original.common.patterns.slice(0, 2),
+						{ name: 'Replacement', designer: '@maker.example' },
+						{}
+					]
+				}
+			},
+			original,
+			async (handle) => {
+				handles.push(handle);
+				return 'did:plc:current';
+			}
+		);
+		expect(editChanges(draft, [])).toEqual({
+			project: {
+				common: {
+					patterns: [
+						{ existingIndex: 0 },
+						{ existingIndex: 1 },
+						{
+							name: 'Replacement',
+							designer: '@maker.example',
+							designerFacets: [
+								{
+									index: oldMention.index,
+									features: [
+										{
+											$type: 'app.bsky.richtext.facet#mention',
+											did: 'did:plc:current'
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			}
+		});
+		expect(handles).toEqual(['maker.example']);
+	});
+	it('accepts changes to a different Macramé cord while preserving its sibling diameter', () => {
+		const draft = newDraft('did:plc:maker');
+		draft.kind = 'project';
+		draft.text = 'Wall hanging';
+		const original = {
+			common: {
+				craftType: 'social.craftsky.feed.defs#macrame',
+				status: 'social.craftsky.feed.defs#finished'
+			},
+			details: {
+				$type: 'social.craftsky.project.macrame#details',
+				cords: [
+					{ existingIndex: 0, material: 'Cotton', diameterMm: 'approx. 4' },
+					{ existingIndex: 1, material: 'Jute', diameterMm: '5' }
+				]
+			}
+		};
+		draft.edit = {
+			editable: {
+				text: draft.text,
+				langs: [...draft.langs],
+				sponsored: false,
+				project: original
+			}
+		} as unknown as PostEditSeed;
+		const [cotton, jute] = original.details.cords;
+		const projectWithCords = (cords: JsonObject[]) => ({
+			...original,
+			details: { ...original.details, cords }
+		});
+		draft.project = projectWithCords([{ ...jute, material: 'Hemp' }, cotton]);
+		expect(validateDraft(draft)).toEqual([]);
+		expect(editChanges(draft, [])).toEqual({
+			project: {
+				details: {
+					cords: [{ existingIndex: 1, material: 'Hemp' }, { existingIndex: 0 }]
+				}
+			}
+		});
+		draft.project = projectWithCords([cotton]);
+		expect(validateDraft(draft)).toEqual([]);
+		draft.project = projectWithCords([
+			cotton,
+			{ ...jute, diameterMm: 'about 5' }
+		]);
+		expect(validateDraft(draft)).toContain(
+			'Cord diameter needs a positive decimal amount.'
+		);
+	});
+	it.each([false, true])(
+		'requires project status before a write (scheduling=%s)',
+		(scheduling) => {
+			const draft = newDraft('did:plc:maker');
+			draft.kind = 'project';
+			draft.text = 'Wall hanging';
+			const common = { craftType: 'social.craftsky.feed.defs#macrame' };
+			draft.project = { common };
+			expect(validateDraft(draft, scheduling)).toContain(
+				'Choose a project status.'
+			);
+			draft.project = {
+				common: { ...common, status: 'social.craftsky.feed.defs#wip' }
+			};
+			expect(validateDraft(draft, scheduling)).not.toContain(
+				'Choose a project status.'
+			);
+		}
+	);
 	it('validates grapheme/UTF-8 limits and disallowed scheduled media shapes', () => {
 		const draft = newDraft('did:plc:maker');
 		draft.text = '🧶'.repeat(2000);

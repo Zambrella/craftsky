@@ -19,7 +19,14 @@ func validatePostEditRichText(candidate PostCreateRequest) error {
 			return err
 		}
 	}
-	if pattern := common.Pattern; pattern != nil {
+	for index, pattern := range common.effectivePatterns() {
+		if pattern == nil {
+			continue
+		}
+		prefix := "project.common.pattern."
+		if common.Patterns != nil {
+			prefix = fmt.Sprintf("project.common.patterns[%d].", index)
+		}
 		for _, field := range []struct {
 			name   string
 			text   *string
@@ -33,7 +40,7 @@ func validatePostEditRichText(candidate PostCreateRequest) error {
 			if field.text != nil {
 				text = *field.text
 			}
-			if err := validatePostEditFacets(text, field.facets, "project.common.pattern."+field.name); err != nil {
+			if err := validatePostEditFacets(text, field.facets, prefix+field.name); err != nil {
 				return err
 			}
 		}

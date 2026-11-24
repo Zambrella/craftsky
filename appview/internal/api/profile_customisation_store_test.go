@@ -88,7 +88,7 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	aliceReplacement := api.ProfileCustomisation{
 		Colour:     "amber",
-		Background: "craft-sewing",
+		Background: "craft-punch-needle",
 	}
 	now = now.Add(time.Minute)
 	if got, err := store.Put(ctx, alice, aliceReplacement); err != nil || got != aliceReplacement {

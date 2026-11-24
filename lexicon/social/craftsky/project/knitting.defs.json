@@ -35,6 +35,7 @@
     "afghan": { "type": "token", "description": "Knitted afghans." },
     "babyBlanket": { "type": "token", "description": "Knitted baby blankets." },
     "pillow": { "type": "token", "description": "Knitted pillows and cushions." },
+    "cushionCover": { "type": "token", "description": "Knitted cushion covers, a home goods subtype." },
     "rug": { "type": "token", "description": "Knitted rugs and mats." },
     "washcloth": { "type": "token", "description": "Knitted washcloths." },
     "dishcloth": { "type": "token", "description": "Knitted dishcloths." },
@@ -63,6 +64,46 @@
     "motif": { "type": "token", "description": "Knitted motifs." },
     "patch": { "type": "token", "description": "Knitted patches." },
     "trim": { "type": "token", "description": "Knitted trims." },
-    "cord": { "type": "token", "description": "Knitted cords." }
+    "cord": { "type": "token", "description": "Knitted cords." },
+    "hand": {"type": "token", "description": "Knitting worked by hand with needles."},
+    "machine": {"type": "token", "description": "Knitting worked on a knitting machine."},
+    "loom": {"type": "token", "description": "Knitting worked on a peg loom."},
+    "brioche": {"type": "token", "description": "Brioche stitch construction."},
+    "cables": {"type": "token", "description": "Cabled stitches."},
+    "colourwork": {"type": "token", "description": "Knitting worked in more than one colour."},
+    "entrelac": {"type": "token", "description": "Entrelac construction."},
+    "lace": {"type": "token", "description": "Knitted lace."},
+    "modularKnitting": {"type": "token", "description": "Knitting constructed from separately worked modules."},
+    "tuckStitch": {"type": "token", "description": "Machine-knit tuck stitch."},
+    "slipStitch": {"type": "token", "description": "Machine-knit slip stitch."},
+    "doubleBedJacquard": {"type": "token", "description": "Jacquard knitted using both machine beds."},
+    "corrugatedRibbing": {"type": "token", "description": "Corrugated ribbing colourwork."},
+    "doubleKnitting": {"type": "token", "description": "Double-knitting colourwork."},
+    "fairIsle": {"type": "token", "description": "Fair Isle colourwork."},
+    "illusion": {"type": "token", "description": "Illusion colourwork."},
+    "intarsia": {"type": "token", "description": "Intarsia colourwork."},
+    "ladderbackJacquard": {"type": "token", "description": "Ladderback jacquard colourwork."},
+    "mosaic": {"type": "token", "description": "Mosaic colourwork."},
+    "stranded": {"type": "token", "description": "Stranded colourwork."},
+    "hood": {
+      "type": "token",
+      "description": "Hood or balaclava."
+    },
+    "glovesMittens": {
+      "type": "token",
+      "description": "Gloves or mittens."
+    },
+    "coasterPlacemat": {
+      "type": "token",
+      "description": "Coaster or placemat."
+    },
+    "ornament": {
+      "type": "token",
+      "description": "Ornament."
+    },
+    "prosthesis": {
+      "type": "token",
+      "description": "Prosthesis."
+    }
   }
 }

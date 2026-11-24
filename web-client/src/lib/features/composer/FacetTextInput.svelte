@@ -353,7 +353,7 @@
 	.facet-input {
 		position: relative;
 		display: grid;
-		gap: 6px;
+		gap: var(--field-label-gap);
 		min-width: 0;
 	}
 	.facet-input :global(.facet-text-paint) {
@@ -370,6 +370,7 @@
 		flex-wrap: wrap;
 		align-items: baseline;
 		gap: 8px;
+		line-height: 1.3;
 	}
 	.facet-input label .facet-hint {
 		font-size: 12px;
@@ -390,7 +391,7 @@
 		-webkit-text-fill-color: transparent;
 	}
 	.facet-input textarea[rows='1'] {
-		min-height: 44px;
+		min-height: var(--field-min-height);
 		resize: none;
 		overflow: hidden;
 	}

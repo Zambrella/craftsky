@@ -12,6 +12,13 @@ void main() {
       ProjectOptionCatalogs.sewingCraftToken: 'sewing',
       ProjectOptionCatalogs.embroideryCraftToken: 'embroidery',
       ProjectOptionCatalogs.quiltingCraftToken: 'quilting',
+      ProjectOptionCatalogs.spinningCraftToken: 'spinning',
+      ProjectOptionCatalogs.dyeingCraftToken: 'dyeing',
+      ProjectOptionCatalogs.punchNeedleCraftToken: 'punch-needle',
+      'punch-needle': 'punch-needle',
+      ProjectOptionCatalogs.macrameCraftToken: 'macrame',
+      ProjectOptionCatalogs.weavingCraftToken: 'weaving',
+      ProjectOptionCatalogs.feltingCraftToken: 'felting',
     }.entries) {
       expect(
         CraftIcon.assetPathFor(key),
@@ -25,13 +32,21 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: CraftIconLabel(craft: 'crochet', label: 'Crochet'),
+          body: CraftIconLabel(
+            craft: ProjectOptionCatalogs.punchNeedleCraftToken,
+            label: 'Punch Needle',
+          ),
         ),
       ),
     );
 
-    expect(find.byType(SvgPicture), findsOneWidget);
-    expect(find.text('Crochet'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey('craft-icon-assets/design/icons/punch-needle.svg'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Punch Needle'), findsOneWidget);
   });
 
   testWidgets('keeps unsupported crafts text-only', (tester) async {

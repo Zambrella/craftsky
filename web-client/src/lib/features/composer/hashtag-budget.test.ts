@@ -33,7 +33,7 @@ it('paints and publishes only ten distinct tags, preserving mentions and links',
 	).toEqual([true, false, false]);
 });
 
-it('shares the budget across structured tags, pattern fields and materials and refreshes unchanged leaves', async () => {
+it('shares the budget across structured tags, pattern fields and materials while preserving untouched patterns', async () => {
 	const project: JsonObject = {
 		common: {
 			craftType: 'social.craftsky.feed.defs#sewing',
@@ -61,9 +61,58 @@ it('shares the budget across structured tags, pattern fields and materials and r
 		[]
 	);
 	const next = updated.common as JsonObject;
-	expect(tags((next.pattern as JsonObject).nameFacets)).toEqual(['pattern']);
+	expect(next.pattern).toEqual(common.pattern);
 	expect(tags((next.materials as JsonObject[])[0].facets)).toEqual([
 		'material'
 	]);
 	expect(JSON.stringify(project)).toContain('#pattern');
+});
+
+it('keeps legacy tagged pattern metadata when a caption edit fills the hashtag budget', async () => {
+	const project: JsonObject = {
+		common: {
+			craftType: 'social.craftsky.feed.defs#sewing',
+			pattern: {
+				name: '#collar',
+				nameFacets: [
+					{
+						index: { byteStart: 0, byteEnd: 7 },
+						features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'collar' }]
+					}
+				],
+				futureCredit: 'original input'
+			}
+		}
+	};
+	expect(
+		await projectFacets(project, project, resolve, [...firstNine, 'tenth'])
+	).toEqual(project);
+});
+
+it('counts eligible credit and later pattern tags in the same ten-tag budget', async () => {
+	const result = await projectFacets(
+		{
+			common: {
+				patterns: [
+					{ designer: '@alice.test #credit', publisher: '#TAG0' },
+					{ name: 'Later #later #overflow', designer: '@alice.test' }
+				]
+			}
+		},
+		undefined,
+		resolve,
+		firstNine.slice(0, 8)
+	);
+	const [first, later] = (result.common as JsonObject).patterns as JsonObject[];
+	expect(tags(first.designerFacets)).toEqual(['credit']);
+	expect(tags(first.publisherFacets)).toEqual(['TAG0']);
+	expect(tags(later.nameFacets)).toEqual(['later']);
+	expect(later.designerFacets).toEqual([
+		{
+			index: { byteStart: 0, byteEnd: 11 },
+			features: [
+				{ $type: 'app.bsky.richtext.facet#mention', did: 'did:plc:alice' }
+			]
+		}
+	]);
 });

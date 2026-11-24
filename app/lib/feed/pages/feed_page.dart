@@ -62,6 +62,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
   var _isPastScrollThreshold = false;
   var _isPinchingImage = false;
   var _wasActive = false;
+  late int _lastHomeReselect = ref.read(feedReselectProvider);
 
   @override
   void initState() {
@@ -92,12 +93,17 @@ class _FeedPageState extends ConsumerState<FeedPage>
     final isCompact = FormFactor.fromWidth(
       MediaQuery.sizeOf(context).width,
     ).isSmall;
+    if (widget.embedded && !widget.extendedNetwork) {
+      final reselection = ref.watch(feedReselectProvider);
+      // The retained Following view can receive the update after it reappears.
+      if (widget.active && reselection != _lastHomeReselect) {
+        _lastHomeReselect = reselection;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _reselectFeed());
+      }
+    } else if (!widget.embedded) {
+      ref.listen(feedReselectProvider, (_, _) => _reselectFeed());
+    }
     ref
-      ..listen(feedReselectProvider, (_, _) {
-        if (!widget.active) return;
-        _scrollToTop();
-        _invalidate();
-      })
       ..listen(deletePostProvider, (previous, next) {
         if (!widget.active) return;
         switch ((previous, next)) {
@@ -225,6 +231,12 @@ class _FeedPageState extends ConsumerState<FeedPage>
     } else {
       ref.invalidate(timelineProvider);
     }
+  }
+
+  void _reselectFeed() {
+    if (!mounted || !widget.active) return;
+    _scrollToTop();
+    _invalidate();
   }
 
   void _handleImagePinchChanged(bool active) {

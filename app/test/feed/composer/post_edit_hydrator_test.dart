@@ -44,7 +44,11 @@ void main() {
             'common': {
               'craftType': 'social.craftsky.feed.defs#sewing',
               'title': 'Linen shirt',
-              'pattern': {'selfDrafted': true, 'name': 'My pattern'},
+              'pattern': {
+                'selfDrafted': true,
+                'name': 'My pattern',
+                'existingIndex': 0,
+              },
               'materials': [
                 {'existingIndex': 0, 'text': 'Linen'},
                 {'existingIndex': 1, 'text': 'Thread'},
@@ -101,7 +105,7 @@ void main() {
         payload: clearedPayload,
         formValues: clearedPattern,
       );
-      expect(cleared.common.pattern?.selfDrafted, isFalse);
+      expect(cleared.common.effectivePatterns.single.selfDrafted, isFalse);
     },
   );
   test('UT-001 published image prefill keeps exact indices, alt and safe '

@@ -56,6 +56,10 @@
 	--lilac: #c9b8e8;
 	--hairline: #16121026;
 	--shadow: #161210;
+	--field-padding-block: 14px;
+	--field-padding-inline: 16px;
+	--field-min-height: 55px;
+	--field-label-gap: 8px;
 	--card-radius: 14px;
 	--header-height: 64px;
 	--app-bar-height: 56px;
@@ -90,7 +94,7 @@
 		--on-primary: #171513;
 		--primary-soft: #1535d6;
 		--red-soft: #5a211d;
-		--red-ink: #f5efe4;
+		--red-ink: #ff8a80;
 		--butter: #5a4815;
 		--clay: #6a2f1a;
 		--moss: #425626;
@@ -117,7 +121,7 @@
 	--on-primary: #171513;
 	--primary-soft: #1535d6;
 	--red-soft: #5a211d;
-	--red-ink: #f5efe4;
+	--red-ink: #ff8a80;
 	--butter: #5a4815;
 	--clay: #6a2f1a;
 	--moss: #425626;
@@ -894,13 +898,23 @@ select,
 textarea {
 	width: 100%;
 	min-width: 0;
-	padding: 14px 16px;
+	padding: var(--field-padding-block) var(--field-padding-inline);
 	border: 1.5px solid var(--ink-3);
 	border-radius: 14px;
 	background: var(--surface);
 	box-shadow: none;
 	font-weight: 400;
 	font-size: 16px;
+}
+:where(
+	input:not([type='checkbox'], [type='radio'], [type='file'], [type='color']),
+	select
+) {
+	min-height: var(--field-min-height);
+}
+:is(input, textarea)::placeholder {
+	color: var(--ink-3);
+	opacity: 1;
 }
 :is(
 	input:not([type='checkbox']):not([type='radio']):not([type='file']):not(
@@ -1289,14 +1303,6 @@ h1.workspace-heading,
 }
 .product-grid .panel {
 	margin: 0;
-}
-.filter-panel {
-	padding: 8px;
-	border: 1.5px solid var(--hairline);
-	border-radius: 12px;
-}
-.filter-panel .form-grid {
-	padding: 10px 0;
 }
 .member-profile .tabs {
 	overflow-x: auto;
@@ -2084,7 +2090,7 @@ label:has(input:not([type='checkbox']):not([type='radio']):not([type='file'])) {
 label :is(input, textarea, select, button, a) {
 	pointer-events: auto;
 }
-:is(
+:where(
 		input:not([type='checkbox']):not([type='radio']):not([type='file']),
 		textarea,
 		select
@@ -2127,4 +2133,17 @@ label:has(input[type='file'][aria-invalid='true']) {
 .native-multi-select:has(input[aria-invalid='true']) .selection-field {
 	outline: 2px solid var(--red-ink);
 	outline-offset: -2px;
+}
+
+.select-option-top-level {
+	--select-option-weight: 700;
+}
+
+:is(.single-choices, .select-choices)
+	> :is(button, label)
+	+ .select-option-parent,
+:is(.single-choices, .select-choices)
+	> .select-option-child
+	+ :is(button, label):not(.select-option-child) {
+	margin-block-start: 6px;
 }

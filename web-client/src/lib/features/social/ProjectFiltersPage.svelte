@@ -2,11 +2,13 @@
 	import { getContext, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { label } from '#lib/public.ts';
+	import { craftIconMask } from './craft-icons';
 	import Filters from './Filters.svelte';
 	import Icon from '../shell/Icon.svelte';
 	const returnTo =
 		getContext<(destination: string) => Promise<void>>('craftsky-return');
 	const craft = page.url.searchParams.get('craft') || '';
+	const icon = craftIconMask(craft);
 	const origin = '/feed' + page.url.search;
 	let filterFields = $state<{ clearAll: () => void }>(null!);
 	let backButton: HTMLButtonElement;
@@ -54,12 +56,9 @@
 				onclick={close}><Icon name="back" /></button
 			>
 			<h1 id="filter-title">
-				{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(craft
-						.split('#')
-						.at(-1)
-						?.toLowerCase() || '')}<span
+				{#if icon}<span
 						class="feed-craft-icon"
-						style:--craft-icon={`url('/craft_icons/${craft.split('#').at(-1)?.toLowerCase()}.svg')`}
+						style:--craft-icon={icon}
 						aria-hidden="true"
 					></span>{/if}
 				Filter {label(craft)} projects
@@ -71,7 +70,7 @@
 			value={page.url.searchParams.get('sort') || 'chronological'}
 		/>
 		<div class="filter-scroll">
-			<Filters bind:this={filterFields} {craft} expanded />
+			<Filters bind:this={filterFields} {craft} />
 		</div>
 		<footer>
 			<button type="button" class="clear-all-filters" onclick={clearAll}

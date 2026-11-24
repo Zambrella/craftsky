@@ -275,35 +275,25 @@ test('publication field errors stay inline while uncertain writes retain recover
 	).toBeVisible();
 });
 
-test('material validation uses shared field errors and clears after correction', async ({
+test('custom project subtype input preserves complete UTF-8 characters within the byte limit', async ({
 	page
 }) => {
 	await page.goto('/compose/project');
+	await page.getByRole('combobox', { name: 'Primary craft required' }).click();
+	await page.getByRole('option', { name: 'Sewing', exact: true }).click();
 	await page
-		.getByRole('button', { name: 'Materials and style', exact: true })
+		.getByRole('button', { name: 'Sewing details', exact: true })
 		.click();
-	const detail = page.getByRole('region', {
-		name: 'Materials and style',
+	await page
+		.getByRole('combobox', { name: 'Project type', exact: true })
+		.fill('Other');
+	await page.getByRole('option', { name: 'Other', exact: true }).click();
+	const input = page.getByRole('textbox', {
+		name: 'What did you make?',
 		exact: true
 	});
-	const input = detail.getByRole('textbox', { name: 'Materials', exact: true });
-	await input.fill('a'.repeat(101));
-	await detail.getByRole('button', { name: 'Add', exact: true }).click();
-	await expect(input).toHaveAttribute('aria-invalid', 'true');
-	await expect(input).toBeFocused();
-	const error = detail.locator('.field-error');
-	await expect(error).toHaveText('Materials must be 100 characters or fewer.');
-	expect(await input.getAttribute('aria-describedby')).toContain(
-		await error.getAttribute('id')
-	);
-	await input.fill('Cotton yarn');
-	await expect(input).not.toHaveAttribute('aria-invalid', 'true');
-	await expect(error).toHaveCount(0);
-	await detail.getByRole('button', { name: 'Add', exact: true }).click();
-	await expect(input).toHaveValue('');
-	await expect(
-		detail.locator('.material-chip').getByText('Cotton yarn', { exact: true })
-	).toBeVisible();
+	await input.fill('🧶'.repeat(30));
+	await expect(input).toHaveValue('🧶'.repeat(25));
 });
 
 test('multiple profile validation errors focus the first invalid input', async ({

@@ -7,12 +7,20 @@ void main() {
   test('closed guest transport maps public reads and bounds pages', () {
     final request = PublicReadRequest.resolve('/v1/projects', 'GET', {
       'craftType': ['sewing'],
+      'projectItem': [
+        'social.craftsky.project.defs#garment',
+        'social.craftsky.project.sewing.defs#dungarees',
+      ],
       'sort': 'popular',
       'limit': '25',
     });
     expect(request.path, '/v1/public/projects');
     expect(request.query, {
       'craftType': ['sewing'],
+      'projectItem': [
+        'social.craftsky.project.defs#garment',
+        'social.craftsky.project.sewing.defs#dungarees',
+      ],
       'sort': 'popular',
       'limit': '20',
     });

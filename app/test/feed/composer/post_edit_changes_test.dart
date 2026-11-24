@@ -3,6 +3,36 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('IT-003 clears the last published embroidery method by field', () {
+    const initial = Project(
+      common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
+      details: UnknownProjectDetails(
+        type: 'social.craftsky.project.embroidery#details',
+        raw: {
+          'methods': [
+            {
+              'existingIndex': 0,
+              'method': 'social.craftsky.project.embroidery.defs#hand',
+              'styles': [
+                {'style': 'social.craftsky.project.embroidery.defs#sashiko'},
+              ],
+            },
+          ],
+          'futureDetail': 'keep',
+        },
+      ),
+    );
+    expect(
+      buildPublishedProjectPatch(
+        initial: initial,
+        current: initial.copyWith(details: null),
+      ),
+      {
+        'details': {'methods': null},
+      },
+    );
+  });
+
   test('UT-002 clearing the last visible detail preserves opaque siblings', () {
     const initial = Project(
       common: ProjectCommon(craftType: 'social.craftsky.feed.defs#sewing'),
@@ -54,7 +84,7 @@ void main() {
         (
           'knitting',
           const KnittingProjectDetails(
-            needleSizeMm: '3',
+            needleSizesMm: ['3.0mm'],
             gauge: ProjectGauge(
               stitches: 20,
               rows: 30,
@@ -63,7 +93,7 @@ void main() {
             ),
           ),
           const KnittingProjectDetails(
-            needleSizeMm: '4',
+            needleSizesMm: ['4.0mm'],
             gauge: ProjectGauge(
               stitches: 22,
               rows: 30,
@@ -72,14 +102,17 @@ void main() {
             ),
           ),
           {
-            'needleSizeMm': '4',
+            'needleSizesMm': ['4.0mm'],
             'gauge': {'stitches': 22},
           },
         ),
         (
           'crochet',
-          const CrochetProjectDetails(hookSizeMm: '3'),
-          const CrochetProjectDetails(hookSizeMm: '3', finishedSize: '20 cm'),
+          const CrochetProjectDetails(hookSizesMm: ['3.0mm']),
+          const CrochetProjectDetails(
+            hookSizesMm: ['3.0mm'],
+            finishedSize: '20 cm',
+          ),
           {'finishedSize': '20 cm'},
         ),
         (

@@ -77,7 +77,7 @@ These are package-specific historical limits and questions. Check later evidence
 - [Account hosting and provider-management settings](catalog/2026-11-12-account-provider-settings.md) (implemented, archived): The single-file record contains no complete validation/deployment transcript; consult current checks before release assertions.
 - [Account-owned subscriptions, Stripe checkout and promotional access](catalog/2026-11-13-per-did-subscriptions.md) (implemented, active): Production deployment and integration activation remain separate release steps.; Real-device native purchases, cross-provider ownership and live application checkout require separate acceptance evidence.
 - [Business parity and subscription lifecycle review](catalog/2026-11-16-business-subscription-review.md) (implemented, active): Physical store purchase/restore validation and Android device UI remain release checks; this review does not deploy or verify production webhook delivery.
-- [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) (proposed, active): Generate both phases' Lexicons and the local Project Schema explorer for maintainer confirmation before behaviour implementation.; Verify scalar-size publishing and editing with legacy mobile and web builds before enabling plural-list writes.
+- [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) (implemented, active): Confirm both release-phase candidates with the simplified composer and equivalent browse outcomes.
 
 ## account-isolation
 
@@ -292,7 +292,7 @@ These are package-specific historical limits and questions. Check later evidence
 | [AppView project-post indexing and reads](catalog/2026-06-07-appview-project-posts.md) | implemented | archived | indexing, search | Added project-bearing post writes, craft-specific indexed projections and profile project reads, with recorded review corrections. |
 | [Flutter project models, feeds and mutation caches](catalog/2026-06-09-flutter-project-post-plumbing.md) | implemented | archived | serialization, cache | The Flutter-only slice connects project-post models and create payloads to profile project lists and mutation cache updates. |
 | [Flutter project composer and reusable fields](catalog/2026-06-11-flutter-project-composer-ui.md) | implemented | archived | composer, forms, images | Built the project composer and closed its original photo-attachment and localization gaps in later execution loops. |
-| [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) | proposed | active | composer, search, taxonomy | Reviewed requirements for two release phases covering existing craft improvements and six new primary crafts. |
+| [Project craft schema expansion](catalog/2026-11-20-project-craft-schema.md) | implemented | active | composer, search, taxonomy | Simplifies project authoring around browseable item types, searchable custom subtypes, multiple patterns, and a small set of craft-specific choices. |
 
 ## relationships
 

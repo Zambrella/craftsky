@@ -9,14 +9,14 @@ package craftsky
 // Quilting-specific fields attached to a project post when craftType is quilting.
 type ProjectQuilting_Details struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.project.quilting#details"`
-	// piecingTechnique: How the quilt top is pieced.
+	// piecingTechnique: Deprecated: how the quilt top is pieced. Use the project description or hashtags for new posts.
 	PiecingTechnique *string `json:"piecingTechnique,omitempty" cborgen:"piecingTechnique,omitempty"`
-	// projectSubtype: More specific quilting project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.
+	// projectSubtype: Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.
 	ProjectSubtype *string `json:"projectSubtype,omitempty" cborgen:"projectSubtype,omitempty"`
-	// projectType: The kind of quilt.
+	// projectType: Optional category for the item made. Choose Other when no listed category fits.
 	ProjectType *string `json:"projectType,omitempty" cborgen:"projectType,omitempty"`
-	// quiltingMethod: How the quilt layers are quilted or secured together.
+	// quiltingMethod: Deprecated: how the quilt layers are quilted or secured together. Use the project description or hashtags for new posts.
 	QuiltingMethod *string `json:"quiltingMethod,omitempty" cborgen:"quiltingMethod,omitempty"`
-	// size: Free-text description of finished dimensions, e.g. '60in x 80in', 'queen', or 'throw, ~50in square'. Not range-queryable.
+	// size: Deprecated: free-text description of finished dimensions, for example 60in x 80in or queen. Use the project description for new posts.
 	Size *string `json:"size,omitempty" cborgen:"size,omitempty"`
 }

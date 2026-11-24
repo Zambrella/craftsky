@@ -223,6 +223,12 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
     _$pattern,
     opt: true,
   );
+  static List<ProjectPattern>? _$patterns(ProjectCommon v) => v.patterns;
+  static const Field<ProjectCommon, List<ProjectPattern>> _f$patterns = Field(
+    'patterns',
+    _$patterns,
+    opt: true,
+  );
   static List<ProjectMaterial>? _$materials(ProjectCommon v) => v.materials;
   static const Field<ProjectCommon, List<ProjectMaterial>> _f$materials = Field(
     'materials',
@@ -259,6 +265,7 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
     #title: _f$title,
     #duration: _f$duration,
     #pattern: _f$pattern,
+    #patterns: _f$patterns,
     #materials: _f$materials,
     #colors: _f$colors,
     #designTags: _f$designTags,
@@ -276,6 +283,7 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
     'title',
     'duration',
     'pattern',
+    'patterns',
     'materials',
     'colors',
     'designTags',
@@ -289,6 +297,7 @@ class ProjectCommonMapper extends ClassMapperBase<ProjectCommon> {
       title: data.dec(_f$title),
       duration: data.dec(_f$duration),
       pattern: data.dec(_f$pattern),
+      patterns: data.dec(_f$patterns),
       materials: data.dec(_f$materials),
       colors: data.dec(_f$colors),
       designTags: data.dec(_f$designTags),
@@ -368,6 +377,12 @@ abstract class ProjectCommonCopyWith<$R, $In extends ProjectCommon, $Out>
   ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>? get pattern;
   ListCopyWith<
     $R,
+    ProjectPattern,
+    ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>
+  >?
+  get patterns;
+  ListCopyWith<
+    $R,
     ProjectMaterial,
     ProjectMaterialCopyWith<$R, ProjectMaterial, ProjectMaterial>
   >?
@@ -384,6 +399,7 @@ abstract class ProjectCommonCopyWith<$R, $In extends ProjectCommon, $Out>
     String? title,
     String? duration,
     ProjectPattern? pattern,
+    List<ProjectPattern>? patterns,
     List<ProjectMaterial>? materials,
     List<String>? colors,
     List<String>? designTags,
@@ -417,6 +433,19 @@ class _ProjectCommonCopyWithImpl<$R, $Out>
   @override
   ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>? get pattern =>
       $value.pattern?.copyWith.$chain((v) => call(pattern: v));
+  @override
+  ListCopyWith<
+    $R,
+    ProjectPattern,
+    ProjectPatternCopyWith<$R, ProjectPattern, ProjectPattern>
+  >?
+  get patterns => $value.patterns != null
+      ? ListCopyWith(
+          $value.patterns!,
+          (v, t) => v.copyWith.$chain(t),
+          (v) => call(patterns: v),
+        )
+      : null;
   @override
   ListCopyWith<
     $R,
@@ -472,6 +501,7 @@ class _ProjectCommonCopyWithImpl<$R, $Out>
     Object? title = $none,
     Object? duration = $none,
     Object? pattern = $none,
+    Object? patterns = $none,
     Object? materials = $none,
     Object? colors = $none,
     Object? designTags = $none,
@@ -485,6 +515,7 @@ class _ProjectCommonCopyWithImpl<$R, $Out>
       if (title != $none) #title: title,
       if (duration != $none) #duration: duration,
       if (pattern != $none) #pattern: pattern,
+      if (patterns != $none) #patterns: patterns,
       if (materials != $none) #materials: materials,
       if (colors != $none) #colors: colors,
       if (designTags != $none) #designTags: designTags,
@@ -500,6 +531,7 @@ class _ProjectCommonCopyWithImpl<$R, $Out>
     title: data.get(#title, or: $value.title),
     duration: data.get(#duration, or: $value.duration),
     pattern: data.get(#pattern, or: $value.pattern),
+    patterns: data.get(#patterns, or: $value.patterns),
     materials: data.get(#materials, or: $value.materials),
     colors: data.get(#colors, or: $value.colors),
     designTags: data.get(#designTags, or: $value.designTags),
@@ -1370,6 +1402,10 @@ class KnittingProjectDetailsMapper
     _$needleSizeMm,
     opt: true,
   );
+  static List<String>? _$needleSizesMm(KnittingProjectDetails v) =>
+      v.needleSizesMm;
+  static const Field<KnittingProjectDetails, List<String>> _f$needleSizesMm =
+      Field('needleSizesMm', _$needleSizesMm, opt: true);
   static ProjectGauge? _$gauge(KnittingProjectDetails v) => v.gauge;
   static const Field<KnittingProjectDetails, ProjectGauge> _f$gauge = Field(
     'gauge',
@@ -1398,6 +1434,7 @@ class KnittingProjectDetailsMapper
     #projectSubtype: _f$projectSubtype,
     #yarnWeight: _f$yarnWeight,
     #needleSizeMm: _f$needleSizeMm,
+    #needleSizesMm: _f$needleSizesMm,
     #gauge: _f$gauge,
     #finishedSize: _f$finishedSize,
     #extraFields: _f$extraFields,
@@ -1411,6 +1448,7 @@ class KnittingProjectDetailsMapper
     'projectSubtype',
     'yarnWeight',
     'needleSizeMm',
+    'needleSizesMm',
     'gauge',
     'finishedSize',
   ]);
@@ -1420,6 +1458,7 @@ class KnittingProjectDetailsMapper
       projectSubtype: data.dec(_f$projectSubtype),
       yarnWeight: data.dec(_f$yarnWeight),
       needleSizeMm: data.dec(_f$needleSizeMm),
+      needleSizesMm: data.dec(_f$needleSizesMm),
       gauge: data.dec(_f$gauge),
       finishedSize: data.dec(_f$finishedSize),
       extraFields: data.dec(_f$extraFields),
@@ -1496,6 +1535,8 @@ abstract class KnittingProjectDetailsCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
+  get needleSizesMm;
   ProjectGaugeCopyWith<$R, ProjectGauge, ProjectGauge>? get gauge;
   MapCopyWith<$R, String, dynamic, ObjectCopyWith<$R, dynamic, dynamic>?>
   get extraFields;
@@ -1504,6 +1545,7 @@ abstract class KnittingProjectDetailsCopyWith<
     String? projectSubtype,
     String? yarnWeight,
     String? needleSizeMm,
+    List<String>? needleSizesMm,
     ProjectGauge? gauge,
     String? finishedSize,
     Map<String, dynamic>? extraFields,
@@ -1523,6 +1565,15 @@ class _KnittingProjectDetailsCopyWithImpl<$R, $Out>
   late final ClassMapperBase<KnittingProjectDetails> $mapper =
       KnittingProjectDetailsMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
+  get needleSizesMm => $value.needleSizesMm != null
+      ? ListCopyWith(
+          $value.needleSizesMm!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(needleSizesMm: v),
+        )
+      : null;
+  @override
   ProjectGaugeCopyWith<$R, ProjectGauge, ProjectGauge>? get gauge =>
       $value.gauge?.copyWith.$chain((v) => call(gauge: v));
   @override
@@ -1538,6 +1589,7 @@ class _KnittingProjectDetailsCopyWithImpl<$R, $Out>
     Object? projectSubtype = $none,
     Object? yarnWeight = $none,
     Object? needleSizeMm = $none,
+    Object? needleSizesMm = $none,
     Object? gauge = $none,
     Object? finishedSize = $none,
     Map<String, dynamic>? extraFields,
@@ -1547,6 +1599,7 @@ class _KnittingProjectDetailsCopyWithImpl<$R, $Out>
       if (projectSubtype != $none) #projectSubtype: projectSubtype,
       if (yarnWeight != $none) #yarnWeight: yarnWeight,
       if (needleSizeMm != $none) #needleSizeMm: needleSizeMm,
+      if (needleSizesMm != $none) #needleSizesMm: needleSizesMm,
       if (gauge != $none) #gauge: gauge,
       if (finishedSize != $none) #finishedSize: finishedSize,
       if (extraFields != null) #extraFields: extraFields,
@@ -1558,6 +1611,7 @@ class _KnittingProjectDetailsCopyWithImpl<$R, $Out>
     projectSubtype: data.get(#projectSubtype, or: $value.projectSubtype),
     yarnWeight: data.get(#yarnWeight, or: $value.yarnWeight),
     needleSizeMm: data.get(#needleSizeMm, or: $value.needleSizeMm),
+    needleSizesMm: data.get(#needleSizesMm, or: $value.needleSizesMm),
     gauge: data.get(#gauge, or: $value.gauge),
     finishedSize: data.get(#finishedSize, or: $value.finishedSize),
     extraFields: data.get(#extraFields, or: $value.extraFields),
@@ -1609,6 +1663,9 @@ class CrochetProjectDetailsMapper
     _$hookSizeMm,
     opt: true,
   );
+  static List<String>? _$hookSizesMm(CrochetProjectDetails v) => v.hookSizesMm;
+  static const Field<CrochetProjectDetails, List<String>> _f$hookSizesMm =
+      Field('hookSizesMm', _$hookSizesMm, opt: true);
   static ProjectGauge? _$gauge(CrochetProjectDetails v) => v.gauge;
   static const Field<CrochetProjectDetails, ProjectGauge> _f$gauge = Field(
     'gauge',
@@ -1637,6 +1694,7 @@ class CrochetProjectDetailsMapper
     #projectSubtype: _f$projectSubtype,
     #yarnWeight: _f$yarnWeight,
     #hookSizeMm: _f$hookSizeMm,
+    #hookSizesMm: _f$hookSizesMm,
     #gauge: _f$gauge,
     #finishedSize: _f$finishedSize,
     #extraFields: _f$extraFields,
@@ -1650,6 +1708,7 @@ class CrochetProjectDetailsMapper
     'projectSubtype',
     'yarnWeight',
     'hookSizeMm',
+    'hookSizesMm',
     'gauge',
     'finishedSize',
   ]);
@@ -1659,6 +1718,7 @@ class CrochetProjectDetailsMapper
       projectSubtype: data.dec(_f$projectSubtype),
       yarnWeight: data.dec(_f$yarnWeight),
       hookSizeMm: data.dec(_f$hookSizeMm),
+      hookSizesMm: data.dec(_f$hookSizesMm),
       gauge: data.dec(_f$gauge),
       finishedSize: data.dec(_f$finishedSize),
       extraFields: data.dec(_f$extraFields),
@@ -1735,6 +1795,7 @@ abstract class CrochetProjectDetailsCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get hookSizesMm;
   ProjectGaugeCopyWith<$R, ProjectGauge, ProjectGauge>? get gauge;
   MapCopyWith<$R, String, dynamic, ObjectCopyWith<$R, dynamic, dynamic>?>
   get extraFields;
@@ -1743,6 +1804,7 @@ abstract class CrochetProjectDetailsCopyWith<
     String? projectSubtype,
     String? yarnWeight,
     String? hookSizeMm,
+    List<String>? hookSizesMm,
     ProjectGauge? gauge,
     String? finishedSize,
     Map<String, dynamic>? extraFields,
@@ -1761,6 +1823,15 @@ class _CrochetProjectDetailsCopyWithImpl<$R, $Out>
   late final ClassMapperBase<CrochetProjectDetails> $mapper =
       CrochetProjectDetailsMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
+  get hookSizesMm => $value.hookSizesMm != null
+      ? ListCopyWith(
+          $value.hookSizesMm!,
+          (v, t) => ObjectCopyWith(v, $identity, t),
+          (v) => call(hookSizesMm: v),
+        )
+      : null;
+  @override
   ProjectGaugeCopyWith<$R, ProjectGauge, ProjectGauge>? get gauge =>
       $value.gauge?.copyWith.$chain((v) => call(gauge: v));
   @override
@@ -1776,6 +1847,7 @@ class _CrochetProjectDetailsCopyWithImpl<$R, $Out>
     Object? projectSubtype = $none,
     Object? yarnWeight = $none,
     Object? hookSizeMm = $none,
+    Object? hookSizesMm = $none,
     Object? gauge = $none,
     Object? finishedSize = $none,
     Map<String, dynamic>? extraFields,
@@ -1785,6 +1857,7 @@ class _CrochetProjectDetailsCopyWithImpl<$R, $Out>
       if (projectSubtype != $none) #projectSubtype: projectSubtype,
       if (yarnWeight != $none) #yarnWeight: yarnWeight,
       if (hookSizeMm != $none) #hookSizeMm: hookSizeMm,
+      if (hookSizesMm != $none) #hookSizesMm: hookSizesMm,
       if (gauge != $none) #gauge: gauge,
       if (finishedSize != $none) #finishedSize: finishedSize,
       if (extraFields != null) #extraFields: extraFields,
@@ -1796,6 +1869,7 @@ class _CrochetProjectDetailsCopyWithImpl<$R, $Out>
     projectSubtype: data.get(#projectSubtype, or: $value.projectSubtype),
     yarnWeight: data.get(#yarnWeight, or: $value.yarnWeight),
     hookSizeMm: data.get(#hookSizeMm, or: $value.hookSizeMm),
+    hookSizesMm: data.get(#hookSizesMm, or: $value.hookSizesMm),
     gauge: data.get(#gauge, or: $value.gauge),
     finishedSize: data.get(#finishedSize, or: $value.finishedSize),
     extraFields: data.get(#extraFields, or: $value.extraFields),

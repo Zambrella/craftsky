@@ -9,12 +9,22 @@ package craftsky
 // Sewing-specific fields attached to a project post when craftType is sewing.
 type ProjectSewing_Details struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.project.sewing#details"`
-	// fitNotes: Free-text notes about garment fit and adjustments, e.g. 'Good through the bust but tight at the upper arm. Added 2cm bicep adjustment.'
+	// fitNotes: Deprecated: free-text notes about garment fit and adjustments. Use the project description for new posts.
 	FitNotes *string `json:"fitNotes,omitempty" cborgen:"fitNotes,omitempty"`
-	// projectSubtype: More specific sewing project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.
+	// projectSubtype: Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.
 	ProjectSubtype *string `json:"projectSubtype,omitempty" cborgen:"projectSubtype,omitempty"`
-	// projectType: The kind of sewing project. Helps discovery so readers can filter on, e.g., only garment projects.
+	// projectType: Optional category for the item made. Choose Other when no listed category fits.
 	ProjectType *string `json:"projectType,omitempty" cborgen:"projectType,omitempty"`
-	// sizeMade: Free-text garment size made, e.g. 'UK 20', 'US 14', 'EU 46', 'M', or 'custom self-drafted'.
+	// sizeMade: Deprecated: free-text garment size made, for example UK 20, US 14, EU 46, M, or custom self-drafted. Use the project description for new posts.
 	SizeMade *string `json:"sizeMade,omitempty" cborgen:"sizeMade,omitempty"`
+	// techniques: Deprecated: sewing techniques used in this project. Use the project description or hashtags for new posts.
+	Techniques []*ProjectSewing_TechniqueSelection `json:"techniques,omitempty" cborgen:"techniques,omitempty"`
+}
+
+// ProjectSewing_TechniqueSelection is a "techniqueSelection" in the social.craftsky.project.sewing schema.
+//
+// One sewing technique selected for the project.
+type ProjectSewing_TechniqueSelection struct {
+	// technique: The sewing technique used.
+	Technique string `json:"technique" cborgen:"technique"`
 }

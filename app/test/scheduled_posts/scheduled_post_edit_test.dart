@@ -18,6 +18,8 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/projects/widgets/project_facet_field.dart';
+import 'package:craftsky_app/projects/widgets/project_pattern_editor.dart';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_repository.dart';
 import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
@@ -1496,7 +1498,7 @@ void main() {
     );
     expect(
       find.byKey(const Key('knitting-gauge-stitches-input')),
-      findsOneWidget,
+      findsNothing,
     );
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -1519,6 +1521,236 @@ void main() {
       {'id': 'old-1', 'alt': 'cardigan', 'width': 3, 'height': 2},
     ]);
   });
+
+  testWidgets(
+    'AT-008 scheduled pattern annotations survive editing and reopening',
+    (tester) async {
+      const savedName = '#wool-blue ';
+      const savedCredit = '@maker.test ';
+      const retainedTag = {
+        'name': savedName,
+        'nameFacets': [
+          {
+            'index': {'byteStart': 0, 'byteEnd': 10},
+            'features': [
+              {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'wool-blue'},
+            ],
+          },
+        ],
+      };
+      const makerFacets = [
+        {
+          'index': {'byteStart': 0, 'byteEnd': 11},
+          'features': [
+            {
+              r'$type': 'app.bsky.richtext.facet#mention',
+              'did': 'did:plc:maker',
+            },
+          ],
+        },
+      ];
+      const retainedCredit = {
+        'name': 'Cuffs',
+        'designer': savedCredit,
+        'designerFacets': makerFacets,
+      };
+      const savedCaption = '@maker.test A scheduled cardigan ';
+      ScheduledPostDetail detailFrom(Map<String, dynamic> payload) =>
+          ScheduledPostDetail(
+            id: _scheduledProjectDetail.id,
+            operationId: _scheduledProjectDetail.operationId,
+            status: _scheduledProjectDetail.status,
+            scheduledAt: _scheduledProjectDetail.scheduledAt,
+            payload: payload,
+          );
+      final original = detailFrom(const {
+        'kind': 'project',
+        'text': savedCaption,
+        'facets': makerFacets,
+        'langs': ['en'],
+        'media': [
+          {'id': 'old-1', 'alt': 'cardigan', 'width': 1, 'height': 1},
+        ],
+        'project': {
+          'common': {
+            'craftType': ProjectOptionCatalogs.dyeingCraftToken,
+            'patterns': [
+              {'name': 'Remove this'},
+              retainedTag,
+              retainedCredit,
+            ],
+          },
+        },
+      });
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final repository = _ScheduledRepository(
+        _pngBytes(width: 1, height: 1),
+        detail: original,
+      );
+      Future<void> openEditor(ScheduledPostDetail detail) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              ..._paidAccessOverrides,
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(registry),
+              ),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              facetGeneratorProvider.overrideWithValue(
+                const FacetGenerator(
+                  mentionResolver: _NewPatternMentionResolver(),
+                ),
+              ),
+              accountScheduledPostRepositoryProvider(
+                registry.activeLease!.session.account,
+              ).overrideWith((ref) async => repository),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp(
+                theme: _testTheme,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: ProjectComposerSheet(scheduledPost: detail),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> tap(Finder finder) async {
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+        await tester.tap(finder);
+        await tester.pumpAndSettle();
+      }
+
+      List<dynamic> sentPatterns(Map<String, dynamic>? payload) {
+        final project = payload!['project'] as Map<String, dynamic>;
+        final common = project['common'] as Map<String, dynamic>;
+        return common['patterns'] as List<dynamic>;
+      }
+
+      final patternDetails = find.byKey(
+        const Key('project-composer-pattern-details-action'),
+      );
+      final extraPattern = find.byType(ProjectPatternEditor);
+      Finder extraField(String name, {int index = 0}) => find.descendant(
+        of: find.descendant(
+          of: extraPattern.at(index),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is ProjectFacetField && widget.name == name,
+          ),
+        ),
+        matching: find.byType(EditableText),
+      );
+
+      await openEditor(original);
+      await tap(patternDetails);
+      await tester.ensureVisible(extraField('name'));
+      await tester.enterText(extraField('name'), 'Temporary name');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tap(find.text('Remove pattern').first);
+      expect(extraPattern, findsOneWidget);
+      final firstName = find.descendant(
+        of: find.byKey(const Key('project-composer-pattern-name-editor')),
+        matching: find.byType(EditableText),
+      );
+      await tester.ensureVisible(firstName);
+      await tester.enterText(firstName, savedName);
+      await tester.ensureVisible(extraField('designer'));
+      await tester.enterText(extraField('designer'), 'Temporary change');
+      await tap(find.byTooltip('Back'));
+      await tap(patternDetails);
+      await tester.ensureVisible(extraField('designer'));
+      await tester.enterText(extraField('designer'), savedCredit);
+      await tester.ensureVisible(extraField('name'));
+      await tester.enterText(extraField('name'), 'New cuffs');
+      await tap(find.byTooltip('Back'));
+      final schedule = find.widgetWithText(ChunkyButton, 'Schedule');
+      await tap(schedule);
+      expect(repository.updatedPayload, isNull);
+      expect(find.text('Choose a status.').hitTestable(), findsOneWidget);
+
+      await tap(find.byKey(const Key('status-select-button')));
+      await tap(find.text('Finished'));
+      await tap(schedule);
+
+      final expected = [
+        retainedTag,
+        {...retainedCredit, 'name': 'New cuffs'},
+      ];
+      expect(sentPatterns(repository.updatedPayload), expected);
+      expect(
+        (repository.updatedPayload!['project'] as Map)['common'],
+        containsPair('status', ProjectOptionCatalogs.finishedStatusToken),
+      );
+      expect(repository.updatedPayload?['text'], savedCaption);
+      expect(repository.updatedPayload?['facets'], makerFacets);
+
+      await openEditor(detailFrom(repository.updatedPayload!));
+      await tap(patternDetails);
+      expect(tester.widget<EditableText>(firstName).controller.text, savedName);
+      expect(find.text('New cuffs'), findsOneWidget);
+      await tap(find.text('Add another pattern'));
+      final newName = extraField('name', index: 1);
+      final newDesigner = extraField('designer', index: 1);
+      final newPublisher = extraField('publisher', index: 1);
+      await tester.ensureVisible(newName);
+      await tester.enterText(newName, '#lace ');
+      await tester.ensureVisible(newDesigner);
+      await tester.enterText(newDesigner, '@maker.test');
+      await tester.ensureVisible(newPublisher);
+      await tester.enterText(newPublisher, '@fresh.test ');
+      await tap(find.byTooltip('Back'));
+      await tap(find.byKey(const Key('composer-schedule-control')));
+      await tap(find.text('Now').last);
+      await tap(find.widgetWithText(ChunkyButton, 'Post'));
+
+      expect(repository.publishedPayload?['text'], savedCaption);
+      expect(repository.publishedPayload?['facets'], makerFacets);
+      expect(sentPatterns(repository.publishedPayload), [
+        ...expected,
+        {
+          'name': '#lace',
+          'designer': '@maker.test',
+          'publisher': '@fresh.test',
+          'nameFacets': [
+            {
+              'index': {'byteStart': 0, 'byteEnd': 5},
+              'features': [
+                {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'lace'},
+              ],
+            },
+          ],
+          'publisherFacets': [
+            {
+              'index': {'byteStart': 0, 'byteEnd': 11},
+              'features': [
+                {
+                  r'$type': 'app.bsky.richtext.facet#mention',
+                  'did': 'did:plc:fresh',
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+    },
+    skip: !subscriptionsEnabled,
+  );
 
   for (final fixture in _additionalProjectFixtures.entries) {
     testWidgets('AT-007 ${fixture.key} project saves every field unchanged', (
@@ -1707,20 +1939,23 @@ final _scheduledProjectDetail = ScheduledPostDetail(
         ],
         'colors': ['blue'],
         'designTags': ['social.craftsky.project.defs#stripes'],
-        'pattern': {
-          'name': 'Warm cardigan',
-          'designer': 'A. Maker',
-          'publisher': 'Patterns Ltd',
-          'url': 'https://example.com/pattern',
-          'difficulty': 'intermediate',
-        },
+        'patterns': [
+          {
+            'name': 'Warm cardigan',
+            'designer': 'A. Maker',
+            'publisher': 'Patterns Ltd',
+            'url': 'https://example.com/pattern',
+            'difficulty': 'intermediate',
+          },
+          {'name': 'Sleeves', 'designer': 'Another maker'},
+        ],
       },
       'details': {
         r'$type': 'social.craftsky.project.knitting#details',
         'projectType': 'garment',
         'projectSubtype': 'cardigan',
         'yarnWeight': 'dk',
-        'needleSizeMm': '4',
+        'needleSizesMm': ['4.0mm', '4.5mm'],
         'gauge': {'stitches': 20, 'rows': 28, 'measurement': 10, 'unit': 'cm'},
       },
     },
@@ -1747,7 +1982,7 @@ final _additionalProjectFixtures = <String, ScheduledPostDetail>{
       'projectType': 'social.craftsky.project.defs#accessory',
       'projectSubtype': 'social.craftsky.project.crochet.defs#bag',
       'yarnWeight': 'social.craftsky.project.defs#dk',
-      'hookSizeMm': '4.0mm',
+      'hookSizesMm': ['4.0mm', '4.5mm'],
       'gauge': {'stitches': 18, 'rows': 22, 'measurement': 10, 'unit': 'cm'},
       'finishedSize': '30 cm',
     },
@@ -1792,13 +2027,15 @@ ScheduledPostDetail _projectFixture({
         ],
         'colors': const ['blue'],
         'designTags': const ['social.craftsky.project.defs#stripes'],
-        'pattern': const {
-          'name': 'Pattern name',
-          'designer': 'A. Maker',
-          'publisher': 'Patterns Ltd',
-          'url': 'https://example.com/pattern',
-          'difficulty': 'social.craftsky.feed.defs#intermediate',
-        },
+        'patterns': const [
+          {
+            'name': 'Pattern name',
+            'designer': 'A. Maker',
+            'publisher': 'Patterns Ltd',
+            'url': 'https://example.com/pattern',
+            'difficulty': 'social.craftsky.feed.defs#intermediate',
+          },
+        ],
       },
       'details': details,
     },
@@ -1980,6 +2217,14 @@ final class _EmptyMentionResolver implements MentionResolver {
 
   @override
   Future<String?> didForHandle(String handle) async => null;
+}
+
+final class _NewPatternMentionResolver implements MentionResolver {
+  const new();
+
+  @override
+  Future<String?> didForHandle(String handle) async =>
+      handle == 'fresh.test' ? 'did:plc:fresh' : null;
 }
 
 final ThemeData _testTheme =

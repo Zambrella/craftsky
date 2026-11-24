@@ -1,0 +1,75 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.punchNeedle",
+  "description": "Punch Needle details for a project post, including rug-scale work and fine embroidery.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "What was made in a punch needle project.",
+      "properties": {
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type."
+        },
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
+          "knownValues": [
+            "social.craftsky.project.punchNeedle#rug",
+            "social.craftsky.project.punchNeedle#wallHanging",
+            "social.craftsky.project.punchNeedle#hoopArt",
+            "social.craftsky.project.punchNeedle#cushion",
+            "social.craftsky.project.punchNeedle#coaster",
+            "social.craftsky.project.punchNeedle#tableMatRunner",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "foundationFabric": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: fabric into which the stitches were punched, such as monk's cloth or rug linen. Use the project description for new posts."
+        },
+        "needle": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: punch needle model, size or both, as marked on the tool. Use the project description for new posts."
+        },
+        "loopHeight": {
+          "type": "ref",
+          "ref": "social.craftsky.project.defs#lengthMeasurement",
+          "description": "Deprecated: height of the loops, with unit. Use the project description for new posts."
+        }
+      }
+    },
+    "rug": {
+      "type": "token",
+      "description": "A punch needle rug."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "A wall hanging."
+    },
+    "cushion": {
+      "type": "token",
+      "description": "A cushion or cushion cover."
+    },
+    "hoopArt": {
+      "type": "token",
+      "description": "Decorative work finished in a hoop."
+    },
+    "coaster": {
+      "type": "token",
+      "description": "Coaster."
+    },
+    "tableMatRunner": {
+      "type": "token",
+      "description": "Table mat or runner."
+    }
+  }
+}

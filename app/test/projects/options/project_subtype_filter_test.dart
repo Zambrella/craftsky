@@ -7,13 +7,6 @@ void main() {
       'UT-013 disables subtype selection until a project type is selected',
       () {
         expect(
-          ProjectOptionCatalogs.isSubtypeSelectionEnabled(
-            craftToken: ProjectOptionCatalogs.knittingCraftToken,
-            projectTypeToken: null,
-          ),
-          isFalse,
-        );
-        expect(
           ProjectOptionCatalogs.projectSubtypesFor(
             craftToken: ProjectOptionCatalogs.knittingCraftToken,
             projectTypeToken: null,
@@ -73,7 +66,7 @@ void main() {
       expect(
         options.map((option) => option.value),
         containsAll([
-          'social.craftsky.project.crochet.defs#sweater',
+          'social.craftsky.project.crochet.defs#pullover',
           'social.craftsky.project.crochet.defs#amigurumi',
         ]),
       );
@@ -86,12 +79,12 @@ void main() {
           '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
         ],
         subtypeTokens: [
-          'social.craftsky.project.crochet.defs#sweater',
+          'social.craftsky.project.crochet.defs#pullover',
           'social.craftsky.project.crochet.defs#amigurumi',
         ],
       );
 
-      expect(retained, ['social.craftsky.project.crochet.defs#sweater']);
+      expect(retained, ['social.craftsky.project.crochet.defs#pullover']);
     });
   });
 }

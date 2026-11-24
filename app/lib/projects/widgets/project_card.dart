@@ -1,5 +1,6 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -49,11 +50,10 @@ class _ProjectSummary extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final title = _nonBlank(project.common.title);
     final status = _nonBlank(project.common.status);
-    final pattern = _patternValue(
-      project.common.pattern,
-      l10n.projectPatternSelfDraftedLabel,
+    final patterns = project.common.effectivePatterns.where(
+      (pattern) =>
+          _patternValue(pattern, l10n.projectPatternSelfDraftedLabel) != null,
     );
-    final size = _sizeMetadata(project.details);
     final headlineStyle = theme.textTheme.headlineSmall;
     final titleStyle = theme.textTheme.displaySmall?.copyWith(
       fontSize: headlineStyle?.fontSize,
@@ -93,14 +93,12 @@ class _ProjectSummary extends StatelessWidget {
               ),
           ],
         ),
-        if (pattern != null || size != null) ...[
+        if (patterns.isNotEmpty) ...[
           SizedBox(height: spacing.sp3),
           const CraftskyDivider(),
           SizedBox(height: spacing.sp2),
-          if (pattern != null)
-            _ProjectPatternMetadataRow(pattern: project.common.pattern!),
-          if (size case final row?)
-            _ProjectMetadataRow(label: row.label, value: row.value),
+          for (final pattern in patterns)
+            _ProjectPatternMetadataRow(pattern: pattern),
         ],
       ],
     );
@@ -120,14 +118,15 @@ class _ProjectDetail extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final title = _nonBlank(project.common.title);
     final rows = _detailRows(project);
-    final materials = _materialValues(project.common.materials);
-    final chipSections = _chipSections(project.common);
-    final hasPattern =
-        _patternValue(
-          project.common.pattern,
-          l10n.projectPatternSelfDraftedLabel,
-        ) !=
-        null;
+    final tags = [
+      for (final tag in project.common.tags ?? const <String>[])
+        ?_nonBlank(tag),
+    ];
+    final patterns = project.common.effectivePatterns.where(
+      (pattern) =>
+          _patternValue(pattern, l10n.projectPatternSelfDraftedLabel) != null ||
+          _patternDetailRows(pattern).isNotEmpty,
+    );
 
     return Column(
       key: const ValueKey('project-detail-card'),
@@ -160,12 +159,23 @@ class _ProjectDetail extends StatelessWidget {
               ),
           ],
         ),
-        if (hasPattern || rows.isNotEmpty) ...[
+        if (patterns.isNotEmpty || rows.isNotEmpty) ...[
           SizedBox(height: spacing.sp3),
           const CraftskyDivider(),
           SizedBox(height: spacing.sp2),
-          if (hasPattern)
-            _ProjectPatternMetadataRow(pattern: project.common.pattern!),
+          for (final pattern in patterns) ...[
+            if (_patternValue(pattern, l10n.projectPatternSelfDraftedLabel) !=
+                null)
+              _ProjectPatternMetadataRow(pattern: pattern),
+            for (final row in _patternDetailRows(pattern))
+              _ProjectMetadataRow(
+                label: row.label,
+                value: row.value,
+                linkUri: row.linkUri,
+                launchUrl: launchUrl,
+              ),
+            if (patterns.length > 1) SizedBox(height: spacing.sp2),
+          ],
           for (final row in rows)
             _ProjectMetadataRow(
               label: row.label,
@@ -174,60 +184,22 @@ class _ProjectDetail extends StatelessWidget {
               launchUrl: launchUrl,
             ),
         ],
-        if (materials.isNotEmpty || chipSections.isNotEmpty) ...[
+        if (tags.isNotEmpty) ...[
           SizedBox(height: spacing.sp3),
           const CraftskyDivider(),
           SizedBox(height: spacing.sp2),
-          if (materials.isNotEmpty) ...[
-            _ProjectMaterialChipSection(materials: materials),
-            SizedBox(height: spacing.sp2),
-          ],
-          for (final section in chipSections) ...[
-            _ProjectChipSection(section: section),
-            SizedBox(height: spacing.sp2),
-          ],
+          _ProjectTags(tags: tags),
+          SizedBox(height: spacing.sp2),
         ],
       ],
     );
   }
 }
 
-class _ProjectChipSection extends StatelessWidget {
-  const new({required this.section});
+class _ProjectTags extends StatelessWidget {
+  const new({required this.tags});
 
-  final _ProjectChipSectionData section;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          section.label.toUpperCase(),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.outline,
-          ),
-        ),
-        SizedBox(height: spacing.sp1),
-        Wrap(
-          spacing: spacing.sp1,
-          runSpacing: spacing.sp1,
-          children: [
-            for (final value in section.values)
-              _ProjectChip(label: value, tone: _ProjectChipTone.outlined),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ProjectMaterialChipSection extends StatelessWidget {
-  const new({required this.materials});
-
-  final List<ProjectMaterial> materials;
+  final List<String> tags;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +209,7 @@ class _ProjectMaterialChipSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'MATERIALS',
+          'TAGS',
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.outline,
           ),
@@ -247,52 +219,11 @@ class _ProjectMaterialChipSection extends StatelessWidget {
           spacing: spacing.sp1,
           runSpacing: spacing.sp1,
           children: [
-            for (final material in materials) _ProjectMaterialChip(material),
+            for (final tag in tags)
+              _ProjectChip(label: tag, tone: _ProjectChipTone.outlined),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ProjectMaterialChip extends StatelessWidget {
-  const new(this.material);
-
-  final ProjectMaterial material;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
-    final colors = theme.colorScheme;
-    final style = theme.textTheme.labelSmall?.copyWith(
-      color: colors.onSurface,
-      letterSpacing: 0,
-    );
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width - spacing.sp8,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: Border.all(color: colors.onSurface, width: 1.2),
-          borderRadius: BorderRadius.circular(radii.rPill),
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: spacing.sp2,
-            vertical: spacing.sp1,
-          ),
-          child: FacetedText(
-            text: material.text,
-            facets: material.facets,
-            style: style,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -525,7 +456,7 @@ class _ProjectPatternMetadataRow extends StatelessWidget {
   }
 }
 
-class _ProjectSizeMetadata {
+class _ProjectDetailRow {
   const new({
     required this.label,
     required this.value,
@@ -537,148 +468,70 @@ class _ProjectSizeMetadata {
   final Uri? linkUri;
 }
 
-class _ProjectChipSectionData {
-  const new({required this.label, required this.values});
+List<_ProjectDetailRow> _detailRows(Project project) {
+  final details = project.details;
+  if (details == null) return const [];
+  final craft = project.common.craftType;
+  final values =
+      const ProjectDetailsMapper().encode(details) as Map<String, dynamic>;
+  final type = values[r'$type'];
+  if (type != null && type != ProjectDetailFields.typeForCraft(craft)) {
+    return const [];
+  }
 
-  final String label;
-  final List<String> values;
+  final item = [
+    if (ProjectOptionCatalogs.projectTypesForCraft(craft).isNotEmpty)
+      for (final key in const ['projectType', 'projectSubtype'])
+        if (values[key] case final String value when value.trim().isNotEmpty)
+          ProjectOptionCatalogs.projectValueLabel(value.trim()),
+  ].join(' > ');
+
+  return [
+    if (item.isNotEmpty)
+      _ProjectDetailRow(
+        label: craft == ProjectOptionCatalogs.dyeingCraftToken
+            ? 'Dyed item'
+            : 'Project type',
+        value: item,
+      ),
+    for (final field in ProjectDetailFields.authoringForCraft(craft))
+      if (_detailFieldValue(field, craft, values) case final value?)
+        _ProjectDetailRow(label: field.label, value: value),
+  ];
 }
 
-List<_ProjectSizeMetadata> _detailRows(Project project) {
+List<_ProjectDetailRow> _patternDetailRows(ProjectPattern pattern) {
   return [
-    if (_nonBlank(project.common.duration) case final value?)
-      _ProjectSizeMetadata(label: 'Duration', value: value),
-    if (_nonBlank(project.common.pattern?.difficulty) case final value?)
-      _ProjectSizeMetadata(
+    if (_nonBlank(pattern.difficulty) case final value?)
+      _ProjectDetailRow(
         label: 'Difficulty',
         value: _optionLabel(value, ProjectOptionCatalogs.patternDifficulties),
       ),
-    ..._optionalMetadata(_linkMetadata(project.common.pattern?.url)),
-    ..._craftDetailRows(project.common.craftType, project.details),
+    ..._optionalMetadata(_linkMetadata(pattern.url)),
   ];
 }
 
-List<_ProjectSizeMetadata> _craftDetailRows(
-  String craftType,
-  ProjectDetails? details,
+String? _detailFieldValue(
+  ProjectDetailField field,
+  String craft,
+  Map<String, dynamic> values,
 ) {
-  return switch (details) {
-    SewingProjectDetails(
-      :final projectType,
-      :final projectSubtype,
-      :final sizeMade,
-      :final fitNotes,
-    ) =>
+  final options = field.choicesFor(craft);
+  final value = ProjectDetailFields.authoringValue(craft, field.key, values);
+  return switch (value) {
+    final String text when text.trim().isNotEmpty => _optionLabel(
+      text.trim(),
+      options,
+    ),
+    final List<Object?> entries => _nonBlank(
       [
-        ..._projectTypeRows(craftType, projectType, projectSubtype),
-        if (_nonBlank(sizeMade) case final value?)
-          _ProjectSizeMetadata(label: 'Size made', value: value),
-        if (_nonBlank(fitNotes) case final value?)
-          _ProjectSizeMetadata(label: 'Fit notes', value: value),
-      ],
-    KnittingProjectDetails(
-      :final projectType,
-      :final projectSubtype,
-      :final yarnWeight,
-      :final needleSizeMm,
-      :final gauge,
-      :final finishedSize,
-    ) =>
-      [
-        ..._projectTypeRows(craftType, projectType, projectSubtype),
-        if (_nonBlank(yarnWeight) case final value?)
-          _ProjectSizeMetadata(
-            label: 'Yarn weight',
-            value: _optionLabel(value, ProjectOptionCatalogs.yarnWeights),
-          ),
-        if (_nonBlank(needleSizeMm) case final value?)
-          _ProjectSizeMetadata(label: 'Needle size', value: value),
-        if (_gaugeValue(gauge) case final value?)
-          _ProjectSizeMetadata(label: 'Gauge', value: value),
-        if (_nonBlank(finishedSize) case final value?)
-          _ProjectSizeMetadata(label: 'Finished size', value: value),
-      ],
-    CrochetProjectDetails(
-      :final projectType,
-      :final projectSubtype,
-      :final yarnWeight,
-      :final hookSizeMm,
-      :final gauge,
-      :final finishedSize,
-    ) =>
-      [
-        ..._projectTypeRows(craftType, projectType, projectSubtype),
-        if (_nonBlank(yarnWeight) case final value?)
-          _ProjectSizeMetadata(
-            label: 'Yarn weight',
-            value: _optionLabel(value, ProjectOptionCatalogs.yarnWeights),
-          ),
-        if (_nonBlank(hookSizeMm) case final value?)
-          _ProjectSizeMetadata(label: 'Hook size', value: value),
-        if (_gaugeValue(gauge) case final value?)
-          _ProjectSizeMetadata(label: 'Gauge', value: value),
-        if (_nonBlank(finishedSize) case final value?)
-          _ProjectSizeMetadata(label: 'Finished size', value: value),
-      ],
-    QuiltingProjectDetails(
-      :final projectType,
-      :final projectSubtype,
-      :final size,
-      :final piecingTechnique,
-      :final quiltingMethod,
-    ) =>
-      [
-        ..._projectTypeRows(craftType, projectType, projectSubtype),
-        if (_nonBlank(size) case final value?)
-          _ProjectSizeMetadata(label: 'Size', value: value),
-        if (_nonBlank(piecingTechnique) case final value?)
-          _ProjectSizeMetadata(
-            label: 'Piecing technique',
-            value: _optionLabel(
-              value,
-              ProjectOptionCatalogs.quiltingPiecingTechniques,
-            ),
-          ),
-        if (_nonBlank(quiltingMethod) case final value?)
-          _ProjectSizeMetadata(
-            label: 'Quilting method',
-            value: _optionLabel(value, ProjectOptionCatalogs.quiltingMethods),
-          ),
-      ],
-    UnknownProjectDetails(:final raw) => [
-      for (final entry in raw.entries)
-        if (entry.value case final String value when _nonBlank(value) != null)
-          _ProjectSizeMetadata(
-            label: _tokenFallbackLabel(entry.key),
-            value: _nonBlank(value)!,
-          ),
-    ],
-    _ => const <_ProjectSizeMetadata>[],
+        for (final entry in entries)
+          if (entry case final String text when text.trim().isNotEmpty)
+            _optionLabel(text.trim(), options),
+      ].join(', '),
+    ),
+    _ => null,
   };
-}
-
-List<_ProjectSizeMetadata> _projectTypeRows(
-  String craftType,
-  String? projectType,
-  String? projectSubtype,
-) {
-  final typeLabel = _nonBlank(projectType) == null
-      ? null
-      : _optionLabel(
-          _nonBlank(projectType)!,
-          ProjectOptionCatalogs.projectTypesForCraft(craftType),
-        );
-  final subtypeLabel = _nonBlank(projectSubtype) == null
-      ? null
-      : _optionLabel(
-          _nonBlank(projectSubtype)!,
-          ProjectOptionCatalogs.projectSubtypesForCraft(craftType),
-        );
-  final value = [typeLabel, subtypeLabel].whereType<String>().join(' > ');
-  return [
-    if (value.isNotEmpty)
-      _ProjectSizeMetadata(label: 'Project type', value: value),
-  ];
 }
 
 double _metadataLabelWidth(BuildContext context) {
@@ -686,58 +539,23 @@ double _metadataLabelWidth(BuildContext context) {
   return scaled.clamp(112.0, 168.0);
 }
 
-List<_ProjectSizeMetadata> _optionalMetadata(_ProjectSizeMetadata? row) {
+List<_ProjectDetailRow> _optionalMetadata(_ProjectDetailRow? row) {
   return row == null ? const [] : [row];
 }
 
-_ProjectSizeMetadata? _linkMetadata(String? value) {
+_ProjectDetailRow? _linkMetadata(String? value) {
   final uri = normalizeExternalLinkUri(value);
   if (uri == null) return null;
-  return _ProjectSizeMetadata(
+  return _ProjectDetailRow(
     label: 'Link',
     value: displayExternalLink(uri),
     linkUri: uri,
   );
 }
 
-List<_ProjectChipSectionData> _chipSections(ProjectCommon common) {
-  return [
-    if (_listLabels(common.colors, ProjectOptionCatalogs.colours)
-        case final values when values.isNotEmpty)
-      _ProjectChipSectionData(label: 'Colours', values: values),
-    if (_listLabels(common.designTags, ProjectOptionCatalogs.designTags)
-        case final values when values.isNotEmpty)
-      _ProjectChipSectionData(label: 'Design', values: values),
-    if (_listLabels(common.tags) case final values when values.isNotEmpty)
-      _ProjectChipSectionData(label: 'Tags', values: values),
-  ];
-}
-
-List<String> _listLabels(List<String>? values, [List<ProjectOption>? options]) {
-  return [
-    for (final value in values ?? const <String>[])
-      if (_nonBlank(value) case final clean?)
-        if (options == null) clean else _optionLabel(clean, options),
-  ];
-}
-
-List<ProjectMaterial> _materialValues(List<ProjectMaterial>? values) {
-  return [
-    for (final material in values ?? const <ProjectMaterial>[])
-      if (_nonBlank(material.text) case final text?)
-        ProjectMaterial(text: text, facets: material.facets),
-  ];
-}
-
-String? _gaugeValue(ProjectGauge? gauge) {
-  if (gauge == null) return null;
-  final rows = gauge.rows == null ? '' : ' / ${gauge.rows} rows';
-  return '${gauge.stitches} sts$rows per ${gauge.measurement} ${gauge.unit}';
-}
-
 String _craftTypeLabel(String value) => _optionLabel(
   value,
-  ProjectOptionCatalogs.craftTypes,
+  ProjectOptionCatalogs.allCraftTypes,
 );
 
 String _statusLabel(String value) => _optionLabel(
@@ -795,28 +613,6 @@ String? _patternValue(ProjectPattern? pattern, String selfDraftedLabel) {
   };
   if (pattern.selfDrafted != true) return value;
   return value == null ? selfDraftedLabel : '$value · $selfDraftedLabel';
-}
-
-_ProjectSizeMetadata? _sizeMetadata(ProjectDetails? details) {
-  return switch (details) {
-    SewingProjectDetails(:final sizeMade) when _nonBlank(sizeMade) != null =>
-      _ProjectSizeMetadata(label: 'Size', value: _nonBlank(sizeMade)!),
-    KnittingProjectDetails(:final finishedSize)
-        when _nonBlank(finishedSize) != null =>
-      _ProjectSizeMetadata(
-        label: 'Finished size',
-        value: _nonBlank(finishedSize)!,
-      ),
-    CrochetProjectDetails(:final finishedSize)
-        when _nonBlank(finishedSize) != null =>
-      _ProjectSizeMetadata(
-        label: 'Finished size',
-        value: _nonBlank(finishedSize)!,
-      ),
-    QuiltingProjectDetails(:final size) when _nonBlank(size) != null =>
-      _ProjectSizeMetadata(label: 'Size', value: _nonBlank(size)!),
-    _ => null,
-  };
 }
 
 String? _nonBlank(String? value) {

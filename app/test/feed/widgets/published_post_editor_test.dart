@@ -21,10 +21,10 @@ import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/projects/widgets/project_pattern_editor.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -35,7 +35,6 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -47,55 +46,238 @@ import '../fakes/fake_post_repository.dart';
 
 void main() {
   testWidgets(
-    'AT-002 published materials and style restore populated selections',
+    'IT-005 budgets a later pattern from exact saved caption facets',
+    (
+      tester,
+    ) async {
+      final base = _seed(project: true);
+      final project = base.post.project!.copyWith.common(
+        patterns: const [
+          ProjectPattern(name: 'Base', extraFields: {'existingIndex': 0}),
+          ProjectPattern(name: 'Other', extraFields: {'existingIndex': 1}),
+        ],
+      );
+      final caption =
+          '${List.generate(9, (index) => '#tag$index').join(' ')} #credit ';
+      final creditStart = caption.indexOf('#credit');
+      final seed = PostEditSeed(
+        post: base.post.copyWith(project: project, text: caption),
+        baseCid: base.baseCid,
+        recordRevision: base.recordRevision,
+        editable: {
+          ...base.editable,
+          'text': caption,
+          'facets': [
+            for (var index = 0; index < 9; index++)
+              {
+                'index': {'byteStart': index * 6, 'byteEnd': index * 6 + 5},
+                'features': [
+                  {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'tag$index'},
+                ],
+              },
+            {
+              'index': {'byteStart': creditStart, 'byteEnd': creditStart + 7},
+              'features': [
+                {
+                  r'$type': 'app.bsky.richtext.facet#link',
+                  'uri': 'https://example.com/credit',
+                },
+              ],
+            },
+          ],
+          'project': project.toMap(),
+        },
+      );
+      PostEditChanges? saved;
+      await _pumpEditor(
+        tester,
+        FakePostRepository(
+          onFetchEdit: (_, _) async => seed,
+          onEdit:
+              (
+                _,
+                _, {
+                required changes,
+                required expectedCid,
+                required operationKey,
+              }) async {
+                saved = changes;
+                return PostEditResult(
+                  acceptedCid: seed.baseCid,
+                  changed: false,
+                );
+              },
+        ),
+        seed: seed,
+      );
+      final details = find.byKey(
+        const Key('project-composer-pattern-details-action'),
+      );
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await tester.pumpAndSettle();
+      final laterName = find
+          .descendant(
+            of: find.byType(ProjectPatternEditor),
+            matching: find.byType(EditableText),
+          )
+          .first;
+      await tester.ensureVisible(laterName);
+      await tester.enterText(laterName, 'Other #lace');
+      await _finishProjectDetails(tester);
+      await _save(tester);
+
+      expect(saved!.toMap(), {
+        'project': {
+          'common': {
+            'patterns': [
+              {'existingIndex': 0},
+              {
+                'existingIndex': 1,
+                'name': 'Other #lace',
+                'nameFacets': [
+                  {
+                    'index': {'byteStart': 6, 'byteEnd': 11},
+                    'features': [
+                      {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'lace'},
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+    },
+  );
+
+  testWidgets(
+    'SIM-AT-04 flat embroidery style preserves legacy method groups',
+    (
+      tester,
+    ) async {
+      const methods = 'social.craftsky.project.embroidery.defs';
+      final seed = _projectDetailSeed(
+        ProjectOptionCatalogs.embroideryCraftToken,
+        const UnknownProjectDetails(
+          type: 'social.craftsky.project.embroidery#details',
+          raw: {
+            'methods': [
+              {'existingIndex': 0, 'method': '$methods#hand'},
+              {
+                'existingIndex': 1,
+                'method': '$methods#machine',
+                'styles': [
+                  {
+                    'existingIndex': 0,
+                    'style': '$methods#threeDimensionalPuff',
+                  },
+                ],
+              },
+              {
+                'existingIndex': 2,
+                'method': '$methods#machine',
+                'styles': [
+                  {'existingIndex': 0, 'style': '$methods#trapunto'},
+                ],
+              },
+            ],
+          },
+        ),
+      );
+      PostEditChanges? saved;
+      await _pumpProjectDetailEditor(
+        tester,
+        seed,
+        (changes) => saved = changes,
+      );
+      expect(find.text('Embroidery method'), findsOneWidget);
+      expect(find.text('Embroidery style'), findsOneWidget);
+      expect(find.text('3D puff'), findsNothing);
+      expect(find.text('Trapunto'), findsNothing);
+
+      final style = find.byKey(const Key('Embroidery style-select-button'));
+      await tester.ensureVisible(style);
+      await tester.pumpAndSettle();
+      await tester.tap(style);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cross-stitch'));
+      await tester.pumpAndSettle();
+
+      await _finishProjectDetails(tester);
+      await _save(tester);
+      expect(saved!.toMap()['project'], {
+        'details': {'style': '$methods#crossStitch'},
+      });
+    },
+  );
+
+  testWidgets(
+    'REG-002 an unfamiliar saved loom type stays visible and clearable',
+    (
+      tester,
+    ) async {
+      final seed = _projectDetailSeed(
+        ProjectOptionCatalogs.weavingCraftToken,
+        const UnknownProjectDetails(
+          type: 'social.craftsky.project.weaving#details',
+          raw: {'loomType': 'com.example.weaving#tabletLoom'},
+        ),
+      );
+      final saves = <PostEditChanges>[];
+      await _pumpProjectDetailEditor(tester, seed, saves.add);
+      expect(find.text('tabletLoom'), findsOneWidget);
+
+      await _finishProjectDetails(tester);
+      await tester.ensureVisible(_bodyField(true));
+      await tester.enterText(_bodyField(true), 'Updated weaving caption');
+      await _save(tester);
+      expect(saves.single.toMap()['text'], 'Updated weaving caption');
+      expect(saves.single.toMap().containsKey('project'), isFalse);
+
+      await tester.tap(find.text('Open edit'));
+      await tester.pumpAndSettle();
+      await _openProjectDetails(tester);
+      expect(find.text('tabletLoom'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('Loom type-clear')));
+      await tester.pumpAndSettle();
+      expect(find.text('Select Loom type'), findsOneWidget);
+      await _finishProjectDetails(tester);
+      await _save(tester);
+      expect(saves.last.toMap()['project'], {
+        'details': {'loomType': null},
+      });
+    },
+  );
+
+  testWidgets(
+    'SIM-AT-03 caption edits retain retired metadata on published records',
     (tester) async {
-      final colours = [ProjectOptionCatalogs.colours.first.value];
-      final designTags = [ProjectOptionCatalogs.designTags.first.value];
       PostEditChanges? saved;
       await _pumpMaterialEditor(
         tester,
-        colours: colours,
-        designTags: designTags,
+        colours: [ProjectOptionCatalogs.colours.first.value],
+        designTags: [ProjectOptionCatalogs.designTags.first.value],
         onSave: (changes) => saved = changes,
       );
-      await _openMaterialDetails(tester);
-      expect(tester.takeException(), isNull);
-      for (final (name, expected) in [
-        (ProjectComposerFields.colours, colours),
-        (ProjectComposerFields.designTags, designTags),
-      ]) {
-        final field = find.byWidgetPredicate(
-          (widget) =>
-              widget is FormBuilderField<List<String>> && widget.name == name,
-        );
-        expect(
-          tester
-              .state<
-                FormBuilderFieldState<
-                  FormBuilderField<List<String>>,
-                  List<String>
-                >
-              >(field)
-              .value,
-          expected,
-        );
-      }
-      await tester.tap(find.byType(BackButton).last);
-      await tester.pumpAndSettle();
+      expect(find.text('Materials and style'), findsNothing);
+      expect(find.text('Duration'), findsNothing);
+      await tester.enterText(_bodyField(true), 'Corrected caption');
       await _save(tester);
-      expect(saved, isNotNull);
-      expect(saved!.toMap(), isEmpty);
+      expect(saved!.toMap()['text'], 'Corrected caption');
+      expect(saved!.toMap().containsKey('project'), isFalse);
     },
   );
 
   for (final patternName in ['SockKAL', '#SockKAL']) {
     testWidgets(
-      'AT-002 published pattern prefill preserves its authored prefix '
+      'AT-002 published Spinning pattern prefill preserves its authored prefix '
       '(name=$patternName)',
       (tester) async {
         final base = _seed(project: true);
         final project = base.post.project!.copyWith(
           common: base.post.project!.common.copyWith(
+            craftType: ProjectOptionCatalogs.spinningCraftToken,
             pattern: ProjectPattern(name: patternName),
           ),
         );
@@ -127,11 +309,20 @@ void main() {
           ),
           seed: seed,
         );
+        final details = find.byKey(
+          const Key('project-composer-pattern-details-action'),
+        );
+        await tester.ensureVisible(details);
+        await tester.tap(details);
+        await tester.pumpAndSettle();
         final pattern = find.descendant(
           of: find.byKey(const Key('project-composer-pattern-name-editor')),
           matching: find.byType(TextField),
         );
         expect(tester.widget<TextField>(pattern).controller!.text, patternName);
+        await _finishProjectDetails(tester);
+        await tester.ensureVisible(_bodyField(true));
+        await tester.pumpAndSettle();
         await tester.enterText(_bodyField(true), 'Corrected caption');
         await _save(tester);
         expect(saved, isNotNull);
@@ -140,129 +331,6 @@ void main() {
       },
     );
   }
-
-  testWidgets(
-    'AT-002 discarding a pending material edit preserves the published entry',
-    (tester) async {
-      PostEditChanges? saved;
-      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
-      await _openMaterialDetails(tester);
-      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(EditableText).first, 'Merino wool');
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(BackButton).last);
-      await tester.pumpAndSettle();
-      expect(find.text('Discard material changes?'), findsOneWidget);
-      await tester.tap(find.text('Discard'));
-      await tester.pumpAndSettle();
-      await _save(tester);
-      expect(saved, isNotNull);
-      expect(saved!.toMap(), isEmpty);
-    },
-  );
-
-  testWidgets('AT-002 Keep editing retains pending material input until Add', (
-    tester,
-  ) async {
-    PostEditChanges? saved;
-    await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
-    await _openMaterialDetails(tester);
-    await tester.tap(find.byKey(const Key('materials-edit-Wool')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(EditableText).first, 'Merino wool');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(BackButton).last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Keep editing'));
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<EditableText>(find.byType(EditableText).first)
-          .controller
-          .text,
-      'Merino wool',
-    );
-    await tester.tap(find.byKey(const Key('materials-add-custom')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(BackButton).last);
-    await tester.pumpAndSettle();
-    await _openMaterialDetails(tester);
-    expect(find.byKey(const Key('materials-edit-Merino wool')), findsOneWidget);
-    await tester.tap(find.byType(BackButton).last);
-    await tester.pumpAndSettle();
-    await _save(tester);
-    expect(saved!.toMap(), {
-      'project': {
-        'common': {
-          'materials': [
-            {'existingIndex': 0, 'text': 'Merino wool'},
-          ],
-        },
-      },
-    });
-  });
-
-  testWidgets(
-    'UT-003 leaving an unchanged material edit does not change the post',
-    (tester) async {
-      PostEditChanges? saved;
-      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
-      await _openMaterialDetails(tester);
-      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
-      await tester.pumpAndSettle();
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(BackButton).last);
-      await tester.pumpAndSettle();
-      expect(find.text('Discard material changes?'), findsNothing);
-      await _save(tester);
-      expect(saved!.toMap(), isEmpty);
-    },
-  );
-
-  testWidgets(
-    'UT-002 explicit material removal still clears the published entry',
-    (tester) async {
-      PostEditChanges? saved;
-      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
-      await _openMaterialDetails(tester);
-      await tester.tap(find.byKey(const Key('materials-remove-Wool')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(BackButton).last);
-      await tester.pumpAndSettle();
-      await _save(tester);
-      expect(saved!.toMap(), {
-        'project': {
-          'common': {'materials': null},
-        },
-      });
-    },
-  );
-
-  testWidgets(
-    'UT-006 cancelling after a discarded material edit performs no write',
-    (tester) async {
-      var writes = 0;
-      await _pumpMaterialEditor(tester, onSave: (_) => writes++);
-      await _openMaterialDetails(tester);
-      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(EditableText).first, 'Merino wool');
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(BackButton).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(CloseButton).first);
-      await tester.pumpAndSettle();
-      expect(find.text('Open edit'), findsOneWidget);
-      expect(writes, 0);
-    },
-  );
 
   for (final project in [false, true]) {
     testWidgets('UT-002 published editor clears the final language '
@@ -652,6 +720,46 @@ void main() {
     expect(find.text('Add photos or a video'), findsOneWidget);
   });
 
+  testWidgets('editing a published project requires a status', (tester) async {
+    final seed = _seed(project: true, status: null);
+    final writes = <Map<String, Object?>>[];
+    await _pumpEditor(
+      tester,
+      FakePostRepository(
+        onFetchEdit: (did, key) async => seed,
+        onEdit:
+            (
+              did,
+              key, {
+              required changes,
+              required expectedCid,
+              required operationKey,
+            }) async {
+              writes.add(changes.toMap());
+              return PostEditResult(
+                post: seed.post,
+                acceptedCid: seed.baseCid,
+                changed: false,
+              );
+            },
+      ),
+      seed: seed,
+    );
+
+    await _save(tester);
+    expect(writes, isEmpty);
+    expect(find.text('Choose a status.').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('status-select-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Work in progress'));
+    await tester.pumpAndSettle();
+    await _save(tester);
+    expect(writes.single['project'], {
+      'common': {'status': ProjectOptionCatalogs.wipStatusToken},
+    });
+  });
+
   testWidgets(
     'IT-009 editing shared project content retains an existing future craft',
     (tester) async {
@@ -666,8 +774,13 @@ void main() {
         recordRevision: base.recordRevision,
         editable: {
           ...base.editable,
+          'unsupportedProjectDetails': true,
           'project': {
-            'common': {'craftType': future, 'title': 'Linen shirt'},
+            'common': {
+              'craftType': future,
+              'title': 'Linen shirt',
+              'status': ProjectOptionCatalogs.finishedStatusToken,
+            },
           },
         },
       );
@@ -699,10 +812,10 @@ void main() {
         ),
         seed: seed,
       );
-      expect(
-        find.byKey(const Key('project-composer-craft-details-action')),
-        findsNothing,
-      );
+      await _openProjectDetails(tester);
+      expect(find.text('Additional crafts'), findsOneWidget);
+      expect(find.text('Project type'), findsNothing);
+      await _finishProjectDetails(tester);
       await tester.ensureVisible(_bodyField(true));
       await tester.enterText(_bodyField(true), 'Updated project caption');
       await _save(tester);
@@ -1040,6 +1153,66 @@ void main() {
   );
 }
 
+PostEditSeed _projectDetailSeed(String craft, ProjectDetails details) {
+  final base = _seed(project: true);
+  final project = base.post.project!.copyWith(
+    common: base.post.project!.common.copyWith(craftType: craft),
+    details: details,
+  );
+  return PostEditSeed(
+    post: base.post.copyWith(project: project),
+    baseCid: base.baseCid,
+    recordRevision: base.recordRevision,
+    editable: {...base.editable, 'project': project.toMap()},
+  );
+}
+
+Future<void> _pumpProjectDetailEditor(
+  WidgetTester tester,
+  PostEditSeed seed,
+  ValueChanged<PostEditChanges> onSave,
+) async {
+  await _pumpEditor(
+    tester,
+    FakePostRepository(
+      onFetchEdit: (did, key) async => seed,
+      onEdit:
+          (
+            did,
+            key, {
+            required changes,
+            required expectedCid,
+            required operationKey,
+          }) async {
+            onSave(changes);
+            return PostEditResult(
+              post: seed.post,
+              acceptedCid: seed.baseCid,
+              changed: false,
+            );
+          },
+    ),
+    seed: seed,
+  );
+  await _openProjectDetails(tester);
+}
+
+Future<void> _openProjectDetails(WidgetTester tester) async {
+  final details = find.byKey(
+    const Key('project-composer-craft-details-action'),
+  );
+  await tester.ensureVisible(details);
+  await tester.tap(details);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _finishProjectDetails(WidgetTester tester) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('composer-details-done')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _pumpMaterialEditor(
   WidgetTester tester, {
   required ValueChanged<PostEditChanges> onSave,
@@ -1053,6 +1226,7 @@ Future<void> _pumpMaterialEditor(
   final common = Map<String, Object?>.from(rawProject['common']! as Map);
   if (colours != null) common['colors'] = colours;
   if (designTags != null) common['designTags'] = designTags;
+  common['duration'] = '3 weeks';
   common['materials'] = [
     {'text': 'Wool', 'existingIndex': 0},
   ];
@@ -1087,23 +1261,18 @@ Future<void> _pumpMaterialEditor(
   );
 }
 
-Future<void> _openMaterialDetails(WidgetTester tester) async {
-  final details = find.byKey(
-    const Key('project-composer-common-details-action'),
-  );
-  await tester.ensureVisible(details);
-  await tester.tap(details);
-  await tester.pumpAndSettle();
-}
-
-PostEditSeed _seed({bool project = false}) {
+PostEditSeed _seed({
+  bool project = false,
+  String? status = ProjectOptionCatalogs.finishedStatusToken,
+}) {
   final base = postFixture(rkey: 'base', text: 'Original caption');
   final post = base.copyWith(
     project: project
-        ? const Project(
+        ? Project(
             common: ProjectCommon(
               craftType: 'social.craftsky.feed.defs#sewing',
               title: 'Linen shirt',
+              status: status,
             ),
           )
         : null,
@@ -1132,6 +1301,7 @@ PostEditSeed _seed({bool project = false}) {
           'common': {
             'craftType': 'social.craftsky.feed.defs#sewing',
             'title': 'Linen shirt',
+            'status': ?status,
           },
         },
       if (project)

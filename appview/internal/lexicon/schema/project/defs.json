@@ -21,7 +21,14 @@
             "social.craftsky.project.sewing#details",
             "social.craftsky.project.quilting#details",
             "social.craftsky.project.crochet#details",
-            "social.craftsky.project.knitting#details"
+            "social.craftsky.project.knitting#details",
+            "social.craftsky.project.embroidery#details",
+            "social.craftsky.project.spinning#details",
+            "social.craftsky.project.dyeing#details",
+            "social.craftsky.project.punchNeedle#details",
+            "social.craftsky.project.macrame#details",
+            "social.craftsky.project.weaving#details",
+            "social.craftsky.project.felting#details"
           ],
           "description": "Optional craft-specific fields. Open union \u2014 new crafts add new variants here without breaking existing records."
         }
@@ -44,7 +51,13 @@
             "social.craftsky.feed.defs#crochet",
             "social.craftsky.feed.defs#sewing",
             "social.craftsky.feed.defs#embroidery",
-            "social.craftsky.feed.defs#quilting"
+            "social.craftsky.feed.defs#quilting",
+            "social.craftsky.feed.defs#spinning",
+            "social.craftsky.feed.defs#dyeing",
+            "social.craftsky.feed.defs#punchNeedle",
+            "social.craftsky.feed.defs#macrame",
+            "social.craftsky.feed.defs#weaving",
+            "social.craftsky.feed.defs#felting"
           ]
         },
         "status": {
@@ -67,12 +80,21 @@
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 100,
-          "description": "Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured \u2014 crafters describe duration informally. Not range-queryable."
+          "description": "Deprecated: Free-text time spent on a project. Use the post description for duration in new projects."
         },
         "pattern": {
           "type": "ref",
           "ref": "#pattern",
-          "description": "Optional pattern reference."
+          "description": "Deprecated: Legacy single pattern reference. Use patterns for new records."
+        },
+        "patterns": {
+          "type": "array",
+          "maxLength": 5,
+          "items": {
+            "type": "ref",
+            "ref": "#pattern"
+          },
+          "description": "Patterns used in the project, in saved order. A present list, including an empty list, takes precedence over the legacy pattern field."
         },
         "materials": {
           "type": "array",
@@ -81,7 +103,7 @@
             "type": "ref",
             "ref": "#material"
           },
-          "description": "Materials used in the project as visible rich-text entries. Each entry is indexed for search by text and may carry mention or hashtag facets over that text."
+          "description": "Deprecated: Materials used in the project as rich-text entries. Use the post description for materials in new projects. Existing entries retain their text and facets."
         },
         "colors": {
           "type": "array",
@@ -113,7 +135,7 @@
               "natural"
             ]
           },
-          "description": "Primary colors used in the project, normalized by clients for search and filtering. knownValues are open suggestions; clients may write other bounded color strings when needed."
+          "description": "Deprecated: Primary colors used in a project. Use the post description or hashtags for colors in new projects."
         },
         "designTags": {
           "type": "array",
@@ -148,10 +170,12 @@
               "social.craftsky.project.defs#gothic",
               "social.craftsky.project.defs#romantic",
               "social.craftsky.project.defs#nautical",
-              "social.craftsky.project.defs#sporty"
+              "social.craftsky.project.defs#sporty",
+              "social.craftsky.project.defs#bookFilmCharacters",
+              "social.craftsky.project.defs#quotes"
             ]
           },
-          "description": "Visual design, motif, or aesthetic tags for the project, normalized by clients for cross-craft search and filtering. knownValues are open suggestions; clients may write other bounded design strings when needed."
+          "description": "Deprecated: Visual design, motif, or aesthetic tags. Use regular hashtags for these details in new projects."
         },
         "tags": {
           "type": "array",
@@ -214,7 +238,7 @@
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 200,
-          "description": "Pattern name or visible pattern hashtag, e.g. 'Simplicity 8265', 'Hitchhiker Shawl', or '#hitchhiker'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label. Rich-text annotations for this string live in nameFacets."
+          "description": "Pattern name, e.g. 'Simplicity 8265' or 'Hitchhiker Shawl'. This field also supports hashtags such as '#hitchhiker'. Rich-text annotations for the name live in nameFacets."
         },
         "nameFacets": {
           "type": "array",
@@ -345,6 +369,14 @@
     "floral": {
       "type": "token",
       "description": "Floral design, motif, or aesthetic."
+    },
+    "bookFilmCharacters": {
+      "type": "token",
+      "description": "A design featuring characters from books or films."
+    },
+    "quotes": {
+      "type": "token",
+      "description": "A design featuring a quotation."
     },
     "botanical": {
       "type": "token",
@@ -482,6 +514,46 @@
         }
       }
     },
+    "massMeasurement": {
+      "type": "object",
+      "description": "A mass with an explicit unit.",
+      "required": ["amount", "unit"],
+      "properties": {
+        "amount": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "The measured quantity as a decimal string."
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "knownValues": ["g", "kg", "oz", "lb"],
+          "description": "The mass unit for the amount."
+        }
+      }
+    },
+    "lengthMeasurement": {
+      "type": "object",
+      "description": "A length with an explicit unit.",
+      "required": ["amount", "unit"],
+      "properties": {
+        "amount": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "The measured quantity as a decimal string."
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "knownValues": ["mm", "cm", "m", "in", "ft", "yd"],
+          "description": "The length unit for the amount."
+        }
+      }
+    },
     "additionalCraft": {
       "type": "object",
       "required": [
@@ -498,11 +570,29 @@
             "social.craftsky.feed.defs#crochet",
             "social.craftsky.feed.defs#sewing",
             "social.craftsky.feed.defs#embroidery",
-            "social.craftsky.feed.defs#quilting"
+            "social.craftsky.feed.defs#quilting",
+            "social.craftsky.feed.defs#spinning",
+            "social.craftsky.feed.defs#dyeing",
+            "social.craftsky.feed.defs#punchNeedle",
+            "social.craftsky.feed.defs#macrame",
+            "social.craftsky.feed.defs#weaving",
+            "social.craftsky.feed.defs#felting"
           ]
         }
       },
       "description": "One additional craft, represented as an object so future context can be added."
+    },
+    "decorativePiece": {
+      "type": "token",
+      "description": "Decorative piece."
+    },
+    "artDecoration": {
+      "type": "token",
+      "description": "Art and decoration."
+    },
+    "fabricComponents": {
+      "type": "token",
+      "description": "Fabric and components."
     }
   }
 }

@@ -11,6 +11,7 @@ import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,13 +161,13 @@ void main() {
     await _tapChoice(tester, 'Terracotta');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.widgetWithText(ChoiceChip, 'Crochet'),
+      find.widgetWithText(ChoiceChip, 'Punch Needle'),
       300,
       scrollable: scrollable,
     );
     await tester.drag(scrollable, const Offset(0, -120));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Crochet'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punch Needle'));
     await tester.pumpAndSettle();
     expect(tester.getRect(preview), previewRect);
     expect(find.byType(ProfileAvatar).hitTestable(), findsOneWidget);
@@ -180,6 +181,12 @@ void main() {
     expect(
       find.byKey(const Key('profile-header-background-texture')),
       findsOneWidget,
+    );
+    expect(
+      tester
+          .widgetList<CraftIcon>(find.byType(CraftIcon))
+          .map((icon) => icon.craft),
+      everyElement('punch-needle'),
     );
 
     await tester.scrollUntilVisible(
@@ -195,7 +202,7 @@ void main() {
       submitted,
       const ProfileCustomisation(
         colour: 'terracotta',
-        background: 'craft-crochet',
+        background: 'craft-punch-needle',
       ),
     );
     expect(messenger.calls.last.$2, 'Profile customisation saved');
@@ -241,12 +248,18 @@ void main() {
     await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(ChoiceChip, 'Rose'), findsOneWidget);
     expect(
       messenger.calls.last.$2,
       "Couldn't save your profile customisation.",
     );
     expect(find.text('Save'), findsOneWidget);
+    final rose = find.widgetWithText(ChoiceChip, 'Rose');
+    await tester.scrollUntilVisible(
+      rose,
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(tester.widget<ChoiceChip>(rose).selected, isTrue);
   });
 
   testWidgets('IR-005 clean, reverted, and saved pages pop without a prompt', (
@@ -401,8 +414,14 @@ void main() {
           .map((widget) => (widget.order as NumericFocusOrder).order)
           .where((order) => order < 80),
       orderedEquals(<double>[
-        ...List.generate(13, (index) => 10.0 + index),
-        ...List.generate(19, (index) => 30.0 + index),
+        ...List.generate(
+          profileColourCatalogue.length,
+          (index) => 10.0 + index,
+        ),
+        ...List.generate(
+          profileBackgroundCatalogue.length,
+          (index) => 30.0 + index,
+        ),
       ]),
     );
     await tester.scrollUntilVisible(

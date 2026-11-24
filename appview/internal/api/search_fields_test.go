@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
@@ -92,6 +93,108 @@ func TestProjectSearchCraftDetailsAndAncestorTerms(t *testing.T) {
 		if !slices.Contains(searchURIs(rows), tc.uri) {
 			t.Fatalf("%q missing: %v", tc.query, searchURIs(rows))
 		}
+	}
+}
+
+func TestProjectSearchEffectivePatternsAndMethods(t *testing.T) {
+	pool, store, now := searchFixture(t)
+	ctx := context.Background()
+	withPatterns := searchFixturePost(t, pool, true, "multiple-patterns", "", nil, now)
+	withMethods := searchFixturePost(t, pool, true, "knitting-methods", "", nil, now)
+	cleared := searchFixturePost(t, pool, true, "cleared-project", "", nil, now)
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET pattern_name='removedcollar',knitting_needle_size_mm='23.0mm',
+		raw_project='{"common":{"patterns":[],"pattern":{"name":"removedcollar"}}}',
+		common_craft_type='social.craftsky.feed.defs#knitting', raw_details='{"$type":"social.craftsky.project.knitting#details","needleSizesMm":[],"needleSizeMm":"23.0mm","methods":["social.craftsky.project.knitting.defs#hand"]}'
+		WHERE uri=$1`, cleared); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET pattern_name='overriddenlegacy',
+		raw_project='{"common":{"patterns":[{"name":"collar","difficulty":"beginner","selfDrafted":true},{"name":"sleeves","difficulty":"advanced","designer":"Rare Needle","url":"https://example.org/protectedurl"}]}}'
+		WHERE uri=$1`, withPatterns); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET common_craft_type='social.craftsky.feed.defs#knitting',
+		knitting_needle_size_mm='19.0mm', raw_details='{"$type":"social.craftsky.project.knitting#details","needleSizesMm":["4.5mm","7.0mm"],"methods":["social.craftsky.project.knitting.defs#hand","social.craftsky.project.knitting.defs#machine"],"techniques":[{"technique":"social.craftsky.project.knitting.defs#colourwork","subtypes":[{"subtype":"social.craftsky.project.knitting.defs#fairIsle"}]}]}'
+		WHERE uri=$1`, withMethods); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ query, uri string }{{"Rare Needle", withPatterns}, {"sleeves", withPatterns}, {"4.5mm", withMethods}, {"7.0mm", withMethods}, {"Fair Isle", withMethods}, {"Machine knitting", withMethods}} {
+		rows, _ := submittedSearch(t, store, true, tc.query, 10, "", now)
+		if !slices.Contains(searchURIs(rows), tc.uri) {
+			t.Errorf("%q missing: %v", tc.query, searchURIs(rows))
+		}
+	}
+	for _, query := range []string{"overriddenlegacy", "protectedurl", "19.0mm", "removedcollar", "23.0mm"} {
+		rows, _ := submittedSearch(t, store, true, query, 10, "", now)
+		if len(rows) != 0 {
+			t.Errorf("%q matched hidden field: %v", query, searchURIs(rows))
+		}
+	}
+	for _, tc := range []struct {
+		filters     map[string][]string
+		selfDrafted bool
+		want        []string
+	}{
+		{map[string][]string{"patternDifficulty": {"beginner"}}, true, []string{withPatterns}},
+		{map[string][]string{"patternDifficulty": {"advanced"}}, false, []string{withPatterns}},
+		{map[string][]string{"patternDifficulty": {"advanced"}}, true, nil},
+		{map[string][]string{"knittingMethod": {"social.craftsky.project.knitting.defs#machine"}}, false, []string{withMethods}},
+	} {
+		for _, sort := range []api.SearchSort{api.SearchSortChronological, api.SearchSortPopular} {
+			rows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Filters: tc.filters, SelfDrafted: tc.selfDrafted, Sort: sort, Limit: 10}, now)
+			if err != nil || !slices.Equal(searchURIs(rows), tc.want) {
+				t.Errorf("%s %+v=%v err=%v, want %v", sort, tc.filters, searchURIs(rows), err, tc.want)
+			}
+		}
+	}
+}
+
+func TestExpandedCraftDiscoveryPreservesPrimaryFeedRules(t *testing.T) {
+	const punchNeedle = "social.craftsky.feed.defs#punchNeedle"
+	pool, store, now := searchFixture(t)
+	ctx := context.Background()
+	primary := searchFixturePost(t, pool, true, "punch-needle-primary", "", nil, now)
+	secondary := searchFixturePost(t, pool, true, "punch-needle-additional", "", nil, now)
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET common_craft_type='social.craftsky.feed.defs#punchNeedle',
+		raw_project='{"common":{"craftType":"social.craftsky.feed.defs#punchNeedle"}}',
+		raw_details='{"$type":"social.craftsky.project.punchNeedle#details","projectType":"social.craftsky.project.punchNeedle#hoopArt"}' WHERE uri=$1`, primary); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_project_posts SET common_craft_type='social.craftsky.feed.defs#knitting',
+		raw_project='{"common":{"craftType":"social.craftsky.feed.defs#knitting","additionalCrafts":[{"craftType":"social.craftsky.feed.defs#punchNeedle"}]}}' WHERE uri=$1`, secondary); err != nil {
+		t.Fatal(err)
+	}
+	seedPostTags(t, pool, primary, []string{"sharedhoop"})
+	seedPostTags(t, pool, secondary, []string{"sharedhoop"})
+	rows, _ := submittedSearch(t, store, true, "Punch Needle", 10, "", now)
+	if found := searchURIs(rows); len(found) != 2 || !slices.Contains(found, primary) || !slices.Contains(found, secondary) {
+		t.Fatalf("keyword match=%v, want both projects", found)
+	}
+	rows, _ = submittedSearch(t, store, true, "Hoop art", 10, "", now)
+	if found := searchURIs(rows); !slices.Equal(found, []string{primary}) {
+		t.Fatalf("known detail search=%v, want %s", found, primary)
+	}
+	listed, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Filters: map[string][]string{"craftType": {"knitting"}}, Sort: api.SearchSortChronological, Limit: 10}, now)
+	if err != nil || !slices.Equal(searchURIs(listed), []string{secondary}) {
+		t.Fatalf("knitting feed=%v, err=%v, want %s", searchURIs(listed), err, secondary)
+	}
+	needleRequest, needleErr := api.ParseProjectListRequest(httptest.NewRequest("GET", "/v1/projects?craftType=punch-needle", nil))
+	groups, err := store.TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"punch-needle"}, Limit: 10}, now)
+	if !slices.Contains(expectedDiscoveryCrafts(), punchNeedle) {
+		if needleErr != api.ErrSearchValidation || err != api.ErrSearchValidation {
+			t.Fatalf("unavailable craft: browse err=%v, hashtag err=%v", needleErr, err)
+		}
+		return
+	}
+	if err != nil || len(groups) != 1 || groups[0].CraftType != punchNeedle || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "sharedhoop" || groups[0].Items[0].Count != 2 {
+		t.Fatalf("punch needle hashtag group=%+v, err=%v", groups, err)
+	}
+	if needleErr != nil {
+		t.Fatalf("parse punch needle feed: %v", needleErr)
+	}
+	listed, _, err = store.SearchProjects(ctx, api.ProjectSearchRequest{Filters: needleRequest.Filters, Sort: needleRequest.Sort, Limit: needleRequest.Limit}, now)
+	if err != nil || !slices.Equal(searchURIs(listed), []string{primary}) {
+		t.Fatalf("punch needle feed=%v, err=%v, want %s", searchURIs(listed), err, primary)
 	}
 }
 

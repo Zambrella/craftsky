@@ -9,16 +9,44 @@ package craftsky
 // Knitting-specific fields attached to a project post when craftType is knitting.
 type ProjectKnitting_Details struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.project.knitting#details"`
-	// finishedSize: Free-text finished size or dimensions, e.g. '42in chest', 'EU 39 socks', 'toddler size', or '180cm x 45cm scarf'.
+	// finishedSize: Deprecated: Free-text finished size or dimensions.
 	FinishedSize *string `json:"finishedSize,omitempty" cborgen:"finishedSize,omitempty"`
-	// gauge: Structured stitch gauge measured over a stated distance.
+	// gauge: Deprecated: Structured stitch gauge measured over a stated distance.
 	Gauge *ProjectDefs_Gauge `json:"gauge,omitempty" cborgen:"gauge,omitempty"`
-	// needleSizeMm: Metric needle size used. Clients may display US or UK size aliases, but records store the metric mm value.
+	// machineGaugeMm: Deprecated: Machine needle spacing as a decimal in millimetres, e.g. '4.5'. The separate gauge field describes measured stitch gauge.
+	MachineGaugeMm *string `json:"machineGaugeMm,omitempty" cborgen:"machineGaugeMm,omitempty"`
+	// machineModel: Deprecated: Make or model of the knitting machine used.
+	MachineModel *string `json:"machineModel,omitempty" cborgen:"machineModel,omitempty"`
+	// methods: Knitting methods used. Select Hand (needles), Machine and Loom independently. An absent or empty list leaves the method unspecified.
+	Methods []string `json:"methods,omitempty" cborgen:"methods,omitempty"`
+	// needleSizeMm: Deprecated: Legacy metric needle size in millimetres. When present, needleSizesMm takes precedence.
 	NeedleSizeMm *string `json:"needleSizeMm,omitempty" cborgen:"needleSizeMm,omitempty"`
-	// projectSubtype: More specific knitting project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.
+	// needleSizesMm: Deprecated: Metric needle sizes used in the project. Each entry uses the same millimetre format as the legacy scalar. A present list, including an empty list, takes precedence over the scalar.
+	NeedleSizesMm []string `json:"needleSizesMm,omitempty" cborgen:"needleSizesMm,omitempty"`
+	// projectSubtype: Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.
 	ProjectSubtype *string `json:"projectSubtype,omitempty" cborgen:"projectSubtype,omitempty"`
-	// projectType: The kind of knitting project.
+	// projectType: Optional category for the item made. Choose Other when no listed category fits.
 	ProjectType *string `json:"projectType,omitempty" cborgen:"projectType,omitempty"`
-	// yarnWeight: Yarn weight category. Tokens follow Craft Yarn Council standards.
+	// techniques: Deprecated: Techniques used in the knitting project. Describe techniques or use hashtags for new projects.
+	Techniques []*ProjectKnitting_TechniqueSelection `json:"techniques,omitempty" cborgen:"techniques,omitempty"`
+	// yarnWeight: Deprecated: Yarn weight category. Tokens follow Craft Yarn Council standards.
 	YarnWeight *string `json:"yarnWeight,omitempty" cborgen:"yarnWeight,omitempty"`
+}
+
+// ProjectKnitting_TechniqueSelection is a "techniqueSelection" in the social.craftsky.project.knitting schema.
+//
+// One knitting technique and any refinements selected for it.
+type ProjectKnitting_TechniqueSelection struct {
+	// subtypes: Optional refinements of this technique. The application catalog supplies the eligible subtypes, such as Stranded for Colourwork.
+	Subtypes []*ProjectKnitting_TechniqueSubtype `json:"subtypes,omitempty" cborgen:"subtypes,omitempty"`
+	// technique: The knitting technique used, such as Cables or Colourwork.
+	Technique string `json:"technique" cborgen:"technique"`
+}
+
+// ProjectKnitting_TechniqueSubtype is a "techniqueSubtype" in the social.craftsky.project.knitting schema.
+//
+// One subtype associated with the enclosing knitting technique.
+type ProjectKnitting_TechniqueSubtype struct {
+	// subtype: The more specific knitting technique, such as Fair Isle.
+	Subtype string `json:"subtype" cborgen:"subtype"`
 }

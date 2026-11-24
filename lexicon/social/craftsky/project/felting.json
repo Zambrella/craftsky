@@ -1,0 +1,193 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.felting",
+  "description": "Felting-specific details for a project post, including needle felting and wet felting.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "What was made and the felting methods used.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
+          "knownValues": [
+            "social.craftsky.project.defs#garment",
+            "social.craftsky.project.defs#accessory",
+            "social.craftsky.project.defs#homeGoods",
+            "social.craftsky.project.defs#artDecoration",
+            "social.craftsky.project.defs#toyHobby",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.",
+          "knownValues": [
+            "social.craftsky.project.felting#top",
+            "social.craftsky.project.felting#coatJacket",
+            "social.craftsky.project.felting#dress",
+            "social.craftsky.project.felting#bag",
+            "social.craftsky.project.felting#hat",
+            "social.craftsky.project.felting#scarf",
+            "social.craftsky.project.felting#slippers",
+            "social.craftsky.project.felting#bowlVessel",
+            "social.craftsky.project.felting#cushion",
+            "social.craftsky.project.felting#wallHanging",
+            "social.craftsky.project.felting#figurine",
+            "social.craftsky.project.felting#ornament",
+            "social.craftsky.project.felting#softToy"
+          ]
+        },
+        "methods": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Felting methods used. Select Needle and Wet independently. A present list, including an empty list, takes precedence over the legacy scalar method. If absent, fall back to the scalar.",
+          "items": {
+            "type": "string",
+            "maxLength": 100,
+            "maxGraphemes": 100,
+            "minLength": 1,
+            "knownValues": [
+              "social.craftsky.project.felting#needle",
+              "social.craftsky.project.felting#wet"
+            ]
+          }
+        },
+        "method": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: Legacy single felting method. Use methods for new projects.",
+          "knownValues": [
+            "social.craftsky.project.felting#needle"
+          ]
+        },
+        "form": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: Whether the project is flat or sculptural.",
+          "knownValues": [
+            "social.craftsky.project.felting#flat",
+            "social.craftsky.project.felting#sculptural"
+          ]
+        },
+        "needleGauges": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: Needle gauges used for needle felting.",
+          "items": {
+            "type": "ref",
+            "ref": "#needleGauge"
+          }
+        },
+        "core": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: The material used for the interior or core."
+        },
+        "armature": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: Internal support or armature used for the piece."
+        }
+      }
+    },
+    "needleGauge": {
+      "type": "object",
+      "description": "One felting needle gauge.",
+      "required": [
+        "gauge"
+      ],
+      "properties": {
+        "gauge": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "Gauge number marked on the felting needle.",
+          "knownValues": [
+            "32",
+            "36",
+            "38",
+            "40",
+            "42"
+          ]
+        }
+      }
+    },
+    "needle": {
+      "type": "token",
+      "description": "Needle felting."
+    },
+    "wet": {
+      "type": "token",
+      "description": "Wet felting."
+    },
+    "bag": {
+      "type": "token",
+      "description": "A felted bag, an accessory."
+    },
+    "hat": {
+      "type": "token",
+      "description": "A felted hat, an accessory."
+    },
+    "scarf": {
+      "type": "token",
+      "description": "A felted scarf, an accessory."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "A felted wall hanging, a home goods subtype."
+    },
+    "figurine": {
+      "type": "token",
+      "description": "A felted figurine, a toy or hobby subtype."
+    },
+    "flat": {
+      "type": "token",
+      "description": "Flat felting, such as work on a fabric backing."
+    },
+    "sculptural": {
+      "type": "token",
+      "description": "Three-dimensional sculptural felting."
+    },
+    "top": {
+      "type": "token",
+      "description": "Top."
+    },
+    "coatJacket": {
+      "type": "token",
+      "description": "Jacket or coat."
+    },
+    "dress": {
+      "type": "token",
+      "description": "Dress."
+    },
+    "slippers": {
+      "type": "token",
+      "description": "Slippers."
+    },
+    "bowlVessel": {
+      "type": "token",
+      "description": "Bowl or vessel."
+    },
+    "cushion": {
+      "type": "token",
+      "description": "Cushion."
+    },
+    "ornament": {
+      "type": "token",
+      "description": "Ornament."
+    },
+    "softToy": {
+      "type": "token",
+      "description": "Soft toy."
+    }
+  }
+}

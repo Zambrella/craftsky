@@ -1,17 +1,25 @@
 # Project craft schema document review
 
+## Review of the approved simplification
+
+The maintainer confirmed the reduced craft fields and flat Embroidery choices, then approved the full item taxonomy, custom subtype input, and the preview-to-implementation sequence. The [requirements](01-requirements.md#approved-simplification) and [acceptance scenarios](02-acceptance-tests.md#acceptance-tests-for-the-approved-simplification) cover the new chooser, retained wire data, compatible search, and both clients.
+
+The main compatibility risk is losing a superseded value during a newer edit. The coding plan keeps old definitions and verifies edits, drafts, and search through the existing record lifecycle. New catalog labels, suggestions, and groupings can evolve without rewriting the public tokens.
+
+## Earlier document review
+
 ## Verdict
 
 | Review field | Result |
 |---|---|
-| Status | **Approved with notes** |
+| Original review status | **Approved with notes** |
 | Reviewer | Codex, with independent coverage and compatibility checks |
 | Date | 2026-11-20 |
 | Risk level | High |
 
 ## Summary
 
-The [requirements](01-requirements.md) reflect the agreed craft taxonomy, both release phases, legacy size compatibility and the current-only scheduling scope. The revised [acceptance test specification](02-acceptance-tests.md) links all 20 Must requirements and 18 criteria to planned tests. The recheck confirmed that the revised cases address all five original findings.
+The original review covered the craft taxonomy, both release phases, legacy size compatibility and the current-only scheduling scope. At that review, the acceptance test specification linked all 20 Must requirements and 18 criteria to planned tests. The recheck confirmed that the revised cases addressed all five original findings.
 
 ## Findings
 
@@ -35,8 +43,8 @@ The table records findings from the original review. Their resolutions follow.
 
 ## Traceability review
 
-- The initial request and both review rounds are represented, including shared design tags, plural size strings, grouped techniques and styles, six new primary crafts and their member-facing entry points. The prelaunch scheduling decision applies to schedule compatibility. Existing public records and legacy local drafts remain in scope.
-- All 20 Must requirements link to valid criteria. All 18 criteria link to at least one test in the 26-case matrix. Test definitions and the matrix point to each other. DR-001 through DR-005 concern what the tests actually assert.
+- The original request and both review rounds covered shared design tags, plural size strings, grouped techniques and styles, six new primary crafts and their member-facing entry points. The prelaunch scheduling decision applies to schedule compatibility. Existing public records and legacy local drafts remain in scope.
+- At the original review, all 20 Must requirements linked to valid criteria. All 18 criteria linked to at least one test in the 26-case matrix. Test definitions and the matrix pointed to each other. DR-001 through DR-005 concern what the tests actually assert.
 - Data, client and API impact, protected write and visibility boundaries, existing observability, release order and non-goals have explicit sections. No product question needs reopening to resolve these review findings.
 
 ## Coverage review
@@ -49,7 +57,7 @@ The table records findings from the original review. Their resolutions follow.
 ## Risk and approval review
 
 - **High risk** because the change extends public records, merges edits against existing records and coordinates AppView and two clients. Mistakes in compatibility could hide or discard recorded sizes.
-- The maintainer agreed the requirements scope and the scheduling exclusion, requested the test-specification revisions, and approved moving to coding planning. Implementation still requires explicit approval.
+- The maintainer agreed the requirements scope and scheduling exclusion, requested the test-specification revisions, and approved coding planning and the local schema checkpoint. Application behaviour work still requires explicit confirmation of the revised schema.
 - Both phases can use the existing PostgreSQL schema and read existing public records in place. Any performance-driven projection or index should be justified separately in the coding plan.
 
 ## Coding plan readiness
@@ -62,3 +70,15 @@ The table records findings from the original review. Their resolutions follow.
 - Keep Phase 1 independently runnable and rerun its coverage after Phase 2. Use approved aliases and craft IDs consistently across the test fixtures.
 - Use current scheduling fixtures for save, reopen, publish and retry. Keep legacy fixtures for immediate publication, published edits and local draft recovery.
 - The implementation plan should name the schema and catalog artifacts, existing edit and search boundaries, and the rollout order. Keep compatibility assertions focused on observable requests, responses and stored records.
+
+## Supplement for the multiple-pattern request
+
+The revised Phase 1 adds up to five ordered patterns in `project.common.patterns`, reusing the existing pattern object and keeping the legacy `project.common.pattern` field. The [requirements](01-requirements.md) and [acceptance specification](02-acceptance-tests.md) cover the amendment under BR-003, FR-012 and FR-013, with pattern discovery under FR-008.
+
+| Area | Coverage to carry into the implementation |
+|---|---|
+| Authoring and retained data | AC-019 covers the five-pattern limit, per-entry metadata and facets, saved order, and supported write and reopen paths. AT-009, UT-005 and UT-006 cover the editor, schema and payloads. |
+| Compatibility | AC-020 and IT-008 cover singleton compatibility on public reads and owner edit seeds, canonical writes, clear, field-presence precedence and guarded legacy edits. Reuse the original review's IT-002 distinction between public and owner edit reads. |
+| Discovery | AC-021 and IT-005 cover eligible search values and existing filters over effective entries. Combined pattern filters must match one entry. Facets stay attached to their source field and patterns share the existing whole-post hashtag budget. |
+
+The maintainer later approved the revised schema in the local explorer. PostgreSQL holds the list in the existing raw project JSONB. The [implementation plan](05-implementation-plan.md#runtime-implementation-evidence) records the runtime checks for search and notifications.

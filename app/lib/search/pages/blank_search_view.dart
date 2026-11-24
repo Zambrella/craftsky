@@ -191,7 +191,6 @@ class _TopHashtagSection extends StatelessWidget {
           else
             Wrap(
               spacing: spacing.sp2,
-              runSpacing: spacing.sp2,
               children: [
                 for (final item in group.items)
                   ActionChip(

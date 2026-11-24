@@ -24,17 +24,19 @@ void main() {
               localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: Scaffold(
-                body: StatefulBuilder(
-                  builder: (context, setState) => EditProfileCraftsPicker(
-                    selected: selected,
-                    onToggle: (craft) => setState(() {
-                      selected = {...selected};
-                      selected.contains(craft)
-                          ? selected.remove(craft)
-                          : selected.add(craft);
-                    }),
-                    onReorder: (_) => reorderCalls++,
-                    onRequestMore: () {},
+                body: SingleChildScrollView(
+                  child: StatefulBuilder(
+                    builder: (context, setState) => EditProfileCraftsPicker(
+                      selected: selected,
+                      onToggle: (craft) => setState(() {
+                        selected = {...selected};
+                        selected.contains(craft)
+                            ? selected.remove(craft)
+                            : selected.add(craft);
+                      }),
+                      onReorder: (_) => reorderCalls++,
+                      onRequestMore: () {},
+                    ),
                   ),
                 ),
               ),

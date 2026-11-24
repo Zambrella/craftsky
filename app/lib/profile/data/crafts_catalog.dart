@@ -1,16 +1,9 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
+import 'package:flutter/foundation.dart';
 
-/// Canonical list of craft tags users can pick on their profile.
-///
-/// The wire format is the lowercase [id] — what the AppView stores in
-/// `Profile.crafts`. The UI renders each tag through [craftLabel] so a
-/// French viewer sees "Tricot" while the underlying tag stays
-/// `'knitting'`. Adding a new craft here is the only place callers need
-/// to touch (plus a matching `craft*` key in `app_en.arb`).
-///
-/// Order is the order they appear in the picker — grouped loosely by
-/// "fibre & textile", "ceramics & wood", "paper & ink", "other" so the
-/// list scans visually rather than alphabetically.
+/// Saved craft IDs and their display labels, including previously offered IDs.
 enum Craft {
   sewing('sewing'),
   quilting('quilting'),
@@ -20,6 +13,8 @@ enum Craft {
   crossStitch('cross-stitch'),
   weaving('weaving'),
   spinning('spinning'),
+  dyeing('dyeing'),
+  punchNeedle('punch-needle'),
   felting('felting'),
   macrame('macrame'),
   pottery('pottery'),
@@ -47,8 +42,9 @@ enum Craft {
   /// (the user might be on a newer build that's added a tag we don't
   /// know about yet).
   static Craft? fromId(String id) {
+    final normalized = ProjectOptionCatalogs.profileIdForCraftToken(id);
     for (final craft in values) {
-      if (craft.id == id) return craft;
+      if (craft.id == normalized) return craft;
     }
     return null;
   }
@@ -58,16 +54,43 @@ enum Craft {
 ///
 /// Keep this separate from [Craft.values]: the full enum remains the wire
 /// compatibility catalog for profiles saved by earlier app versions.
-const canonicalSelectableCrafts = <Craft>[
-  Craft.sewing,
-  Craft.knitting,
-  Craft.crochet,
-  Craft.quilting,
-  Craft.embroidery,
-];
+final canonicalSelectableCrafts = List<Craft>.unmodifiable([
+  for (final entry in ProjectTaxonomy.entries)
+    if (entry.family == 'craft' &&
+        (entry.phase ?? 1) <= ProjectTaxonomy.releasePhase &&
+        entry.profileId != null)
+      ?Craft.fromId(entry.profileId!),
+]);
 
 bool isCanonicalSelectableCraft(String id) =>
-    canonicalSelectableCrafts.any((craft) => craft.id == id);
+    canonicalSelectableCrafts.contains(Craft.fromId(id));
+
+List<String> selectableCraftIdsFrom(Iterable<String> stored) => [
+  for (final craft in stored.map(Craft.fromId).toSet())
+    if (craft != null && canonicalSelectableCrafts.contains(craft)) craft.id,
+];
+
+/// Keep saved spellings for retained interests and round-trip hidden values.
+List<String> storedCraftSelection(
+  List<String> baseline,
+  List<String> selected,
+) {
+  if (listEquals(selectableCraftIdsFrom(baseline), selected)) {
+    return List.of(baseline);
+  }
+
+  final retained = <String, String>{};
+  final hidden = <String>[];
+  for (final value in baseline) {
+    final craft = Craft.fromId(value);
+    if (craft != null && canonicalSelectableCrafts.contains(craft)) {
+      retained.putIfAbsent(craft.id, () => value);
+    } else {
+      hidden.add(value);
+    }
+  }
+  return [for (final id in selected) retained[id] ?? id, ...hidden];
+}
 
 /// Localised display label for [craft]. Falls back to the wire id if
 /// the catalog ever drifts ahead of the ARB — a safer fail than
@@ -82,6 +105,8 @@ String craftLabel(Craft craft, AppLocalizations l10n) {
     Craft.crossStitch => l10n.craftCrossStitch,
     Craft.weaving => l10n.craftWeaving,
     Craft.spinning => l10n.craftSpinning,
+    Craft.dyeing => l10n.craftDyeing,
+    Craft.punchNeedle => l10n.craftPunchNeedle,
     Craft.felting => l10n.craftFelting,
     Craft.macrame => l10n.craftMacrame,
     Craft.pottery => l10n.craftPottery,

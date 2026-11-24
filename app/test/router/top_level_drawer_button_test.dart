@@ -8,6 +8,7 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
@@ -77,7 +78,12 @@ void main() {
       await tester.pump();
 
       if (name == 'Projects') {
-        expect(find.byType(CraftIcon), findsNWidgets(5));
+        expect(
+          tester
+              .widgetList<CraftIcon>(find.byType(CraftIcon))
+              .map((icon) => icon.craft),
+          unorderedEquals(ProjectOptionCatalogs.defaultSupportedCraftTokens),
+        );
       }
 
       await tester.tap(find.byTooltip('Open navigation menu'));

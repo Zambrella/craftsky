@@ -6,6 +6,7 @@
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import { profileStyle } from '../social/model';
 	import { craftFeeds, craftKey } from '../social/craft-feeds';
+	import { craftIconMask } from '../social/craft-icons';
 	let {
 		api,
 		profile,
@@ -61,14 +62,15 @@
 				>{retryingCrafts ? 'Loading…' : 'Retry'}</button
 			>
 		</div>
-	{:else}{#each craftFeeds(profile.crafts, true) as craft}<a
+	{:else}{#each craftFeeds(profile.crafts, true) as craft}{@const key =
+				craftKey(craft.id)}{@const icon = craftIconMask(key)}<a
 				class="craft-link"
-				href={'/feed?craft=' + craftKey(craft.id)}
-				><span
-					class="craft-icon"
-					style:--craft-icon={`url('/craft_icons/${craftKey(craft.id)}.svg')`}
-					aria-hidden="true"
-				></span>{craft.labels.en}</a
+				href={'/feed?craft=' + encodeURIComponent(key)}
+				>{#if icon}<span
+						class="craft-icon"
+						style:--craft-icon={icon}
+						aria-hidden="true"
+					></span>{/if}{craft.label}</a
 			>
 		{:else}<a class="craft-link" href="/profile/edit">Choose your crafts</a
 			>{/each}{/if}

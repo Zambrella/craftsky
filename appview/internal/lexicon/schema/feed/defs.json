@@ -23,6 +23,30 @@
       "type": "token",
       "description": "Quilting projects."
     },
+    "spinning": {
+      "type": "token",
+      "description": "Projects that spin fibre into yarn."
+    },
+    "dyeing": {
+      "type": "token",
+      "description": "Projects that dye spun yarn or unspun fibre."
+    },
+    "punchNeedle": {
+      "type": "token",
+      "description": "Punch needle projects using yarn or thread on a foundation fabric."
+    },
+    "macrame": {
+      "type": "token",
+      "description": "Macramé projects that use decorative cord knots."
+    },
+    "weaving": {
+      "type": "token",
+      "description": "Projects that interlace warp and weft to make a textile."
+    },
+    "felting": {
+      "type": "token",
+      "description": "Felting projects, including needle felting."
+    },
     "wip": {
       "type": "token",
       "description": "Work in progress."

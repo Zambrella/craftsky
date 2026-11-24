@@ -2,6 +2,7 @@
 	import { onDestroy, tick, type Snippet } from 'svelte';
 	import { pushState } from '$app/navigation';
 	import { page } from '$app/state';
+	import { clearFieldError } from '#lib/field-validation.ts';
 	import { mountComposerPage } from './page-layout';
 	import Icon from '../shell/Icon.svelte';
 	let {
@@ -9,6 +10,7 @@
 		description,
 		icon,
 		open,
+		visible = true,
 		disabled = false,
 		onopen,
 		onclose,
@@ -19,6 +21,7 @@
 		description: string;
 		icon: string;
 		open: boolean;
+		visible?: boolean;
 		disabled?: boolean;
 		onopen: () => void;
 		onclose: () => void;
@@ -30,6 +33,7 @@
 	let closing = false;
 	let disposed = false;
 	async function openPage() {
+		clearFieldError(trigger);
 		await pushState('', { ...page.state, projectDetail: uid });
 	}
 	async function close() {
@@ -43,7 +47,7 @@
 	}
 	$effect(() => {
 		if (page.state.projectDetail === uid) {
-			if (!open) onopen();
+			if (visible && !open) onopen();
 		} else if (open) void finishBack();
 	});
 	async function finishBack() {
@@ -57,7 +61,8 @@
 		closing = false;
 		await tick();
 		requestAnimationFrame(() => {
-			if (!disposed && !open) trigger?.focus({ preventScroll: true });
+			if (!disposed && !open && visible)
+				trigger?.focus({ preventScroll: true });
 		});
 	}
 
@@ -74,6 +79,7 @@
 	aria-describedby={uid + '-description'}
 	aria-controls={uid + '-page'}
 	aria-expanded={open}
+	hidden={!visible}
 	{disabled}
 	onclick={openPage}
 >
@@ -137,17 +143,19 @@
 		align-items: center;
 		gap: 16px;
 		width: 100%;
-		padding: 16px 8px;
-		min-height: 80px;
+		padding: 12px 8px;
+		min-height: 72px;
 		background: transparent;
 		border: 0;
-		border-bottom: 1px solid var(--hairline);
 		border-radius: 0;
 		box-shadow: none;
 		color: var(--ink);
 		text-align: left;
 		font: inherit;
 		cursor: pointer;
+	}
+	.project-detail-action[hidden] {
+		display: none;
 	}
 	.project-detail-action > span {
 		flex: 1;
@@ -163,6 +171,7 @@
 		color: var(--ink-3);
 		font-size: 14px;
 		font-weight: 400;
+		overflow-wrap: anywhere;
 		line-height: 1.5;
 	}
 	.project-detail-action:hover {

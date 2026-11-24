@@ -670,3 +670,27 @@ func TestDecodeAndValidatePostCreate_VideoProof(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateProjectExpansionWrites(t *testing.T) {
+	phaseTwo := api.IsSupportedProjectCraftType("social.craftsky.feed.defs#spinning")
+	for _, tc := range []struct {
+		name, project string
+		valid         bool
+	}{
+		{"Spinning primary", `{"common":{"craftType":"social.craftsky.feed.defs#spinning"},"details":{"$type":"social.craftsky.project.spinning#details","plyCount":2}}`, phaseTwo},
+		{"Spinning additional", `{"common":{"craftType":"social.craftsky.feed.defs#knitting","additionalCrafts":[{"craftType":"social.craftsky.feed.defs#spinning"}]},"details":{"$type":"social.craftsky.project.knitting#details"}}`, phaseTwo},
+		{"Spinning details on Knitting with Spinning additional", `{"common":{"craftType":"social.craftsky.feed.defs#knitting","additionalCrafts":[{"craftType":"social.craftsky.feed.defs#spinning"}]},"details":{"$type":"social.craftsky.project.spinning#details","plyCount":2}}`, false},
+		{"Punch Needle primary", `{"common":{"craftType":"social.craftsky.feed.defs#punchNeedle"},"details":{"$type":"social.craftsky.project.punchNeedle#details","loopHeight":{"amount":"2","unit":"mm"}}}`, phaseTwo},
+		{"six patterns", `{"common":{"craftType":"social.craftsky.feed.defs#sewing","patterns":[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"},{"name":"E"},{"name":"F"}]}}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := api.DecodePostCreate(strings.NewReader(`{"text":"Project","sponsored":false,"project":` + tc.project + `}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := api.ValidatePostCreate(req); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+		})
+	}
+}

@@ -7,6 +7,9 @@ const account = {
 	handle: 'alice.test',
 	token: Buffer.alloc(32, 1).toString('base64url')
 };
+type ShareCardDraws = typeof window & {
+	shareCardIcons: Set<string>;
+};
 async function openCard(page: Page, path = '/profiles/alice.test') {
 	await page.goto(path);
 	await page.getByLabel('More profile actions', { exact: true }).click();
@@ -80,12 +83,31 @@ test('another account profile keeps link sharing without a share card', async ({
 test('own profile exports a fixed PNG, restores focus and preserves image across themes and widths', async ({
 	page
 }, testInfo) => {
-	await page.addInitScript(() =>
+	await page.addInitScript(() => {
 		Object.defineProperty(navigator, 'canShare', {
 			value: () => false,
 			configurable: true
-		})
-	);
+		});
+		const original = CanvasRenderingContext2D.prototype.drawImage;
+		const draws = new Set<string>();
+		(window as ShareCardDraws).shareCardIcons = draws;
+		CanvasRenderingContext2D.prototype.drawImage = function (
+			this: CanvasRenderingContext2D,
+			...args: unknown[]
+		) {
+			const [image] = args;
+			if (
+				image instanceof HTMLImageElement &&
+				args[3] === 30 &&
+				args[4] === 30
+			) {
+				const asset = new URL(image.src).pathname;
+				if (asset.startsWith('/craft_icons/'))
+					draws.add(`${this.canvas.width}:${asset}`);
+			}
+			return Reflect.apply(original, this, args);
+		} as typeof original;
+	});
 	let dialog = await openCard(page);
 	const baseline = await artwork(page);
 	const button = dialog.getByRole('button', { name: 'Share', exact: true });
@@ -96,6 +118,20 @@ test('own profile exports a fixed PNG, restores focus and preserves image across
 	const path = testInfo.outputPath('profile-share-card.png');
 	await download.saveAs(path);
 	const bytes = await readFile(path);
+	const iconDraws = await page.evaluate(() => [
+		...(window as ShareCardDraws).shareCardIcons
+	]);
+	for (const craft of [
+		'spinning',
+		'dyeing',
+		'punch-needle',
+		'macrame',
+		'weaving',
+		'felting'
+	]) {
+		expect(iconDraws).toContain(`1200:/craft_icons/${craft}.svg`);
+		expect(iconDraws).toContain(`480:/craft_icons/${craft}.svg`);
+	}
 	expect(bytes.subarray(1, 4).toString()).toBe('PNG');
 	expect(bytes.readUInt32BE(16)).toBe(1200);
 	expect(bytes.readUInt32BE(20)).toBe(1500);

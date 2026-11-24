@@ -323,7 +323,10 @@ void main() {
             duration: '3 weekends',
             materials: [ProjectMaterial(text: 'linen')],
           ),
-          details: SewingProjectDetails(fitNotes: 'Root fit notes'),
+          details: SewingProjectDetails(
+            projectType: '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
+            fitNotes: 'Root fit notes',
+          ),
         ),
       );
       final comment = _post('did:plc:bob', 'comment', 'comment').copyWith(
@@ -358,14 +361,16 @@ void main() {
 
       expect(find.byKey(const ValueKey('project-detail-card')), findsOneWidget);
       expect(find.text('Root jacket'), findsOneWidget);
-      expect(find.text('DURATION'), findsOneWidget);
-      expect(find.text('3 weekends'), findsOneWidget);
-      expect(find.text('MATERIALS'), findsOneWidget);
-      expect(find.text('linen'), findsOneWidget);
-      expect(find.text('FIT NOTES'), findsOneWidget);
-      expect(find.text('Root fit notes'), findsOneWidget);
+      expect(find.text('DURATION'), findsNothing);
+      expect(find.text('3 weekends'), findsNothing);
+      expect(find.text('MATERIALS'), findsNothing);
+      expect(find.text('linen'), findsNothing);
+      expect(find.text('FIT NOTES'), findsNothing);
+      expect(find.text('Root fit notes'), findsNothing);
       expect(find.text('Comment sweater'), findsOneWidget);
       expect(find.text('1 month'), findsNothing);
+      expect(find.text('Garment'), findsOneWidget);
+      expect(find.text('42 in bust'), findsNothing);
     },
   );
 

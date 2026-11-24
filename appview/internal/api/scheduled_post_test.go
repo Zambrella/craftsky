@@ -3,13 +3,16 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/recordjson"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/testdb"
 	"social.craftsky/appview/internal/testlog"
@@ -206,6 +209,51 @@ func TestScheduledPostUpdateAndDeleteRespectOwnershipAndPublishingLock(t *testin
 	if repeated.Code != http.StatusNoContent {
 		t.Fatalf("repeat delete status=%d body=%s", repeated.Code, repeated.Body.String())
 	}
+}
+
+// IT-004 covers the scheduled editor's create, update and owner reopen contract.
+func TestScheduledPostProjectDetailsReopenAfterUpdate(t *testing.T) {
+	store, _ := newScheduledPostAPITestStore(t)
+	now := func() time.Time { return time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC) }
+	logger := testlog.Discard()
+	create := CreateScheduledPostHandler(store, DefaultMediaLimits(), now, logger)
+	update := UpdateScheduledPostHandler(store, DefaultMediaLimits(), now, logger)
+	get := GetScheduledPostHandler(store, logger)
+	const owner = "did:plc:alice"
+	const initial = `{"common":{"craftType":"social.craftsky.feed.defs#knitting","patterns":[{"name":"Cuffs","url":"https://patterns.example/cuffs"}]},"details":{"$type":"social.craftsky.project.knitting#details","projectType":"social.craftsky.project.defs#homeGoods","projectSubtype":"Lampshade","methods":["social.craftsky.project.knitting.defs#hand"],"needleSizesMm":["4.0mm"],"techniques":[{"technique":"colourwork","subtypes":[{"subtype":"intarsia"}]}]}}`
+	const revised = `{"common":{"craftType":"social.craftsky.feed.defs#knitting","patterns":[{"name":"Cuffs","url":"https://patterns.example/cuffs"},{"name":"Collar #lace","nameFacets":[{"index":{"byteStart":7,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"lace"}]}],"designer":"Woven Studio"}]},"details":{"$type":"social.craftsky.project.knitting#details","projectType":"social.craftsky.project.defs#other","projectSubtype":"Wall lamp","methods":["social.craftsky.project.knitting.defs#hand","social.craftsky.project.knitting.defs#loom"],"needleSizesMm":["4.0mm","4.5mm"],"techniques":[{"technique":"colourwork","subtypes":[{"subtype":"intarsia"},{"subtype":"stranded"}]}]}}`
+	payload := func(project string) string {
+		return `"payload":{"kind":"project","text":"Two-pattern project","sponsored":false,"project":` + project + `}`
+	}
+	created := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts",
+		`{"operationId":"00000000-0000-4000-8000-000000000641","scheduledAt":"2026-08-02T12:05:00Z",`+payload(initial)+`}`, owner)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
+	}
+	id := decodeResponseJSON[scheduledPostResponse](t, created).ID
+	assertReopened := func(expected string) {
+		t.Helper()
+		response := serveScheduledPostPathRequest(t, get, http.MethodGet, id, "", owner)
+		if response.Code != http.StatusOK {
+			t.Fatalf("reopen status=%d body=%s", response.Code, response.Body.String())
+		}
+		reopened := decodeResponseJSON[scheduledPostResponse](t, response)
+		want, err := recordjson.Parse(json.RawMessage(expected))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := recordjson.Parse(reopened.Payload.Project)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("reopened project=%s, want %s: %v", reopened.Payload.Project, expected, err)
+		}
+	}
+	assertReopened(initial)
+	edited := serveScheduledPostPathRequest(t, update, http.MethodPut, id,
+		`{"scheduledAt":"2026-08-02T12:06:00Z",`+payload(revised)+`}`, owner)
+	if edited.Code != http.StatusOK {
+		t.Fatalf("edit status=%d body=%s", edited.Code, edited.Body.String())
+	}
+	assertReopened(revised)
 }
 
 type recordingManualScheduledPublisher struct {

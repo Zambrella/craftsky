@@ -62,6 +62,12 @@ export interface Draft {
 	embedChanges?: JsonObject | null;
 	edit?: PostEditSeed;
 	scheduleId?: string;
+	/** Saved annotations for this schedule, kept device-private with recovery. */
+	scheduleBaseline?: {
+		text: string;
+		facets: JsonObject[];
+		patterns?: JsonObject[];
+	};
 	/** Device-private scheduling choice; never part of a public post payload. */
 	scheduleLater?: boolean;
 	scheduledAt?: string;

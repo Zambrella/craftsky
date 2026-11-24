@@ -23,6 +23,7 @@ main { max-width: 1000px; margin: 0 auto; padding-block: 12px 16px; }
 h1, h2, h3, p, figure { margin: 0; }
 h1 { font: 600 clamp(26px, 5.5vw, 38px)/1.12 Georgia, serif; letter-spacing: -.035em; }
 h2, h3 { font-size: 17px; line-height: 1.25; }
+.view-options { margin-top: 10px; }
 code, .type, .values, .edge { font-family: var(--mono); overflow-wrap: anywhere; }
 button { color: inherit; font: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
@@ -108,6 +109,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 }
 .value-list li { border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; max-width: 100%; font-size: 11px; }
 .value-list.exact { flex-direction: column; align-items: start; }
+.value-groups { display: grid; gap: 8px; }
+.value-groups h4 { font-size: 12px; margin: 0 0 4px; }
 .related { display: flex; flex-wrap: wrap; gap: 5px; }
 @media (max-width: 500px) {
   .branches { grid-template-columns: minmax(0, 1fr); padding: 5px 0 0 10px; border-left: 1px solid var(--line); }
@@ -119,6 +122,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 <body>
 <main>
   <h1>CraftSky project schema</h1>
+  <label class="value-toggle view-options"><input id="show-legacy" type="checkbox"> Show legacy fields</label>
   <figure class="diagram" aria-describedby="schema-caption">
     <div class="trunk" id="trunk"></div>
     <div class="branches" id="branches"></div>
@@ -133,9 +137,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); ou
 <script>
 "use strict";
 
-const {post, definitions} = JSON.parse(document.querySelector("#lexicon-data").textContent);
+const {post, definitions, labels, projectItems} = JSON.parse(document.querySelector("#lexicon-data").textContent);
 const referenceDialog = document.querySelector("#reference");
 const inspection = document.querySelector("#inspection");
+const showLegacy = document.querySelector("#show-legacy");
 const referenceHistory = [];
 let activeField = null;
 let pinned = false;
@@ -171,6 +176,7 @@ function words(text) {
 function nameOf(id) {
   if (id === post) return "Post";
   if (fragment(id) === "projectCommon") return "Shared project fields";
+  if (id === "social.craftsky.project.macrame#details") return "Macramé";
   if (fragment(id) === "details") return words(id.split("#")[0].split(".").at(-1));
   return words(fragment(id));
 }
@@ -220,6 +226,8 @@ function fieldList(id) {
   const shape = fieldsOf(id);
   const list = element("ul", null, "field-list");
   for (const [name, field] of Object.entries(shape.properties)) {
+    const deprecated = field.description?.startsWith("Deprecated:");
+    if (deprecated && !showLegacy.checked) continue;
     const required = requirement(name, shape) === "required";
     const options = optionSpec(field);
     const leaf = field.items ?? field;
@@ -245,6 +253,7 @@ function fieldList(id) {
     let label = typeLabel(field, id);
     if (field.type === "array" && field.maxLength != null) label += " · ≤" + field.maxLength;
     meta.append(element("span", label, "type"));
+    if (deprecated) meta.append(element("span", "Legacy", "count"));
     if (options) {
       meta.append(element("span", count + (count === 1 ? " value" : " values"), "count"));
       trigger.addEventListener("pointerenter", event => {
@@ -267,7 +276,9 @@ function fieldList(id) {
     row.append(trigger);
     list.append(row);
   }
-  return list;
+  return list.childElementCount
+    ? list
+    : element("p", "This craft uses the shared project fields for new posts.", "overlay-content hint");
 }
 
 function closeInspection(returnFocus = false) {
@@ -332,18 +343,36 @@ function fieldInfo(name, field, shape) {
   return body;
 }
 
-function addOptions(body, options) {
+function addOptions(body, options, owner, fieldName) {
   const values = options.enum ?? options.knownValues;
-  const list = element("ul", null, "value-list");
-  list.setAttribute("aria-label", "Declared values");
+  const groups = element("div", null, "value-groups");
+  const isItem = fieldName === "projectType" || fieldName === "projectSubtype";
   const appendValues = exact => {
-    list.classList.toggle("exact", exact);
-    list.replaceChildren(...values.map(value => {
-      const label = !exact && definitions[value]?.definition.type === "token" ? fragment(value) : value;
-      const item = element("li", label, "values");
-      if (label !== value) item.title = value;
-      return item;
-    }));
+    function listFor(choices, heading = "Declared values") {
+      const list = element("ul", null, exact ? "value-list exact" : "value-list");
+      list.setAttribute("aria-label", heading);
+      for (const value of choices) {
+        const label = exact ? value : (isItem && labels[value]) ||
+          (definitions[value]?.definition.type === "token" ? fragment(value) : value);
+        const item = element("li", label, "values");
+        if (label !== value) item.title = value;
+        list.append(item);
+      }
+      return list;
+    }
+    groups.replaceChildren();
+    const remaining = new Set(values);
+    if (fieldName === "projectSubtype") {
+      for (const {type, subtypes} of projectItems[owner] ?? []) {
+        const choices = subtypes.filter(value => remaining.delete(value));
+        if (!choices.length) continue;
+        const label = labels[type] ?? fragment(type);
+        const section = element("section");
+        section.append(element("h4", label), listFor(choices, label));
+        groups.append(section);
+      }
+    }
+    if (remaining.size) groups.append(listFor(remaining));
     placeInspection();
   };
   body.append(element("p", values.length + (options.enum
@@ -357,7 +386,7 @@ function addOptions(body, options) {
     toggle.append(checkbox, "Show full token IDs");
     body.append(toggle);
   }
-  body.append(list);
+  body.append(groups);
   appendValues(false);
 }
 
@@ -382,7 +411,7 @@ function inspectField(trigger, pin, owner, name, field, shape) {
   header.append(heading, close);
   body.prepend(header);
   const options = optionSpec(field);
-  if (options) addOptions(body, options);
+  if (options) addOptions(body, options, owner, name);
   const leaf = field.items ?? field;
   if (leaf.ref || leaf.refs) {
     const links = element("div", null, "related");
@@ -519,7 +548,9 @@ document.querySelector("#trunk").append(
 
 const shared = branch("common", projectShape, nameOf(common));
 shared.header.append(element("code", "#" + fragment(common)));
-shared.card.append(fieldList(common));
+const sharedBody = element("div");
+sharedBody.append(fieldList(common));
+shared.card.append(sharedBody);
 
 const variants = branch("details", projectShape, "Craft-specific fields");
 variants.header.append(element("p", words(typeLabel(details, project)) + " · one variant when present"));
@@ -557,6 +588,10 @@ for (const craft of crafts) {
 }
 document.querySelector("#branches").append(shared.wrapper, variants.wrapper);
 craftOptions.firstElementChild?.click();
+showLegacy.addEventListener("change", () => {
+  sharedBody.replaceChildren(fieldList(common));
+  craftOptions.querySelector('[aria-pressed="true"]')?.click();
+});
 </script>
 </body>
 </html>

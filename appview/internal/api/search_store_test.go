@@ -1253,13 +1253,7 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 	if err != nil {
 		t.Fatalf("TopHashtags: %v", err)
 	}
-	wantCrafts := []string{
-		"social.craftsky.feed.defs#knitting",
-		"social.craftsky.feed.defs#crochet",
-		"social.craftsky.feed.defs#sewing",
-		"social.craftsky.feed.defs#embroidery",
-		"social.craftsky.feed.defs#quilting",
-	}
+	wantCrafts := expectedDiscoveryCrafts()
 	gotCrafts := make([]string, 0, len(groups))
 	for _, group := range groups {
 		gotCrafts = append(gotCrafts, group.CraftType)
@@ -1277,6 +1271,12 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 		if len(groups[i].Items) != 0 {
 			t.Fatalf("%s items = %#v, want empty", groups[i].CraftType, groups[i].Items)
 		}
+	}
+	phaseOneGroups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: wantCrafts[:5], Limit: 10}, now)
+	if err != nil || !slices.EqualFunc(phaseOneGroups, groups[:5], func(a, b api.TopHashtagGroup) bool {
+		return a.CraftType == b.CraftType && slices.Equal(a.Items, b.Items)
+	}) {
+		t.Fatalf("phase one groups = %#v, err=%v, want %#v", phaseOneGroups, err, groups[:5])
 	}
 
 	mixedGroups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting", crochetToken, knitting}, Limit: 10}, now)

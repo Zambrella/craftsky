@@ -222,5 +222,64 @@ bool _optionMatchesQuery<T>(
   String query,
 ) {
   return option.label.toLowerCase().contains(query) ||
-      (option.description?.toLowerCase().contains(query) ?? false);
+      (option.description?.toLowerCase().contains(query) ?? false) ||
+      option.aliases.any((alias) => alias.toLowerCase().contains(query));
+}
+
+List<CraftskySelectOption<T>> _matchingOptions<T>(
+  List<CraftskySelectOption<T>> options,
+  String query,
+) {
+  if (query.isEmpty) return options;
+  final matches = options
+      .where((option) => _optionMatchesQuery(option, query))
+      .toList();
+  final matchedValues = matches.map((option) => option.value).toSet();
+  final contextValues = _optionParentValues(matches);
+  return [
+    for (final option in options)
+      if (matchedValues.contains(option.value) ||
+          contextValues.contains(option.value) ||
+          (option.parentValue != null &&
+              matchedValues.contains(option.parentValue)))
+        option,
+  ];
+}
+
+int _firstMatchingOption<T>(
+  List<CraftskySelectOption<T>> options,
+  String query,
+) => options.indexWhere((option) => _optionMatchesQuery(option, query));
+
+Set<T> _optionParentValues<T>(Iterable<CraftskySelectOption<T>> options) => {
+  for (final option in options)
+    if (option.parentValue case final parent?) parent,
+};
+
+Text _optionTitle<T>(
+  CraftskySelectOption<T> option, {
+  required bool hierarchical,
+}) => Text(
+  option.label,
+  style: hierarchical && option.parentValue == null
+      ? const TextStyle(fontWeight: FontWeight.bold)
+      : null,
+);
+
+EdgeInsetsGeometry _optionRowPadding<T>(
+  List<CraftskySelectOption<T>> options,
+  Set<T> parents,
+  int index,
+) {
+  final option = options[index];
+  if (option.parentValue != null) {
+    return const EdgeInsetsDirectional.only(start: 20);
+  }
+  final startsGroup =
+      index > 0 &&
+      (parents.contains(option.value) ||
+          options[index - 1].parentValue != null);
+  return startsGroup
+      ? const EdgeInsetsDirectional.only(top: 6)
+      : EdgeInsets.zero;
 }

@@ -8,14 +8,19 @@
 	import ImageCarousel from './ImageCarousel.svelte';
 	import Icon from './features/shell/Icon.svelte';
 	import { confirmExternalLink } from './features/social/prompt';
-	import catalogue from './features/composer/catalogue.json';
+	import {
+		label as catalogueLabel,
+		projectItemConfig
+	} from './features/composer/project-options';
+	import { effectivePatterns } from './features/composer/model';
+	import { extraDetails } from './features/composer/project-detail-display';
+	import type { ProjectPattern } from './api/types';
 	import {
 		identityCrafts,
 		identityCraftLabel
 	} from './features/social/compact-identity';
 	import {
 		authorName,
-		gaugeText,
 		compactDate,
 		fullTimestamp,
 		label,
@@ -59,35 +64,26 @@
 			: postPath(post));
 	const authorCrafts = $derived(identityCrafts(post.author.crafts));
 	let visibleCraftCount = $state(5);
-	const pattern = $derived(post.project?.common.pattern);
-	const hasPattern = $derived(
-		!!pattern &&
-			!!(
-				pattern.name?.trim() ||
-				pattern.designer?.trim() ||
-				pattern.publisher?.trim() ||
-				pattern.selfDrafted
-			)
+	const hasPatternCredit = (pattern: ProjectPattern) =>
+		!!(
+			pattern.name?.trim() ||
+			pattern.designer?.trim() ||
+			pattern.publisher?.trim() ||
+			pattern.selfDrafted
+		);
+	const patterns = $derived(
+		effectivePatterns(
+			post.project?.common.patterns,
+			post.project?.common.pattern
+		).filter(
+			(pattern) =>
+				hasPatternCredit(pattern) ||
+				(detail && !!(pattern.difficulty || safeURL(pattern.url)))
+		)
 	);
-	const sizeSummary = $derived.by(() => {
-		const craft = post.project?.common.craftType.split('#').at(-1);
-		const details = post.project?.details;
-		const key =
-			craft === 'sewing'
-				? 'sizeMade'
-				: craft === 'knitting' || craft === 'crochet'
-					? 'finishedSize'
-					: craft === 'quilting'
-						? 'size'
-						: undefined;
-		const value = key && details?.[key];
-		return typeof value === 'string' && value.trim()
-			? {
-					label: key === 'finishedSize' ? 'Finished size' : 'Size',
-					value: value.trim()
-				}
-			: undefined;
-	});
+	const singlePattern = $derived(
+		patterns.length === 1 ? patterns[0] : undefined
+	);
 	function fitCrafts(node: HTMLElement, entries: typeof authorCrafts) {
 		let disposed = false;
 		const canvas = document.createElement('canvas');
@@ -141,8 +137,7 @@
 		if (!common) return [];
 		const details = post.project?.details || {};
 		const rows: { label: string; value: string; href?: string }[] = [];
-		const option = (value: string) =>
-			catalogue.find((entry) => entry.id === value)?.label || label(value);
+		const option = (value: string) => catalogueLabel(value) || label(value);
 		const add = (name: string, value: unknown, optionValue = false) => {
 			if (typeof value === 'string' && value.trim())
 				rows.push({
@@ -150,58 +145,35 @@
 					value: optionValue ? option(value) : value.trim()
 				});
 		};
-		add('Duration', common.duration);
-		add('Difficulty', common.pattern?.difficulty, true);
-		const href = safeURL(common.pattern?.url);
-		if (href)
-			rows.push({
-				label: 'Link',
-				value: href.replace(/^https?:\/\//, '').replace(/\/$/, ''),
-				href
-			});
-		const type = [details.projectType, details.projectSubtype]
-			.filter(
-				(value): value is string => typeof value === 'string' && !!value.trim()
-			)
-			.map(option)
-			.join(' > ');
-		add('Project type', type);
-		const craft = common.craftType.split('#').at(-1);
-		if (craft === 'sewing') {
-			add('Size made', details.sizeMade);
-			add('Fit notes', details.fitNotes);
-		} else if (craft === 'knitting' || craft === 'crochet') {
-			add('Yarn weight', details.yarnWeight, true);
-			add(
-				craft === 'knitting' ? 'Needle size' : 'Hook size',
-				craft === 'knitting' ? details.needleSizeMm : details.hookSizeMm
-			);
-			add('Gauge', gaugeText(details.gauge));
-			add('Finished size', details.finishedSize);
-		} else if (craft === 'quilting') {
-			add('Size', details.size);
-			add('Piecing technique', details.piecingTechnique, true);
-			add('Quilting method', details.quiltingMethod, true);
-		} else
-			for (const [key, value] of Object.entries(details))
-				if (!['$type', 'projectType', 'projectSubtype'].includes(key))
-					add(label(key), value);
+		if (singlePattern) {
+			add('Difficulty', singlePattern.difficulty, true);
+			const href = safeURL(singlePattern.url);
+			if (href)
+				rows.push({
+					label: 'Link',
+					value: href.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+					href
+				});
+		}
+
+		const craft = common.craftType;
+		if (craft && projectItemConfig(craft).length) {
+			const type = [details.projectType, details.projectSubtype]
+				.filter(
+					(value): value is string =>
+						typeof value === 'string' && !!value.trim()
+				)
+				.map(option)
+				.join(' > ');
+			add('Project type', type);
+		}
+		for (const [name, value] of extraDetails(craft, details)) add(name, value);
 		return rows;
 	});
-	const chipSections = $derived(
-		[
-			{ label: 'Colours', values: post.project?.common.colors || [] },
-			{ label: 'Design', values: post.project?.common.designTags || [] },
-			{ label: 'Tags', values: post.project?.common.tags || [] }
-		].filter((section) => section.values.some((value) => value.trim()))
+	const projectTags = $derived(
+		post.project?.common.tags?.filter((tag) => tag.trim()) || []
 	);
-	const materialValues = $derived(
-		post.project?.common.materials?.filter((material) =>
-			material.text.trim()
-		) || []
-	);
-	const optionLabel = (value: string) =>
-		catalogue.find((entry) => entry.id === value)?.label || label(value);
+	const optionLabel = (value: string) => catalogueLabel(value) || label(value);
 </script>
 
 <article
@@ -234,7 +206,7 @@
 									.slice(0, visibleCraftCount) as entry}<span
 										class="author-craft-icon"
 										data-craft={entry.id}
-										style:--craft-icon={`url('/craft_icons/${entry.id}.svg')`}
+										style:--craft-icon={entry.icon}
 										aria-hidden="true"
 
 									></span>{/each}{#if authorCrafts.length > visibleCraftCount}<span
@@ -324,67 +296,63 @@
 			</div>
 		</div>
 	{/if}
-	{#if post.project && (hasPattern || (detail ? detailRows.length : sizeSummary))}
+	{#if post.project && (patterns.length || (detail && detailRows.length))}
 		<dl class="project-preview-metadata" class:project-detail-metadata={detail}>
-			{#if hasPattern && pattern}<dt>Pattern</dt>
-				<dd>
-					{#if pattern.name?.trim()}{#if field}{@render field(
-								pattern.name,
-								pattern.nameFacets
-							)}{:else}{pattern.name}{/if}{/if}
-					{#if pattern.name?.trim() && (pattern.designer?.trim() || pattern.publisher?.trim())}
-						{' by '}
-					{/if}
-					{#if pattern.designer?.trim()}{#if field}{@render field(
-								pattern.designer,
-								pattern.designerFacets
-							)}{:else}{pattern.designer}{/if}{/if}{#if pattern.designer?.trim() && pattern.publisher?.trim()}{', '}
-					{/if}
-					{#if pattern.publisher?.trim()}{#if field}{@render field(
-								pattern.publisher,
-								pattern.publisherFacets
-							)}{:else}{pattern.publisher}{/if}{/if}
-					{#if pattern.selfDrafted}{#if pattern.name?.trim() || pattern.designer?.trim() || pattern.publisher?.trim()}
-							{' · '}
-						{/if}Self-drafted{/if}
-				</dd>{/if}
-			{#if !detail && sizeSummary}<dt>{sizeSummary.label}</dt>
-				<dd>{sizeSummary.value}</dd>{/if}
+			{#each patterns as pattern, index}{#if !singlePattern || hasPatternCredit(pattern)}<dt
+					>
+						{patterns.length > 1 ? 'Pattern ' + (index + 1) : 'Pattern'}
+					</dt>
+					<dd>
+						{#if pattern.name?.trim()}{#if field}{@render field(
+									pattern.name,
+									pattern.nameFacets
+								)}{:else}{pattern.name}{/if}{/if}
+						{#if pattern.name?.trim() && (pattern.designer?.trim() || pattern.publisher?.trim())}
+							{' by '}
+						{/if}
+						{#if pattern.designer?.trim()}{#if field}{@render field(
+									pattern.designer,
+									pattern.designerFacets
+								)}{:else}{pattern.designer}{/if}{/if}{#if pattern.designer?.trim() && pattern.publisher?.trim()}{', '}
+						{/if}
+						{#if pattern.publisher?.trim()}{#if field}{@render field(
+									pattern.publisher,
+									pattern.publisherFacets
+								)}{:else}{pattern.publisher}{/if}{/if}
+						{#if pattern.selfDrafted}{#if pattern.name?.trim() || pattern.designer?.trim() || pattern.publisher?.trim()}
+								{' · '}
+							{/if}Self-drafted{/if}
+						{#if detail && !singlePattern && pattern.difficulty}<span
+								class="pattern-extra"
+								>Difficulty · {optionLabel(pattern.difficulty)}</span
+							>{/if}
+						{#if detail && !singlePattern && safeURL(pattern.url)}
+							<a
+								class="pattern-extra"
+								href={safeURL(pattern.url)}
+								rel="ugc nofollow noreferrer"
+								onclick={confirmExternalLink}>Pattern link</a
+							>
+						{/if}
+					</dd>{/if}{/each}
 			{#if detail}{#each detailRows as row}<dt>{row.label}</dt>
 					<dd>
 						{#if row.href}<a
 								href={row.href}
 								rel="ugc nofollow noreferrer"
 								onclick={confirmExternalLink}>{row.value}</a
-							>{:else}{row.value}{/if}
+							>
+						{:else}{row.value}{/if}
 					</dd>{/each}{/if}
 		</dl>
 	{/if}
 
-	{#if post.project && detail && (materialValues.length || chipSections.length)}
-		<section
-			class="project-chip-sections"
-			aria-label="Project materials and style"
-		>
-			{#if materialValues.length}<div>
-					<h3>Materials</h3>
-					<div class="detail-chips">
-						{#each materialValues as material}<span
-								>{#if field}{@render field(
-										material.text,
-										material.facets
-									)}{:else}{material.text}{/if}</span
-							>{/each}
-					</div>
-				</div>{/if}
-			{#each chipSections as section}<div>
-					<h3>{section.label}</h3>
-					<div class="detail-chips">
-						{#each section.values.filter((value) => value.trim()) as value}<span
-								>{section.label === 'Tags' ? value : optionLabel(value)}</span
-							>{/each}
-					</div>
-				</div>{/each}
+	{#if detail && projectTags.length}
+		<section class="project-chip-sections" aria-label="Project tags">
+			<h3>Tags</h3>
+			<div class="detail-chips">
+				{#each projectTags as tag}<span>{tag}</span>{/each}
+			</div>
 		</section>
 	{/if}
 	{#if post.project}<p class="prose project-notes">
@@ -393,6 +361,9 @@
 </article>
 
 <style>
+	.pattern-extra {
+		display: block;
+	}
 	.business-icon {
 		display: inline-flex;
 		width: 16px;
@@ -410,8 +381,6 @@
 		margin-top: 12px;
 		padding-top: 8px;
 		border-top: 1px solid var(--hairline);
-		display: grid;
-		gap: 8px;
 	}
 	.project-chip-sections h3 {
 		margin: 0 0 4px;

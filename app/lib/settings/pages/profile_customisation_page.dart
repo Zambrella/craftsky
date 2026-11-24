@@ -319,9 +319,7 @@ Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'animated-lagoon': l10n.profileCustomisationBackgroundLagoon,
   'animated-nebula': l10n.profileCustomisationBackgroundNebula,
   'animated-prism': l10n.profileCustomisationBackgroundPrism,
-  'craft-sewing': craftLabel(Craft.sewing, l10n),
-  'craft-knitting': craftLabel(Craft.knitting, l10n),
-  'craft-crochet': craftLabel(Craft.crochet, l10n),
-  'craft-quilting': craftLabel(Craft.quilting, l10n),
-  'craft-embroidery': craftLabel(Craft.embroidery, l10n),
+  for (final entry in profileCraftBackgrounds.entries)
+    if (Craft.fromId(entry.value) case final craft?)
+      entry.key: craftLabel(craft, l10n),
 };

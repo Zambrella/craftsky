@@ -5,6 +5,7 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 
 /// Converts the project composer's partial form state to and from draft-safe
 /// values. Only fields owned by the composer are persisted.
@@ -44,21 +45,65 @@ class ProjectDraftSnapshotAdapter {
 
   Map<String, dynamic> encodeKnownFields(Map<String, dynamic> values) {
     return <String, dynamic>{
-      for (final field in _knownFields)
+      for (final field in _knownFieldsFor(values))
         if (values.containsKey(field))
           field: _encodeValue(field, values[field]),
     };
   }
 
   Map<String, dynamic> decodeKnownFields(Map<String, dynamic> values) {
+    final craft = switch (values[ProjectComposerFields.craftType]) {
+      final String value => value,
+      _ => null,
+    };
+    final oldDetails = craft == null
+        ? null
+        : values[ProjectDetailFields.formName(craft)];
     return <String, dynamic>{
-      for (final field in _knownFields)
+      if (craft != null &&
+          !values.containsKey(ProjectComposerFields.projectTypeFor(craft)))
+        if (oldDetails case {'projectType': final String previousType})
+          ProjectComposerFields.projectTypeFor(craft): previousType,
+      if (!values.containsKey(ProjectComposerFields.knittingNeedleSizes) &&
+          values[ProjectComposerFields.knittingNeedleSize] is String)
+        ProjectComposerFields.knittingNeedleSizes: [
+          values[ProjectComposerFields.knittingNeedleSize] as String,
+        ],
+      if (!values.containsKey(ProjectComposerFields.crochetHookSizes) &&
+          values[ProjectComposerFields.crochetHookSize] is String)
+        ProjectComposerFields.crochetHookSizes: [
+          values[ProjectComposerFields.crochetHookSize] as String,
+        ],
+      for (final field in _knownFieldsFor(values))
         if (values.containsKey(field))
           field: _decodeValue(field, values[field]),
     };
   }
 
+  Iterable<String> _knownFieldsFor(Map<String, dynamic> values) sync* {
+    yield* _knownFields;
+    if (values[ProjectComposerFields.craftType] case final String craft) {
+      final type = ProjectComposerFields.projectTypeFor(craft);
+      final subtype = ProjectComposerFields.projectSubtypeFor(craft);
+      if (!_knownFields.contains(type)) yield type;
+      if (!_knownFields.contains(subtype)) yield subtype;
+      if (ProjectDetailFields.forCraft(craft).isNotEmpty) {
+        yield ProjectDetailFields.formName(craft);
+      }
+    }
+  }
+
   Object? _encodeValue(String field, Object? value) {
+    if (field.startsWith('craftDetails:')) return value;
+
+    if (field == ProjectComposerFields.patterns) {
+      return [
+        for (final pattern
+            in (value as List?)?.whereType<ProjectPattern>() ??
+                const <ProjectPattern>[])
+          pattern.toMap(),
+      ];
+    }
     if (field == ProjectComposerFields.materials) {
       if (value is! List<ProjectMaterial>) return const <Object?>[];
       return [
@@ -87,6 +132,13 @@ class ProjectDraftSnapshotAdapter {
   }
 
   Object? _decodeValue(String field, Object? value) {
+    if (field == ProjectComposerFields.patterns) {
+      return [
+        for (final pattern in value as List? ?? const [])
+          if (pattern is Map)
+            ProjectPatternMapper.fromMap(Map<String, dynamic>.from(pattern)),
+      ];
+    }
     if (_stringListFields.contains(field)) {
       if (value == null) return null;
       if (value is! List) return const <String>[];
@@ -123,6 +175,7 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.colours,
     ProjectComposerFields.designTags,
     ProjectComposerFields.patternUrl,
+    ProjectComposerFields.patterns,
     ProjectComposerFields.patternName,
     ProjectComposerFields.patternDifficulty,
     ProjectComposerFields.patternSelfDrafted,
@@ -136,6 +189,7 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.knittingProjectSubtype,
     ProjectComposerFields.knittingYarnWeight,
     ProjectComposerFields.knittingNeedleSize,
+    ProjectComposerFields.knittingNeedleSizes,
     ProjectComposerFields.knittingGaugeStitches,
     ProjectComposerFields.knittingGaugeRows,
     ProjectComposerFields.knittingGaugeMeasurement,
@@ -145,6 +199,7 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.crochetProjectSubtype,
     ProjectComposerFields.crochetYarnWeight,
     ProjectComposerFields.crochetHookSize,
+    ProjectComposerFields.crochetHookSizes,
     ProjectComposerFields.crochetGaugeStitches,
     ProjectComposerFields.crochetGaugeRows,
     ProjectComposerFields.crochetGaugeMeasurement,
@@ -158,6 +213,8 @@ class ProjectDraftSnapshotAdapter {
   };
 
   static const _stringListFields = <String>{
+    ProjectComposerFields.crochetHookSizes,
+    ProjectComposerFields.knittingNeedleSizes,
     ProjectComposerFields.additionalCrafts,
     ProjectComposerFields.colours,
     ProjectComposerFields.designTags,
