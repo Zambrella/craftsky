@@ -22,6 +22,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import android.os.Handler
 import android.os.Looper
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.MessageDigest
 import kotlin.math.roundToInt
 
@@ -49,59 +50,113 @@ class MainActivity : FlutterActivity() {
             StandardMethodCodec.INSTANCE,
             messenger.makeBackgroundTaskQueue(),
         ).setMethodCallHandler { call, result ->
-            if (call.method != "midpointFrame") {
-                result.notImplemented()
-                return@setMethodCallHandler
-            }
             val path = call.argument<String>("path")
-            val timeUs = call.argument<Number>("timeUs")?.toLong()
-            val bytes = if (path.isNullOrEmpty() || timeUs == null || timeUs < 0) {
-                null
-            } else {
-                runCatching { readThumbnailFrame(Uri.parse(path), timeUs) }.getOrNull()
+            when (call.method) {
+                "probe" -> {
+                    if (path.isNullOrEmpty()) {
+                        result.error("invalid_video_path", "Video path required", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        result.success(probeLocalVideo(path))
+                    } catch (error: LocalVideoProbeException) {
+                        result.error(error.code, "Unable to prepare local video", null)
+                    } catch (_: Exception) {
+                        result.error("video_probe_failed", "Unable to prepare local video", null)
+                    }
+                }
+                "midpointFrame" -> {
+                    val timeUs = call.argument<Number>("timeUs")?.toLong()
+                    val bytes = if (path.isNullOrEmpty() || timeUs == null || timeUs < 0) {
+                        null
+                    } else {
+                        runCatching {
+                            withVideoRetriever(Uri.parse(path)) { readThumbnailFrame(it, timeUs) }
+                        }.getOrNull()
+                    }
+                    result.success(bytes)
+                }
+                else -> result.notImplemented()
             }
-            result.success(bytes)
         }
     }
 
-    private fun readThumbnailFrame(uri: Uri, timeUs: Long): ByteArray? {
+    private fun probeLocalVideo(path: String): Map<String, Any> {
+        val uri = if (path.startsWith("/")) Uri.fromFile(File(path)) else Uri.parse(path)
+        if (uri.scheme != "file" && uri.scheme != "content") {
+            throw LocalVideoProbeException("invalid_video_path")
+        }
+        return withVideoRetriever(uri) { retriever ->
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull()
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull()
+            if (width == null || width <= 0 || height == null || height <= 0) {
+                throw LocalVideoProbeException("video_metadata_unavailable")
+            }
+            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+            val rotated = rotation == "90" || rotation == "270"
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+            val poster = readThumbnailFrame(
+                retriever, 0, maxSize = 1280, option = MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            ) ?: throw LocalVideoProbeException("video_poster_unavailable")
+            buildMap {
+                put("width", if (rotated) height else width)
+                put("height", if (rotated) width else height)
+                put("posterBytes", poster)
+                if (durationMs != null && durationMs > 0) put("durationMs", durationMs)
+            }
+        }
+    }
+
+    private class LocalVideoProbeException(val code: String) : Exception()
+
+    private fun <T> withVideoRetriever(uri: Uri, read: (MediaMetadataRetriever) -> T): T {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(applicationContext, uri)
-            val option = MediaMetadataRetriever.OPTION_CLOSEST
-            val maxSize = 640
-            val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                retriever.getScaledFrameAtTime(timeUs, option, maxSize, maxSize)
-            } else {
-                retriever.getFrameAtTime(timeUs, option)
-            } ?: return null
-            try {
-                val scale = minOf(1.0, maxSize.toDouble() / maxOf(frame.width, frame.height))
-                val preview = if (scale < 1.0) {
-                    Bitmap.createScaledBitmap(
-                        frame,
-                        (frame.width * scale).roundToInt().coerceAtLeast(1),
-                        (frame.height * scale).roundToInt().coerceAtLeast(1),
-                        true,
-                    )
-                } else {
-                    frame
-                }
-                try {
-                    val output = ByteArrayOutputStream()
-                    return if (preview.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
-                        output.toByteArray()
-                    } else {
-                        null
-                    }
-                } finally {
-                    if (preview !== frame) preview.recycle()
-                }
-            } finally {
-                frame.recycle()
-            }
+            return read(retriever)
         } finally {
             retriever.release()
+        }
+    }
+
+    private fun readThumbnailFrame(
+        retriever: MediaMetadataRetriever,
+        timeUs: Long,
+        maxSize: Int = 640,
+        option: Int = MediaMetadataRetriever.OPTION_CLOSEST,
+    ): ByteArray? {
+        val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            retriever.getScaledFrameAtTime(timeUs, option, maxSize, maxSize)
+        } else {
+            retriever.getFrameAtTime(timeUs, option)
+        } ?: return null
+        try {
+            val scale = minOf(1.0, maxSize.toDouble() / maxOf(frame.width, frame.height))
+            val preview = if (scale < 1.0) {
+                Bitmap.createScaledBitmap(
+                    frame,
+                    (frame.width * scale).roundToInt().coerceAtLeast(1),
+                    (frame.height * scale).roundToInt().coerceAtLeast(1),
+                    true,
+                )
+            } else {
+                frame
+            }
+            try {
+                val output = ByteArrayOutputStream()
+                return if (preview.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
+                    output.toByteArray()
+                } else {
+                    null
+                }
+            } finally {
+                if (preview !== frame) preview.recycle()
+            }
+        } finally {
+            frame.recycle()
         }
     }
 

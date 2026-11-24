@@ -577,6 +577,71 @@ private-value canaries. The full AppView race and integration suite, 16 Flutter
 profile tests, and Dart analysis passed. Hosted collection remains unverified
 until release.
 
+## Android composer playback (24 November 2026)
+
+The original H.264 clip produced poster and cover images and a black playback
+surface on the Android 17 emulator. MediaKit's GPU output logged
+`EGL_BAD_ATTRIBUTE` after attaching a surface. The direct MediaCodec output
+experiment also showed black frames.
+
+Local Android composer previews now use the Flutter `video_player` Android
+backend with the existing Flutter playback controls and lifecycle coordination.
+The original clip rendered moving frames inline and in landscape fullscreen,
+then returned to Video details. A 90-degree rotation fixture displayed moving
+frames in portrait. Android debug and iOS simulator builds compiled, and
+37 focused Flutter video tests passed. Physical-device playback remains
+unverified for this change.
+
+## Android native video probe (24 November 2026)
+
+Android selection now reads local video metadata and a bounded JPEG from
+`MediaMetadataRetriever` through the same channel contract as iOS. The
+background probe reuses the existing cover-frame decoder and returns
+display-oriented dimensions plus duration when available. The existing
+selection reporter receives a stable platform error code on probe failure.
+This replaces the MediaKit screenshot step recorded below.
+
+On the Android 17 emulator, the original 17-second H.264 clip failed on the
+previous build. The rebuilt debug APK attached the same clip, opened Video
+details with a poster and four cover frames, and returned to the composer
+with the attachment selected. A synthetic 640×360 H.264 clip with 90-degree
+rotation metadata opened with the expected portrait poster.
+
+Twenty focused Flutter tests and Dart analysis passed. Hosted Sentry
+delivery and a physical-device release build remain unverified.
+
+## Android video poster diagnostics (24 November 2026)
+
+Sentry issue FLUTTER-APP-5Q recorded three Android selection failures after
+MediaKit returned no poster. The existing selection reporter now includes the
+capture result, allowlisted codec when there is a single source video track,
+dimensions, available duration and rotation, and whether MediaKit reported a
+hardware pixel format. MediaKit's screenshot API does not expose the native
+error code.
+
+The focused Flutter suites passed with 179 tests and one skip. The serialized
+Sentry event retains the exception and stack alongside the new metadata. The
+event and local diagnostic exclude filename and picker URI canaries. Dart
+analysis passed. The full Flutter suite passed with 4,389 tests and 50 skips.
+The AppView race and integration suite passed against the local PostgreSQL
+and MinIO services.
+
+The maintainer reproduced the failure on a local Android emulator. The local
+record includes a null capture result for a 1920×1080 H.264 clip (17,493 ms,
+rotation 0) with no reported hardware pixel format. The pinned MediaKit Android
+controller completes its first-frame wait after sizing the surface, which does
+not establish that a frame is ready for capture. This makes frame readiness a
+plausible cause. The console trace does not contain the native failure code.
+
+The emulator logcat shows two attempts with the same order. MediaKit published
+a nonzero surface reference, then published `wid: 0` from surface cleanup, then
+the selection controller logged the failure. The probe awaits player disposal
+before the selection controller receives the error. The zero reference belongs
+to cleanup and does not establish the video output state at capture time.
+
+Physical Android reproduction, hosted Sentry collection and release
+symbolication remain unverified for the enriched diagnostics.
+
 ## Android video selection diagnostics (18 November 2026)
 
 - The shared Flutter selection controller reports unexpected failures for both

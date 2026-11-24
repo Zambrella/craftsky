@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:craftsky_app/feed/widgets/android_local_video_adapter.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -12,6 +13,8 @@ import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
@@ -93,12 +96,19 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     _playlist = playlist;
   }
 
+  NativeVideoViewAdapter _createAdapter(Uri playlist) {
+    if (widget.localSelection != null &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        const {'file', 'content'}.contains(playlist.scheme)) {
+      return AndroidLocalVideoAdapter();
+    }
+    return MediaKitNativeVideoAdapter(reporter: widget.reporter);
+  }
+
   void _startPlayback() {
     final playlist = _playlist;
     if (playlist == null || _adapter != null || _failed) return;
-    final adapter =
-        widget.createAdapter?.call() ??
-        MediaKitNativeVideoAdapter(reporter: widget.reporter);
+    final adapter = widget.createAdapter?.call() ?? _createAdapter(playlist);
     _adapter = adapter;
     _lifecycle = NativeVideoController(
       adapter,
