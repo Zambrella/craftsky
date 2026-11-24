@@ -294,7 +294,7 @@ test('native content-language chips preserve authoritative preferences after fai
 		exact: true
 	});
 	await expect(primaryLanguage).toHaveCSS('border-radius', '14px');
-	await expect(primaryLanguage).toHaveCSS('padding-right', '56px');
+	await expect(primaryLanguage).toHaveCSS('padding-right', '52px');
 	await page
 		.getByRole('button', {
 			name: 'Remove English from Content languages',

@@ -5,6 +5,7 @@ static/
 test-results*/
 playwright-report/
 package-lock.json
+src/lib/features/composer/project-item-options.json
 src/lib/features/composer/project-taxonomy.json
 .wrangler/
 .deployments/
