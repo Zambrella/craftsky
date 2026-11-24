@@ -26,6 +26,7 @@ const (
 var ErrUploadLimitsUnavailable = errors.New("video upload limits unavailable")
 
 type UploadLimits struct {
+	CustomThumbnail      bool
 	CanUpload            bool
 	RemainingDailyVideos *int64
 	RemainingDailyBytes  *int64

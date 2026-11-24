@@ -139,7 +139,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(_tabLabels(tester), hasLength(4));
-      expect(_selectedTab(tester), 'Projects');
+      expect(_selectedTab(tester), 'Posts');
       semantics.dispose();
     },
   );
@@ -160,8 +160,8 @@ void main() {
 
     expect(_tabLabels(tester), [
       'About',
-      'Projects',
       'Posts',
+      'Projects',
       'Comments & replies',
       'Reposts',
     ]);
@@ -188,8 +188,8 @@ void main() {
     expect(_tabLabels(tester), [
       'Upcoming Events',
       'About',
-      'Projects',
       'Posts',
+      'Projects',
       'Comments & replies',
       'Reposts',
     ]);
@@ -215,8 +215,8 @@ void main() {
       'Products',
       'Upcoming Events',
       'About',
-      'Projects',
       'Posts',
+      'Projects',
       'Comments & replies',
       'Reposts',
     ]);
@@ -290,11 +290,12 @@ void main() {
     );
 
     expect(_tabLabels(tester), [
-      'Projects',
       'Posts',
+      'Projects',
       'Comments & replies',
       'Reposts',
     ]);
+    expect(_selectedTab(tester), 'Posts');
     expect(find.text('About'), findsNothing);
     expect(find.text('Products'), findsNothing);
     expect(find.text('Upcoming Events'), findsNothing);

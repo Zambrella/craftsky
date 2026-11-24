@@ -177,7 +177,6 @@ a:hover { color: var(--cobalt-deep); }
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
 }
-.on-cobalt :focus-visible { outline-color: var(--on-brand); }
 
 /* Reduced-motion: disable all transitions on the page */
 @media (prefers-reduced-motion: reduce) {
@@ -213,7 +212,7 @@ a:hover { color: var(--cobalt-deep); }
   margin: 0;
 }
 
-/* Button atoms — reused in hero, final CTA, modal */
+/* Button atoms */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -254,235 +253,52 @@ a:hover { color: var(--cobalt-deep); }
   color: var(--fg-1);
 }
 
-.btn--on-cobalt {
-  background: var(--on-brand);
-  color: var(--cobalt);
-}
-
-/* =========================================================================
-   Waiting-list page
-   ========================================================================= */
-
-.waitlist-page {
-  min-height: 100vh;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  background:
-    linear-gradient(rgba(245, 239, 228, 0.9), rgba(245, 239, 228, 0.9)),
-    url('/assets/paper-grain.svg');
-}
-
-.waitlist-page__main {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  padding: var(--sp-6) var(--sp-4);
-}
-
-.waitlist-card {
-  width: min(100%, 540px);
-  padding: clamp(var(--sp-5), 5vw, var(--sp-7));
-  background: var(--paper-3);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-4);
-  box-shadow: var(--sh-drop-lg);
-}
-
-.waitlist-card .sib-form-container,
-.waitlist-card .waitlist-form-container {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  text-align: left;
-}
-
-.waitlist-card .sib-form-block {
-  padding: 0;
-}
-
-.waitlist-form__heading h1 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(42px, 8vw, 58px);
-  font-weight: 400;
-  line-height: var(--lh-display);
-  letter-spacing: -0.02em;
-}
-
-.waitlist-form__intro {
-  margin-top: var(--sp-4);
-  color: var(--fg-2);
-}
-
-.waitlist-form__field {
-  margin-top: var(--sp-6);
-}
-
-.waitlist-card .entry__label {
-  display: block;
-  margin-bottom: var(--sp-2);
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: var(--t-body);
-  font-weight: 700;
-}
-
-.waitlist-card .entry__field {
-  border: 0;
-}
-
-.waitlist-card .entry__field .input {
-  width: 100%;
-  min-height: 52px;
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-2);
-  background: var(--paper-3);
-  color: var(--ink);
-  font: inherit;
-}
-
-.waitlist-card .entry__field .input:focus {
-  border-color: var(--cobalt);
-  outline: 2px solid var(--cobalt);
-  outline-offset: 2px;
-}
-
-.waitlist-form__opt-in,
-.waitlist-form__captcha,
-.waitlist-form__submit {
-  margin-top: var(--sp-4);
-}
-
-.waitlist-card .entry__choice label {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  color: var(--fg-2);
-  font-family: var(--font-ui);
-  font-size: var(--t-body-sm);
-  line-height: 1.4;
-}
-
-.waitlist-card .entry__choice .checkbox {
-  flex: 0 0 auto;
-}
-
-.waitlist-card .entry__error {
-  margin-top: var(--sp-2);
-  border: 0;
-  background: transparent;
-  color: var(--red-deep);
-  font-family: var(--font-ui);
-  font-size: var(--t-body-sm);
-}
-
-.waitlist-card .waitlist-form__submit .btn {
-  width: 100%;
-  min-height: 52px;
-  gap: var(--sp-2);
-  font-family: var(--font-ui);
-  font-size: var(--t-body);
-  text-align: center;
-}
-
-.waitlist-card .progress-indicator__icon {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-}
-
-.waitlist-message {
-  display: none;
-  max-width: none;
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-2);
-  font-family: var(--font-ui);
-  font-size: var(--t-body);
-  text-align: left;
-}
-
-.waitlist-message--error {
-  background: var(--red-soft);
-  color: var(--red-deep);
-}
-
-.waitlist-message--success {
-  background: var(--paper);
-  color: var(--moss);
-}
-
-.waitlist-page__footer {
-  padding: var(--sp-4) var(--sp-5) var(--sp-5);
-  text-align: center;
-  font-size: var(--t-body-sm);
-  font-weight: 600;
-}
-
-@media (max-width: 480px) {
-  .waitlist-page__main {
-    align-items: start;
-    padding-top: var(--sp-4);
-  }
-
-  .waitlist-card {
-    padding: var(--sp-5) var(--sp-4);
-    border-radius: var(--r-3);
-    box-shadow: var(--sh-drop);
-  }
-}
-
-/* Eyebrow chip (hero + any other eyebrow callouts) */
-.eyebrow-chip {
-  display: inline-block;
-  padding: 4px var(--sp-3);
-  background: var(--butter);
-  color: var(--cobalt);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-pill);
-  font-family: var(--font-ui);
-  font-size: var(--t-eyebrow);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-
 /* =========================================================================
    Hero
    ========================================================================= */
 
 .hero {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-height: 100svh;
   background: var(--paper);
-  padding: var(--sp-8) 0 var(--sp-9);
+  padding-block: clamp(var(--sp-6), 7vw, var(--sp-8));
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('assets/hero-craft-pattern.svg') center top repeat;
+  background-size: clamp(250px, 38vw, 360px) auto;
+  opacity: 0.14;
+  mask-image: radial-gradient(ellipse at center, transparent 24%, rgb(0 0 0 / 25%) 43%, black 85%);
 }
 
 .hero__inner {
+  position: relative;
   display: grid;
-  gap: var(--sp-7);
-  align-items: center;
+  justify-items: center;
+  gap: clamp(var(--sp-4), 3vw, var(--sp-6));
+  text-align: center;
+  width: 100%;
 }
 
-@media (min-width: 820px) {
-  .hero__inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.hero) { scroll-behavior: smooth; }
 }
-
-.hero__text { display: flex; flex-direction: column; gap: var(--sp-5); }
 
 .hero__title {
   font-family: var(--font-display);
-  font-size: clamp(64px, 9vw, 128px);
+  font-size: clamp(44px, 8vw, 112px);
   font-weight: 400;
   line-height: var(--lh-tight);
   letter-spacing: -0.025em;
   color: var(--ink);
-  margin: var(--sp-3) 0 0;
+  margin: 0;
+  text-wrap: balance;
 }
 
 .hero__title em {
@@ -491,29 +307,51 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 .hero__lede {
-  max-width: 520px;
+  max-width: 580px;
   font-size: 18px;
   line-height: var(--lh-body);
   color: var(--fg-1);
 }
 
-.hero__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4);
+.hero__learn-more:hover { color: var(--on-brand); }
+
+.countdown {
+  width: min(100%, 680px);
+}
+
+.countdown__date {
+  font-weight: 700;
+}
+
+.countdown__units:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(5px, 1.5vw, var(--sp-4));
   margin-top: var(--sp-3);
 }
 
-.hero__illustration {
-  width: 100%;
-  max-width: 380px;
-  justify-self: center;
+.countdown__unit {
+  padding: clamp(var(--sp-2), 2vw, var(--sp-4)) 3px;
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-3);
+  background: var(--butter);
+  color: var(--ink);
+  box-shadow: var(--sh-drop-sm);
+  font-size: clamp(11px, 2.2vw, 17px);
+  font-weight: 700;
 }
 
-.hero__illustration img {
-  width: 100%;
-  height: auto;
+.countdown__unit:nth-child(2) { background: var(--sky); }
+.countdown__unit:nth-child(3) { background: var(--lilac); }
+.countdown__unit:nth-child(4) { background: var(--blush); }
+
+.countdown__value {
   display: block;
+  font-family: var(--font-mono);
+  font-size: clamp(28px, 7vw, 76px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
 /* =========================================================================
@@ -1067,77 +905,6 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 /* =========================================================================
-   Final CTA band
-   ========================================================================= */
-
-.final-cta {
-  background: var(--cobalt);
-  color: var(--on-brand);
-  padding: var(--sp-9) 0;
-  position: relative;
-  overflow: hidden;
-  overflow: hidden;
-}
-
-.final-cta::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url('assets/paper-grain.svg');
-  background-size: 400px 400px;
-  opacity: 0.04;
-  pointer-events: none;
-}
-
-.final-cta__accent {
-  position: absolute;
-  width: clamp(140px, 18vw, 220px);
-  height: clamp(140px, 18vw, 220px);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.final-cta__accent--tl {
-  top: calc(var(--sp-5) * -1);
-  left: calc(var(--sp-5) * -1);
-}
-
-.final-cta__accent--br {
-  bottom: calc(var(--sp-5) * -1);
-  right: calc(var(--sp-5) * -1);
-}
-
-@media (max-width: 640px) {
-  .final-cta__accent { width: 120px; height: 120px; opacity: 0.85; }
-}
-
-.final-cta__inner {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--sp-4);
-  position: relative;
-}
-
-.final-cta__title {
-  font-family: var(--font-display);
-  font-size: clamp(48px, 7vw, 80px);
-  font-weight: 400;
-  line-height: var(--lh-tight);
-  color: var(--on-brand);
-  margin: 0;
-}
-
-.final-cta__sub {
-  font-size: 18px;
-  max-width: 420px;
-  color: var(--on-brand);
-}
-
-/* =========================================================================
    Footer
    ========================================================================= */
 
@@ -1204,103 +971,6 @@ a:hover { color: var(--cobalt-deep); }
   align-items: center;
   flex-wrap: wrap;
   gap: var(--sp-3);
-}
-
-/* =========================================================================
-   Modal
-   ========================================================================= */
-
-.modal {
-  max-width: 520px;
-  width: calc(100% - var(--sp-6));
-  padding: var(--sp-6) var(--sp-6) var(--sp-7);
-  background: var(--paper-3);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-4);
-  box-shadow: var(--sh-drop-lg);
-  position: relative;
-}
-
-/* Modal sized to fit the embedded Brevo signup iframe (540px wide) flush.
-   No padding on sides/bottom — the iframe fills the modal and gets clipped
-   by the modal's border-radius via overflow:hidden. Top padding only exists
-   to clear the absolutely-positioned close button. */
-.modal--brevo {
-  max-width: 540px;
-  padding: var(--sp-6) 0 0;
-  overflow: hidden;
-}
-
-.modal__iframe {
-  display: block;
-  width: 100%;
-  border: 0;
-}
-
-.modal::backdrop {
-  background: rgba(22, 18, 16, 0.5);
-}
-
-.modal__close-form {
-  position: absolute;
-  top: var(--sp-3);
-  right: var(--sp-3);
-  margin: 0;
-}
-
-.modal__close {
-  width: 32px;
-  height: 32px;
-  background: transparent;
-  border: none;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--ink);
-  padding: 0;
-}
-
-.modal__title {
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-weight: 400;
-  line-height: 1.05;
-  margin: 0;
-}
-
-.modal__sub {
-  margin-top: var(--sp-3);
-  color: var(--fg-2);
-}
-
-.modal__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin-top: var(--sp-5);
-}
-
-.modal__label {
-  font-weight: 500;
-  color: var(--fg-1);
-}
-
-.modal__input {
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--border-w) solid var(--rule);
-  border-radius: var(--r-1);
-  font-family: var(--font-ui);
-  font-size: var(--t-body);
-  background: var(--paper-3);
-}
-
-.modal__input:focus-visible {
-  outline: 2px solid var(--cobalt);
-  outline-offset: 2px;
-}
-
-.modal__submit {
-  align-self: flex-start;
 }
 
 /* =========================================================================

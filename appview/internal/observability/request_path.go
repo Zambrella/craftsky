@@ -38,6 +38,15 @@ func WithRequestDiagnosticContext(ctx context.Context, request RequestDiagnostic
 	return context.WithValue(ctx, requestDiagnosticContextKey{}, request)
 }
 
+func addRequestDiagnosticRoute(ctx context.Context, fields EventContext) {
+	if _, selected := fields["route_pattern"]; selected {
+		return
+	}
+	if request, ok := ctx.Value(requestDiagnosticContextKey{}).(RequestDiagnosticContext); ok && request.RoutePattern != "" {
+		fields["route_pattern"] = request.RoutePattern
+	}
+}
+
 func workflowForRequest(ctx context.Context, workflow WorkflowContext) WorkflowContext {
 	if _, private := ctx.Value(privateDiagnosticContextKey{}).(privateFailureContext); private {
 		if _, failure := workflow.(privateFailureContext); !failure {

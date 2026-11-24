@@ -41,33 +41,35 @@ type ChatOperation struct {
 }
 
 type ChatPushDelivery struct {
-	OwnerDid              string
-	ID                    pgtype.UUID
-	NotificationID        pgtype.UUID
-	AccountSubscriptionID pgtype.UUID
-	Status                string
-	Attempts              int32
-	LeaseToken            pgtype.UUID
-	LeaseExpiresAt        pgtype.Timestamptz
-	NextAttemptAt         pgtype.Timestamptz
-	DeadlineAt            pgtype.Timestamptz
-	ProviderResultClass   string
-	CreatedAt             pgtype.Timestamptz
-	TerminalAt            pgtype.Timestamptz
+	OwnerDid                         string
+	ID                               pgtype.UUID
+	NotificationID                   pgtype.UUID
+	AccountSubscriptionID            pgtype.UUID
+	Status                           string
+	Attempts                         int32
+	LeaseToken                       pgtype.UUID
+	LeaseExpiresAt                   pgtype.Timestamptz
+	NextAttemptAt                    pgtype.Timestamptz
+	DeadlineAt                       pgtype.Timestamptz
+	ProviderResultClass              string
+	CreatedAt                        pgtype.Timestamptz
+	TerminalAt                       pgtype.Timestamptz
+	SubscriptionActivationGeneration pgtype.Int8
 }
 
 type ChatSyncState struct {
-	OwnerDid       string
-	Phase          string
-	Cursor         string
-	SeedCursor     string
-	PageCursor     string
-	Version        int64
-	RecoveryID     pgtype.UUID
-	ClaimToken     pgtype.UUID
-	ClaimExpiresAt pgtype.Timestamptz
-	NextDueAt      pgtype.Timestamptz
-	FailureCount   int32
-	SafeState      string
-	LastSuccessAt  pgtype.Timestamptz
+	OwnerDid        string
+	Phase           string
+	Cursor          string
+	SeedCursor      string
+	PageCursor      string
+	Version         int64
+	RecoveryID      pgtype.UUID
+	ClaimToken      pgtype.UUID
+	ClaimExpiresAt  pgtype.Timestamptz
+	NextDueAt       pgtype.Timestamptz
+	FailureCount    int32
+	SafeState       string
+	LastSuccessAt   pgtype.Timestamptz
+	ContentRevision int64
 }

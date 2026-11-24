@@ -149,7 +149,8 @@ SELECT pg_advisory_xact_lock(hashtextextended('craftsky.chat.poll.capacity.v1',0
 UPDATE chat_sync_state SET phase=$4,cursor=$5,seed_cursor=$6,page_cursor=$7,
  version=version+1,claim_token=NULL,claim_expires_at=NULL,next_due_at=$8,
  safe_state=CASE WHEN $4='ready' THEN 'ready' ELSE 'syncing' END,
- failure_count=0,last_success_at=$9,recovery_id=$10
+ failure_count=0,last_success_at=$9,recovery_id=$10,
+ content_revision=content_revision+CASE WHEN sqlc.arg(content_changed)::boolean THEN 1 ELSE 0 END
 WHERE owner_did=$1 AND claim_token=$2 AND version=$3;
 
 -- name: FailChatSync :exec
@@ -191,8 +192,8 @@ VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(owner_did,logical_key)
 DO UPDATE SET message_id=excluded.message_id WHERE chat_notifications.state='pending'
 RETURNING owner_did,id,created_at
 )
-INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at)
-SELECT notification.owner_did,gen_random_uuid(),notification.id,subscription.id,notification.created_at+interval '24 hours'
+INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at,subscription_activation_generation)
+SELECT notification.owner_did,gen_random_uuid(),notification.id,subscription.id,notification.created_at+interval '24 hours',subscription.activation_generation
 FROM notification
 JOIN push_account_subscriptions subscription ON subscription.account_did=notification.owner_did
 JOIN push_installations installation ON installation.id=subscription.installation_id
@@ -223,7 +224,7 @@ UPDATE chat_conversation_state SET left_by_owner=false
 WHERE owner_did=$1 AND conversation_id=$2 AND status='accepted';
 
 -- name: ChatSyncSnapshot :one
-SELECT version,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1;
+SELECT content_revision,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1;
 
 -- name: SetChatViewActivity :exec
 INSERT INTO chat_view_activity(owner_did,child_token_hash,oauth_session_id,view,conversation_id,expires_at)
@@ -304,6 +305,8 @@ SELECT notification.kind,notification.conversation_id,notification.message_id,
  notification.messaging_generation,notification.open_reference,notification.state,
  subscription.installation_id,subscription.routing_id,installation.fcm_token,installation.platform,
  (subscription.active AND installation.active AND account.enabled AND account.push_enabled
+  AND COALESCE(delivery.subscription_activation_generation=subscription.activation_generation,
+       subscription.deactivated_at IS NULL OR delivery.created_at>subscription.deactivated_at)
   AND account.generation=notification.messaging_generation AND notification.state='pending'
   AND NOT coalesce(conversation.left_by_owner,false))::boolean AS eligible
 FROM chat_push_deliveries delivery
@@ -329,6 +332,8 @@ WHERE delivery.owner_did=$1 AND delivery.id=$2 AND delivery.lease_token=$3
   SELECT 1 FROM push_account_subscriptions subscription
   JOIN push_installations installation ON installation.id=subscription.installation_id
   WHERE subscription.id=delivery.account_subscription_id AND subscription.active
+   AND COALESCE(delivery.subscription_activation_generation=subscription.activation_generation,
+        subscription.deactivated_at IS NULL OR delivery.created_at>subscription.deactivated_at)
    AND installation.id=$8 AND installation.active AND installation.fcm_token=$9
  );
 
@@ -344,8 +349,8 @@ WITH invalid_installation AS (
  UPDATE push_installations installation SET active=false,deactivated_at=$3,updated_at=$3
  WHERE installation.id=$1 AND installation.active AND installation.fcm_token=$2 RETURNING installation.id
 ), disabled_subscriptions AS (
- UPDATE push_account_subscriptions subscription SET active=false,deactivated_at=$3,updated_at=$3
- WHERE subscription.installation_id IN(SELECT invalid_installation.id FROM invalid_installation) RETURNING subscription.id
+ UPDATE push_account_subscriptions subscription SET active=false,deactivated_at=clock_timestamp(),updated_at=clock_timestamp()
+ WHERE subscription.active AND subscription.installation_id IN(SELECT invalid_installation.id FROM invalid_installation) RETURNING subscription.id
 ), cancelled_social AS (
  UPDATE push_deliveries SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=$3
  WHERE account_subscription_id IN(SELECT disabled_subscriptions.id FROM disabled_subscriptions) AND status IN('pending','retry','leased')

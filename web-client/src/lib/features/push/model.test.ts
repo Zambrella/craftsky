@@ -6,6 +6,7 @@ import {
 	removeBinding,
 	pushTarget,
 	pushURL,
+	isPushURL,
 	targetFromURL,
 	accountForTarget
 } from './model.ts';
@@ -87,6 +88,22 @@ describe('private multiaccount push routing', () => {
 			targetFromURL(new URL(pushURL(target), 'https://app.craftsky.social'))
 		).toEqual(target);
 		expect(pushURL(target)).toMatch(/^\/messages\?/);
+	});
+	it('recognizes malformed push URLs so normal destinations cannot open for them', () => {
+		for (const path of [
+			'/notifications?pushSubscription=',
+			`/notifications?pushSubscription=${subA}&pushSubscription=${subB}`,
+			`/messages?pushReference=${subB}`
+		]) {
+			const url = new URL(path, 'https://app.craftsky.social');
+			expect(isPushURL(url)).toBe(true);
+			expect(targetFromURL(url)).toBeNull();
+		}
+		expect(
+			isPushURL(
+				new URL('/notifications?category=like', 'https://app.craftsky.social')
+			)
+		).toBe(false);
 	});
 	it('rotates registration bindings without retaining stale subscription routes', () => {
 		const data = storage();

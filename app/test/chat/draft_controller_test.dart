@@ -95,7 +95,7 @@ void main() {
       expect(draft.edit('  ').canSend, isFalse);
       expect(draft.edit('x' * 1001).text.length, 1001);
       expect(draft.edit('x' * 1001).canSend, isFalse);
-      expect(draft.edit('private-draft').discard().text, isEmpty);
+      expect(draft.edit('private-draft').withoutUnsentText().text, isEmpty);
       expect(
         '${draft.edit('private-draft')}',
         isNot(contains('private-draft')),

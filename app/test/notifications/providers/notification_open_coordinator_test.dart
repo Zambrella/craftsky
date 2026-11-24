@@ -159,6 +159,40 @@ void main() {
     expect(navigations, 0);
     expect(removed, 1);
   });
+
+  test(
+    'social open stops if the retained recipient is no longer active',
+    () async {
+      var registry = _registry();
+      final alice = registry.activeLease!.session;
+      final routing = NotificationRoutingStorage(() => registry);
+      final activationStarted = Completer<void>();
+      final releaseActivation = Completer<void>();
+      var navigations = 0;
+      final coordinator = NotificationOpenCoordinator(
+        resolveRecipient: routing.resolve,
+        isCurrentLease: routing.isCurrentLease,
+        isActiveLease: routing.isActiveLease,
+        activate: (lease) async {
+          registry = registry.activate(lease);
+          activationStarted.complete();
+          await releaseActivation.future;
+          return AccountActivationResult.activated;
+        },
+        onOutcome: (_) => navigations++,
+        onUnavailable: () {},
+        onRemovedAccount: () {},
+      );
+
+      final open = coordinator.open(_attempt('bob_binding'));
+      await activationStarted.future;
+      registry = registry.activate(alice);
+      releaseActivation.complete();
+      await open;
+
+      expect(navigations, 0);
+    },
+  );
 }
 
 SessionRegistry _registry() {

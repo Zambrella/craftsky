@@ -66,6 +66,8 @@
 		linkURL = $state(''),
 		linkTitle = $state(''),
 		linkError = $state('');
+	let lastLinkTimestampUs = 0n;
+	let linkClockId: bigint | undefined;
 	let avatarURL = $state('');
 	let savedLinks = '';
 	let dead = false;
@@ -261,6 +263,24 @@
 		linkError = '';
 		linkDialog.showModal();
 	}
+	function newLinkRecordKey(now: Date): string {
+		const alphabet = '234567abcdefghijklmnopqrstuvwxyz';
+		const timestampUs = BigInt(now.getTime()) * 1000n;
+		lastLinkTimestampUs =
+			timestampUs > lastLinkTimestampUs
+				? timestampUs
+				: lastLinkTimestampUs + 1n;
+		linkClockId ??= BigInt(
+			crypto.getRandomValues(new Uint16Array(1))[0] & 1023
+		);
+		let value = (lastLinkTimestampUs << 10n) | linkClockId;
+		let key = '';
+		for (let digit = 0; digit < 13; digit++) {
+			key = alphabet[Number(value & 31n)] + key;
+			value >>= 5n;
+		}
+		return key;
+	}
 	function acceptLink() {
 		if (work.busy || work.retry) return;
 		const url = normalizedLink(linkURL),
@@ -297,12 +317,13 @@
 		}
 		if (!current && links.length >= 10) return;
 		const unchanged = current?.url === url && (current?.title || '') === title;
+		const now = new Date();
 		const link: ProfileLinkInput = {
 			...current,
-			rkey: current?.rkey || crypto.randomUUID(),
+			rkey: current?.rkey ?? newLinkRecordKey(now),
 			url,
 			title: title || undefined,
-			createdAt: unchanged ? current!.createdAt : new Date().toISOString(),
+			createdAt: unchanged ? current!.createdAt : now.toISOString(),
 			icon: current?.url === url ? current?.icon : undefined
 		};
 		links = current

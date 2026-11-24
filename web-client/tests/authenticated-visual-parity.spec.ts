@@ -559,7 +559,7 @@ for (const withImage of [true, false]) {
 	});
 }
 
-test('visitor event details link to the creator, show roles and share through a chat draft', async ({
+test('visitor event details link to the creator, show roles and share through the message composer', async ({
 	page
 }) => {
 	await page.route(
@@ -614,7 +614,7 @@ test('visitor event details link to the creator, show roles and share through a 
 	await page.getByRole('link', { name: 'Send via chat', exact: true }).click();
 	await expect(
 		page.getByText(
-			'Choose someone to send this link to. It will be added to your draft for review.'
+			'Choose someone to send this link to. You can review the link before sending.'
 		)
 	).toBeVisible();
 	await page.locator('.conversation-list button.recipient').first().click();

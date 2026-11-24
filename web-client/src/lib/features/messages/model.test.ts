@@ -24,7 +24,7 @@ export class MemoryStorage implements StorageLike {
 		this.values.delete(key);
 	}
 }
-describe('private message drafts and delivery', () => {
+describe('message composition and delivery', () => {
 	it('retains the frozen text and operation across a reload without silently resending', async () => {
 		const storage = new MemoryStorage();
 		const store = new MessageDraftStore(storage, 'account-a');
@@ -44,6 +44,24 @@ describe('private message drafts and delivery', () => {
 			new MessageDraftStore(storage, 'account-b').load('conversation')
 		).toEqual({ text: '' });
 		expect(store.load('other-conversation')).toEqual({ text: '' });
+	});
+	it('ignores legacy unsent drafts and persists only an attempted message', async () => {
+		const storage = new MemoryStorage();
+		const store = new MessageDraftStore(storage, 'account-a');
+		storage.setItem(
+			'craftsky.chat.v1:account-a:conversation',
+			JSON.stringify({ text: 'Legacy draft' })
+		);
+		expect(store.load('conversation')).toEqual({ text: '' });
+		const attempted = freezeSend({ text: 'Submitted message' }, () => key);
+		await store.save('conversation', {
+			...attempted,
+			text: 'Newer unsent text'
+		});
+		expect(store.load('conversation').text).toBe('Submitted message');
+		expect([...storage.values.values()].join()).not.toContain(
+			'Newer unsent text'
+		);
 	});
 	it('keeps a newer draft when confirmation arrives for an earlier frozen message', () => {
 		const draft = {
@@ -223,8 +241,11 @@ it('rejects a stale tab save instead of overwriting frozen delivery', async () =
 		'chat',
 		freezeSend({ text: 'Frozen' }, () => key)
 	);
-	await expect(b.save('chat', { text: 'Stale' })).rejects.toThrow(
-		'another tab'
-	);
+	await expect(
+		b.save(
+			'chat',
+			freezeSend({ text: 'Stale' }, () => key)
+		)
+	).rejects.toThrow('another tab');
 	expect(a.load('chat').pending?.text).toBe('Frozen');
 });

@@ -149,7 +149,7 @@ func TestFollowActivationWaitsForActorProfileProjection(t *testing.T) {
 func TestCraftskyLikeProjectMaintainsLogicalAggregateAcrossDuplicateSources(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	ctx := context.Background()
-	now := time.Date(2026, 9, 24, 9, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(time.Second)
 	store, err := ingestion.NewStore(pool, func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +199,7 @@ func TestCraftskyLikeProjectMaintainsLogicalAggregateAcrossDuplicateSources(t *t
 		event := tap.Event{
 			ID: uint64(index + 1), URI: uri, DID: actor, Collection: craftskyLikeNSID,
 			Rkey: rkey, Rev: syntax.TID(rkey), CID: syntax.CID(fmt.Sprintf("bafy-like-%d", index)), Action: "create",
-			Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T08:00:00Z"}`),
+			Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"` + now.Format(time.RFC3339) + `"}`),
 		}
 		if _, err := store.IngestRecord(ctx, event); err != nil {
 			t.Fatalf("ingest like %d: %v", index, err)

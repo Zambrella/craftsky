@@ -45,14 +45,26 @@ bool isLogicallyBlocking(
   BlockOverlayReader read,
   Did targetDid, {
   required bool authoritativeBlocking,
-}) => applyBlockRelationshipOverlay(
-  read,
-  ProfileRelationship(
+  AccountSessionLease? owner,
+}) {
+  final relationship = ProfileRelationship(
     blocking: authoritativeBlocking,
     initialized: true,
-  ),
-  targetDid,
-).blocking;
+  );
+  if (owner == null) {
+    return applyBlockRelationshipOverlay(
+      read,
+      relationship,
+      targetDid,
+    ).blocking;
+  }
+  if (read(isGuestBrowsingProvider)) return authoritativeBlocking;
+  return applyBlockRelationshipOverlayForScope(
+    read(pdsRecordOperationControllerProvider),
+    blockProfileMutationScopeFor(owner, targetDid),
+    relationship,
+  ).blocking;
+}
 
 ProfileRelationship applyBlockRelationshipOverlayForScope(
   PdsRecordOperationController controller,

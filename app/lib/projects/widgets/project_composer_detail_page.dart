@@ -68,16 +68,13 @@ class ProjectComposerDetailPage extends StatelessWidget {
     return FormKeyboardScope(
       child: Scaffold(
         backgroundColor: swatches.paper,
-        appBar: AppBar(
-          title: Text(title, style: theme.textTheme.titleLarge),
-        ),
+        appBar: AppBar(title: Text(title, style: theme.textTheme.titleLarge)),
         body: FormActionLayout(
-          overlayAction: true,
           keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
           label: AppLocalizations.of(context).postComposeDone,
           actionKey: const Key('composer-details-done'),
           onPressed: () => Navigator.of(context).maybePop(),
-          child: GestureDetector(
+          contentBuilder: (_, clearance) => GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
             child: SafeArea(
@@ -88,9 +85,7 @@ class ProjectComposerDetailPage extends StatelessWidget {
                   spacing.sp4,
                   spacing.sp4,
                   spacing.sp4,
-                  spacing.sp4 +
-                      spacing.sp9 +
-                      MediaQuery.paddingOf(context).bottom,
+                  spacing.sp4 + clearance,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

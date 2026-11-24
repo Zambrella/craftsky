@@ -1,5 +1,7 @@
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
+import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -39,4 +41,28 @@ void main() {
     expect(route, isA<AccountStandingRoute>());
     expect(route.location, '/settings/moderation');
   });
+
+  for (final type in ['mention', 'quote']) {
+    test('a $type push opens the root with the reply focused', () {
+      const root = 'at://did:plc:author/social.craftsky.feed.post/root';
+      const source = 'at://did:plc:author/social.craftsky.feed.post/reply';
+      final attempt = NotificationOpenAttempt.fromProviderData({
+        'payloadVersion': '1',
+        'type': type,
+        'accountSubscriptionId': 'test-binding',
+        'rootUri': root,
+        'sourceUri': source,
+      });
+      final destination =
+          NotificationDestinationInference.forFacts(
+                attempt.facts,
+              ).destination
+              as PostDestination;
+      final route = postThreadRouteForNotification(destination)!;
+
+      expect(route.did, 'did:plc:author');
+      expect(route.rkey, 'root');
+      expect(route.focus, source);
+    });
+  }
 }

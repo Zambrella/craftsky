@@ -53,6 +53,10 @@ void main() {
 
     final effectFuture = effects.stream.first;
     await runtime.receiveOpen(_attempt('bob_binding'));
+    await runtime.updateReadiness(
+      did: Did.parse('did:plc:bob'),
+      onboarded: true,
+    );
     final effect = await effectFuture;
     operations.add('navigate');
 
@@ -149,6 +153,10 @@ void main() {
 
       final effectFuture = effects.stream.first;
       await runtime.receiveOpen(_retiredInstagramAttempt('bob_binding'));
+      await runtime.updateReadiness(
+        did: Did.parse('did:plc:bob'),
+        onboarded: true,
+      );
       final effect = await effectFuture as NotificationNavigationEffect;
 
       expect(operations, ['activate:did:plc:bob']);
@@ -182,6 +190,10 @@ void main() {
 
       final effectFuture = effects.stream.first;
       await runtime.receiveOpen(_moderationAttempt('bob_binding'));
+      await runtime.updateReadiness(
+        did: Did.parse('did:plc:bob'),
+        onboarded: true,
+      );
       final effect = await effectFuture as NotificationNavigationEffect;
       operations.add('navigate');
 

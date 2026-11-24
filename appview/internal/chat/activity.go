@@ -19,6 +19,7 @@ func (ViewActivity) String() string   { return "ChatViewActivity([REDACTED])" }
 func (ViewActivity) GoString() string { return "ChatViewActivity([REDACTED])" }
 
 type SyncSnapshot struct {
+	// Revision signals content invalidation, independent of worker progress.
 	Revision      int64      `json:"revision"`
 	State         string     `json:"state"`
 	LastSuccessAt *time.Time `json:"lastSuccessAt,omitempty"`
@@ -69,7 +70,7 @@ func (service *Service) Heartbeat(ctx context.Context, info auth.AuthInfo, activ
 				}
 			}
 			snapshot, err := q.ChatSyncSnapshot(ctx, info.DID.String())
-			result = SyncSnapshot{Revision: snapshot.Version, State: snapshot.SafeState}
+			result = SyncSnapshot{Revision: snapshot.ContentRevision, State: snapshot.SafeState}
 			if snapshot.LastSuccessAt.Valid {
 				at := snapshot.LastSuccessAt.Time.UTC()
 				result.LastSuccessAt = &at

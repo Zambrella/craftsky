@@ -70,7 +70,7 @@ func (w *BunnyCleanup) ProcessBatch(ctx context.Context) (int, error) {
    EXISTS(SELECT 1 FROM owner_lifecycles o WHERE o.owner_did=j.owner_did AND o.state='terminal')))
  AND NOT EXISTS(SELECT 1 FROM craftsky_posts p WHERE p.did=j.owner_did AND p.record#>>'{embed,video,ref,$link}'=j.blob_cid)
  ORDER BY created_at,id LIMIT 100 FOR UPDATE SKIP LOCKED)
- UPDATE bunny_video_jobs j SET cleanup_requested_at=now(),cleanup_next_attempt_at=now()
+ UPDATE bunny_video_jobs j SET cleanup_requested_at=now(),cleanup_next_attempt_at=now(),pending_thumbnail=NULL
  FROM candidates c WHERE j.id=c.id`, b.library)
 	if err != nil {
 		return 0, err
@@ -133,7 +133,7 @@ func (w *BunnyCleanup) ProcessBatch(ctx context.Context) (int, error) {
 			}
 			// Persist intent before the irreversible external call, including ambiguous
 			// network outcomes. A restarted worker repeats DELETE safely (404 is success).
-			_, err = tx.Exec(opctx, `UPDATE bunny_video_jobs SET state='deleting',cleanup_next_attempt_at=now(),updated_at=now() WHERE id=$1`, id)
+			_, err = tx.Exec(opctx, `UPDATE bunny_video_jobs SET state='deleting',pending_thumbnail=NULL,cleanup_next_attempt_at=now(),updated_at=now() WHERE id=$1`, id)
 		}
 		if err != nil {
 			return 0, err

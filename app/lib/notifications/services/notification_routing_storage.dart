@@ -38,26 +38,28 @@ final class RemovedNotificationRecipient
 final class NotificationRoutingStorage {
   const new(this._readRegistry);
 
-  final SessionRegistry Function() _readRegistry;
+  final SessionRegistry? Function() _readRegistry;
 
-  ActiveAccountLease? get activeLease => _readRegistry().activeLease;
+  ActiveAccountLease? get activeLease => _readRegistry()?.activeLease;
 
   bool isCurrentLease(AccountSessionLease lease) =>
-      _readRegistry().leaseFor(lease.account) == lease;
+      _readRegistry()?.leaseFor(lease.account) == lease;
 
   bool isActiveLease(AccountSessionLease lease) =>
-      _readRegistry().activeLease?.session == lease;
+      activeLease?.session == lease;
 
   StoredSession? sessionFor(AccountSessionLease lease) {
     final registry = _readRegistry();
-    return registry.leaseFor(lease.account) == lease
+    return registry != null && registry.leaseFor(lease.account) == lease
         ? registry.sessions[lease.account.did]
         : null;
   }
 
   AccountSubscriptionId? read(AccountSessionLease lease) {
     final registry = _readRegistry();
-    if (registry.leaseFor(lease.account) != lease) return null;
+    if (registry == null || registry.leaseFor(lease.account) != lease) {
+      return null;
+    }
     final value = registry.routingBindings[lease.account.did];
     if (value == null) return null;
     try {
@@ -67,9 +69,15 @@ final class NotificationRoutingStorage {
     }
   }
 
-  NotificationRecipientResolution resolve(AccountSubscriptionId? binding) {
+  NotificationRecipientResolution resolve(AccountSubscriptionId? binding) =>
+      resolveIfReady(binding) ?? const InvalidNotificationRecipient();
+
+  NotificationRecipientResolution? resolveIfReady(
+    AccountSubscriptionId? binding,
+  ) {
     if (binding == null) return const InvalidNotificationRecipient();
     final registry = _readRegistry();
+    if (registry == null) return null;
     final matchingDids = <String>[];
     var hasMalformedBinding = false;
 

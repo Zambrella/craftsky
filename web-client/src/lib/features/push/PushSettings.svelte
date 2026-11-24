@@ -5,6 +5,7 @@
 	import type { CraftskyAPI } from '#lib/api/client.ts';
 	import { bindings } from './model.ts';
 	import { configuration, registerPush, disablePush } from './client.ts';
+	import { InputError } from '#lib/user-facing-error.ts';
 	let {
 		api,
 		session
@@ -30,7 +31,7 @@
 		} catch {}
 	}
 	async function toggle() {
-		if (!session.id) return;
+		if (busy || !session.id) return;
 		const id = session.id;
 		busy = true;
 		error = '';
@@ -46,9 +47,13 @@
 			}
 		} catch (cause) {
 			void reportFailure(cause, 'push.toggle');
-			if (!dead)
+			if (!dead) {
+				sync();
 				error =
-					'Could not update browser notifications. Check your browser notification permission and try again.';
+					cause instanceof InputError
+						? cause.message
+						: 'Could not update browser notifications. Try again.';
+			}
 		} finally {
 			if (!dead) busy = false;
 		}
@@ -57,12 +62,14 @@
 		sync();
 		window.addEventListener('craftsky-push-change', sync);
 		window.addEventListener('storage', sync);
+		window.addEventListener('focus', sync);
 	});
 	onDestroy(() => {
 		dead = true;
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('craftsky-push-change', sync);
 			window.removeEventListener('storage', sync);
+			window.removeEventListener('focus', sync);
 		}
 	});
 </script>

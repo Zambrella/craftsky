@@ -290,7 +290,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return err
 	}
 	if externalImportSource == "" && !c.deferNotifications {
-		if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt); err != nil {
+		if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt, nil); err != nil {
 			return err
 		}
 	}
@@ -330,7 +330,7 @@ func validateIndexedVideo(embed *craftskylex.FeedPost_Embed) error {
 	return nil
 }
 
-func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx, ev tap.Event, rec craftskylex.FeedPost, mentions []string, createdAt time.Time) error {
+func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx, ev tap.Event, rec craftskylex.FeedPost, mentions []string, createdAt time.Time, pendingRecipients map[syntax.DID]bool) error {
 	reasons := make(map[syntax.DID]notifications.PostReasons)
 	addPostAuthor := func(uri any, apply func(notifications.PostReasons) notifications.PostReasons) error {
 		value, ok := uri.(string)
@@ -368,7 +368,7 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 	}
 	for recipient, recipientReasons := range reasons {
 		category, ok := notifications.ClassifyPostReason(recipientReasons)
-		if !ok || recipient == ev.DID {
+		if !ok || recipient == ev.DID || pendingRecipients[recipient] {
 			continue
 		}
 		var recipientIsMember bool

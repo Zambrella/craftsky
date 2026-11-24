@@ -67,7 +67,7 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 			}
 			// responseLogger captures the status and response byte count while
 			// preserving normal ResponseWriter behavior for the wrapped handler.
-			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
+			rw := &metricsResponseWriter{responseLogger: responseLogger{ResponseWriter: w, status: http.StatusOK}}
 			next.ServeHTTP(rw, req)
 			if observer != nil {
 				routePattern := observability.RecordedRoutePattern(req.Context(), observability.RoutePattern(req))
@@ -124,6 +124,9 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"duration":          duration.String(),
 						"run_id":            GetRunID(req.Context()),
 					}
+					if rw.apiErrorCode != "" {
+						fallback["api_error_code"] = rw.apiErrorCode
+					}
 					observer.Log(req.Context(), slog.LevelError, "HTTP request failed", fallback)
 					observer.CaptureError(req.Context(), fallback, errors.New("http server error response"))
 				}
@@ -137,6 +140,17 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				}
 			}
 		})
+	}
+}
+
+type metricsResponseWriter struct {
+	responseLogger
+	apiErrorCode string
+}
+
+func (w *metricsResponseWriter) RecordAPIErrorCode(code string) {
+	if !w.wroteHeader {
+		w.apiErrorCode = code
 	}
 }
 

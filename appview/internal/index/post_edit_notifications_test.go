@@ -1,6 +1,7 @@
 package index_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -127,6 +128,7 @@ func TestPostEditRemovedMentionKeepsPendingDelivery(t *testing.T) {
 	f.exec(`INSERT INTO push_installations(id,device_id,platform,fcm_token) VALUES('00000000-0000-0000-0000-000000000001','edit-install','ios','edit-token')`)
 	f.exec(`INSERT INTO push_account_subscriptions(id,installation_id,account_did,routing_id) VALUES('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001','did:plc:recipient','00000000-0000-0000-0000-000000000003')`)
 	original := notificationEvent(850, "did:plc:actor", "3aaaaaaaaaaa4", mentionExtra("did:plc:recipient"))
+	original.Record = bytes.Replace(original.Record, []byte("2026-05-04T12:00:00Z"), []byte(time.Now().UTC().Format(time.RFC3339)), 1)
 	f.ingest(original)
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='pending'`, 1)

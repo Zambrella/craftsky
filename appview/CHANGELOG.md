@@ -1,5 +1,17 @@
 # AppView Changelog
 
+## 1.5.0 - 2026-11-22
+
+- fix(api): log profile save rejections
+- feat(web): add a generated project schema explorer
+- feat(video): add custom thumbnail selection and upload
+- fix(profile-links): resolve streamed icons and generate valid rkeys
+- fix(notifications): harden cross-client notification handling
+- perf(chat): preload conversations and bound sync refreshes
+- fix(observability): preserve safe failure details across clients
+- fix(notifications): fence stale opens and push deliveries
+- fix(notifications): enforce active lease validation
+
 ## 1.4.0 - 2026-11-17
 
 - feat(profile): add visitor follower and following lists

@@ -60,6 +60,8 @@ final class ComposerDraftSession {
         storageRevision: stored.storageRevision,
         expectedSourceSha256: stored.sourceSha256,
         expectedPosterSha256: stored.posterSha256,
+        thumbnail: selection.thumbnail,
+        thumbnailFrame: selection.thumbnailFrame,
         altText: selection.altText,
       );
     }
@@ -80,6 +82,8 @@ final class ComposerDraftSession {
       altText: selection.altText,
       posterMimeType: 'image/jpeg',
       posterBytes: poster,
+      thumbnail: selection.thumbnail,
+      thumbnailFrame: selection.thumbnailFrame,
     );
   }
 
@@ -103,6 +107,8 @@ final class ComposerDraftSession {
       headerBytes: Uint8List(0),
       openRead: () => videoRepository.openVideoSource(seed.draft.id),
       posterBytes: poster,
+      thumbnail: await videoRepository.readVideoThumbnail(seed.draft.id),
+      thumbnailFrame: descriptor.thumbnailFrame,
       altText: descriptor.altText,
     );
   }

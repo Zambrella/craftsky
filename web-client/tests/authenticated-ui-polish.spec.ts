@@ -73,6 +73,19 @@ for (const theme of ['dark', 'system']) {
 		});
 		await expect(error).toBeVisible();
 		await expect(error).toHaveCSS('color', red);
+
+		await page
+			.getByRole('combobox', { name: 'Primary craft required' })
+			.click();
+		await page.getByRole('option', { name: 'Sewing', exact: true }).click();
+		await page
+			.getByRole('button', { name: 'Sewing details', exact: true })
+			.click();
+		const done = page
+			.getByRole('region', { name: 'Sewing details', exact: true })
+			.getByRole('button', { name: 'Done', exact: true });
+		await expect(done).toHaveCSS('box-shadow', shadow);
+		await expect(done).toHaveCSS('border-top-color', outline);
 	});
 }
 

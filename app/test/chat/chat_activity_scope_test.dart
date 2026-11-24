@@ -34,7 +34,7 @@ void main() {
         ownership: null,
         isCurrent: () => true,
       ),
-      onRevision: (_, _, _) async {},
+      onRevision: (_, _, _, _) async {},
       now: () => now,
     );
     await tester.pumpWidget(
@@ -62,7 +62,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Messages may be out of date. Your loaded messages and draft are kept.',
+        'Messages may be out of date. '
+        'Your loaded messages and current text are kept.',
       ),
       findsNothing,
     );
@@ -87,7 +88,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Messages may be out of date. Your loaded messages and draft are kept.',
+        'Messages may be out of date. '
+        'Your loaded messages and current text are kept.',
       ),
       findsNothing,
     );
@@ -113,7 +115,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -177,7 +179,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -249,7 +251,7 @@ void main() {
           ownership: null,
           isCurrent: () => true,
         ),
-        onRevision: (_, _, _) async {},
+        onRevision: (_, _, _, _) async {},
       );
       await tester.pumpWidget(
         ProviderScope(

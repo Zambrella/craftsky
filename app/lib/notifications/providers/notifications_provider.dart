@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
@@ -42,13 +43,14 @@ class AccountNotifications extends _$AccountNotifications {
       repo,
       category,
       _loadedPageCount,
+      isCurrent: () => buildRef.mounted && generation == _generation,
     );
     if (!buildRef.mounted || generation != _generation) {
       throw AccountOperationCanceled();
     }
     _loadedPageCount = pageCount;
     return NotificationsState(
-      items: _filterAndDedupe(buildRef.read, items),
+      items: _filterAndDedupe(buildRef.read, items, owner: owner),
       category: category,
       cursor: cursor,
       renderToken: ++_nextRenderToken,
@@ -87,9 +89,10 @@ class AccountNotifications extends _$AccountNotifications {
       }
       return NotificationsState(
         category: category,
-        items: _appendDeduped(
-          current.items,
-          _filterAndDedupe(operationRef.read, page.items),
+        items: _filterAndDedupe(
+          operationRef.read,
+          [...(state.value ?? current).items, ...page.items],
+          owner: current.owner,
         ),
         cursor: page.cursor,
         renderToken: current.renderToken,
@@ -134,6 +137,7 @@ class Notifications extends _$Notifications {
       repo,
       category,
       _loadedPageCount,
+      isCurrent: () => buildRef.mounted && generation == _generation,
     );
     if (!buildRef.mounted || generation != _generation) {
       throw AccountOperationCanceled();
@@ -172,10 +176,10 @@ class Notifications extends _$Notifications {
       }
       return NotificationsState(
         category: category,
-        items: _appendDeduped(
-          current.items,
-          _filterAndDedupe(operationRef.read, page.items),
-        ),
+        items: _filterAndDedupe(operationRef.read, [
+          ...(state.value ?? current).items,
+          ...page.items,
+        ]),
         cursor: page.cursor,
         renderToken: current.renderToken,
         owner: current.owner,
@@ -201,12 +205,14 @@ class Notifications extends _$Notifications {
 Future<(List<CraftskyNotification>, String?, int)> _reloadPages(
   NotificationRepository repo,
   NotificationCategory? category,
-  int pageCount,
-) async {
+  int pageCount, {
+  required bool Function() isCurrent,
+}) async {
   final items = <CraftskyNotification>[];
   String? cursor;
   var loaded = 0;
   do {
+    if (!isCurrent()) throw AccountOperationCanceled();
     final page = await repo.list(
       limit: notificationsPageLimit,
       category: category,
@@ -235,14 +241,20 @@ int _suppressActor(
   final removed = value.items.length - retained.length;
   if (removed > 0) {
     update(AsyncData(value.copyWith(items: retained)));
+    if (current.isLoading) {
+      update(const AsyncLoading());
+    } else if (current.hasError) {
+      update(AsyncError(current.error!, current.stackTrace!));
+    }
   }
   return removed;
 }
 
 List<CraftskyNotification> _filterAndDedupe(
   BlockOverlayReader read,
-  List<CraftskyNotification> items,
-) {
+  List<CraftskyNotification> items, {
+  AccountSessionLease? owner,
+}) {
   final seen = <String>{};
   return [
     for (final item in items)
@@ -251,20 +263,9 @@ List<CraftskyNotification> _filterAndDedupe(
                 read,
                 item.actor.did,
                 authoritativeBlocking: item.actor.blocking ?? false,
+                owner: owner,
               )) &&
           seen.add(item.id))
         item,
-  ];
-}
-
-List<CraftskyNotification> _appendDeduped(
-  List<CraftskyNotification> current,
-  List<CraftskyNotification> next,
-) {
-  final seen = current.map((item) => item.id).toSet();
-  return [
-    ...current,
-    for (final item in next)
-      if (seen.add(item.id)) item,
   ];
 }

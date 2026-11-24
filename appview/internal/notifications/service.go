@@ -40,39 +40,31 @@ func NewService(observers ...DecisionObserver) *Service {
 }
 
 func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation) error {
-	preference := defaultPreference
+	var preference Preference
+	var followsActor bool
+	var relationship relationships.State
 	err := tx.QueryRow(ctx, `
-		SELECT scope, push_enabled
-		FROM notification_preferences
-		WHERE account_did = $1 AND category = $2
-	`, activation.RecipientDID, activation.Category).Scan(&preference.Scope, &preference.PushEnabled)
-	if err != nil && err != pgx.ErrNoRows {
-		return fmt.Errorf("read effective preference: %w", err)
-	}
-
-	followsActor := false
-	if preference.Scope == PeopleIFollow {
-		if err := tx.QueryRow(ctx, `
-			SELECT EXISTS (
+		SELECT COALESCE(preference.scope, $4), COALESCE(preference.push_enabled, $5),
+			CASE WHEN preference.scope = 'peopleIFollow' THEN EXISTS (
 				SELECT 1 FROM pds_set_aggregates
 				WHERE kind = 'follow' AND actor_did = $1 AND subject_did = $2
-			)
-		`, activation.RecipientDID, activation.ActorDID).Scan(&followsActor); err != nil {
-			return fmt.Errorf("read event-time follow state: %w", err)
-		}
-	}
-	var relationship relationships.State
-	if err := tx.QueryRow(ctx, `
-		SELECT
+			) ELSE false END,
 			EXISTS (SELECT 1 FROM actor_mutes WHERE owner_did = $1 AND subject_did = $2),
 			EXISTS (SELECT 1 FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = $1 AND subject_did = $2),
 			EXISTS (SELECT 1 FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = $2 AND subject_did = $1)
-	`, activation.RecipientDID, activation.ActorDID).Scan(
+		FROM (SELECT $1::text AS recipient_did) recipient
+		LEFT JOIN notification_preferences preference
+		  ON preference.account_did = recipient.recipient_did AND preference.category = $3
+	`, activation.RecipientDID, activation.ActorDID, activation.Category, defaultPreference.Scope, defaultPreference.PushEnabled).Scan(
+		&preference.Scope,
+		&preference.PushEnabled,
+		&followsActor,
 		&relationship.Muted,
 		&relationship.Blocking,
 		&relationship.BlockedBy,
-	); err != nil {
-		return fmt.Errorf("read event-time relationship state: %w", err)
+	)
+	if err != nil {
+		return fmt.Errorf("read notification eligibility state: %w", err)
 	}
 	decision, err := EvaluateEligibility(EligibilityInput{
 		Preference:            preference,
@@ -169,20 +161,28 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 		return nil
 	}
 
+	// PDS timestamps come from the record author. Keep the backfill cutoff,
+	// while bounding the delivery window for future-dated records.
+	windowStart := now
+	if activation.ActivityAt.Before(now) {
+		windowStart = activation.ActivityAt
+	}
+	deadline := windowStart.Add(deliveryWindow)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO push_deliveries (
 			id, notification_id, account_subscription_id,
-			status, next_attempt_at, deadline_at
+			status, next_attempt_at, deadline_at, subscription_activation_generation
 		)
 		SELECT gen_random_uuid(), $1, subscription.id,
-		       'pending', $2, $3
+		       CASE WHEN $3::timestamptz <= $2::timestamptz THEN 'expired' ELSE 'pending' END,
+		       $2, $3, subscription.activation_generation
 		FROM push_account_subscriptions subscription
 		JOIN push_installations installation ON installation.id = subscription.installation_id
 		WHERE subscription.account_did = $4
 		  AND subscription.active
 		  AND installation.active
 		ON CONFLICT (notification_id, account_subscription_id) DO NOTHING
-	`, insertedID, now, activation.ActivityAt.Add(deliveryWindow), activation.RecipientDID); err != nil {
+	`, insertedID, now, deadline, activation.RecipientDID); err != nil {
 		return fmt.Errorf("fan out notification: %w", err)
 	}
 	return nil

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/chat/adapters/flutter_chat_adapter.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_draft.dart';
@@ -28,11 +27,9 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
-import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/shared/widgets/form_keyboard_scope.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -50,6 +47,7 @@ class MessagingConversationPage extends ConsumerWidget {
     required this.onReport,
     required this.onAuthorize,
     this.onReportConversation,
+    this.takeSharedLink,
     super.key,
   });
   final AccountKey account;
@@ -57,22 +55,8 @@ class MessagingConversationPage extends ConsumerWidget {
   final VoidCallback onClose;
   final ValueChanged<ChatMessageId> onReport;
   final VoidCallback? onReportConversation;
+  final String? Function()? takeSharedLink;
   final ValueChanged<bool> onAuthorize;
-
-  Future<void> _close(
-    WidgetRef ref,
-    ChatConversationController controller,
-  ) async {
-    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
-    if (lease?.session.account != account) return;
-    final operation = ActiveAccountOperation.fromWidget(ref, lease);
-    try {
-      await operation.step(controller.flush);
-      if (!controller.saveFailed) operation.publish(onClose);
-    } on AccountOperationDiscarded {
-      return;
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ChatContentGate(
@@ -108,7 +92,8 @@ class MessagingConversationPage extends ConsumerWidget {
             data: (controller) => _ConversationView(
               key: ValueKey((account, conversationId, status.generation)),
               controller: controller,
-              onClose: () => unawaited(_close(ref, controller)),
+              onClose: onClose,
+              takeSharedLink: takeSharedLink,
               onReload: () => ref.invalidate(family),
               canOperate: status.state == ChatConnectionState.ready,
               onReport:
@@ -133,6 +118,7 @@ class _ConversationView extends ConsumerStatefulWidget {
     required this.onReport,
     required this.canOperate,
     this.onReportConversation,
+    this.takeSharedLink,
     super.key,
   });
   final ChatConversationController controller;
@@ -140,6 +126,7 @@ class _ConversationView extends ConsumerStatefulWidget {
   final VoidCallback onReload;
   final ValueChanged<ChatMessageId>? onReport;
   final VoidCallback? onReportConversation;
+  final String? Function()? takeSharedLink;
   final bool canOperate;
   @override
   ConsumerState<_ConversationView> createState() => _ConversationViewState();
@@ -148,8 +135,6 @@ class _ConversationView extends ConsumerStatefulWidget {
 class _ConversationViewState extends ConsumerState<_ConversationView>
     with WidgetsBindingObserver {
   late final TextEditingController _text;
-  late final UnsavedWorkGuard _workGuard;
-  UnsavedWorkRegistration? _workRegistration;
   bool _resumed = true;
   bool _routeCurrent = true;
   bool _ignoring = false;
@@ -159,20 +144,12 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
   void initState() {
     super.initState();
     _text = TextEditingController(text: widget.controller.draft.composerText);
-    _workGuard = ref.read(unsavedWorkGuardProvider);
-    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
-    if (lease?.session.account == widget.controller.account) {
-      _workRegistration = _workGuard.register(
-        owner: lease!.session,
-        isDirty: () =>
-            widget.controller.draft.text.isNotEmpty ||
-            widget.controller.draft.pending != null ||
-            widget.controller.saveFailed,
-        confirmAndClose: () async {
-          await widget.controller.flush();
-          return !widget.controller.saveFailed;
-        },
-      );
+    if (widget.takeSharedLink != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.controller.conversation == null) return;
+        final link = widget.takeSharedLink?.call();
+        if (link != null) widget.controller.prefillLink(link);
+      });
     }
     _resumed =
         WidgetsBinding.instance.lifecycleState == null ||
@@ -421,14 +398,13 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     widget.controller.setForeground(
       value: _resumed && _routeCurrent && widget.canOperate,
     );
-    if (!_resumed) unawaited(widget.controller.flush());
   }
 
   @override
   void dispose() {
-    _workGuard.unregister(_workRegistration);
     widget.controller.setForeground(value: false);
     widget.controller.removeListener(_updated);
+    widget.controller.clearComposer();
     WidgetsBinding.instance.removeObserver(this);
     _text.dispose();
     super.dispose();
@@ -473,331 +449,306 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       ChatDraftSendState.uncertain => l10n.chatSendUncertain,
       null => null,
     };
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     return FormKeyboardScope(
-      child: PopScope(
-        canPop: !controller.saveFailed,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) {
-            unawaited(controller.flush());
-          } else {
-            widget.onClose();
-          }
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            toolbarHeight: MediaQuery.textScalerOf(context)
-                .scale(kToolbarHeight)
-                .clamp(kToolbarHeight, double.infinity),
-            leading: BackButton(onPressed: widget.onClose),
-            actions: [
-              if (conversation != null)
-                CraftskyContextMenuButton(
-                  tooltip: l10n.chatConversationActions,
-                  enabled: !controller.busy && !blockBusy && widget.canOperate,
-                  groups: [
-                    CraftskyContextMenuGroup(
-                      items: [
-                        CraftskyContextMenuItem(
-                          text: conversation.muted
-                              ? l10n.chatUnmute
-                              : l10n.chatMute,
-                          icon: conversation.muted
-                              ? CraftskyIcons.unmuted
-                              : CraftskyIcons.muted,
-                          onPressed: () => controller.setMuted(
-                            muted: !conversation.muted,
-                          ),
+      child: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: MediaQuery.textScalerOf(context)
+              .scale(kToolbarHeight)
+              .clamp(kToolbarHeight, double.infinity),
+          leading: BackButton(onPressed: widget.onClose),
+          actions: [
+            if (conversation != null)
+              CraftskyContextMenuButton(
+                tooltip: l10n.chatConversationActions,
+                enabled: !controller.busy && !blockBusy && widget.canOperate,
+                groups: [
+                  CraftskyContextMenuGroup(
+                    items: [
+                      CraftskyContextMenuItem(
+                        text: conversation.muted
+                            ? l10n.chatUnmute
+                            : l10n.chatMute,
+                        icon: conversation.muted
+                            ? CraftskyIcons.unmuted
+                            : CraftskyIcons.muted,
+                        onPressed: () => controller.setMuted(
+                          muted: !conversation.muted,
                         ),
-                      ],
-                    ),
-                    CraftskyContextMenuGroup(
-                      items: [
-                        if (!blocking)
-                          CraftskyContextMenuItem(
-                            text: l10n.profileBlockAction,
-                            icon: CraftskyIconsBold.block,
-                            style: CraftskyContextMenuItemStyle.destructive,
-                            onPressed: _blockAccount,
-                          ),
-                        if (widget.onReportConversation != null)
-                          CraftskyContextMenuItem(
-                            text: l10n.chatReportConversationTitle,
-                            icon: CraftskyIcons.report,
-                            style: CraftskyContextMenuItemStyle.destructive,
-                            onPressed: _reportConversation,
-                          ),
-                        CraftskyContextMenuItem(
-                          text: l10n.chatLeaveTitle,
-                          icon: CraftskyIcons.logout,
-                          style: CraftskyContextMenuItemStyle.destructive,
-                          onPressed: _leave,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-            ],
-            title: conversation == null
-                ? controller.loading
-                      ? const ChatProfileHeaderSkeleton()
-                      : Text(
-                          l10n.chatInboxTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                : ChatPeerProfile(
-                    peer: conversation.peer,
-                    builder: (context, avatar, identity, openProfile) =>
-                        Semantics(
-                          button: true,
-                          hint: l10n.profileVisitAction,
-                          child: InkWell(
-                            onTap: () => _openPeerProfile(openProfile),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 48),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  avatar,
-                                  const SizedBox(width: 12),
-                                  Flexible(child: identity),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                  ),
-          ),
-          body: controller.loading && conversation == null
-              ? const ChatConversationSkeleton()
-              : conversation == null
-              ? ChatFailurePanel(
-                  message: l10n.chatUnavailable,
-                  onRetry: widget.onReload,
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) => FlutterChatAdapter(
-                    key: ValueKey(controller),
-                    history: controller.history,
-                    outgoing: controller.outgoingMessages,
-                    owner: controller.account.did,
-                    onLoadOlder: controller.loadOlder,
-                    onReport: widget.onReport,
-                    onDelete:
-                        widget.canOperate && !controller.busy && !blockBusy
-                        ? (id) => unawaited(_deleteMessage(id))
-                        : null,
-                    onLink: _openLink,
-                    messageFooterBuilder:
-                        conversation.bucket == ChatBucket.accepted
-                        ? (message) => ChatMessagePreview(
-                            account: controller.account,
-                            conversationId: controller.id,
-                            message: message,
-                          )
-                        : null,
-                    onPresented: (ids) {
-                      if (_resumed && _routeCurrent && widget.canOperate) {
-                        unawaited(controller.presented(ids));
-                      }
-                    },
-                    composer: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * 0.6,
                       ),
-                      child: SingleChildScrollView(
-                        child: SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
+                    ],
+                  ),
+                  CraftskyContextMenuGroup(
+                    items: [
+                      if (!blocking)
+                        CraftskyContextMenuItem(
+                          text: l10n.profileBlockAction,
+                          icon: CraftskyIconsBold.block,
+                          style: CraftskyContextMenuItemStyle.destructive,
+                          onPressed: _blockAccount,
+                        ),
+                      if (widget.onReportConversation != null)
+                        CraftskyContextMenuItem(
+                          text: l10n.chatReportConversationTitle,
+                          icon: CraftskyIcons.report,
+                          style: CraftskyContextMenuItemStyle.destructive,
+                          onPressed: _reportConversation,
+                        ),
+                      CraftskyContextMenuItem(
+                        text: l10n.chatLeaveTitle,
+                        icon: CraftskyIcons.logout,
+                        style: CraftskyContextMenuItemStyle.destructive,
+                        onPressed: _leave,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+          ],
+          title: conversation == null
+              ? controller.loading
+                    ? const ChatProfileHeaderSkeleton()
+                    : Text(
+                        l10n.chatInboxTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+              : ChatPeerProfile(
+                  peer: conversation.peer,
+                  builder: (context, avatar, identity, openProfile) =>
+                      Semantics(
+                        button: true,
+                        hint: l10n.profileVisitAction,
+                        child: InkWell(
+                          onTap: () => _openPeerProfile(openProfile),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                if (controller.failed)
-                                  ChatMessageEffect(
-                                    severity: MessageSeverity.error,
-                                    message: l10n.chatUnavailable,
-                                  ),
-                                if (controller.saveFailed)
-                                  ChatMessageEffect(
-                                    severity: MessageSeverity.error,
-                                    message: l10n.chatDraftSaveFailed,
-                                    action: MessageAction(
-                                      label: l10n.chatSaveDraft,
-                                      onPressed: () =>
-                                          unawaited(controller.flush()),
-                                    ),
-                                  ),
-                                if (conversation.bucket ==
-                                    ChatBucket.request) ...[
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final enabled =
-                                          !controller.busy &&
-                                          !blockBusy &&
-                                          widget.canOperate;
-                                      final accept = ChunkyButton(
-                                        onPressed: enabled && !blocked
-                                            ? () =>
-                                                  unawaited(controller.accept())
-                                            : null,
-                                        child: ActionProgress(
-                                          isLoading:
-                                              controller.busy && !_ignoring,
-                                          child: Text(l10n.chatAcceptRequest),
-                                        ),
-                                      );
-                                      final ignore = ChunkyButton(
-                                        variant: ChunkyButtonVariant.secondary,
-                                        onPressed: enabled
-                                            ? () => unawaited(_ignore())
-                                            : null,
-                                        child: ActionProgress(
-                                          isLoading: _ignoring,
-                                          child: Text(l10n.chatIgnoreRequest),
-                                        ),
-                                      );
-                                      if (constraints.maxWidth < 300 ||
-                                          MediaQuery.textScalerOf(context)
-                                                  .scale(1) >
-                                              1.3) {
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            accept,
-                                            const SizedBox(height: 12),
-                                            ignore,
-                                          ],
-                                        );
-                                      }
-                                      return Row(
-                                        children: [
-                                          Expanded(child: ignore),
-                                          const SizedBox(width: 12),
-                                          Expanded(child: accept),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ] else ...[
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: BrandTextField(
-                                          label: l10n.chatComposeLabel,
-                                          showLabel: false,
-                                          hintText: l10n.chatComposeLabel,
-                                          controller: _text,
-                                          onChanged: controller.edit,
-                                          minLines: 1,
-                                          maxLines: 5,
-                                          keyboardType: TextInputType.multiline,
-                                          textCapitalization:
-                                              TextCapitalization.sentences,
-                                          errorText:
-                                              _text.text.isNotEmpty &&
-                                                  validateMessageText(
-                                                        _text.text,
-                                                      ) !=
-                                                      null
-                                              ? l10n.chatMessageInvalid
-                                              : null,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      SizedBox(
-                                        width: 96,
-                                        child: ComposerBottomAction(
-                                          keyboardVisible: keyboardVisible,
-                                          doneKey: const Key(
-                                            'chat-keyboard-done',
-                                          ),
-                                          actionKey: const Key('chat-send'),
-                                          label: l10n.chatSend,
-                                          onPressed:
-                                              controller.canSend &&
-                                                  !blockBusy &&
-                                                  !blocked &&
-                                                  widget.canOperate
-                                              ? () =>
-                                                    unawaited(controller.send())
-                                              : null,
-                                          child: Icon(
-                                            CraftskyIcons.sendFilled,
-                                            semanticLabel: l10n.chatSend,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (!conversation.canSend || blocked)
-                                    Text(l10n.chatCannotSend),
-                                  if (controller.draft.pending
-                                      case final attempt?
-                                      when attempt.state !=
-                                          ChatDraftSendState.pending) ...[
-                                    const SizedBox(height: 8),
-                                    ChatMessageEffect(
-                                      severity:
-                                          attempt.state ==
-                                              ChatDraftSendState.failed
-                                          ? MessageSeverity.error
-                                          : MessageSeverity.warning,
-                                      message:
-                                          attempt.state ==
-                                              ChatDraftSendState.pending
-                                          ? null
-                                          : sendStatus,
-                                      child: Text(sendStatus!),
-                                    ),
-                                    if (attempt.state !=
-                                        ChatDraftSendState.pending)
-                                      Wrap(
-                                        children: [
-                                          TextButton(
-                                            onPressed:
-                                                controller.canSendAgain &&
-                                                    !blockBusy &&
-                                                    !blocked &&
-                                                    widget.canOperate
-                                                ? () => unawaited(_sendAgain())
-                                                : null,
-                                            child: Text(l10n.chatSendAgain),
-                                          ),
-                                          TextButton(
-                                            onPressed:
-                                                controller.busy ||
-                                                    !widget.canOperate
-                                                ? null
-                                                : () => unawaited(
-                                                    controller.checkReceipt(),
-                                                  ),
-                                            child: Text(l10n.chatCheckStatus),
-                                          ),
-                                          TextButton(
-                                            onPressed: controller.busy
-                                                ? null
-                                                : () => unawaited(
-                                                    controller.discardDraft(),
-                                                  ),
-                                            child: Text(l10n.chatDiscardDraft),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ],
+                                avatar,
+                                const SizedBox(width: 12),
+                                Flexible(child: identity),
                               ],
                             ),
                           ),
                         ),
                       ),
+                ),
+        ),
+        body: controller.loading && conversation == null
+            ? const ChatConversationSkeleton()
+            : conversation == null
+            ? ChatFailurePanel(
+                message: l10n.chatUnavailable,
+                onRetry: widget.onReload,
+              )
+            : LayoutBuilder(
+                builder: (context, constraints) => FlutterChatAdapter(
+                  key: ValueKey(controller),
+                  history: controller.history,
+                  outgoing: controller.outgoingMessages,
+                  owner: controller.account.did,
+                  onLoadOlder: controller.loadOlder,
+                  onReport: widget.onReport,
+                  onDelete: widget.canOperate && !controller.busy && !blockBusy
+                      ? (id) => unawaited(_deleteMessage(id))
+                      : null,
+                  onLink: _openLink,
+                  messageFooterBuilder:
+                      conversation.bucket == ChatBucket.accepted
+                      ? (message) => ChatMessagePreview(
+                          account: controller.account,
+                          conversationId: controller.id,
+                          message: message,
+                        )
+                      : null,
+                  onPresented: (ids) {
+                    if (_resumed && _routeCurrent && widget.canOperate) {
+                      unawaited(controller.presented(ids));
+                    }
+                  },
+                  composer: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight * 0.6,
+                    ),
+                    child: SingleChildScrollView(
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (controller.failed)
+                                ChatMessageEffect(
+                                  severity: MessageSeverity.error,
+                                  message: l10n.chatUnavailable,
+                                ),
+                              if (controller.saveFailed)
+                                ChatMessageEffect(
+                                  severity: MessageSeverity.error,
+                                  message: l10n.chatRecoverySaveFailed,
+                                ),
+                              if (conversation.bucket ==
+                                  ChatBucket.request) ...[
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final enabled =
+                                        !controller.busy &&
+                                        !blockBusy &&
+                                        widget.canOperate;
+                                    final accept = ChunkyButton(
+                                      onPressed: enabled && !blocked
+                                          ? () => unawaited(controller.accept())
+                                          : null,
+                                      child: ActionProgress(
+                                        isLoading:
+                                            controller.busy && !_ignoring,
+                                        child: Text(l10n.chatAcceptRequest),
+                                      ),
+                                    );
+                                    final ignore = ChunkyButton(
+                                      variant: ChunkyButtonVariant.secondary,
+                                      onPressed: enabled
+                                          ? () => unawaited(_ignore())
+                                          : null,
+                                      child: ActionProgress(
+                                        isLoading: _ignoring,
+                                        child: Text(l10n.chatIgnoreRequest),
+                                      ),
+                                    );
+                                    if (constraints.maxWidth < 300 ||
+                                        MediaQuery.textScalerOf(context)
+                                                .scale(1) >
+                                            1.3) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          accept,
+                                          const SizedBox(height: 12),
+                                          ignore,
+                                        ],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: ignore),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: accept),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ] else ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: BrandTextField(
+                                        label: l10n.chatComposeLabel,
+                                        showLabel: false,
+                                        hintText: l10n.chatComposeLabel,
+                                        controller: _text,
+                                        onChanged: controller.edit,
+                                        minLines: 1,
+                                        maxLines: 5,
+                                        keyboardType: TextInputType.multiline,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
+                                        errorText:
+                                            _text.text.isNotEmpty &&
+                                                validateMessageText(
+                                                      _text.text,
+                                                    ) !=
+                                                    null
+                                            ? l10n.chatMessageInvalid
+                                            : null,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      width: 96,
+                                      child: ChunkyButton(
+                                        key: const Key('chat-send'),
+                                        onPressed:
+                                            controller.canSend &&
+                                                !blockBusy &&
+                                                !blocked &&
+                                                widget.canOperate
+                                            ? () => unawaited(controller.send())
+                                            : null,
+                                        child: Icon(
+                                          CraftskyIcons.sendFilled,
+                                          semanticLabel: l10n.chatSend,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (!conversation.canSend || blocked)
+                                  Text(l10n.chatCannotSend),
+                                if (controller.draft.pending case final attempt?
+                                    when attempt.state !=
+                                        ChatDraftSendState.pending) ...[
+                                  const SizedBox(height: 8),
+                                  ChatMessageEffect(
+                                    severity:
+                                        attempt.state ==
+                                            ChatDraftSendState.failed
+                                        ? MessageSeverity.error
+                                        : MessageSeverity.warning,
+                                    message:
+                                        attempt.state ==
+                                            ChatDraftSendState.pending
+                                        ? null
+                                        : sendStatus,
+                                    child: Text(sendStatus!),
+                                  ),
+                                  if (attempt.state !=
+                                      ChatDraftSendState.pending)
+                                    Wrap(
+                                      children: [
+                                        TextButton(
+                                          onPressed:
+                                              controller.canSendAgain &&
+                                                  !blockBusy &&
+                                                  !blocked &&
+                                                  widget.canOperate
+                                              ? () => unawaited(_sendAgain())
+                                              : null,
+                                          child: Text(l10n.chatSendAgain),
+                                        ),
+                                        TextButton(
+                                          onPressed:
+                                              controller.busy ||
+                                                  !widget.canOperate
+                                              ? null
+                                              : () => unawaited(
+                                                  controller.checkReceipt(),
+                                                ),
+                                          child: Text(l10n.chatCheckStatus),
+                                        ),
+                                        TextButton(
+                                          onPressed: controller.busy
+                                              ? null
+                                              : () => unawaited(
+                                                  controller.discardMessage(),
+                                                ),
+                                          child: Text(l10n.chatDiscardMessage),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-        ),
+              ),
       ),
     );
   }

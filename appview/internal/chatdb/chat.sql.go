@@ -128,6 +128,8 @@ SELECT notification.kind,notification.conversation_id,notification.message_id,
  notification.messaging_generation,notification.open_reference,notification.state,
  subscription.installation_id,subscription.routing_id,installation.fcm_token,installation.platform,
  (subscription.active AND installation.active AND account.enabled AND account.push_enabled
+  AND COALESCE(delivery.subscription_activation_generation=subscription.activation_generation,
+       subscription.deactivated_at IS NULL OR delivery.created_at>subscription.deactivated_at)
   AND account.generation=notification.messaging_generation AND notification.state='pending'
   AND NOT coalesce(conversation.left_by_owner,false))::boolean AS eligible
 FROM chat_push_deliveries delivery
@@ -256,19 +258,19 @@ func (q *Queries) ChatProfileDIDs(ctx context.Context, dollar_1 []string) ([]str
 }
 
 const chatSyncSnapshot = `-- name: ChatSyncSnapshot :one
-SELECT version,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1
+SELECT content_revision,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1
 `
 
 type ChatSyncSnapshotRow struct {
-	Version       int64
-	SafeState     string
-	LastSuccessAt pgtype.Timestamptz
+	ContentRevision int64
+	SafeState       string
+	LastSuccessAt   pgtype.Timestamptz
 }
 
 func (q *Queries) ChatSyncSnapshot(ctx context.Context, ownerDid string) (ChatSyncSnapshotRow, error) {
 	row := q.db.QueryRow(ctx, chatSyncSnapshot, ownerDid)
 	var i ChatSyncSnapshotRow
-	err := row.Scan(&i.Version, &i.SafeState, &i.LastSuccessAt)
+	err := row.Scan(&i.ContentRevision, &i.SafeState, &i.LastSuccessAt)
 	return i, err
 }
 
@@ -282,7 +284,7 @@ WITH due AS (
 UPDATE chat_push_deliveries delivery SET status='leased',lease_token=$2,
  lease_expires_at=$3,attempts=attempts+1
 FROM due WHERE delivery.owner_did=due.owner_did AND delivery.id=due.id
-RETURNING delivery.owner_did, delivery.id, delivery.notification_id, delivery.account_subscription_id, delivery.status, delivery.attempts, delivery.lease_token, delivery.lease_expires_at, delivery.next_attempt_at, delivery.deadline_at, delivery.provider_result_class, delivery.created_at, delivery.terminal_at
+RETURNING delivery.owner_did, delivery.id, delivery.notification_id, delivery.account_subscription_id, delivery.status, delivery.attempts, delivery.lease_token, delivery.lease_expires_at, delivery.next_attempt_at, delivery.deadline_at, delivery.provider_result_class, delivery.created_at, delivery.terminal_at, delivery.subscription_activation_generation
 `
 
 type ClaimChatDeliveryParams struct {
@@ -308,6 +310,7 @@ func (q *Queries) ClaimChatDelivery(ctx context.Context, arg ClaimChatDeliveryPa
 		&i.ProviderResultClass,
 		&i.CreatedAt,
 		&i.TerminalAt,
+		&i.SubscriptionActivationGeneration,
 	)
 	return i, err
 }
@@ -316,7 +319,7 @@ const claimChatSync = `-- name: ClaimChatSync :one
 UPDATE chat_sync_state SET claim_token=$2,claim_expires_at=$3
 WHERE chat_sync_state.owner_did=$1 AND chat_sync_state.next_due_at<=$4 AND (chat_sync_state.claim_expires_at IS NULL OR chat_sync_state.claim_expires_at<=$4)
  AND (SELECT count(*) FROM chat_sync_state capacity WHERE capacity.claim_expires_at>$4)<2
-RETURNING chat_sync_state.owner_did, chat_sync_state.phase, chat_sync_state.cursor, chat_sync_state.seed_cursor, chat_sync_state.page_cursor, chat_sync_state.version, chat_sync_state.recovery_id, chat_sync_state.claim_token, chat_sync_state.claim_expires_at, chat_sync_state.next_due_at, chat_sync_state.failure_count, chat_sync_state.safe_state, chat_sync_state.last_success_at
+RETURNING chat_sync_state.owner_did, chat_sync_state.phase, chat_sync_state.cursor, chat_sync_state.seed_cursor, chat_sync_state.page_cursor, chat_sync_state.version, chat_sync_state.recovery_id, chat_sync_state.claim_token, chat_sync_state.claim_expires_at, chat_sync_state.next_due_at, chat_sync_state.failure_count, chat_sync_state.safe_state, chat_sync_state.last_success_at, chat_sync_state.content_revision
 `
 
 type ClaimChatSyncParams struct {
@@ -348,6 +351,7 @@ func (q *Queries) ClaimChatSync(ctx context.Context, arg ClaimChatSyncParams) (C
 		&i.FailureCount,
 		&i.SafeState,
 		&i.LastSuccessAt,
+		&i.ContentRevision,
 	)
 	return i, err
 }
@@ -650,6 +654,8 @@ WHERE delivery.owner_did=$1 AND delivery.id=$2 AND delivery.lease_token=$3
   SELECT 1 FROM push_account_subscriptions subscription
   JOIN push_installations installation ON installation.id=subscription.installation_id
   WHERE subscription.id=delivery.account_subscription_id AND subscription.active
+   AND COALESCE(delivery.subscription_activation_generation=subscription.activation_generation,
+        subscription.deactivated_at IS NULL OR delivery.created_at>subscription.deactivated_at)
    AND installation.id=$8 AND installation.active AND installation.fcm_token=$9
  )
 `
@@ -717,21 +723,23 @@ const finishChatSync = `-- name: FinishChatSync :execrows
 UPDATE chat_sync_state SET phase=$4,cursor=$5,seed_cursor=$6,page_cursor=$7,
  version=version+1,claim_token=NULL,claim_expires_at=NULL,next_due_at=$8,
  safe_state=CASE WHEN $4='ready' THEN 'ready' ELSE 'syncing' END,
- failure_count=0,last_success_at=$9,recovery_id=$10
+ failure_count=0,last_success_at=$9,recovery_id=$10,
+ content_revision=content_revision+CASE WHEN $11::boolean THEN 1 ELSE 0 END
 WHERE owner_did=$1 AND claim_token=$2 AND version=$3
 `
 
 type FinishChatSyncParams struct {
-	OwnerDid      string
-	ClaimToken    pgtype.UUID
-	Version       int64
-	Phase         string
-	Cursor        string
-	SeedCursor    string
-	PageCursor    string
-	NextDueAt     pgtype.Timestamptz
-	LastSuccessAt pgtype.Timestamptz
-	RecoveryID    pgtype.UUID
+	OwnerDid       string
+	ClaimToken     pgtype.UUID
+	Version        int64
+	Phase          string
+	Cursor         string
+	SeedCursor     string
+	PageCursor     string
+	NextDueAt      pgtype.Timestamptz
+	LastSuccessAt  pgtype.Timestamptz
+	RecoveryID     pgtype.UUID
+	ContentChanged bool
 }
 
 func (q *Queries) FinishChatSync(ctx context.Context, arg FinishChatSyncParams) (int64, error) {
@@ -746,6 +754,7 @@ func (q *Queries) FinishChatSync(ctx context.Context, arg FinishChatSyncParams) 
 		arg.NextDueAt,
 		arg.LastSuccessAt,
 		arg.RecoveryID,
+		arg.ContentChanged,
 	)
 	if err != nil {
 		return 0, err
@@ -839,8 +848,8 @@ VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(owner_did,logical_key)
 DO UPDATE SET message_id=excluded.message_id WHERE chat_notifications.state='pending'
 RETURNING owner_did,id,created_at
 )
-INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at)
-SELECT notification.owner_did,gen_random_uuid(),notification.id,subscription.id,notification.created_at+interval '24 hours'
+INSERT INTO chat_push_deliveries(owner_did,id,notification_id,account_subscription_id,deadline_at,subscription_activation_generation)
+SELECT notification.owner_did,gen_random_uuid(),notification.id,subscription.id,notification.created_at+interval '24 hours',subscription.activation_generation
 FROM notification
 JOIN push_account_subscriptions subscription ON subscription.account_did=notification.owner_did
 JOIN push_installations installation ON installation.id=subscription.installation_id
@@ -878,8 +887,8 @@ WITH invalid_installation AS (
  UPDATE push_installations installation SET active=false,deactivated_at=$3,updated_at=$3
  WHERE installation.id=$1 AND installation.active AND installation.fcm_token=$2 RETURNING installation.id
 ), disabled_subscriptions AS (
- UPDATE push_account_subscriptions subscription SET active=false,deactivated_at=$3,updated_at=$3
- WHERE subscription.installation_id IN(SELECT invalid_installation.id FROM invalid_installation) RETURNING subscription.id
+ UPDATE push_account_subscriptions subscription SET active=false,deactivated_at=clock_timestamp(),updated_at=clock_timestamp()
+ WHERE subscription.active AND subscription.installation_id IN(SELECT invalid_installation.id FROM invalid_installation) RETURNING subscription.id
 ), cancelled_social AS (
  UPDATE push_deliveries SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=$3
  WHERE account_subscription_id IN(SELECT disabled_subscriptions.id FROM disabled_subscriptions) AND status IN('pending','retry','leased')

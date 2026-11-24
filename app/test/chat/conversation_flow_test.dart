@@ -803,20 +803,15 @@ void main() {
       );
       expect(
         tester.getCenter(find.byType(TextField)).dy,
-        closeTo(tester.getCenter(find.byKey(const Key('chat-send'))).dy, 4),
+        closeTo(tester.getCenter(_sendAction).dy, 4),
       );
-      final sendButton = find.descendant(
-        of: find.byKey(const Key('chat-send')),
-        matching: find.byType(ChunkyButton),
-      );
-      expect(tester.widget<ChunkyButton>(sendButton).onPressed, isNull);
+      expect(_sendButton(tester).onPressed, isNull);
       await tester.enterText(find.byType(TextField), 'Unsent draft');
       await tester.pump();
-      expect(tester.widget<ChunkyButton>(sendButton).onPressed, isNotNull);
-      expect(
-        tester.widget<ChunkyButton>(sendButton).variant,
-        ChunkyButtonVariant.primary,
-      );
+      expect(_sendButton(tester).onPressed, isNotNull);
+      expect(_sendButton(tester).variant, ChunkyButtonVariant.primary);
+      expect(find.textContaining('delivery recovery'), findsNothing);
+      expect((await store.load(store.lease(account), id)).text, isEmpty);
       final previousPage = await repository.history(id);
       final pendingHistory = Completer<ChatMessagePage>();
       repository.pendingHistory = pendingHistory;
@@ -853,7 +848,7 @@ void main() {
       );
       expect(
         (await store.load(store.lease(account), id)).text,
-        'private-retained',
+        isEmpty,
       );
       await tester.pump();
       expect(find.byTooltip('Report message'), findsNothing);
@@ -885,6 +880,8 @@ void main() {
       expect(repository.leaves, 1);
       expect(closed, true);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(controller.draft.composerText, isEmpty);
     },
   );
   testWidgets('UT-009 Send again warns before repeating the earlier message', (
@@ -1150,10 +1147,7 @@ void main() {
   );
 }
 
-Finder get _sendAction => find.descendant(
-  of: find.byKey(const Key('chat-send')),
-  matching: find.byType(ChunkyButton),
-);
+Finder get _sendAction => find.byKey(const Key('chat-send'));
 ChunkyButton _sendButton(WidgetTester tester) =>
     tester.widget<ChunkyButton>(_sendAction);
 

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT_SCHEMA_PAGE = "project-schema.html"
 ROUTING_FILES = ("_redirects",)
 ROUTES = {
-    "/": "index.html", "/waitlist": "waitlist.html",
+    "/": "index.html",
     "/privacy": "privacy.html", "/terms": "terms.html",
     "/community-guidelines": "community-guidelines.html",
     "/reporting": "reporting.html", "/copyright": "copyright.html",
@@ -24,7 +24,7 @@ ROUTES = {
     f"/{PROJECT_SCHEMA_PAGE}": PROJECT_SCHEMA_PAGE,
 }
 PUBLIC_FILES = (*(name for name in ROUTES.values() if name != PROJECT_SCHEMA_PAGE),
-                "styles.css", "why-instagram.css", "main.js", "waitlist.js", "robots.txt")
+                "styles.css", "why-instagram.css", "main.js", "robots.txt")
 ASSET_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"}
 MAX_ASSET_SIZE = 25 * 1024 * 1024
 

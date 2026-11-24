@@ -12,10 +12,12 @@ final class NotificationBannerEffect extends NotificationEffect {
     this.event, {
     required this.resolution,
     this.recipient,
+    this.isCurrent,
   });
   final ForegroundNotificationEvent event;
   final NotificationRecipientResolution resolution;
   final NotificationRecipientIdentity? recipient;
+  final bool Function()? isCurrent;
 
   @override
   String toString() => 'NotificationBannerEffect(<redacted>)';

@@ -54,15 +54,19 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	if original.QuotedURI != "" {
 		rec.Embed = &craftskylex.FeedPost_Embed{FeedPost_QuoteEmbed: &craftskylex.FeedPost_QuoteEmbed{Record: &comatproto.RepoStrongRef{Uri: original.QuotedURI, Cid: original.QuotedCID}}}
 	}
-	var references []string
-	if rec.Reply != nil && rec.Reply.Parent != nil {
-		references = append(references, rec.Reply.Parent.Uri)
-	}
-	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil && rec.Embed.FeedPost_QuoteEmbed.Record != nil {
-		references = append(references, rec.Embed.FeedPost_QuoteEmbed.Record.Uri)
-	}
+	references := [...]struct {
+		uri   syntax.ATURI
+		reply bool
+	}{{postReplyParentURI(rec), true}, {postQuotedURI(rec), false}}
 	var missingMember syntax.DID
-	for _, uri := range references {
+	var replyRecipient syntax.DID
+	var missingSubject syntax.ATURI
+	pendingRecipients := make(map[syntax.DID]bool, len(references))
+	for _, reference := range references {
+		uri := reference.uri
+		if uri == "" {
+			continue
+		}
 		var member, terminal bool
 		var did syntax.DID
 		err := tx.QueryRow(ctx, `
@@ -70,10 +74,30 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			FROM craftsky_posts p WHERE uri=$1
 		`, uri).Scan(&did, &member, &terminal)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: uri}), nil
+			// Another reason can still be classified for a different recipient.
+			// If we can't tell who owns the missing post, wait before creating
+			// an event whose category the missing reference might outrank.
+			target, parseErr := syntax.ParseATURI(uri.String())
+			if parseErr != nil || target.Authority().DID() == "" {
+				return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: uri.String()}), nil
+			}
+			did := target.Authority().DID()
+			// A quote to the known reply recipient cannot change its category.
+			// A self-reference cannot create another notification.
+			if did == source.DID || (!reference.reply && did == replyRecipient) {
+				continue
+			}
+			pendingRecipients[did] = true
+			if missingSubject == "" {
+				missingSubject = uri
+			}
+			continue
 		}
 		if err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), err
+		}
+		if reference.reply {
+			replyRecipient = did
 		}
 		if !member && !terminal {
 			missingMember = did
@@ -96,11 +120,14 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 		}
 	}
 	createdAt := *original.CreatedAt
-	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt); err != nil {
+	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt, pendingRecipients); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
 	}
 	// Available recipients are notified even if another recipient is not yet
 	// a member. Replays use the notification service's duplicate protection.
+	if missingSubject != "" {
+		return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: missingSubject.String()}), nil
+	}
 	if missingMember != "" {
 		return tap.Blocked(tap.ReasonMissingMember, tap.Dependency{Kind: "member_did", Key: missingMember.String()}), nil
 	}

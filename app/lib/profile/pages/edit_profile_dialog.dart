@@ -618,7 +618,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           actionChild: isSaving
               ? const StitchProgressIndicator(size: 18)
               : null,
-          child: FormBuilder(
+          contentBuilder: (_, clearance) => FormBuilder(
             key: _formKey,
             // Re-render on any field change so the save button picks up
             // the dirty/valid state without us hand-rolling listeners
@@ -661,7 +661,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                       spacing.sp4,
                       spacing.sp4,
                       spacing.sp4,
-                      spacing.sp6 + MediaQuery.paddingOf(context).bottom,
+                      spacing.sp6 + clearance,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

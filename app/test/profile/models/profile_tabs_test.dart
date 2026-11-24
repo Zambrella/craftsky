@@ -11,16 +11,16 @@ void main() {
       );
 
       expect(tabs, const [
-        ProfileTab.projects,
         ProfileTab.posts,
+        ProfileTab.projects,
         ProfileTab.comments,
         ProfileTab.reposts,
       ]);
       expect(
         tabs.map((tab) => tab.storageKey),
         const [
-          'profile_tab_projects',
           'profile_tab_posts',
+          'profile_tab_projects',
           'profile_tab_comments',
           'profile_tab_reposts',
         ],
@@ -38,8 +38,8 @@ void main() {
         ProfileTab.products,
         ProfileTab.upcomingEvents,
         ProfileTab.about,
-        ProfileTab.projects,
         ProfileTab.posts,
+        ProfileTab.projects,
         ProfileTab.comments,
         ProfileTab.reposts,
       ]);
@@ -59,8 +59,8 @@ void main() {
 
       expect(empty, const [
         ProfileTab.about,
-        ProfileTab.projects,
         ProfileTab.posts,
+        ProfileTab.projects,
         ProfileTab.comments,
         ProfileTab.reposts,
       ]);
@@ -74,8 +74,8 @@ void main() {
         const [
           ProfileTab.products,
           ProfileTab.about,
-          ProfileTab.projects,
           ProfileTab.posts,
+          ProfileTab.projects,
           ProfileTab.comments,
           ProfileTab.reposts,
         ],
@@ -89,8 +89,8 @@ void main() {
         const [
           ProfileTab.upcomingEvents,
           ProfileTab.about,
-          ProfileTab.projects,
           ProfileTab.posts,
+          ProfileTab.projects,
           ProfileTab.comments,
           ProfileTab.reposts,
         ],
@@ -122,14 +122,14 @@ void main() {
             selected: ProfileTab.products,
             tabs: ProfileTabPolicy.ordinaryTabs,
           ),
-          ProfileTab.projects,
+          ProfileTab.posts,
         );
         expect(
           ProfileTabPolicy.selectionAfterChange(
             selected: ProfileTab.upcomingEvents,
             tabs: ProfileTabPolicy.ordinaryTabs,
           ),
-          ProfileTab.projects,
+          ProfileTab.posts,
         );
       },
     );

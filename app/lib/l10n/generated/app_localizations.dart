@@ -9063,11 +9063,65 @@ abstract class AppLocalizations {
   /// **'Could not copy link. Please try again.'**
   String get recordCopyLinkFailed;
 
+  /// No description provided for @postVideoThumbnailUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Add custom thumbnail'**
+  String get postVideoThumbnailUpload;
+
+  /// Screen reader label for a thumbnail choice at a percentage of the video's duration.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame at {percent}%'**
+  String postVideoThumbnailFrame(int percent);
+
+  /// No description provided for @postVideoThumbnailRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove custom thumbnail'**
+  String get postVideoThumbnailRemove;
+
+  /// No description provided for @postVideoThumbnailPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Video thumbnail preview'**
+  String get postVideoThumbnailPreview;
+
+  /// No description provided for @postVideoThumbnailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare the thumbnail. Choose another image.'**
+  String get postVideoThumbnailInvalid;
+
+  /// No description provided for @postVideoThumbnailUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upload the thumbnail. Try again or remove it to use the automatic cover.'**
+  String get postVideoThumbnailUploadFailed;
+
   /// Title of the local video inspection and description page.
   ///
   /// In en, this message translates to:
   /// **'Video details'**
   String get postComposeVideoDetailsTitle;
+
+  /// No description provided for @postComposeVideoPreviewHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get postComposeVideoPreviewHeading;
+
+  /// No description provided for @postComposeVideoThumbnailHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Thumbnail'**
+  String get postComposeVideoThumbnailHeading;
+
+  /// No description provided for @postComposeVideoAltTextHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Alt text'**
+  String get postComposeVideoAltTextHeading;
 
   /// Shown when local preview preparation fails without removing the selected attachment.
   ///
@@ -9378,7 +9432,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendFailed.
   ///
   /// In en, this message translates to:
-  /// **'This message was not sent. Your draft is kept.'**
+  /// **'This message was not sent.'**
   String get chatSendFailed;
 
   /// No description provided for @chatSendUncertain.
@@ -9393,23 +9447,17 @@ abstract class AppLocalizations {
   /// **'Check status'**
   String get chatCheckStatus;
 
-  /// No description provided for @chatDiscardDraft.
+  /// No description provided for @chatDiscardMessage.
   ///
   /// In en, this message translates to:
-  /// **'Discard draft'**
-  String get chatDiscardDraft;
+  /// **'Discard message'**
+  String get chatDiscardMessage;
 
-  /// No description provided for @chatDraftSaveFailed.
+  /// No description provided for @chatRecoverySaveFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.'**
-  String get chatDraftSaveFailed;
-
-  /// No description provided for @chatSaveDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Save draft'**
-  String get chatSaveDraft;
+  /// **'Could not save delivery recovery on this device.'**
+  String get chatRecoverySaveFailed;
 
   /// No description provided for @chatMessageInvalid.
   ///
@@ -9432,7 +9480,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendAgainWarning.
   ///
   /// In en, this message translates to:
-  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.'**
+  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.'**
   String get chatSendAgainWarning;
 
   /// No description provided for @chatIncomingTitle.
@@ -9558,7 +9606,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSyncStale.
   ///
   /// In en, this message translates to:
-  /// **'Messages may be out of date. Your loaded messages and draft are kept.'**
+  /// **'Messages may be out of date. Your loaded messages and current text are kept.'**
   String get chatSyncStale;
 
   /// No description provided for @chatSyncUpdating.

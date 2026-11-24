@@ -25,15 +25,15 @@ the app starts again. Changing category resets the list position and pagination.
 Old pending page responses cannot replace the newly selected category's list.
 
 This filter does not change notification delivery preferences. Every item includes
-an `isNew` boolean derived from its newness revision and the viewer's existing
-account-wide seen marker. The flag is independent of category and pagination.
+an `isNew` boolean stored per notification activation for the recipient. The flag
+is independent of category and pagination.
 
 New rows have a subtle tint, a dot, and an accessible "New notification" label.
-The app acknowledges the account-wide seen marker when leaving the notification
+The app acknowledges the account's current notifications when leaving the notification
 page after a successful list render, including a filtered list. Switching tabs,
 opening a notification destination, and switching accounts end a visit. Changing
 category, refreshing, and loading more retain the highlights during that visit.
 The badge clears after acknowledgement succeeds. Returning reloads server state;
-failed loads alone do not acknowledge notifications. This uses the existing
-account-wide marker rather than individual read receipts; leaving a filtered
-visit also acknowledges other categories.
+failed loads alone do not acknowledge notifications. The acknowledgement covers
+all active notifications visible to the database statement, including other
+categories. An activation that commits later stays new.

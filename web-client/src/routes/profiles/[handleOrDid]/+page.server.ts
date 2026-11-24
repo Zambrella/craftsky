@@ -11,8 +11,8 @@ export const load: PageServerLoad = async ({ params, url, fetch, cookies }) => {
 	if (selected(cookies, url))
 		return { authenticated: await authenticatedPage({ cookies, url }) };
 	const requestedTab = url.searchParams.get('tab');
-	const tab = requestedTab || 'projects';
 	if (
+		requestedTab &&
 		![
 			'posts',
 			'projects',
@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ params, url, fetch, cookies }) => {
 			'about',
 			'products',
 			'events'
-		].includes(tab)
+		].includes(requestedTab)
 	)
 		error(400, 'Invalid profile tab');
 	const cursor = url.searchParams.get('cursor') || '';

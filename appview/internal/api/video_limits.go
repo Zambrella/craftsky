@@ -21,6 +21,7 @@ type VideoUploadLimitsService interface {
 }
 
 type videoUploadLimitsResponse struct {
+	CustomThumbnail      bool   `json:"customThumbnail,omitempty"`
 	CanUpload            bool   `json:"canUpload"`
 	RemainingDailyVideos *int64 `json:"remainingDailyVideos,omitempty"`
 	RemainingDailyBytes  *int64 `json:"remainingDailyBytes,omitempty"`
@@ -72,7 +73,7 @@ func VideoUploadLimitsHandler(service VideoUploadLimitsService, _ *slog.Logger, 
 			return
 		}
 		envelope.WriteJSON(w, http.StatusOK, videoUploadLimitsResponse{
-			CanUpload: limits.CanUpload, RemainingDailyVideos: limits.RemainingDailyVideos,
+			CanUpload: limits.CanUpload, CustomThumbnail: limits.CustomThumbnail, RemainingDailyVideos: limits.RemainingDailyVideos,
 			RemainingDailyBytes: limits.RemainingDailyBytes, Reason: limits.Reason,
 		})
 	})

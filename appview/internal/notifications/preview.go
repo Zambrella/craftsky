@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 // Preview contains only public, visible text. Media and routing facts are kept separate.
@@ -15,14 +15,18 @@ type Preview struct {
 	Role         string `json:"role"`
 }
 
+type previewReader interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
 // ReadPreviews applies visibility at read time, including blocks between a
 // source author and the authors of its reply, quote, and mention references.
-func ReadPreviews(ctx context.Context, pool *pgxpool.Pool, viewer syntax.DID, uris []syntax.ATURI) (map[syntax.ATURI]*Preview, error) {
+func ReadPreviews(ctx context.Context, db previewReader, viewer syntax.DID, uris []syntax.ATURI) (map[syntax.ATURI]*Preview, error) {
 	out := make(map[syntax.ATURI]*Preview)
 	if len(uris) == 0 {
 		return out, nil
 	}
-	rows, err := pool.Query(ctx, `
+	rows, err := db.Query(ctx, `
  SELECT p.uri,p.text,COALESCE(project.raw_project#>>'{common,title}',''),
  CASE WHEN p.reply_root_uri IS NULL THEN 'post'
       WHEN p.reply_parent_uri=p.reply_root_uri THEN 'comment' ELSE 'reply' END

@@ -54,6 +54,8 @@
 	import { reportFailure } from '../diagnostics/client.ts';
 	import { expectedFailure } from '../diagnostics/privacy.ts';
 	import { APITransport } from '#lib/api/transport.ts';
+	import { isCanceled } from '#lib/api/error-message.ts';
+	import { MessagesSession, messagesSessionContext } from '../messages/session';
 	let {
 		session,
 		accounts,
@@ -238,6 +240,7 @@
 			const response = await fetch(input, init);
 			if (response.status === 401) {
 				expired = true;
+				messagesSession.invalidateAccess();
 				return response;
 			}
 			return response;
@@ -246,7 +249,10 @@
 		{
 			headers: { 'X-Craftsky-Account-Id': accountId },
 			onRelationshipChanged: () => {
-				if (!dead) pageHistory.invalidate('feed');
+				if (!dead) {
+					pageHistory.invalidate('feed');
+					messagesSession.invalidateRelationships();
+				}
 			}
 		}
 	);
@@ -260,6 +266,11 @@
 		eligibility = $state<EligibilityStatus>(),
 		ready = $state(false);
 	const activityBadge = new NotificationBadge();
+	const messagesSession = new MessagesSession(api);
+	setContext(messagesSessionContext, messagesSession);
+	const unsubscribeMessages = messagesSession.subscribeCounts(
+		(result) => (newMessages = result.accepted)
+	);
 	setContext(notificationBadgeContext, () => {
 		const finish = activityBadge.beginSeen();
 		let settled = false;
@@ -370,6 +381,34 @@
 	let notice = $state('');
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
+	let warmMessagesTimer: ReturnType<typeof setTimeout> | undefined;
+	let warmedMessages = false;
+	function scheduleMessagesWarmup() {
+		if (
+			warmedMessages ||
+			warmMessagesTimer !== undefined ||
+			document.hidden ||
+			gated ||
+			eligibility?.state !== 'eligible' ||
+			!onboarding?.completed ||
+			page.url.pathname.startsWith('/messages')
+		)
+			return;
+		warmMessagesTimer = setTimeout(() => {
+			warmMessagesTimer = undefined;
+			if (
+				dead ||
+				gated ||
+				document.hidden ||
+				page.url.pathname.startsWith('/messages')
+			)
+				return;
+			warmedMessages = true;
+			void messagesSession.warmInbox().catch((error) => {
+				if (!isCanceled(error)) void reportFailure(error, 'messages.navigate');
+			});
+		}, 400);
+	}
 	let featurePaywall = $state<{
 		tier: 'plus' | 'business';
 		trigger: HTMLElement | null;
@@ -457,6 +496,7 @@
 			}
 			ready = true;
 			void counts();
+			scheduleMessagesWarmup();
 		} catch (cause) {
 			void reportFailure(cause, 'startup');
 			if (!dead)
@@ -464,30 +504,37 @@
 		}
 	}
 	const countFailures = [false, false];
-	async function counts() {
-		if (dead || document.hidden || !ready) return;
+	function countFailed(error: unknown, index: number) {
+		if (dead || isCanceled(error)) return;
+		const unexpected = !expectedFailure(error);
+		if (!unexpected || !countFailures[index])
+			void reportFailure(
+				error,
+				index === 0 ? 'startup.count.activity' : 'startup.count.messages'
+			);
+		if (unexpected) countFailures[index] = true;
+	}
+	async function counts(forceMessages = false) {
+		if (dead || document.hidden || !ready || expired) return;
 		const activityRevision = activityBadge.capture();
-		const results = await Promise.allSettled([
-			api.notifications.count(),
-			api.chat.unread()
+		await Promise.all([
+			api.notifications.count().then(
+				(result) => {
+					if (dead) return;
+					countFailures[0] = false;
+					activityBadge.accept(result.newCount, activityRevision);
+				},
+				(error) => countFailed(error, 0)
+			),
+			eligibility?.state === 'eligible' && onboarding?.completed
+				? messagesSession.loadCounts(forceMessages).then(
+						() => {
+							countFailures[1] = false;
+						},
+						(error) => countFailed(error, 1)
+					)
+				: undefined
 		]);
-		if (dead) return;
-		for (const [index, result] of results.entries()) {
-			if (result.status === 'fulfilled') countFailures[index] = false;
-			else {
-				const unexpected = !expectedFailure(result.reason);
-				if (!unexpected || !countFailures[index])
-					void reportFailure(
-						result.reason,
-						index === 0 ? 'startup.count.activity' : 'startup.count.messages'
-					);
-				if (unexpected) countFailures[index] = true;
-			}
-		}
-		if (results[0].status === 'fulfilled')
-			activityBadge.accept(results[0].value.newCount, activityRevision);
-		if (results[1].status === 'fulfilled')
-			newMessages = results[1].value.accepted;
 	}
 	onMount(() => {
 		const showComingSoon = (event: Event) => {
@@ -505,7 +552,14 @@
 		timer = setInterval(() => {
 			void counts();
 			void refreshAccess();
+			scheduleMessagesWarmup();
 		}, 30000);
+		const resume = () => {
+			if (document.hidden) return;
+			scheduleMessagesWarmup();
+			void counts();
+		};
+		document.addEventListener('visibilitychange', resume);
 		const draftSaved = (event: Event) => {
 			const detail = (event as CustomEvent<unknown>).detail;
 			if (dead || expired || !ready || !detail || typeof detail !== 'object')
@@ -551,6 +605,8 @@
 			desktopQuery.removeEventListener('change', updateDesktop);
 			profileRevision++;
 			clearInterval(timer);
+			clearTimeout(warmMessagesTimer);
+			document.removeEventListener('visibilitychange', resume);
 			window.removeEventListener('craftsky-draft-saved', draftSaved);
 			window.removeEventListener('craftsky-profile-updated', profileUpdated);
 		};
@@ -560,6 +616,8 @@
 		billingIdentity.dispose();
 		subscriptionAccess.dispose();
 		pageHistory.dispose();
+		unsubscribeMessages();
+		messagesSession.dispose();
 	});
 	async function changeAccount(id: string) {
 		if (id === accountId) {
@@ -572,6 +630,7 @@
 				body: { accountId: id },
 				response: 'empty'
 			});
+			messagesSession.invalidateAccess();
 			location.assign('/feed');
 		} catch (error) {
 			void reportFailure(error, 'account.switch');
@@ -599,6 +658,7 @@
 				for (const key of Object.keys(localStorage))
 					if (key.startsWith(privatePrefix)) localStorage.removeItem(key);
 			} catch {}
+			messagesSession.invalidateAccess();
 			location.assign('/feed');
 		} catch (error) {
 			void reportFailure(error, 'account.signOut');
@@ -717,7 +777,7 @@
 		}
 	}}
 />
-<BrowserPush {api} {session} />
+<BrowserPush {api} {session} refreshCounts={() => counts(true)} />
 <svelte:window
 	bind:scrollY
 	onscroll={() => (profileScrolled = window.scrollY > 72)}

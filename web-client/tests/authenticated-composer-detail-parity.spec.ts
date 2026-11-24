@@ -480,7 +480,7 @@ test('crop editing opens a full compact viewport, traps edits and returns focus 
 	).toEqual([]);
 });
 
-test('Send via chat preserves the account conversation draft and adds the controlled public link once for review', async ({
+test('Send via chat prefills the controlled public link for review without saving it', async ({
 	page
 }) => {
 	await fetch('http://127.0.0.1:19847/__test/control', {
@@ -488,59 +488,19 @@ test('Send via chat preserves the account conversation draft and adds the contro
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ visual: true })
 	});
-	await page.goto('/messages/conversations/visual-accepted');
-	await page
-		.getByRole('textbox', { name: 'Message', exact: true })
-		.fill('My existing private draft');
-	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-	await expect(
-		page.getByText('Draft saved on this device.', { exact: true })
-	).toBeVisible();
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/first';
 	await page.goto('/messages/new?link=' + encodeURIComponent(link));
 	await expect(
 		page.getByText(
-			'Choose someone to send this link to. It will be added to your draft for review.'
+			'Choose someone to send this link to. You can review the link before sending.'
 		)
 	).toBeVisible();
 	await page.locator('.conversation-list button.recipient').first().click();
 	await expect(page).toHaveURL(/\/messages\/conversations\/visual-accepted$/);
-	await expect(
-		page.getByRole('textbox', { name: 'Message', exact: true })
-	).toHaveValue('My existing private draft\n\n' + link);
-	if (
-		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
-	) {
-		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-		await expect(
-			page.getByRole('button', { name: 'Save draft', exact: true })
-		).toHaveCount(0);
-	}
-	await page.goto('/messages/new?link=' + encodeURIComponent(link));
-	await page.locator('.conversation-list button.recipient').first().click();
-	await expect(
-		page.getByRole('textbox', { name: 'Message', exact: true })
-	).toHaveValue('My existing private draft\n\n' + link);
-	if (
-		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
-	) {
-		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-		await expect(
-			page.getByRole('button', { name: 'Save draft', exact: true })
-		).toHaveCount(0);
-	}
+	const input = page.getByRole('textbox', { name: 'Message', exact: true });
+	await expect(input).toHaveValue(link);
 	await page.reload();
-	await expect(
-		page.getByRole('textbox', { name: 'Message', exact: true })
-	).toHaveValue('My existing private draft\n\n' + link);
-	if (
-		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
-	) {
-		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-		await expect(
-			page.getByRole('button', { name: 'Save draft', exact: true })
-		).toHaveCount(0);
-	}
+	await expect(input).toHaveValue('');
 	expect(
 		(await calls()).filter(
 			(call) =>

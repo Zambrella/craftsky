@@ -29,6 +29,7 @@ import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
@@ -46,7 +47,6 @@ import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
-import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
@@ -335,6 +335,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         widget.videoController ??
         ComposerVideoController(
           picker: ImagePickerExistingVideo(),
+          reporter: ref.read(errorReporterProvider),
           checkEligibility: () =>
               ref.read(postApiClientProvider).getVideoUploadLimits(),
         );
@@ -461,11 +462,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       _ => false,
     };
 
-    final preferences = ref.watch(activeLanguagePreferencesProvider);
-    _languages ??= PostLanguageSelection.fromPrimary(
-      preferences.primaryLanguage,
-    );
-    _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final selectedVideo = _videoController.selection;
@@ -497,6 +493,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         return const SizedBox.shrink();
       }
     }
+    final primaryLanguage = ref.watch(composerPrimaryLanguageProvider);
+    if (primaryLanguage == null) return const SizedBox.shrink();
+    _languages ??= PostLanguageSelection.fromPrimary(primaryLanguage);
+    _initialLanguages ??= List.of(_languages!.values);
     final account = activeLease?.session.account;
     final scheduleAccess = activeLease == null
         ? const AsyncLoading<SubscriptionAccess>()
@@ -900,6 +900,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     );
   }
 
+  void _setVideoThumbnailFrame(VideoThumbnailFrame value) {
+    if (mounted) setState(() => _videoController.setThumbnailFrame(value));
+  }
+
+  void _setVideoThumbnail(Uint8List? value) {
+    if (mounted) setState(() => _videoController.setThumbnail(value));
+  }
+
   Future<void> _selectVideo() async {
     final previous = _videoController.selection;
     try {
@@ -923,6 +931,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         await showComposerVideoDetails(
           context,
           selection: selected,
+          onThumbnailChanged: _setVideoThumbnail,
+          onThumbnailFrameChanged: _setVideoThumbnailFrame,
+          checkLimits: _videoController.recheckEligibility,
           onAltTextChanged: (value) {
             if (mounted) setState(() => _videoController.setAltText(value));
           },
@@ -1753,6 +1764,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         else if (selectedVideo != null)
           ComposerVideoAttachmentCard(
             selection: selectedVideo,
+            onThumbnailChanged: _setVideoThumbnail,
+            onThumbnailFrameChanged: _setVideoThumbnailFrame,
+            checkLimits: _videoController.recheckEligibility,
             enabled: controlsEnabled,
             onAltTextChanged: (value) {
               setState(() => _videoController.setAltText(value));

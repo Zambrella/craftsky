@@ -4,6 +4,8 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/chat/data/chat_draft_store.dart';
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
@@ -62,6 +64,7 @@ void main() {
     'new message',
     'notification',
     'profile',
+    'share',
     'reporting disabled',
   ]) {
     testWidgets('IT-013 conversation Back returns to Messages from $entry', (
@@ -80,6 +83,8 @@ void main() {
           .whereType<GoRoute>()
           .singleWhere((route) => route.name == 'messages');
       const details = ChatConversationRoute(conversationId: 'conversation');
+      const sharedLink =
+          'https://app.craftsky.social/posts/did%3Aplc%3Apeer/post';
       String? openedProfileDid;
       Object? profilePresentation;
       final router = GoRouter(
@@ -89,7 +94,7 @@ void main() {
           'new message' => const NewMessageRoute(
             recipientDid: 'did:plc:peer',
           ).location,
-          'notification' => '/feed',
+          'notification' || 'share' => '/feed',
           'profile' => '/profile',
           _ => '/messages',
         },
@@ -113,7 +118,15 @@ void main() {
           ),
           GoRoute(
             path: '/feed',
-            builder: (_, _) => const Scaffold(body: Text('Feed')),
+            builder: (context, _) => Scaffold(
+              body: entry == 'share'
+                  ? TextButton(
+                      onPressed: () =>
+                          unawaited(showSendViaChat(context, sharedLink)),
+                      child: const Text('Share in chat'),
+                    )
+                  : const Text('Feed'),
+            ),
           ),
           GoRoute(
             path: '/profile',
@@ -190,6 +203,18 @@ void main() {
         await tester.tap(find.text('peer.test'));
       } else if (entry == 'profile') {
         await tester.tap(find.byTooltip('Message'));
+      } else if (entry == 'share') {
+        final shareButton = find.text('Share in chat');
+        await ProviderScope.containerOf(tester.element(shareButton))
+            .read(sessionRegistryProvider.future);
+        await tester.tap(shareButton);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(ChatRecipientPicker),
+            matching: find.byType(ListTile),
+          ),
+        );
       } else if (entry == 'notification') {
         navigateToNotificationOutcome(
           tester.element(find.text('Feed')),
@@ -205,6 +230,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Bottom navigation'), findsNothing);
+      if (entry == 'cold') {
+        addTearDown(tester.view.resetViewInsets);
+        await tester.tap(find.byType(TextField));
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 250 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('chat-send')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('chat-keyboard-done')), findsNothing);
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+      }
+      if (entry == 'share') {
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          sharedLink,
+        );
+        expect(repository.effects, isNot(contains('send')));
+      }
       expect(router.canPop(), true);
       if (entry == 'cached return') {
         expect(repository.effects, contains('read:message'));
@@ -380,7 +427,7 @@ void main() {
       }
 
       if (entry == 'inbox') {
-        await tester.enterText(find.byType(TextField), 'Fresh swipe draft');
+        await tester.enterText(find.byType(TextField), 'Unsent swipe text');
         await tester.dragFrom(const Offset(1, 300), const Offset(650, 0));
       } else {
         await tester.tap(find.byTooltip('Back'));
@@ -393,13 +440,13 @@ void main() {
             draftStore.lease(account),
             ChatConversationId.parse('conversation'),
           )).text,
-          'Fresh swipe draft',
+          isEmpty,
         );
         await tester.tap(find.text('peer.test'));
         await tester.pumpAndSettle();
         expect(
           tester.widget<TextField>(find.byType(TextField)).controller!.text,
-          'Fresh swipe draft',
+          isEmpty,
         );
         await tester.tap(find.byTooltip('Back'));
         await tester.pumpAndSettle();
@@ -407,6 +454,12 @@ void main() {
       expect(find.text('peer.test'), findsOneWidget);
       await tester.tap(find.text('peer.test'));
       await tester.pumpAndSettle();
+      if (entry == 'share') {
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+      }
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.widgetWithText(AppBar, 'Messages'), findsOneWidget);

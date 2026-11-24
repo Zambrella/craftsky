@@ -138,6 +138,22 @@
 		suppressed: false
 	});
 	let videoDetailsRequest = $state('');
+	let customVideoThumbnail = $state(false);
+	$effect(() => {
+		if (!draft.video?.id) return;
+		let active = true;
+		void api.media
+			.videoLimits()
+			.then((limits) => {
+				if (active) customVideoThumbnail = limits.customThumbnail === true;
+			})
+			.catch(() => {
+				if (active) customVideoThumbnail = false;
+			});
+		return () => {
+			active = false;
+		};
+	});
 	let generation = 0;
 	let destroyed = false;
 	let controller = new AbortController();
@@ -1179,6 +1195,10 @@
 				AbortSignal.any([controller.signal, publicationController.signal])
 			);
 			if (seq !== generation || destroyed) return;
+			// The server confirmed the write. Disk cleanup and navigation can finish
+			// without holding the publishing dialog open.
+			publishing = false;
+			notify(result.notice);
 			if (result.post) publications?.accept(result.post, context);
 			if (result.edit)
 				publications?.watchEdit(pending.rkey!, result.edit, () =>
@@ -1195,7 +1215,6 @@
 			});
 			if (seq !== generation || destroyed) return;
 			draft.pending = undefined;
-			notify(result.notice);
 
 			try {
 				await leaveEditor(destination);
@@ -1346,6 +1365,14 @@
 								/>{/if}
 							{#if draft.video}<VideoAttachment
 									media={draft.video}
+									customThumbnail={customVideoThumbnail}
+									onthumbnail={(image) => {
+										if (draft.video) draft.video.thumbnail = image;
+									}}
+									onframe={(percent) => {
+										if (draft.video)
+											draft.video.thumbnailFramePercent = percent;
+									}}
 									autoOpen={videoDetailsRequest === draft.video.id}
 									disabled={locked}
 									onalt={(value) => {

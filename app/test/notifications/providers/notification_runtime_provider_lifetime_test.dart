@@ -22,6 +22,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('retained account registers when its onboarding resolves', () async {
+    final initial = SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        )
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        );
+    final aliceStatus = Completer<OnboardingCompletion>();
+    final aliceStarted = Completer<void>();
+    final repository = _DeviceRepository(
+      aliceStarted,
+      Future.value(AccountSubscriptionId.parse('alice-binding')),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(initial),
+        ),
+        notificationServiceProvider.overrideWithValue(_AuthorizedService()),
+        onboardingRepositoryProvider.overrideWith(
+          (ref, lease) async => _CompletedOnboarding(
+            lease.account.did.value == 'did:plc:alice'
+                ? aliceStatus.future
+                : Future.value(const OnboardingCompletion(completed: false)),
+          ),
+        ),
+        accountNotificationDeviceRepositoryProvider.overrideWith(
+          (ref, account) async {
+            expect(account.did.value, 'did:plc:alice');
+            return repository;
+          },
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    container.listen(notificationRuntimeProvider, (_, _) {});
+    final runtime = container.read(notificationRuntimeProvider);
+    await runtime.start();
+    await container.pump();
+    expect(aliceStarted.isCompleted, isFalse);
+
+    aliceStatus.complete(const OnboardingCompletion(completed: true));
+    await aliceStarted.future.timeout(const Duration(seconds: 5));
+  });
+
   test(
     'device registration owns its account repository until completion',
     () async {
@@ -110,9 +160,13 @@ final class _DeviceRepository implements NotificationDeviceRepository {
 }
 
 final class _CompletedOnboarding implements OnboardingRepository {
+  new([this.status]);
+
+  final Future<OnboardingCompletion>? status;
+
   @override
   Future<OnboardingCompletion> readStatus() async =>
-      const OnboardingCompletion(completed: true);
+      await status ?? const OnboardingCompletion(completed: true);
   @override
   Future<OnboardingCompletion> complete({
     required bool meetsMinimumAge,

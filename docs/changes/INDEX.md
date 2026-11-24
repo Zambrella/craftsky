@@ -120,7 +120,7 @@ These are package-specific historical limits and questions. Check later evidence
 
 | Change | Implementation | Archive | Other topics | Summary |
 | --- | --- | --- | --- | --- |
-| [Private Bluesky messaging and foreground synchronization](catalog/2026-10-18-direct-messaging.md) | implemented | archived | privacy, synchronization | This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. |
+| [Private Bluesky messaging and foreground synchronization](catalog/2026-10-18-direct-messaging.md) | implemented | archived | privacy, synchronization | This evolving package records private one-to-one Bluesky messaging, authorization boundaries and later foreground/inbox lifecycle refinements. Both composers keep unsent text in memory while open. Only submitted attempts use device-local delivery recovery. |
 
 ## comments
 
@@ -202,7 +202,7 @@ These are package-specific historical limits and questions. Check later evidence
 
 | Change | Implementation | Archive | Other topics | Summary |
 | --- | --- | --- | --- | --- |
-| [Protected logging and native Sentry diagnostics](catalog/2026-10-02-logging-error-reporting.md) | implemented | archived | errors, sentry | This evolving package records the protected diagnostic pipeline and later mobile, web and AppView error-handling audits through 13 November 2026. |
+| [Protected logging and native Sentry diagnostics](catalog/2026-10-02-logging-error-reporting.md) | implemented | archived | errors, sentry | This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage. |
 
 ## media
 

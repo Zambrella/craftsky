@@ -35,7 +35,8 @@
   ],
   "evidence": [
     "docs/changes/2026-07-10-appview-push-notifications/05-implementation-plan.md#re-review-verification",
-    "docs/changes/2026-07-10-appview-push-notifications/06-implementation-review.md"
+    "docs/changes/2026-07-10-appview-push-notifications/06-implementation-review.md",
+    "docs/2026-11-20-notification-audit.md"
   ],
   "supersededBy": [],
   "followUps": [
@@ -55,6 +56,8 @@ The recorded backend implementation adds durable notification activation/deliver
 The final review is Approved for the newness follow-up. The execution record reports seeded API tests, race suites, Go vet and the canonical backend suite passing. Automated tests did not contact Firebase, so provider acceptance/device receipt remained external gates.
 
 Historical evidence: [05-implementation-plan.md — Re-review Verification](../../../docs/changes/2026-07-10-appview-push-notifications/05-implementation-plan.md#re-review-verification); [06-implementation-review.md](../../../docs/changes/2026-07-10-appview-push-notifications/06-implementation-review.md).
+
+The November audit records the change to per-event newness and later delivery fixes. [CraftSky notification audit](../../2026-11-20-notification-audit.md)
 
 ## Current entry points
 

@@ -16,8 +16,6 @@
 .why-hero h1>span { color: var(--cobalt); }
 .why-hero-bottom { display: grid; grid-template-columns: 1.4fr 1fr; gap: 60px; align-items: center; margin-top: 40px; }
 .why-lede { font-size: clamp(21px, 2.2vw, 29px); font-weight: 700; line-height: 1.35; }
-.why-button { display: inline-block; background: var(--cobalt); color: white; padding: 17px 25px; border: 2px solid var(--ink); border-radius: var(--r-4); box-shadow: 5px 5px 0 var(--ink); text-decoration: none; font-size: 16px; font-weight: 800; transition: transform 120ms; }
-.why-button:hover { background: var(--cobalt-deep); color: white; transform: translateY(-2px); }
 .why-small { font-size: 13px; margin-top: 20px !important; }
 .why-page figcaption { font-size: 12px; margin-top: 16px; line-height: 1.5; }
 /* The hero explains Instagram’s business model before introducing the alternative. */
@@ -107,8 +105,6 @@
 .why-contract-grid ul { font-size: 16px; padding-left: 20px; }
 .why-contract-grid li { margin-block: 10px; }
 .why-final { background: var(--cobalt); color: white; padding-block: 80px; }
-.why-final .why-button { background: var(--paper); color: var(--ink); margin: 20px 0 24px; }
-.why-final .why-button:hover { background: white; }
 .why-final .why-secondary { color: white; display: block; width: fit-content; font-size: 15px; }
 .why-final :focus-visible { outline-color: white; }
 .why-sources { padding-block: 65px; }
@@ -146,11 +142,9 @@
  .why-timeline li { grid-template-columns: 1fr; gap: 12px; }
  .why-timeline li>span { font-size: 25px; }
  .why-final { padding-block: 60px; }
- .why-button { padding: 15px 18px; font-size: 15px; }
  .why-app-options { gap: 16px; }
  .why-app-options>div { padding: 18px 10px; }
  .why-app-options strong { font-size: 16px; }
  .why-app-options span { font-size: 12px; }
  .why-size-pair { gap: 16px; }
 }
-@media (prefers-reduced-motion: reduce) { .why-button { transition: none; } .why-button:hover { transform: none; } }

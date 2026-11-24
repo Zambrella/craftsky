@@ -43,3 +43,29 @@ func ShouldNotifyModeration(event ModerationEvent) bool {
 		return false
 	}
 }
+
+// VisibleActorModerationSQL filters active account hide and takedown outputs
+// for a notification alias e. An actorless event still passes the predicate.
+const VisibleActorModerationSQL = `
+	  AND NOT EXISTS (
+		SELECT 1
+		FROM moderation_outputs mo
+		WHERE mo.action = 'apply'
+		  AND NOT appview_owner_is_terminal(mo.source_did)
+		  AND mo.subject_type = 'account'
+		  AND mo.subject_did = e.actor_did
+		  AND mo.value IN ('hide', 'takedown')
+		  AND (mo.expires_at IS NULL OR mo.expires_at > now())
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM moderation_outputs neg
+			WHERE neg.action = 'negate'
+			  AND neg.source_did = mo.source_did
+			  AND neg.subject_type = mo.subject_type
+			  AND neg.subject_did = mo.subject_did
+			  AND neg.value = mo.value
+			  AND (neg.expires_at IS NULL OR neg.expires_at > now())
+			  AND neg.indexed_at > mo.indexed_at
+		  )
+	  )
+`

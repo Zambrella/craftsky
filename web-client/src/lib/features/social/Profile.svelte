@@ -119,7 +119,7 @@
 	let tabs = $derived(
 		profile
 			? profileTabs(profile, profile.did === session?.did)
-			: ['projects', 'posts', 'comments', 'reposts']
+			: ['posts', 'projects', 'comments', 'reposts']
 	);
 	let tab = $derived(
 		[

@@ -133,8 +133,8 @@ class _ReportPageState extends State<ReportPage> {
           isLoading: _submitting && _result == null,
           child: Text(l10n.reportSubmit),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+        contentBuilder: (_, clearance) => SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + clearance),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),

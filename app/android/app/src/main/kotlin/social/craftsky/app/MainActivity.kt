@@ -2,13 +2,17 @@ package social.craftsky.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.graphics.Bitmap
 import android.media.AudioAttributes
+import android.media.MediaMetadataRetriever
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.StandardMethodCodec
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingResult
@@ -17,7 +21,10 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
 import android.os.Handler
 import android.os.Looper
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.MessageDigest
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -35,6 +42,122 @@ class MainActivity : FlutterActivity() {
                 }
                 checkStoreOwnership(appUserId, result)
             }
+
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(
+            messenger,
+            "social.craftsky/local_video",
+            StandardMethodCodec.INSTANCE,
+            messenger.makeBackgroundTaskQueue(),
+        ).setMethodCallHandler { call, result ->
+            val path = call.argument<String>("path")
+            when (call.method) {
+                "probe" -> {
+                    if (path.isNullOrEmpty()) {
+                        result.error("invalid_video_path", "Video path required", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        result.success(probeLocalVideo(path))
+                    } catch (error: LocalVideoProbeException) {
+                        result.error(error.code, "Unable to prepare local video", null)
+                    } catch (_: Exception) {
+                        result.error("video_probe_failed", "Unable to prepare local video", null)
+                    }
+                }
+                "midpointFrame" -> {
+                    val timeUs = call.argument<Number>("timeUs")?.toLong()
+                    val bytes = if (path.isNullOrEmpty() || timeUs == null || timeUs < 0) {
+                        null
+                    } else {
+                        runCatching {
+                            withVideoRetriever(Uri.parse(path)) { readThumbnailFrame(it, timeUs) }
+                        }.getOrNull()
+                    }
+                    result.success(bytes)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun probeLocalVideo(path: String): Map<String, Any> {
+        val uri = if (path.startsWith("/")) Uri.fromFile(File(path)) else Uri.parse(path)
+        if (uri.scheme != "file" && uri.scheme != "content") {
+            throw LocalVideoProbeException("invalid_video_path")
+        }
+        return withVideoRetriever(uri) { retriever ->
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull()
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull()
+            if (width == null || width <= 0 || height == null || height <= 0) {
+                throw LocalVideoProbeException("video_metadata_unavailable")
+            }
+            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+            val rotated = rotation == "90" || rotation == "270"
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+            val poster = readThumbnailFrame(
+                retriever, 0, maxSize = 1280, option = MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            ) ?: throw LocalVideoProbeException("video_poster_unavailable")
+            buildMap {
+                put("width", if (rotated) height else width)
+                put("height", if (rotated) width else height)
+                put("posterBytes", poster)
+                if (durationMs != null && durationMs > 0) put("durationMs", durationMs)
+            }
+        }
+    }
+
+    private class LocalVideoProbeException(val code: String) : Exception()
+
+    private fun <T> withVideoRetriever(uri: Uri, read: (MediaMetadataRetriever) -> T): T {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(applicationContext, uri)
+            return read(retriever)
+        } finally {
+            retriever.release()
+        }
+    }
+
+    private fun readThumbnailFrame(
+        retriever: MediaMetadataRetriever,
+        timeUs: Long,
+        maxSize: Int = 640,
+        option: Int = MediaMetadataRetriever.OPTION_CLOSEST,
+    ): ByteArray? {
+        val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            retriever.getScaledFrameAtTime(timeUs, option, maxSize, maxSize)
+        } else {
+            retriever.getFrameAtTime(timeUs, option)
+        } ?: return null
+        try {
+            val scale = minOf(1.0, maxSize.toDouble() / maxOf(frame.width, frame.height))
+            val preview = if (scale < 1.0) {
+                Bitmap.createScaledBitmap(
+                    frame,
+                    (frame.width * scale).roundToInt().coerceAtLeast(1),
+                    (frame.height * scale).roundToInt().coerceAtLeast(1),
+                    true,
+                )
+            } else {
+                frame
+            }
+            try {
+                val output = ByteArrayOutputStream()
+                return if (preview.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
+                    output.toByteArray()
+                } else {
+                    null
+                }
+            } finally {
+                if (preview !== frame) preview.recycle()
+            }
+        } finally {
+            frame.recycle()
+        }
     }
 
     private fun checkStoreOwnership(appUserId: String, result: MethodChannel.Result) {

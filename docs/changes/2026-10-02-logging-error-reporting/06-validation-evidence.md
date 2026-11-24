@@ -576,3 +576,115 @@ The handler fixture passed for local logs and serialized Sentry Logs with
 private-value canaries. The full AppView race and integration suite, 16 Flutter
 profile tests, and Dart analysis passed. Hosted collection remains unverified
 until release.
+
+## Android composer playback (24 November 2026)
+
+The original H.264 clip produced poster and cover images and a black playback
+surface on the Android 17 emulator. MediaKit's GPU output logged
+`EGL_BAD_ATTRIBUTE` after attaching a surface. The direct MediaCodec output
+experiment also showed black frames.
+
+Local Android composer previews now use the Flutter `video_player` Android
+backend with the existing Flutter playback controls and lifecycle coordination.
+The original clip rendered moving frames inline and in landscape fullscreen,
+then returned to Video details. A 90-degree rotation fixture displayed moving
+frames in portrait. Android debug and iOS simulator builds compiled, and
+37 focused Flutter video tests passed. Physical-device playback remains
+unverified for this change.
+
+## Android native video probe (24 November 2026)
+
+Android selection now reads local video metadata and a bounded JPEG from
+`MediaMetadataRetriever` through the same channel contract as iOS. The
+background probe reuses the existing cover-frame decoder and returns
+display-oriented dimensions plus duration when available. The existing
+selection reporter receives a stable platform error code on probe failure.
+This replaces the MediaKit screenshot step recorded below.
+
+On the Android 17 emulator, the original 17-second H.264 clip failed on the
+previous build. The rebuilt debug APK attached the same clip, opened Video
+details with a poster and four cover frames, and returned to the composer
+with the attachment selected. A synthetic 640×360 H.264 clip with 90-degree
+rotation metadata opened with the expected portrait poster.
+
+Twenty focused Flutter tests and Dart analysis passed. Hosted Sentry
+delivery and a physical-device release build remain unverified.
+
+## Android video poster diagnostics (24 November 2026)
+
+Sentry issue FLUTTER-APP-5Q recorded three Android selection failures after
+MediaKit returned no poster. The existing selection reporter now includes the
+capture result, allowlisted codec when there is a single source video track,
+dimensions, available duration and rotation, and whether MediaKit reported a
+hardware pixel format. MediaKit's screenshot API does not expose the native
+error code.
+
+The focused Flutter suites passed with 179 tests and one skip. The serialized
+Sentry event retains the exception and stack alongside the new metadata. The
+event and local diagnostic exclude filename and picker URI canaries. Dart
+analysis passed. The full Flutter suite passed with 4,389 tests and 50 skips.
+The AppView race and integration suite passed against the local PostgreSQL
+and MinIO services.
+
+The maintainer reproduced the failure on a local Android emulator. The local
+record includes a null capture result for a 1920×1080 H.264 clip (17,493 ms,
+rotation 0) with no reported hardware pixel format. The pinned MediaKit Android
+controller completes its first-frame wait after sizing the surface, which does
+not establish that a frame is ready for capture. This makes frame readiness a
+plausible cause. The console trace does not contain the native failure code.
+
+The emulator logcat shows two attempts with the same order. MediaKit published
+a nonzero surface reference, then published `wid: 0` from surface cleanup, then
+the selection controller logged the failure. The probe awaits player disposal
+before the selection controller receives the error. The zero reference belongs
+to cleanup and does not establish the video output state at capture time.
+
+Physical Android reproduction, hosted Sentry collection and release
+symbolication remain unverified for the enriched diagnostics.
+
+## Android video selection diagnostics (18 November 2026)
+
+- The shared Flutter selection controller reports unexpected failures for both
+  composers. A local serialized-envelope test confirms one issue with the
+  Android platform, picker code and caught stack, and checks that the local
+  log and Sentry event exclude the selected file's name and URI.
+- The original Android preview-build failure was not reproduced. Delivery
+  from a rebuilt Android preview, hosted Sentry collection and release
+  symbolication remain unverified.
+
+## Sentry issue triage (20 November 2026)
+
+The Sentry CLI returned 58 unresolved groups over the 365-day lookback, with
+no further pages. The inventory covered all environments across 31 AppView
+groups, 26 Flutter groups and one web group. The resolved and archived
+inventory contained another 142 groups over the same lookback. The
+investigation examined 493 retained events across the open groups.
+
+| Sentry groups | Evidence and disposition |
+| --- | --- |
+| APP-VIEW-P, APP-VIEW-1Z | The pinned Indigo resolver could lose a failed HTTPS well-known lookup and proceed with an empty DID when DNS was skipped for `.bsky.social`. A local reproduction confirmed this path. The resolver now carries the error through and still verifies the declared handle against the DID document. Future reports distinguish handle well-known, PLC and DID well-known HTTP failures. The three 1Z follow failures were target DID lookups with no preserved provider status. |
+| APP-VIEW-2C, APP-VIEW-29 | The historical chat errors lacked their provider details. Chat diagnostics now distinguish a failed OAuth refresh from a failed chat RPC and identify DID lookup, protected-resource discovery and authorization-server metadata, with reviewed status and codes. |
+| APP-VIEW-21, APP-VIEW-22, APP-VIEW-25, APP-VIEW-26, APP-VIEW-27, APP-VIEW-28, APP-VIEW-2A, APP-VIEW-2B, APP-VIEW-2D, APP-VIEW-2E, APP-VIEW-2F, APP-VIEW-2W, APP-VIEW-2X, APP-VIEW-2Y, APP-VIEW-1A, APP-VIEW-1B, APP-VIEW-1C | Occurrence histories showed provider 502/503, network, TLS and deadline failures. The three oldest groups came from dev. Existing stages and retry metadata identify the affected chat operations. |
+| APP-VIEW-8, APP-VIEW-2V | The generic 5xx group crossed multiple routes in dev and production. Most production occurrences were prior link-preview failures, before the current handler retained the specific fetch cause. The HTTP fallback now records the v1 error code when it owns the issue. 2V already identifies DNS NXDOMAIN in a link-preview fetch. |
+| APP-VIEW-N, APP-VIEW-Q, APP-VIEW-13, APP-VIEW-16, APP-VIEW-20, APP-VIEW-24, APP-VIEW-H | PDS, transport and Firebase dependency failures. Existing provider status and error types establish the boundary. New AppView diagnostics add the classified request route and distinguish dial, read and write failures and known TLS, response-header and response-body timeout paths. |
+| APP-VIEW-1Y, FLUTTER-APP-4G, FLUTTER-APP-4H | Post reporting returned HTTP 500. Both Flutter groups had a request UUID match with an AppView report-store check constraint failure. Migration 000120 corrected the constraint in AppView 1.3.0. |
+| FLUTTER-APP-4Y | A PDS write returned 401 and cleared the active session while the composer could still build. A regression reproduced the widget failure. Both native composer sheets now tolerate the expected session cancellation. |
+| FLUTTER-APP-51, FLUTTER-APP-57, FLUTTER-APP-58, FLUTTER-APP-59 | Nine iOS occurrences while paused showed `HttpException` without an HTTP response. The original connection failure phase remains unknown. The protected console and native issue now select the exact reviewed Dart HTTP close phase or retain a generic transport explanation. |
+| FLUTTER-APP-52, FLUTTER-APP-53, FLUTTER-APP-54, FLUTTER-APP-55, FLUTTER-APP-4Z, FLUTTER-APP-50, FLUTTER-APP-4M, FLUTTER-APP-4N, FLUTTER-APP-4P | Login or chat failed with an AppView 502/503, a stable response code where available and an AppView request UUID. The provider and route findings above cover the server-side investigations. |
+| FLUTTER-APP-4J, FLUTTER-APP-4S, FLUTTER-APP-4T, FLUTTER-APP-4V, FLUTTER-APP-4W, FLUTTER-APP-4Q | Five 502 responses lacked JSON and AppView correlation. The like action in FLUTTER-APP-4Q timed out waiting for a response and had no AppView request UUID. The reports already distinguish these cases. The responding edge and cause of the delayed write response were not established. |
+| FLUTTER-APP-4R, FLUTTER-APP-4X, FLUTTER-APP-4K | The seven video assertions predate the native player disposal guard shipped in Flutter app 1.12.0+18. The guard and regression test are present in the current checkout. |
+| FLUTTER-APP-56 | The single Android ANR retains both native threads and the lifecycle timeline. The main thread waits during Flutter surface destruction while Impeller's Vulkan raster thread is blocked in `vkDeviceWaitIdle`. The pinned engine still contains this path. |
+| WEB-CLIENT-2 | The source-mapped event ended at the prior settings sign-out handler's generic non-2xx exception. The current browser already uses the typed API transport. The Worker now logs sign-out with its own operation, status, stable code and validated request UUID when available. The historic response status is unknown. |
+
+Local regressions reproduce the identity lookup and composer failures, and
+check retained fields and privacy canaries in serialized diagnostic sinks.
+Flutter analysis was clean and the full suite passed 4,366 tests with 50
+skipped. The web type check and lint passed, and all 615 web tests passed.
+AppView race and integration coverage passed across the full run and two
+package reruns. The full run picked up a chat test that moved after package
+discovery, and the scheduled-posts check found the new MinIO bucket had
+not been initialized. The final chat race suite and the scheduled-posts
+race suite after repository-provided MinIO initialization both passed.
+Device recurrence, native release symbolication and hosted delivery of the
+new fields remain unverified. The worktree contains the changes and live
+Sentry was accessed read-only.

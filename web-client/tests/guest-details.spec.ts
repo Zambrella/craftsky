@@ -227,7 +227,12 @@ test('a public profile cursor retains its SSR page after hydration and history n
 	await expect(
 		page.getByText('Guest knitting project', { exact: true })
 	).toHaveCount(0);
-	await page.getByRole('link', { name: 'Projects', exact: true }).click();
+	const tabs = page.getByRole('navigation', { name: 'Profile content' });
+	await expect(tabs.getByRole('link').first()).toHaveText('Posts');
+	await expect(
+		tabs.getByRole('link', { name: 'Posts', exact: true })
+	).toHaveAttribute('aria-current', 'page');
+	await tabs.getByRole('link', { name: 'Projects', exact: true }).click();
 	await expect(
 		page.getByText('Guest knitting project', { exact: true })
 	).toBeVisible();

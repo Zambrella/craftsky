@@ -35,10 +35,10 @@ func TestEditPostAcceptanceKeepsOriginalMentionBeforeTap(t *testing.T) {
 func testEditPostAcceptanceCancelsRemovedMentionBeforeTap(t *testing.T, legacy bool) {
 	ctx := context.Background()
 	pool := testdb.WithMigratedSchema(t)
-	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(time.Second)
 	const uri = syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/3aaaaaaaaaaa2")
 	const priorCID = syntax.CID("bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq")
-	raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-10-26T12:00:00Z","facets":[{"index":{"byteStart":6,"byteEnd":15},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:recipient"}]}]}`)
+	raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"` + now.Format(time.RFC3339) + `","facets":[{"index":{"byteStart":6,"byteEnd":15},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:recipient"}]}]}`)
 	source, err := ingestion.NewStore(pool, func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)

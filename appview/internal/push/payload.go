@@ -63,6 +63,9 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 		addRoutingFact(data, "rootUri", facts.RootURI.String())
 	case notifications.Mention, notifications.Quote:
 		addRoutingFact(data, "sourceUri", facts.SourceURI.String())
+		if facts.RootURI != facts.SourceURI {
+			addRoutingFact(data, "rootUri", facts.RootURI.String())
+		}
 	case notifications.Reply:
 		addRoutingFact(data, "subjectUri", facts.SubjectURI.String())
 		addRoutingFact(data, "rootUri", facts.RootURI.String())

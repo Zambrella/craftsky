@@ -33,12 +33,12 @@ CREATE TABLE push_installations (
 );
 CREATE TABLE push_account_subscriptions (
  id UUID PRIMARY KEY, installation_id UUID NOT NULL REFERENCES push_installations(id),
- account_did TEXT NOT NULL, routing_id UUID NOT NULL, active BOOLEAN NOT NULL
+ account_did TEXT NOT NULL, routing_id UUID NOT NULL, active BOOLEAN NOT NULL, activation_generation BIGINT NOT NULL DEFAULT 1
 );
 CREATE TABLE push_deliveries (
  id UUID PRIMARY KEY, notification_id UUID NOT NULL REFERENCES notification_events(id),
  account_subscription_id UUID NOT NULL REFERENCES push_account_subscriptions(id), status TEXT NOT NULL,
- next_attempt_at TIMESTAMPTZ NOT NULL, deadline_at TIMESTAMPTZ NOT NULL,
+ next_attempt_at TIMESTAMPTZ NOT NULL, deadline_at TIMESTAMPTZ NOT NULL, subscription_activation_generation BIGINT,
  UNIQUE(notification_id,account_subscription_id)
 );`
 

@@ -3,7 +3,6 @@ package push
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"social.craftsky/appview/internal/notifications"
 	"strings"
 	"testing"
@@ -20,22 +19,28 @@ func TestFirebaseWebPushHasBoundedTTLPrivateAccountRoutingAndNoCollapse(t *testi
 			if chat {
 				request.Category = ""
 				request.RoutingFacts = RoutingFacts{}
-				request.Chat = &ChatRouting{OpenReference: "00000000-0000-4000-8000-000000000003"}
+				request.Chat = &ChatRouting{OpenReference: "00000000-0000-4000-8000-000000000003", AcceptedConversation: true}
 			}
 			result, err := sender.Send(context.Background(), request)
 			if err != nil || result.Class != ResultSuccess {
 				t.Fatalf("result=%v err=%v", result, err)
 			}
 			message := client.messages[0]
-			if message.Android != nil || message.APNS != nil || message.Webpush == nil || message.Webpush.Headers["TTL"] != "90" {
+			if message.Notification != nil || message.Android != nil || message.APNS != nil || message.Webpush == nil || message.Webpush.Headers["TTL"] != "90" {
 				t.Fatalf("invalid web platform configuration")
 			}
-			link, err := url.Parse(message.Webpush.FCMOptions.Link)
-			if err != nil || link.Scheme != "https" || link.Host != "app.craftsky.social" || link.Query().Get("pushSubscription") != subscription {
-				t.Fatalf("invalid click URL")
+			wantBody := "liked your post"
+			if chat {
+				wantBody = "sent you a message"
 			}
-			if chat && link.Path != "/messages" || !chat && link.Path != "/notifications" {
-				t.Fatalf("click path=%s", link.Path)
+			if message.Data["webTitle"] != "Someone" || message.Data["webBody"] != wantBody {
+				t.Fatalf("incorrect service worker display copy: %+v", message.Data)
+			}
+			if message.Webpush.FCMOptions != nil || message.Data["accountSubscriptionId"] != subscription {
+				t.Fatalf("invalid service worker routing data")
+			}
+			if chat && message.Data["openReference"] != request.Chat.OpenReference {
+				t.Fatalf("chat routing reference missing")
 			}
 			encoded, err := json.Marshal(message)
 			if err != nil {

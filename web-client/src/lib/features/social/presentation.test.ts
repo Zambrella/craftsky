@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { AppNotification, Profile } from '#lib/api/types.ts';
-import { notificationCopy, profileTabs, joinedAge } from './presentation';
+import {
+	notificationCopy,
+	notificationDestination,
+	profileTabs,
+	joinedAge
+} from './presentation';
 
 describe('native social presentation policy', () => {
 	it('uses the native joined-age thresholds and handles invalid/future dates', () => {
@@ -19,8 +24,8 @@ describe('native social presentation policy', () => {
 		} as unknown as Profile;
 		expect(profileTabs(profile, false)).toEqual([
 			'about',
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);
@@ -28,8 +33,8 @@ describe('native social presentation policy', () => {
 			'products',
 			'events',
 			'about',
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);
@@ -37,8 +42,8 @@ describe('native social presentation policy', () => {
 			'events'
 		);
 		expect(profileTabs({ ...profile, blocking: true }, false)).toEqual([
-			'projects',
 			'posts',
+			'projects',
 			'comments',
 			'reposts'
 		]);
@@ -85,6 +90,7 @@ describe('native social presentation policy', () => {
 			preview: { text: 'The new comment', role: 'comment' }
 		} as AppNotification);
 		expect(reply.context).toBe('↳ Your post: Dinosaur blanket');
+		expect(reply.action).toBe('commented on your post');
 		expect(reply.previewText).toBe('The new comment');
 		expect(
 			notificationCopy({
@@ -93,6 +99,25 @@ describe('native social presentation policy', () => {
 				quotedPreview: { text: 'Original reply', role: 'reply' }
 			} as AppNotification).action
 		).toBe('quoted your reply');
+	});
+	it('uses the parent role in reply copy and opens the thread focused on the new reply', () => {
+		const base = 'at://did:plc:a/social.craftsky.feed.post/';
+		const root = { uri: base + 'root', cid: 'root-cid' };
+		const item = {
+			type: 'reply',
+			subjectPost: {
+				uri: base + 'parent',
+				author: { did: 'did:plc:a' },
+				text: 'Parent comment',
+				reply: { root, parent: root }
+			},
+			reply: { uri: base + 'new-reply', cid: 'reply-cid', rkey: 'new-reply' },
+			preview: { role: 'reply', text: 'New reply' }
+		} as AppNotification;
+		expect(notificationCopy(item).action).toBe('replied to your comment');
+		expect(notificationDestination(item)).toBe(
+			`/posts/did%3Aplc%3Aa/root?focus=${encodeURIComponent(base + 'new-reply')}`
+		);
 	});
 	it('honours explicit unavailable wire fields across all preview and follow surfaces', () => {
 		for (const unavailable of [

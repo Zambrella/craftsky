@@ -46,23 +46,22 @@
 
     <header id="hero" class="hero">
         <div class="container hero__inner">
-            <div class="hero__text">
-                <span class="eyebrow-chip">Built in the open · on the AT Protocol</span>
-                <h1 class="hero__title">A new home for <em>makers</em>.</h1>
-                <p class="hero__lede">
-                    A social platform for textile crafters on the open web. Post what
-                    you're making, find the patterns people are loving, follow your local
-                    yarn shop. No ads and a chronological home feed.
-                </p>
-                <div class="hero__ctas">
-                    <button type="button" class="btn btn--primary js-open-waiting-list" data-source="hero">Join the
-                        waiting list</button>
+            <h1 class="hero__title">A new home for <em>makers</em>.</h1>
+            <p class="hero__lede">
+                A social platform for textile crafters on the open web. Post what
+                you're making, find the patterns people are loving, follow your local
+                yarn shop. No ads and a chronological home feed.
+            </p>
+            <div class="countdown">
+                <p class="countdown__date">Launch date <time id="launch-date" datetime="2026-12-08T00:00:00Z">8 December 2026</time></p>
+                <div id="launch-countdown" class="countdown__units" role="timer" aria-label="Time until launch" hidden>
+                    <div class="countdown__unit"><span class="countdown__value" data-countdown-value>00</span> Days</div>
+                    <div class="countdown__unit"><span class="countdown__value" data-countdown-value>00</span> Hours</div>
+                    <div class="countdown__unit"><span class="countdown__value" data-countdown-value>00</span> Minutes</div>
+                    <div class="countdown__unit"><span class="countdown__value" data-countdown-value>00</span> Seconds</div>
                 </div>
             </div>
-            <div class="hero__illustration">
-                <img src="assets/feed.png" alt="CraftSky mobile feed showing textile project posts" width="1080"
-                    height="1920" />
-            </div>
+            <a class="btn btn--primary hero__learn-more" href="#value-cards">Learn More</a>
         </div>
     </header>
     <hr class="section-rule" />
@@ -337,8 +336,7 @@
 
                 <details class="faq__item">
                     <summary>When's it launching?</summary>
-                    <p>No dates yet. We'd rather get it right than get it out fast. Join the waiting list and we'll be
-                        in touch when there's something worth showing.</p>
+                    <p>CraftSky's launch date is 8 December 2026. Beta signups are closed.</p>
                 </details>
 
                 <details class="faq__item">
@@ -373,29 +371,6 @@
                         chronological feed, no ads, real search, and the details you'd actually log about a project.
                         Your data lives on an open network, so it's yours to keep or take.</p>
                 </details>
-            </div>
-        </section>
-        <section id="final-cta" class="final-cta on-cobalt">
-            <svg class="final-cta__accent final-cta__accent--tl" viewBox="0 0 160 160" aria-hidden="true">
-                <rect x="10" y="20" width="70" height="90" fill="#F7D46A" stroke="#161210" stroke-width="3"
-                    transform="rotate(-8 45 65)" />
-                <rect x="50" y="40" width="60" height="60" fill="#E27B4A" stroke="#161210" stroke-width="3"
-                    transform="rotate(6 80 70)" />
-                <circle cx="120" cy="30" r="12" fill="#F03A2E" stroke="#161210" stroke-width="3" />
-            </svg>
-            <svg class="final-cta__accent final-cta__accent--br" viewBox="0 0 160 160" aria-hidden="true">
-                <rect x="60" y="50" width="80" height="80" fill="#9BC2E6" stroke="#161210" stroke-width="3"
-                    transform="rotate(-5 100 90)" />
-                <rect x="20" y="70" width="70" height="60" fill="#C9B8E8" stroke="#161210" stroke-width="3"
-                    transform="rotate(7 55 100)" />
-                <circle cx="30" cy="40" r="10" fill="#F03A2E" stroke="#161210" stroke-width="3" />
-            </svg>
-            <div class="container final-cta__inner">
-                <h2 class="final-cta__title">Ready for a new home for your makes?</h2>
-                <p class="final-cta__sub">We'll keep you in the loop with progress and you'll be the first to try the
-                    app</p>
-                <button type="button" class="btn btn--on-cobalt js-open-waiting-list" data-source="final">Join the
-                    waiting list</button>
             </div>
         </section>
     </main>
@@ -450,20 +425,6 @@
         <img class="lightbox__image" src="assets/atprotocol-diagram.png"
             alt="The AT Protocol works in three layers. Apps (CraftSky, Bluesky, anything else) sit on top of Storage (your portable repository of posts, follows, likes and profile), which is tied to your Identity (a handle like @rosie.craftsky.app). On traditional social your posts live inside the app and stay behind if you leave. On the AT Protocol your posts live with you and any compatible app can read them."
             width="1178" height="1233" draggable="false" />
-    </dialog>
-
-    <!-- Waiting-list modal — just a card around the Brevo iframe. Brevo's
-         own styling has been stripped, so the form is bare HTML inside our
-         card chrome (no title — we don't add one to avoid duplicating
-         whatever the form ends up being titled). -->
-    <dialog id="waiting-list-modal" class="modal modal--brevo" aria-label="Join the CraftSky waiting list">
-        <form method="dialog" class="modal__close-form">
-            <button type="submit" class="modal__close" value="cancel" aria-label="Close">&times;</button>
-        </form>
-
-        <iframe class="modal__iframe" title="Join the CraftSky waiting list" width="540" height="640"
-            src="https://537f57e5.sibforms.com/serve/MUIFAK2yaDNdNXlRWw2kavO7EeWUj20Xl9OteRR0zrDT8EIsjBA_Dme9L74XztuGu6EUCf4yKrL2m8KiPpvNaPMF-R7FKfkzf402M1pnARZTwX35tXOsiD63vxuGa4n_W0Kc-Qal_dcM8rDZZLnjeJdApPdivEYBUVBjbQuyLoNRjL1o3PThn1B4XvCmFQm2eEc1yy9V_WXFgHuAxA=="
-            frameborder="0" scrolling="auto" allowfullscreen></iframe>
     </dialog>
 
     <script src="main.js" defer></script>

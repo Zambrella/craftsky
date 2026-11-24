@@ -80,9 +80,9 @@ class _AccountDeletionReauthCompletePageState
           actionChild: _busy
               ? StitchProgressIndicator(size: 18, color: colors.onError)
               : null,
-          child: _BoundedConfirmationContent(
+          contentBuilder: (_, clearance) => _BoundedConfirmationContent(
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + clearance),
               children: [
                 Text.rich(
                   TextSpan(

@@ -31,7 +31,7 @@
     "rate limits",
     "request correlation"
   ],
-  "summary": "This evolving package records the protected diagnostic pipeline and later mobile, web and AppView error-handling audits through 13 November 2026.",
+  "summary": "This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage.",
   "currentDocs": [
     "docs/development/logging-error-reporting.md",
     "docs/architecture.md"
@@ -42,6 +42,10 @@
     "web-client/src/lib"
   ],
   "evidence": [
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-composer-playback-24-november-2026",
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-native-video-probe-24-november-2026",
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-video-poster-diagnostics-24-november-2026",
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#sentry-issue-triage-20-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#profile-save-rejection-diagnostics",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#appview-error-handling-audit-13-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#client-error-handling-audit-13-november-2026",
@@ -58,9 +62,13 @@
 
 ## Outcome and decisions
 
-This evolving package records the protected diagnostic pipeline and later mobile, web and AppView error-handling audits through 13 November 2026. Preserve native typed causes/stacks, select public versus private context at the operation boundary and keep one issue owner per occurrence. Supporting logs never implicitly create issues. Worker attempts isolate sibling ownership; expected retries remain logs, with diagnostic escalation independent of durable retry behavior. Raw credentials, private payloads, recipient routing and capabilities remain excluded.
+This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage. Preserve native typed causes and stacks, select public versus private context at the operation boundary and keep one issue owner per occurrence. Supporting logs never implicitly create issues. Worker attempts isolate sibling ownership, and expected retries remain logs. Diagnostic escalation is independent of durable retry behavior. Raw credentials, private payloads, recipient routing and capabilities remain excluded.
 
 ## Evidence and limits
+
+The Android video selection follow-up verifies the protected error envelope
+locally. Preview-build delivery and the reported clip failure remain
+unverified.
 
 The review file is a historical correction input. Later validation sections record actual serialized SDK/local canary checks, client/browser suites and backend race coverage, including affected-package reruns. Hosted symbolication/collection and device-specific rollout proof are explicitly separate; folder date and opening verdict cannot summarize this package.
 

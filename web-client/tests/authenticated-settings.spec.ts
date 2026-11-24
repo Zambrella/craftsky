@@ -1650,7 +1650,7 @@ test('event owner can postpone from management and cancel from detail without lo
 	);
 	await expect(
 		page.getByText(
-			'Choose someone to send this link to. It will be added to your draft for review.'
+			'Choose someone to send this link to. You can review the link before sending.'
 		)
 	).toBeVisible();
 	await fetch('http://127.0.0.1:19847/__test/control', {

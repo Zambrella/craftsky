@@ -21,7 +21,12 @@ abstract final class NotificationDestinationInference {
           focusUri: facts.subjectUri == facts.rootUri ? null : facts.subjectUri,
         ),
         NotificationCategory.mention ||
-        NotificationCategory.quote => PostDestination(facts.sourceUri!),
+        NotificationCategory.quote => PostDestination(
+          facts.rootUri ?? facts.sourceUri!,
+          focusUri: facts.rootUri == null || facts.rootUri == facts.sourceUri
+              ? null
+              : facts.sourceUri,
+        ),
         NotificationCategory.reply => PostDestination(
           facts.rootUri!,
           focusUri: facts.sourceUri,
