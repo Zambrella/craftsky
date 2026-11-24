@@ -42,6 +42,9 @@
     "web-client/src/lib"
   ],
   "evidence": [
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-composer-playback-24-november-2026",
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-native-video-probe-24-november-2026",
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-video-poster-diagnostics-24-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#sentry-issue-triage-20-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#profile-save-rejection-diagnostics",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#appview-error-handling-audit-13-november-2026",
