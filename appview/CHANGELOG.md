@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.6.0 - 2026-11-25
+
+- feat(projects): expand craft-specific project details and filters
+
 ## 1.5.0 - 2026-11-22
 
 - fix(api): log profile save rejections
