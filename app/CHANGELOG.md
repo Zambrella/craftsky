@@ -1,5 +1,10 @@
 # App Changelog
 
+## 1.15.0+23 - 2026-11-25
+
+- feat(projects): expand craft-specific project details and filters
+- fix(app): resolve Flutter checks for project composer
+
 ## 1.14.1+22 - 2026-11-24
 
 - fix(android): use native playback for local video previews
