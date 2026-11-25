@@ -1,5 +1,10 @@
 # Web Client Changelog
 
+## 1.15.0 - 2026-11-25
+
+- feat(projects): expand craft-specific project details and filters
+- test(web-client): update project detail expectations
+
 ## 1.14.0 - 2026-11-22
 
 - feat(web): add a generated project schema explorer
