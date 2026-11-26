@@ -346,7 +346,7 @@ These are package-specific historical limits and questions. Check later evidence
 | [Flutter search data layer](catalog/2026-06-20-flutter-search-data-layer.md) | implemented | archived | pagination, state | Implemented typed search transport and provider pagination, then closed coverage gaps across recent-search and result families. |
 | [Search suggestions, result separation and recent-query contracts](catalog/2026-06-21-search-refinements.md) | implemented | archived | facets, privacy | The non-UI refinement slice aligns backend and Flutter data contracts for suggestions, submitted search, project browsing and private recents. |
 | [PostgreSQL search matching and typo correction](catalog/2026-10-08-search-improvements.md) | implemented | archived | matching, privacy | The recorded search pass improves word matching, bounded typo matching, selected craft equivalences and searchable authored fields while preserving separate Posts and Projects. |
-| [Preserve current profile decorations in recent searches](catalog/2026-11-16-recent-search-profile-decorations.md) | implemented | active | profiles, business, customisation | Keeps current server-hydrated customisation and account type when displaying recent profile searches on both clients, and applies the selected accent to web recent/autocomplete avatars. |
+| [Preserve current profile decorations in recent searches](catalog/2026-11-16-recent-search-profile-decorations.md) | implemented | active | profiles, business, customisation | Shows the 10 newest searches on both clients and uses the current indexed avatar, customisation and account type for recent profile rows. |
 
 ## service-status
 

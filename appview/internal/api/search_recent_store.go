@@ -18,6 +18,10 @@ type RecentSearchRow struct {
 	DisplayLabel      string
 	NormalizedPayload []byte
 	UpdatedAt         time.Time
+
+	// A list read resolves the avatar from the profile projection. An empty
+	// value clears the saved URL when the profile no longer has a visible avatar.
+	currentProfileAvatar *string
 }
 
 func (s *SearchStore) ListRecentSearches(ctx context.Context, viewerDID string) ([]RecentSearchRow, error) {
@@ -32,10 +36,15 @@ func (s *SearchStore) ListRecentSearches(ctx context.Context, viewerDID string) 
 
 func (s *SearchStore) listRecentSearchesObserved(ctx context.Context, viewerDID string) ([]RecentSearchRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, search_type, display_label, normalized_payload, updated_at
-		FROM craftsky_recent_searches
-		WHERE viewer_did = $1
-		ORDER BY updated_at DESC, id DESC
+		SELECT history.id, history.search_type, history.display_label, history.normalized_payload,
+		       history.updated_at, COALESCE(cp.did, ''), cp.avatar_cid, cp.avatar_mime
+		FROM craftsky_recent_searches history
+		LEFT JOIN bluesky_profiles cp
+		  ON history.search_type = 'profile' AND cp.did = history.normalized_payload->>'did'
+		  AND NOT `+postAuthorBlockedPredicate("cp", "$1")+`
+		  `+profileVisibleModerationPredicate+`
+		WHERE history.viewer_did = $1
+		ORDER BY history.updated_at DESC, history.id DESC
 		LIMIT 50`, viewerDID)
 	if err != nil {
 		return nil, fmt.Errorf("list recent searches: %w", err)
@@ -44,8 +53,14 @@ func (s *SearchStore) listRecentSearchesObserved(ctx context.Context, viewerDID 
 	out := []RecentSearchRow{}
 	for rows.Next() {
 		var row RecentSearchRow
-		if err := rows.Scan(&row.ID, &row.Type, &row.DisplayLabel, &row.NormalizedPayload, &row.UpdatedAt); err != nil {
+		var profileDID string
+		var avatarCID, avatarMime *string
+		if err := rows.Scan(&row.ID, &row.Type, &row.DisplayLabel, &row.NormalizedPayload, &row.UpdatedAt, &profileDID, &avatarCID, &avatarMime); err != nil {
 			return nil, err
+		}
+		if row.Type == "profile" {
+			avatar := synthBlobURL("avatar", profileDID, avatarCID, avatarMime)
+			row.currentProfileAvatar = &avatar
 		}
 		out = append(out, row)
 	}

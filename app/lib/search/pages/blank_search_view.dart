@@ -110,7 +110,7 @@ class _RecentSearchSection extends ConsumerWidget {
           l10n.searchRecentHeading,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        for (final recent in data.recentSearches.items)
+        for (final recent in data.recentSearches.items.take(10))
           if (recent.payload case ProfileRecentSearchPayload(
             :final did,
             :final handle,

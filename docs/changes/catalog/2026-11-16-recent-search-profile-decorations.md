@@ -24,7 +24,7 @@
     "avatar colour",
     "DID hydration"
   ],
-  "summary": "Keeps current server-hydrated customisation and account type when displaying recent profile searches on both clients, and applies the selected accent to web recent/autocomplete avatars.",
+  "summary": "Shows the 10 newest searches on both clients and uses the current indexed avatar, customisation and account type for recent profile rows.",
   "currentDocs": [
     "docs/architecture.md"
   ],
@@ -33,6 +33,7 @@
     "app/lib/search/pages/blank_search_view.dart",
     "web-client/src/lib/features/social/search-model.ts",
     "web-client/src/lib/features/social/Search.svelte",
+    "appview/internal/api/search_recent_store.go",
     "appview/internal/api/search_recent_identity_test.go"
   ],
   "evidence": [
@@ -45,5 +46,5 @@
 
 # Recent search profile decorations
 
-Both clients retain current server-provided identity decorations rather than
-freezing them into private history. Existing entries render correctly on reload.
+Both clients show the 10 newest searches. Recent profile entries use the current
+avatar, customisation and account type when history is loaded.

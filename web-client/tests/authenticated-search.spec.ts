@@ -115,6 +115,43 @@ for (const [name, crafts] of [
 	});
 }
 
+test('search discovery shows only the 10 newest recent searches', async ({
+	page
+}) => {
+	const items = Array.from({ length: 12 }, (_, index) => {
+		const order = 12 - index;
+		return {
+			id: 'recent-' + order,
+			type: 'query',
+			displayLabel: 'Search ' + order,
+			payload: { q: 'search ' + order },
+			updatedAt: new Date(Date.UTC(2026, 0, order)).toISOString()
+		};
+	});
+	await page.route('**/api/appview/v1/search/recent', (route) =>
+		route.fulfill({ json: { items } })
+	);
+	await page.route('**/api/appview/v1/search/recent/recent-12', (route) =>
+		route.fulfill({ status: 204 })
+	);
+	await page.goto('/search');
+
+	const remove = page.getByRole('button', { name: 'Remove recent search' });
+	await expect(remove).toHaveCount(10);
+	await expect(
+		page.getByRole('link', { name: 'Search 3', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Search 2', exact: true })
+	).toHaveCount(0);
+
+	await remove.first().click();
+	await expect(remove).toHaveCount(10);
+	await expect(
+		page.getByRole('link', { name: 'Search 2', exact: true })
+	).toBeVisible();
+});
+
 test('autocomplete matches native grouping, counts, result limits and discovery visibility', async ({
 	page
 }) => {

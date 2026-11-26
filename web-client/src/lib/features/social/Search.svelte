@@ -426,7 +426,7 @@
 		</p>{/if}
 	{#if !q && !guest}{#if recent.length}<section class="search-discovery">
 				<h2>Recent searches</h2>
-				{#each recent as item}
+				{#each recent.slice(0, 10) as item}
 					{@const author = recentAuthor(item)}
 					{#snippet removeRecent()}
 						<button
