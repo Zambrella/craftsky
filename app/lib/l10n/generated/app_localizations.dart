@@ -4600,6 +4600,12 @@ abstract class AppLocalizations {
   /// **'Trending hashtags'**
   String get searchTrendingHashtagsHeading;
 
+  /// Heading above recently joined makers on the blank search page.
+  ///
+  /// In en, this message translates to:
+  /// **'New makers'**
+  String get searchNewMakersHeading;
+
   /// Heading for profile suggestions or profile results.
   ///
   /// In en, this message translates to:
