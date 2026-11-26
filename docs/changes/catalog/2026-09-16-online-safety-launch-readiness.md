@@ -63,7 +63,7 @@ On 26 November 2026 the owner confirmed NCA reporting portal access. The [operat
 
 Evidence: [05-implementation-plan.md](../2026-09-16-online-safety-launch-readiness/05-implementation-plan.md#post-review-remediation); [06-implementation-review.md](../2026-09-16-online-safety-launch-readiness/06-implementation-review.md). Current entry points are listed in the metadata; consult maintained guidance before applying historical rules.
 
-The [incident guide](../../../online-safety/operations/illegal-content-response.md) consolidates day-to-day response for a solo operator. The assessment and approval records are maintained privately.
+The [incident guide](../../../online-safety/operations/illegal-content-response.md) consolidates day-to-day response for a solo operator. The launch approval and operator records are kept outside the repository.
 
 On 26 November 2026 the standalone online-safety readiness checker was retired. The [release runbook](../../operations/releases.md#private-beta-and-full-public-launch) gives the current engineering checks and release process. Earlier implementation and validation references to the checker describe historical work.
 

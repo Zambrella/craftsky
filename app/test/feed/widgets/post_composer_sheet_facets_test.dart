@@ -102,6 +102,65 @@ void main() {
       );
     }
 
+    for (final label in ['Comment', 'Reply']) {
+      testWidgets('$label submits while the keyboard is open', (tester) async {
+        addTearDown(tester.view.resetViewInsets);
+        final root = _post('Root post');
+        final rootRef = PostRef(uri: root.uri, cid: root.cid);
+        final target = label == 'Comment'
+            ? root
+            : _post('Existing comment').copyWith(
+                uri: 'at://did:plc:alice/social.craftsky.feed.post/comment',
+                reply: PostReply(root: rootRef, parent: rootRef),
+              );
+        final pending = Completer<Post>();
+        String? submittedText;
+        PostReply? submittedReply;
+        final repo = FakePostRepository(
+          onCreate: ({required text, reply, images}) {
+            submittedText = text;
+            submittedReply = reply;
+            return pending.future;
+          },
+        );
+        await _openComposer(
+          tester,
+          replyTarget: target,
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(repo),
+          ],
+        );
+        await tester.enterText(find.byType(TextField), 'Nice work!');
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 300 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+
+        final submit = find.widgetWithText(ChunkyButton, label);
+        expect(submit, findsOneWidget);
+        expect(find.byKey(const Key('post-composer-done')), findsNothing);
+        expect(tester.testTextInput.isVisible, isTrue);
+        await tester.tap(submit);
+        await tester.pump();
+
+        expect(tester.testTextInput.isVisible, isFalse);
+        expect(submittedText, endsWith('Nice work!'));
+        expect(submittedReply?.root.uri, root.uri);
+        expect(submittedReply?.parent.uri, target.uri);
+        expect(find.byType(PostComposerSheet), findsOneWidget);
+        tester.view.resetViewInsets();
+        pending.complete(_post('Nice work!'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PostComposerSheet), findsNothing);
+      });
+    }
+
     testWidgets('blank post stays actionable and validates on press', (
       tester,
     ) async {
@@ -358,6 +417,7 @@ void main() {
 
 Future<void> _openComposer(
   WidgetTester tester, {
+  Post? replyTarget,
   Post? quoteTarget,
   int? quoteImageIndex,
   List<dynamic> overrides = const [],
@@ -390,6 +450,7 @@ Future<void> _openComposer(
                       fullscreenDialog: true,
                       builder: (_) => PostComposerSheet(
                         composerId: 'facet-composer',
+                        replyTarget: replyTarget,
                         quoteTarget: quoteTarget,
                         quoteImageIndex: quoteImageIndex,
                       ),
