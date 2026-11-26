@@ -14,7 +14,6 @@ import (
 
 func TestHumanConfirmationCreatesSystemDetectedCaseWithoutReportAndUsesExistingEnforcement(t *testing.T) {
 	pool := testdb.WithSchema(t, adjudicationTestDDL+`
-		CREATE TABLE safety_incidents(id UUID PRIMARY KEY,state TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
 		CREATE TABLE safety_incident_subjects(
 			incident_id UUID NOT NULL REFERENCES safety_incidents(id), owner_did TEXT NOT NULL,
 			subject_uri TEXT NOT NULL,source_cid TEXT NOT NULL,subject_kind TEXT NOT NULL,image_slot TEXT NOT NULL,

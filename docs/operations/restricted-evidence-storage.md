@@ -105,8 +105,10 @@ permissions. Configuration and deployment remain separate production changes.
 Use only benign synthetic evidence for the operational exercise:
 
 1. Confirm AppView starts and its evidence-store readiness check succeeds.
-2. Attach synthetic evidence using the authorized console path and verify
-   authorized retrieval and audit history; confirm anonymous retrieval fails.
+2. Report a benign test post, then use **Cases → Preserve restricted evidence**
+   as an admin to preserve a harmless image. Open the linked manual evidence
+   incident and verify authorised retrieval and audit history. Confirm anonymous
+   retrieval fails.
 3. Place an application legal hold and verify retention/deletion preserves the
    held evidence through the intended workflow.
 4. Release the synthetic hold when appropriate, exercise the applicable deletion

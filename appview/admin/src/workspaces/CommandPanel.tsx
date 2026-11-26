@@ -40,7 +40,7 @@ export function CommandPanel({ basePath, reference, revision, title, resourceLab
     try {
       const result = await request<CommandResult>(next.path, { method: 'POST', body: next.body, signal: AbortSignal.timeout(30_000), headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await browserToken(), 'Idempotency-Key': next.key } })
       const appealCase = next.path.endsWith('/appeal-link') ? JSON.parse(next.body).caseId as string : undefined
-      const area = /\/incidents\/[^/]+\/evidence$/.test(next.path) ? 'evidence' : /\/incidents\/[^/]+\/holds$/.test(next.path) ? 'holds' : (result?.caseReference || appealCase) ? 'cases' : next.path === '/v1/admin/operators' ? 'operators' : next.path === '/v1/admin/safety/external-intakes' ? 'intakes' : /^\/v1\/admin\/safety\/workflows\/[^/]+$/.test(next.path) ? 'workflows' : ''
+      const area = /\/(incidents|cases)\/[^/]+\/evidence$/.test(next.path) ? 'evidence' : /\/incidents\/[^/]+\/holds$/.test(next.path) ? 'holds' : (result?.caseReference || appealCase) ? 'cases' : next.path === '/v1/admin/operators' ? 'operators' : next.path === '/v1/admin/safety/external-intakes' ? 'intakes' : /^\/v1\/admin\/safety\/workflows\/[^/]+$/.test(next.path) ? 'workflows' : ''
       const ref = result?.caseReference || (appealCase ? 'MOD-'+appealCase : '') || result?.operatorId || result?.id
       setResultLink(area && ref ? `#/${area}/${encodeURIComponent(ref)}` : '')
       setCommand(null); setEpoch(v => v + 1); setResultReference(result?.caseReference || result?.operatorId || result?.id || result?.correspondenceId || ''); setNotice(`Command committed. The ${resourceLabel.toLowerCase()} is being refreshed.`); setSettling(true)

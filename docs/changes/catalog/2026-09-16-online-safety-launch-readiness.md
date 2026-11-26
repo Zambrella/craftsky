@@ -29,7 +29,6 @@
   "currentDocs": [
     "online-safety/README.md",
     "online-safety/operations/illegal-content-response.md",
-    "online-safety/governance/launch-approval.md",
     "docs/development/image-moderation.md",
     "docs/operations/restricted-evidence-storage.md",
     "docs/operations/releases.md"
@@ -64,6 +63,8 @@ On 26 November 2026 the owner confirmed NCA reporting portal access. The [operat
 
 Evidence: [05-implementation-plan.md](../2026-09-16-online-safety-launch-readiness/05-implementation-plan.md#post-review-remediation); [06-implementation-review.md](../2026-09-16-online-safety-launch-readiness/06-implementation-review.md). Current entry points are listed in the metadata; consult maintained guidance before applying historical rules.
 
-The [incident guide](../../../online-safety/operations/illegal-content-response.md) consolidates day-to-day response for a solo operator. The [launch approval record](../../../online-safety/governance/launch-approval.md) includes the mailbox exercise and intimate-image verification evidence. The [operator record](../../../online-safety/governance/operator-details.md) includes the approved DPO decision.
+The [incident guide](../../../online-safety/operations/illegal-content-response.md) consolidates day-to-day response for a solo operator. The assessment and approval records are maintained privately.
 
 On 26 November 2026 the standalone online-safety readiness checker was retired. The [release runbook](../../operations/releases.md#private-beta-and-full-public-launch) gives the current engineering checks and release process. Earlier implementation and validation references to the checker describe historical work.
+
+The operator console supports preserving an authorised image directly from a moderation case. A linked manual evidence incident reuses restricted storage, access audit, legal holds and retention. See the [operator workflow](../../operations/moderation-operators.md#restricted-evidence-workspace).

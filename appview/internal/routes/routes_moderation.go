@@ -82,6 +82,7 @@ func registerModerationRoutes(bundle moderationRouteBundle) {
 	}
 	for _, command := range []struct{ pattern, operation string }{
 		{"/v1/admin/safety/incidents/{incidentReference}/evidence", "preserveEvidence"},
+		{"/v1/admin/moderation/cases/{caseReference}/evidence", "preserveCaseEvidence"},
 		{"/v1/admin/safety/evidence/{evidenceId}/access", "accessEvidence"},
 		{"/v1/admin/safety/incidents/{incidentReference}/holds", "createHold"},
 		{"/v1/admin/safety/workflows/intimate-images", "openIntimateImage"},

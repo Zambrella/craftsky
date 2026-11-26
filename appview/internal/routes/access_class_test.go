@@ -107,6 +107,7 @@ func TestV1RoutePoliciesUseExplicitAccessClasses(t *testing.T) {
 		"POST /v1/admin/safety/external-intakes/{intakeId}/appeal-link":                          AccessModerator,
 		"POST /v1/admin/eligibility/reviews":                                                     AccessModerator,
 		"POST /v1/admin/safety/incidents/{incidentReference}/evidence":                           AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/evidence":                               AccessModerator,
 		"POST /v1/admin/safety/evidence/{evidenceId}/access":                                     AccessModerator,
 		"POST /v1/admin/safety/incidents/{incidentReference}/holds":                              AccessModerator,
 		"POST /v1/admin/safety/workflows/intimate-images":                                        AccessModerator,
