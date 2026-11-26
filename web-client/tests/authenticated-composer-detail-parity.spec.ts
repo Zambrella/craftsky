@@ -257,6 +257,89 @@ test('root comments and nested replies show native identity and the full plain-t
 	).toEqual([]);
 });
 
+for (const [rkey, action] of [
+	['root', 'Comment'],
+	['nested', 'Reply']
+]) {
+	test(`${action} stays above the keyboard with a multiline response`, async ({
+		page
+	}) => {
+		await page.setViewportSize({
+			width: 390,
+			height: rkey === 'nested' ? 1400 : 844
+		});
+		await mockTargets(page);
+		await page.goto(`/compose/reply?did=did%3Aplc%3Abob&rkey=${rkey}`);
+		const editor = page.getByRole('textbox', {
+			name: `Write your ${action.toLowerCase()}`,
+			exact: true
+		});
+		const button = page.getByRole('button', { name: action, exact: true });
+		const form = page.locator('.composer-scroll');
+		const title = form.locator('.post-text-label label');
+		const titleBox = (await title.boundingBox())!;
+		const initialFormBox = (await form.boundingBox())!;
+		const { scrollTop, maxScroll } = await form.evaluate((node) => ({
+			scrollTop: node.scrollTop,
+			maxScroll: node.scrollHeight - node.clientHeight
+		}));
+		if (rkey === 'nested') expect(maxScroll).toBe(0);
+		const titleGap = titleBox.y - initialFormBox.y;
+		expect(titleGap).toBeGreaterThanOrEqual(11);
+		if (titleGap > 13) expect(scrollTop).toBe(maxScroll);
+		await editor.focus();
+
+		// Model a mobile keyboard that shrinks the visual viewport only.
+		for (const height of [700, 509]) {
+			await page.evaluate((height) => {
+				const viewport = window.visualViewport!;
+				Object.defineProperty(viewport, 'height', {
+					configurable: true,
+					value: height
+				});
+				viewport.dispatchEvent(new Event('resize'));
+			}, height);
+		}
+		const resizedForm = (await form.boundingBox())!;
+		const resizedTitle = (await title.boundingBox())!;
+		const remainingScroll = await form.evaluate(
+			(node) => node.scrollHeight - node.clientHeight - node.scrollTop
+		);
+		const resizedTitleGap = resizedTitle.y - resizedForm.y;
+		expect(resizedTitleGap).toBeLessThan(titleGap);
+		if (resizedTitleGap > 13) expect(remainingScroll).toBeLessThanOrEqual(1);
+		const text = Array.from({ length: 15 }, (_, i) => `Line ${i + 1}`).join(
+			'\n'
+		);
+		await page.keyboard.insertText(text);
+		await expect(editor).toHaveValue(text);
+		const footer = page.locator('.composer-actions');
+		await expect(footer).toHaveCSS('padding-top', '16px');
+		await expect(footer).toHaveCSS('padding-bottom', '16px');
+		const buttonBox = (await button.boundingBox())!;
+		expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(509);
+		const formBox = (await form.boundingBox())!;
+		expect(formBox.y + formBox.height).toBeLessThanOrEqual(
+			(await footer.boundingBox())!.y
+		);
+		const editorBox = (await editor.boundingBox())!;
+		expect(editorBox.y + editorBox.height).toBeLessThanOrEqual(
+			formBox.y + formBox.height
+		);
+
+		await form.click({ position: { x: 4, y: 8 } });
+		await expect(editor).not.toBeFocused();
+		await expect(editor).toHaveValue(text);
+		await page.evaluate(() => {
+			const viewport = window.visualViewport!;
+			Reflect.deleteProperty(viewport, 'height');
+			viewport.dispatchEvent(new Event('resize'));
+		});
+		expect((await button.boundingBox())!.y).toBeGreaterThan(509);
+		await expect(editor).toHaveValue(text);
+	});
+}
+
 test('quotes stay compact and accept only the selected CID present on the freshly loaded target', async ({
 	page
 }) => {

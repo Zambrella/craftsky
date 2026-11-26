@@ -9,6 +9,10 @@
 	flex-direction: column;
 	overflow: hidden;
 }
+.composer.response-composer {
+	height: var(--response-height, 100dvh);
+	min-height: 0;
+}
 .composer-heading {
 	justify-content: flex-start;
 }
@@ -458,6 +462,9 @@
 	background: var(--paper);
 	padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
 	margin: 0;
+}
+.response-composer .composer-actions {
+	padding-block-start: 16px;
 }
 .composer-actions > .muted:empty {
 	display: none;

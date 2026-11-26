@@ -89,6 +89,7 @@ import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
@@ -187,6 +188,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     with WidgetsBindingObserver {
   final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
+  final GlobalKey _responseEditorAnchor = GlobalKey();
+  double? _responseOpeningInset;
+  var _responseKeyboardHasClosed = false;
   late final String _composerId;
   late final String? _existingExternalMediaId;
   String? _replacementExternalMediaId;
@@ -395,7 +399,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final keyboardVisible = keyboardInset > 0;
     final createState = ref.watch(createPostProvider);
     final editState = widget.publishedEdit == null
         ? null
@@ -595,6 +600,141 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ref.read(imagesProvider.notifier).clearNotice(notice.id);
       });
 
+    final responseTarget = widget.replyTarget;
+    final openingInset = _responseOpeningInset;
+    if (!keyboardVisible && openingInset != null && openingInset > 0) {
+      _responseKeyboardHasClosed = true;
+    }
+    if (responseTarget != null &&
+        (openingInset == null ||
+            (!_responseKeyboardHasClosed && keyboardInset > openingInset))) {
+      _responseOpeningInset = keyboardInset;
+      final binding = WidgetsBinding.instance;
+      binding.addPostFrameCallback((_) {
+        // Position the title after autofocus has scheduled its caret scroll.
+        binding
+          ..addPostFrameCallback(
+            (_) => scheduleMicrotask(() {
+              final anchor = _responseEditorAnchor.currentContext;
+              final target = anchor?.findRenderObject();
+              if (anchor == null || target == null) return;
+              final viewport = RenderAbstractViewport.of(target);
+              final offset = viewport.getOffsetToReveal(target, 0).offset;
+              final position = Scrollable.of(anchor).position;
+              position.jumpTo(
+                offset.clamp(
+                  position.minScrollExtent,
+                  position.maxScrollExtent,
+                ),
+              );
+            }),
+          )
+          ..ensureVisualUpdate();
+      });
+    }
+
+    Widget buildComposerForm({required Widget child}) {
+      Widget scrollView(Widget content) => SingleChildScrollView(
+        clipBehavior: responseTarget == null ? Clip.none : Clip.hardEdge,
+        padding: EdgeInsets.fromLTRB(
+          spacing.sp4,
+          spacing.sp5,
+          spacing.sp4,
+          0,
+        ),
+        child: content,
+      );
+
+      return SafeArea(
+        top: false,
+        bottom: false,
+        child: responseTarget == null
+            ? scrollView(child)
+            : scrollView(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ComposerTargetPreview(
+                      post: responseTarget,
+                      showFullText: true,
+                    ),
+                    Padding(
+                      key: _responseEditorAnchor,
+                      padding: EdgeInsets.only(top: spacing.sp4),
+                      child: child,
+                    ),
+                  ],
+                ),
+              ),
+      );
+    }
+
+    Widget buildComposerBody(Widget form) {
+      final action = SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: spacing.sp4),
+          child: ComposerBottomAction(
+            keyboardVisible: keyboardVisible && hasMediaInputs,
+            doneKey: const Key('post-composer-done'),
+            actionKey: keys.feed.submit,
+            label: submitLabel,
+            onPressed: editUnresolved
+                ? (!_isSubmitting &&
+                          _submissionOwnershipIsCurrent(
+                            widget.publishedEdit?.ownership,
+                          )
+                      ? _retryPublishedEdit
+                      : null)
+                : canSubmit
+                ? () => _submitPost(trimmedText: trimmedText)
+                : null,
+            child:
+                createState.isLoading || (_isScheduling && !_isDeletingSchedule)
+                ? const StitchProgressIndicator(size: 18)
+                : null,
+          ),
+        ),
+      );
+
+      if (responseTarget != null) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: () {
+            if (_focusNode.hasFocus) dismissComposerKeyboard(context);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: form),
+              Padding(
+                padding: EdgeInsetsDirectional.only(
+                  start: spacing.sp4,
+                  top: spacing.sp4,
+                  end: spacing.sp4,
+                ),
+                child: action,
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          form,
+          PositionedDirectional(
+            start: spacing.sp4,
+            end: spacing.sp4,
+            bottom: 0,
+            child: action,
+          ),
+        ],
+      );
+    }
+
     return PopScope<Post?>(
       canPop:
           !_isSavingDraft &&
@@ -647,364 +787,307 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                   ),
               ],
             ),
-            body: Stack(
-              fit: StackFit.expand,
-              children: [
-                SafeArea(
-                  top: false,
-                  bottom: false,
-                  child: SingleChildScrollView(
-                    clipBehavior: Clip.none,
-                    padding: EdgeInsets.fromLTRB(
-                      spacing.sp4,
-                      spacing.sp5,
-                      spacing.sp4,
-                      0,
+            body: buildComposerBody(
+              buildComposerForm(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.publishedEdit case final edit?)
+                      PublishedPostEditContext(post: edit.seed.post),
+                    if (editUnresolved) ...[
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(l10n.postEditUnresolved),
+                      ),
+                      SizedBox(height: spacing.sp4),
+                    ],
+                    if (widget.quoteTarget case final quoteTarget?) ...[
+                      _ComposerTargetPreview(post: quoteTarget),
+                      SizedBox(height: spacing.sp4),
+                    ],
+                    FacetAutocompleteEditor(
+                      key: keys.feed.composerBody,
+                      maxLength: RecordTextLimits.post.graphemes,
+                      maxBytes: RecordTextLimits.post.bytes,
+                      label: isComment
+                          ? l10n.postComposeCommentHint
+                          : isResponse
+                          ? l10n.postComposeReplyHint
+                          : isQuote
+                          ? l10n.postComposeQuoteLabel
+                          : l10n.postComposeHint,
+                      hintText: isQuote
+                          ? l10n.postComposeQuoteHint
+                          : isResponse
+                          ? null
+                          : '${l10n.postComposeBodyHint}\n\n'
+                                '${l10n.composerBodyInputHelp}',
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      required: true,
+                      requiredLabel: l10n.postComposeRequiredLabel,
+                      minLines: isResponse ? 5 : 3,
+                      maxLines: 12,
+                      textInputAction: TextInputAction.newline,
+                      keyboardType: TextInputType.multiline,
+                      enabled:
+                          !createState.isLoading &&
+                          !_isSavingDraft &&
+                          !_isScheduling &&
+                          !controlsBusy,
+                      errorText: bodyErrorText,
+                      helperAlignment: AlignmentDirectional.centerEnd,
+                      onChanged: (value) {
+                        setState(() => _text = value);
+                        _lastPreviewSyncedText = value;
+                        _lastPreviewAccount = account;
+                        previewController?.updateText(_previewText(value));
+                      },
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (widget.publishedEdit case final edit?)
-                          PublishedPostEditContext(post: edit.seed.post),
-                        if (editUnresolved) ...[
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(l10n.postEditUnresolved),
+                    ComposerMetadataControls(
+                      languages: _languages!,
+                      onLanguagesChanged:
+                          createState.isLoading ||
+                              _isSavingDraft ||
+                              _isScheduling ||
+                              controlsBusy
+                          ? null
+                          : (value) => setState(() => _languages = value),
+                      sponsored: _sponsored,
+                      onSponsoredChanged:
+                          !createState.isLoading &&
+                              !_isSavingDraft &&
+                              !controlsBusy &&
+                              !_isScheduling
+                          ? (value) => setState(() => _sponsored = value)
+                          : null,
+                      showSponsored: !isResponse,
+                      scheduledAtLocal: _scheduledAtLocal,
+                      showSchedule: isSchedulable,
+                      scheduleAccess: scheduleAccess,
+                      onScheduleAccessRetry: activeLease == null
+                          ? null
+                          : () => ref.invalidate(
+                              subscriptionAccessProvider(
+                                activeLease.session,
+                              ),
+                            ),
+                      onSchedulePressed:
+                          isSchedulable &&
+                              !_isScheduling &&
+                              !_isSavingDraft &&
+                              !controlsBusy
+                          ? (menuContext) => _chooseWhen(
+                              menuContext,
+                              scheduleEnabled: capacity.scheduleEnabled,
+                            )
+                          : null,
+                    ),
+                    if (isSchedulable) ...[
+                      if (capacity.showCapacityWarning)
+                        const ScheduledPostCapacityWarning(),
+                      if (capacity.showManageLink)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () =>
+                                const ScheduledPostsRoute().go(context),
+                            child: Text(l10n.scheduledPostManageAction),
                           ),
-                          SizedBox(height: spacing.sp4),
-                        ],
-                        if (widget.replyTarget case final replyTarget?) ...[
-                          _ComposerTargetPreview(
-                            post: replyTarget,
-                            showFullText: true,
+                        ),
+                      if (_missedScheduledAtLocal case final missed?)
+                        Text(
+                          l10n.scheduledPostMissedTime(
+                            _localTimeLabel(context, missed),
                           ),
-                          SizedBox(height: spacing.sp4),
-                        ],
-                        if (widget.quoteTarget case final quoteTarget?) ...[
-                          _ComposerTargetPreview(post: quoteTarget),
-                          SizedBox(height: spacing.sp4),
-                        ],
-                        FacetAutocompleteEditor(
-                          key: keys.feed.composerBody,
-                          maxLength: RecordTextLimits.post.graphemes,
-                          maxBytes: RecordTextLimits.post.bytes,
-                          label: isComment
-                              ? l10n.postComposeCommentHint
-                              : isResponse
-                              ? l10n.postComposeReplyHint
-                              : isQuote
-                              ? l10n.postComposeQuoteLabel
-                              : l10n.postComposeHint,
-                          hintText: isQuote
-                              ? l10n.postComposeQuoteHint
-                              : isResponse
-                              ? null
-                              : '${l10n.postComposeBodyHint}\n\n'
-                                    '${l10n.composerBodyInputHelp}',
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          required: true,
-                          requiredLabel: l10n.postComposeRequiredLabel,
-                          minLines: isResponse ? 5 : 3,
-                          maxLines: 12,
-                          textInputAction: TextInputAction.newline,
-                          keyboardType: TextInputType.multiline,
+                        ),
+                      if (widget.scheduledPost != null)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton.icon(
+                            onPressed:
+                                _isScheduling || _isSavingDraft || controlsBusy
+                                ? null
+                                : _deleteExistingSchedule,
+                            icon: ActionProgress(
+                              isLoading: _isDeletingSchedule,
+                              child: const Icon(CraftskyIconsBold.delete),
+                            ),
+                            label: Text(l10n.scheduledPostsDeleteTooltip),
+                          ),
+                        ),
+                      if (_isScheduling &&
+                          (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                        SizedBox(height: spacing.sp3),
+                        ScheduledStagingProgress(
+                          completed: _stagedImageCount,
+                          total: _stagedImageTotal,
+                          creating: _isSavingSchedule,
+                        ),
+                      ],
+                    ],
+                    if (_publishedEmbed?.hasExternal == true)
+                      ComposerLinkPreviewCarousel(
+                        preview: (
+                          uri: _publishedEmbed!.externalUri,
+                          title: _publishedEmbed.externalTitle,
+                          description: _publishedEmbed.externalDescription,
+                          thumbnail: null,
+                        ),
+                        thumbnailUrl: widget
+                            .publishedEdit
+                            ?.seed
+                            .post
+                            .external
+                            ?.thumb
+                            ?.url,
+                        current: 1,
+                        total: 1,
+                        loading: false,
+                        onPrevious: () {},
+                        onNext: () {},
+                        onDismiss: () {
+                          if (controlsBusy) return;
+                          setState(() => _publishedEmbed.remove());
+                        },
+                      ),
+                    if (!publishedEmbedIsFixed &&
+                        selectedVideo == null &&
+                        previewController != null &&
+                        previewState != null &&
+                        !previewState.dismissed &&
+                        !previewState.suppressed) ...[
+                      ComposerLinkPreviewCarousel(
+                        preview: selectedPreview == null
+                            ? null
+                            : (
+                                uri: selectedPreview.preview.url.toString(),
+                                title: selectedPreview.preview.title,
+                                description:
+                                    selectedPreview.preview.description,
+                                thumbnail: selectedPreview.preview.thumbnail,
+                              ),
+                        current: selectedPreview == null
+                            ? 0
+                            : availablePreviews.indexWhere(
+                                    (item) =>
+                                        item.candidate.identity ==
+                                        selectedPreview.candidate.identity,
+                                  ) +
+                                  1,
+                        total: availablePreviews.length,
+                        loading: previewState.inFlightIdentity != null,
+                        onPrevious: previewController.selectPrevious,
+                        onNext: previewController.selectNext,
+                        onDismiss: () => _dismissLinkPreviews(
+                          previewController,
+                          l10n,
+                        ),
+                      ),
+                    ],
+                    if (hasMediaInputs) ...[
+                      if (_isLoadingScheduledMedia)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_scheduledMediaLoadFailed)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(l10n.scheduledPostsLoadError),
+                            TextButton(
+                              onPressed: _hydrateScheduledMedia,
+                              child: Text(l10n.scheduledPostsRetryAction),
+                            ),
+                          ],
+                        )
+                      else if (_publishedEmbed?.hasRetainedVideo == true &&
+                          selectedVideo == null)
+                        ComposerVideoAttachmentCard.published(
+                          altText: _publishedEmbed!.videoAlt,
+                          enabled:
+                              !controlsBusy &&
+                              !_isSavingDraft &&
+                              !_isScheduling,
+                          onAltTextChanged: (value) => setState(
+                            () => _publishedEmbed.videoAlt = value,
+                          ),
+                          onRemove: () =>
+                              setState(() => _publishedEmbed.remove()),
+                        )
+                      else if (selectedVideo != null)
+                        ComposerVideoAttachmentCard(
+                          selection: selectedVideo,
+                          onThumbnailChanged: _setVideoThumbnail,
+                          onThumbnailFrameChanged: _setVideoThumbnailFrame,
+                          checkLimits: _videoController.recheckEligibility,
+                          enabled:
+                              !createState.isLoading &&
+                              !controlsBusy &&
+                              !_isSavingDraft &&
+                              !_isScheduling,
+                          onAltTextChanged: (value) {
+                            setState(
+                              () => _videoController.setAltText(value),
+                            );
+                          },
+                          onRemove: () {
+                            setState(() {
+                              _usesStoredDraftVideo = false;
+                              _videoController.remove();
+                            });
+                          },
+                        )
+                      else if (_publishedEmbed?.hasExternal != true)
+                        ComposerImageAttachmentSection(
+                          onEditImage: _editImage,
+                          key: keys.composerImages.section('composer'),
+                          useDetailsRoute: true,
+                          imagesProvider: imagesProvider,
+                          imagesState: imagesState,
                           enabled:
                               !createState.isLoading &&
                               !_isSavingDraft &&
                               !_isScheduling &&
                               !controlsBusy,
-                          errorText: bodyErrorText,
-                          helperAlignment: AlignmentDirectional.centerEnd,
-                          onChanged: (value) {
-                            setState(() => _text = value);
-                            _lastPreviewSyncedText = value;
-                            _lastPreviewAccount = account;
-                            previewController?.updateText(_previewText(value));
-                          },
+                          onAddImages: () =>
+                              ref.read(imagesProvider.notifier).addImages(),
+                          onTakePhoto: () =>
+                              ref.read(imagesProvider.notifier).takePhoto(),
+                          onAltTextChanged: (imageId, value) => ref
+                              .read(imagesProvider.notifier)
+                              .setAltText(imageId, value),
+                          onRemove: (imageId) =>
+                              ref.read(imagesProvider.notifier).remove(imageId),
+                          onReplaceUnavailable: (imageId, source) => ref
+                              .read(imagesProvider.notifier)
+                              .replaceUnavailable(imageId, source: source),
+                          onReorder: (fromIndex, toIndex) => ref
+                              .read(imagesProvider.notifier)
+                              .reorder(
+                                fromIndex: fromIndex,
+                                toIndex: toIndex,
+                              ),
+                          supportsVideo:
+                              !isResponse &&
+                              !isQuote &&
+                              widget
+                                      .publishedEdit
+                                      ?.seed
+                                      .editable['unsupportedEmbed'] !=
+                                  true &&
+                              _scheduleChoice == ScheduleChoice.now &&
+                              widget.scheduledPost == null,
+                          onAddVideo: _selectVideo,
                         ),
-                        ComposerMetadataControls(
-                          languages: _languages!,
-                          onLanguagesChanged:
-                              createState.isLoading ||
-                                  _isSavingDraft ||
-                                  _isScheduling ||
-                                  controlsBusy
-                              ? null
-                              : (value) => setState(() => _languages = value),
-                          sponsored: _sponsored,
-                          onSponsoredChanged:
-                              !createState.isLoading &&
-                                  !_isSavingDraft &&
-                                  !controlsBusy &&
-                                  !_isScheduling
-                              ? (value) => setState(() => _sponsored = value)
-                              : null,
-                          showSponsored: !isResponse,
-                          scheduledAtLocal: _scheduledAtLocal,
-                          showSchedule: isSchedulable,
-                          scheduleAccess: scheduleAccess,
-                          onScheduleAccessRetry: activeLease == null
-                              ? null
-                              : () => ref.invalidate(
-                                  subscriptionAccessProvider(
-                                    activeLease.session,
-                                  ),
-                                ),
-                          onSchedulePressed:
-                              isSchedulable &&
-                                  !_isScheduling &&
-                                  !_isSavingDraft &&
-                                  !controlsBusy
-                              ? (menuContext) => _chooseWhen(
-                                  menuContext,
-                                  scheduleEnabled: capacity.scheduleEnabled,
-                                )
-                              : null,
-                        ),
-                        if (isSchedulable) ...[
-                          if (capacity.showCapacityWarning)
-                            const ScheduledPostCapacityWarning(),
-                          if (capacity.showManageLink)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton(
-                                onPressed: () =>
-                                    const ScheduledPostsRoute().go(context),
-                                child: Text(l10n.scheduledPostManageAction),
-                              ),
-                            ),
-                          if (_missedScheduledAtLocal case final missed?)
-                            Text(
-                              l10n.scheduledPostMissedTime(
-                                _localTimeLabel(context, missed),
-                              ),
-                            ),
-                          if (widget.scheduledPost != null)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton.icon(
-                                onPressed:
-                                    _isScheduling ||
-                                        _isSavingDraft ||
-                                        controlsBusy
-                                    ? null
-                                    : _deleteExistingSchedule,
-                                icon: ActionProgress(
-                                  isLoading: _isDeletingSchedule,
-                                  child: const Icon(CraftskyIconsBold.delete),
-                                ),
-                                label: Text(l10n.scheduledPostsDeleteTooltip),
-                              ),
-                            ),
-                          if (_isScheduling &&
-                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                            SizedBox(height: spacing.sp3),
-                            ScheduledStagingProgress(
-                              completed: _stagedImageCount,
-                              total: _stagedImageTotal,
-                              creating: _isSavingSchedule,
-                            ),
-                          ],
-                        ],
-                        if (_publishedEmbed?.hasExternal == true)
-                          ComposerLinkPreviewCarousel(
-                            preview: (
-                              uri: _publishedEmbed!.externalUri,
-                              title: _publishedEmbed.externalTitle,
-                              description: _publishedEmbed.externalDescription,
-                              thumbnail: null,
-                            ),
-                            thumbnailUrl: widget
-                                .publishedEdit
-                                ?.seed
-                                .post
-                                .external
-                                ?.thumb
-                                ?.url,
-                            current: 1,
-                            total: 1,
-                            loading: false,
-                            onPrevious: () {},
-                            onNext: () {},
-                            onDismiss: () {
-                              if (controlsBusy) return;
-                              setState(() => _publishedEmbed.remove());
-                            },
-                          ),
-                        if (!publishedEmbedIsFixed &&
-                            selectedVideo == null &&
-                            previewController != null &&
-                            previewState != null &&
-                            !previewState.dismissed &&
-                            !previewState.suppressed) ...[
-                          ComposerLinkPreviewCarousel(
-                            preview: selectedPreview == null
-                                ? null
-                                : (
-                                    uri: selectedPreview.preview.url.toString(),
-                                    title: selectedPreview.preview.title,
-                                    description:
-                                        selectedPreview.preview.description,
-                                    thumbnail:
-                                        selectedPreview.preview.thumbnail,
-                                  ),
-                            current: selectedPreview == null
-                                ? 0
-                                : availablePreviews.indexWhere(
-                                        (item) =>
-                                            item.candidate.identity ==
-                                            selectedPreview.candidate.identity,
-                                      ) +
-                                      1,
-                            total: availablePreviews.length,
-                            loading: previewState.inFlightIdentity != null,
-                            onPrevious: previewController.selectPrevious,
-                            onNext: previewController.selectNext,
-                            onDismiss: () => _dismissLinkPreviews(
-                              previewController,
-                              l10n,
-                            ),
-                          ),
-                        ],
-                        if (hasMediaInputs) ...[
-                          if (_isLoadingScheduledMedia)
-                            const Center(child: CircularProgressIndicator())
-                          else if (_scheduledMediaLoadFailed)
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(l10n.scheduledPostsLoadError),
-                                TextButton(
-                                  onPressed: _hydrateScheduledMedia,
-                                  child: Text(l10n.scheduledPostsRetryAction),
-                                ),
-                              ],
-                            )
-                          else if (_publishedEmbed?.hasRetainedVideo == true &&
-                              selectedVideo == null)
-                            ComposerVideoAttachmentCard.published(
-                              altText: _publishedEmbed!.videoAlt,
-                              enabled:
-                                  !controlsBusy &&
-                                  !_isSavingDraft &&
-                                  !_isScheduling,
-                              onAltTextChanged: (value) => setState(
-                                () => _publishedEmbed.videoAlt = value,
-                              ),
-                              onRemove: () =>
-                                  setState(() => _publishedEmbed.remove()),
-                            )
-                          else if (selectedVideo != null)
-                            ComposerVideoAttachmentCard(
-                              selection: selectedVideo,
-                              onThumbnailChanged: _setVideoThumbnail,
-                              onThumbnailFrameChanged: _setVideoThumbnailFrame,
-                              checkLimits: _videoController.recheckEligibility,
-                              enabled:
-                                  !createState.isLoading &&
-                                  !controlsBusy &&
-                                  !_isSavingDraft &&
-                                  !_isScheduling,
-                              onAltTextChanged: (value) {
-                                setState(
-                                  () => _videoController.setAltText(value),
-                                );
-                              },
-                              onRemove: () {
-                                setState(() {
-                                  _usesStoredDraftVideo = false;
-                                  _videoController.remove();
-                                });
-                              },
-                            )
-                          else if (_publishedEmbed?.hasExternal != true)
-                            ComposerImageAttachmentSection(
-                              onEditImage: _editImage,
-                              key: keys.composerImages.section('composer'),
-                              useDetailsRoute: true,
-                              imagesProvider: imagesProvider,
-                              imagesState: imagesState,
-                              enabled:
-                                  !createState.isLoading &&
-                                  !_isSavingDraft &&
-                                  !_isScheduling &&
-                                  !controlsBusy,
-                              onAddImages: () =>
-                                  ref.read(imagesProvider.notifier).addImages(),
-                              onTakePhoto: () =>
-                                  ref.read(imagesProvider.notifier).takePhoto(),
-                              onAltTextChanged: (imageId, value) => ref
-                                  .read(imagesProvider.notifier)
-                                  .setAltText(imageId, value),
-                              onRemove: (imageId) => ref
-                                  .read(imagesProvider.notifier)
-                                  .remove(imageId),
-                              onReplaceUnavailable: (imageId, source) => ref
-                                  .read(imagesProvider.notifier)
-                                  .replaceUnavailable(imageId, source: source),
-                              onReorder: (fromIndex, toIndex) => ref
-                                  .read(imagesProvider.notifier)
-                                  .reorder(
-                                    fromIndex: fromIndex,
-                                    toIndex: toIndex,
-                                  ),
-                              supportsVideo:
-                                  !isResponse &&
-                                  !isQuote &&
-                                  widget
-                                          .publishedEdit
-                                          ?.seed
-                                          .editable['unsupportedEmbed'] !=
-                                      true &&
-                                  _scheduleChoice == ScheduleChoice.now &&
-                                  widget.scheduledPost == null,
-                              onAddVideo: _selectVideo,
-                            ),
-                        ],
-                        SizedBox(
-                          key: const Key('post-composer-bottom-safe-space'),
-                          height:
-                              spacing.sp9 +
-                              MediaQuery.paddingOf(context).bottom,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                PositionedDirectional(
-                  start: spacing.sp4,
-                  end: spacing.sp4,
-                  bottom: 0,
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: spacing.sp4),
-                      child: ComposerBottomAction(
-                        keyboardVisible: keyboardVisible && hasMediaInputs,
-                        doneKey: const Key('post-composer-done'),
-                        actionKey: keys.feed.submit,
-                        label: submitLabel,
-                        onPressed: editUnresolved
-                            ? (!_isSubmitting &&
-                                      _submissionOwnershipIsCurrent(
-                                        widget.publishedEdit?.ownership,
-                                      )
-                                  ? _retryPublishedEdit
-                                  : null)
-                            : canSubmit
-                            ? () => _submitPost(trimmedText: trimmedText)
-                            : null,
-                        child:
-                            createState.isLoading ||
-                                (_isScheduling && !_isDeletingSchedule)
-                            ? const StitchProgressIndicator(size: 18)
-                            : null,
+                    ],
+                    if (responseTarget == null)
+                      SizedBox(
+                        key: const Key('post-composer-bottom-safe-space'),
+                        height:
+                            spacing.sp9 + MediaQuery.paddingOf(context).bottom,
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           if (_isSubmitting)

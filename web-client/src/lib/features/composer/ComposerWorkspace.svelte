@@ -89,6 +89,77 @@
 	const postPrompt = "Share what you're making, learning, or thinking...";
 	const postFormattingHelp =
 		'You can @mention people, use #hashtags or add https://links.com.';
+	function fitResponseViewport(node: HTMLElement) {
+		const viewport = window.visualViewport;
+		if (!viewport) return;
+		let previousHeight = viewport.height;
+		let openingEditor = true;
+
+		const finishOpening = (event: FocusEvent) => {
+			if (event.target instanceof HTMLTextAreaElement) openingEditor = false;
+		};
+
+		const update = () => {
+			// Mobile browsers can resize just the visual viewport for the keyboard.
+			if (viewport.scale === 1 && viewport.height < window.innerHeight) {
+				const bottom = viewport.offsetTop + viewport.height;
+				const top = node.getBoundingClientRect().top;
+				node.style.setProperty(
+					'--response-height',
+					`${Math.max(0, bottom - top)}px`
+				);
+			} else {
+				node.style.removeProperty('--response-height');
+			}
+			if (
+				openingEditor &&
+				viewport.scale === 1 &&
+				viewport.height < previousHeight &&
+				document.activeElement instanceof HTMLTextAreaElement
+			) {
+				const fields =
+					document.activeElement.closest<HTMLFieldSetElement>('.editor-fields');
+				if (fields && node.contains(fields)) scrollToResponseEditor(fields);
+			}
+			previousHeight = viewport.height;
+		};
+
+		update();
+		node.addEventListener('focusout', finishOpening);
+		viewport.addEventListener('resize', update);
+		viewport.addEventListener('scroll', update);
+		return () => {
+			node.removeEventListener('focusout', finishOpening);
+			viewport.removeEventListener('resize', update);
+			viewport.removeEventListener('scroll', update);
+			node.style.removeProperty('--response-height');
+		};
+	}
+	function scrollToResponseEditor(fields: HTMLFieldSetElement) {
+		const scroller = fields.closest<HTMLElement>('.composer-scroll');
+		if (!scroller) return;
+		const gap = parseFloat(getComputedStyle(scroller).paddingTop);
+		scroller.scrollTop +=
+			fields.getBoundingClientRect().top -
+			scroller.getBoundingClientRect().top -
+			gap;
+	}
+	function dismissResponseKeyboard(node: HTMLElement) {
+		const dismiss = (event: MouseEvent) => {
+			const editor = document.activeElement;
+			if (!(editor instanceof HTMLTextAreaElement) || !node.contains(editor))
+				return;
+			if (
+				event.target instanceof Element &&
+				!event.target.closest(
+					'a, button, input, label, select, summary, textarea'
+				)
+			)
+				editor.blur();
+		};
+		node.addEventListener('click', dismiss);
+		return () => node.removeEventListener('click', dismiss);
+	}
 	let {
 		api,
 		path,
@@ -189,6 +260,7 @@
 	const canChooseSchedule = $derived(
 		!draft.edit && !draft.reply && !draft.quote && !draft.video
 	);
+	const composingResponse = $derived(!!draft.reply && !draft.edit);
 	const title = $derived(
 		draft.edit
 			? 'Edit post'
@@ -1284,7 +1356,12 @@
 					: 'Publishing post…'}
 />
 <svelte:window onbeforeunload={beforeLeave} />
-<section class="composer">
+<section
+	class="composer"
+	class:response-composer={composingResponse}
+	{@attach composingResponse ? fitResponseViewport : undefined}
+	{@attach composingResponse ? dismissResponseKeyboard : undefined}
+>
 	<header class="composer-heading page-appbar">
 		<a
 			class="close-composer"
@@ -1347,7 +1424,13 @@
 				{#if context}<div class="target-context">
 						<ComposerTarget post={context} fullText={!!draft.reply} />
 					</div>{/if}
-				<fieldset disabled={locked} class="editor-fields">
+				<fieldset
+					disabled={locked}
+					class="editor-fields"
+					{@attach composingResponse && !draft.pending
+						? scrollToResponseEditor
+						: undefined}
+				>
 					{#snippet attachments()}
 						<section
 							class="composer-section attachment-section"

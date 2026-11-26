@@ -103,13 +103,23 @@ void main() {
     }
 
     for (final label in ['Comment', 'Reply']) {
-      testWidgets('$label submits while the keyboard is open', (tester) async {
+      testWidgets('$label keeps the caret above the action and submits', (
+        tester,
+      ) async {
         addTearDown(tester.view.resetViewInsets);
-        final root = _post('Root post');
+        const screenSize = Size(390, 844);
+        const keyboardHeight = 335.0;
+        await tester.binding.setSurfaceSize(screenSize);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final targetText = List.filled(
+          label == 'Comment' ? 6 : 1,
+          'A line of the original post',
+        ).join('\n');
+        final root = _post(targetText);
         final rootRef = PostRef(uri: root.uri, cid: root.cid);
         final target = label == 'Comment'
             ? root
-            : _post('Existing comment').copyWith(
+            : _post(targetText).copyWith(
                 uri: 'at://did:plc:alice/social.craftsky.feed.post/comment',
                 reply: PostReply(root: rootRef, parent: rootRef),
               );
@@ -136,26 +146,90 @@ void main() {
             postRepositoryProvider.overrideWithValue(repo),
           ],
         );
-        await tester.enterText(find.byType(TextField), 'Nice work!');
+        final form = find.byType(SingleChildScrollView).first;
+        final fieldTitle = find.textContaining(
+          'Write your ${label.toLowerCase()}',
+          findRichText: true,
+        );
+        final titleGap =
+            tester.getRect(fieldTitle).top - tester.getRect(form).top;
+        final position = Scrollable.of(tester.element(fieldTitle)).position;
+        if (label == 'Reply') expect(position.maxScrollExtent, 0);
         tester.view.viewInsets = FakeViewPadding(
-          bottom: 300 * tester.view.devicePixelRatio,
+          bottom: 120 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: keyboardHeight * tester.view.devicePixelRatio,
         );
         await tester.pumpAndSettle();
 
         final submit = find.widgetWithText(ChunkyButton, label);
+        final keyboardTitleGap =
+            tester.getRect(fieldTitle).top - tester.getRect(form).top;
+        expect(keyboardTitleGap, lessThan(titleGap));
+        if (keyboardTitleGap > 16) {
+          expect(position.pixels, closeTo(position.maxScrollExtent, 0.01));
+        }
+        final button = tester.getRect(submit);
+        final topPadding = button.top - tester.getRect(form).bottom;
+        final bottomPadding =
+            screenSize.height - keyboardHeight - button.bottom;
+        expect(topPadding, greaterThan(0));
+        expect(topPadding, closeTo(bottomPadding, 0.01));
+
+        final text = List.generate(
+          15,
+          (index) => 'Line ${index + 1}',
+        ).join('\n');
+        await tester.enterText(find.byType(TextField), text);
+        await tester.pumpAndSettle();
+        final editor = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        final formRect = tester.getRect(form);
+        for (final offset in [text.length, 0, text.length]) {
+          tester.testTextInput.updateEditingValue(
+            TextEditingValue(
+              text: text,
+              selection: TextSelection.collapsed(offset: offset),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final renderEditor = editor.renderEditable;
+          final caret = renderEditor.getLocalRectForCaret(
+            TextPosition(offset: offset),
+          );
+          expect(
+            renderEditor.localToGlobal(caret.topLeft).dy,
+            greaterThanOrEqualTo(formRect.top),
+          );
+          expect(
+            renderEditor.localToGlobal(caret.bottomLeft).dy,
+            lessThanOrEqualTo(formRect.bottom),
+          );
+        }
+
         expect(submit, findsOneWidget);
         expect(find.byKey(const Key('post-composer-done')), findsNothing);
+        expect(tester.testTextInput.isVisible, isTrue);
+        await tester.tapAt(formRect.topLeft + const Offset(4, 8));
+        await tester.pumpAndSettle();
+        expect(tester.testTextInput.isVisible, isFalse);
+        expect(editor.widget.controller.text, text);
+        await tester.tap(find.byType(TextField));
+        await tester.pumpAndSettle();
         expect(tester.testTextInput.isVisible, isTrue);
         await tester.tap(submit);
         await tester.pump();
 
         expect(tester.testTextInput.isVisible, isFalse);
-        expect(submittedText, endsWith('Nice work!'));
+        expect(submittedText, endsWith(text));
         expect(submittedReply?.root.uri, root.uri);
         expect(submittedReply?.parent.uri, target.uri);
         expect(find.byType(PostComposerSheet), findsOneWidget);
         tester.view.resetViewInsets();
-        pending.complete(_post('Nice work!'));
+        pending.complete(_post(text));
         await tester.pumpAndSettle();
         expect(find.byType(PostComposerSheet), findsNothing);
       });
