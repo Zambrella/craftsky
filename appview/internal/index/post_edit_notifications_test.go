@@ -14,8 +14,7 @@ import (
 	"social.craftsky/appview/internal/tap"
 )
 
-// IT-012: coalescing before notification projection cannot add edit recipients.
-func TestPostEditBeforeInitialProjectionKeepsOriginalRecipients(t *testing.T) {
+func TestPostEditBeforeInitialProjectionNotifiesOriginalAndAddedRecipients(t *testing.T) {
 	f := newNotificationPipeline(t)
 	seedCraftskyMember(t, f.pool, "did:plc:added-by-edit")
 	original := notificationEvent(800, "did:plc:actor", "3aaaaaaaaaaa4", mentionExtra("did:plc:recipient"))
@@ -38,8 +37,8 @@ func TestPostEditBeforeInitialProjectionKeepsOriginalRecipients(t *testing.T) {
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM craftsky_post_mentions`, 2)
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:recipient'`, 1)
-	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:added-by-edit'`, 0)
-	// Replay both versions and the current job. Neither expands the original set.
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:added-by-edit' AND category='mention'`, 1)
+	// Replay both versions and the current job.
 	if _, err := f.store.IngestRecord(context.Background(), original); err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +47,107 @@ func TestPostEditBeforeInitialProjectionKeepsOriginalRecipients(t *testing.T) {
 	}
 	f.exec(`UPDATE tap_projection_jobs SET state='pending',completed_at=NULL WHERE projection_kind='post_notifications'`)
 	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events`, 2)
+}
+
+func TestProjectEditMentionPushesOnceForAnOldProject(t *testing.T) {
+	f := newNotificationPipeline(t)
+	seedNotificationSubscription(t, f.pool, "did:plc:recipient")
+	const project = `,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","materials":[{"text":"recipient"}]}}`
+	const mentionedProject = `,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","materials":[{"text":"recipient","facets":[{"index":{"byteStart":0,"byteEnd":9},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:recipient"}]}]}]}}`
+	original := notificationEvent(801, "did:plc:actor", "3aaaaaaaaaaa4", project)
+	original.Live = false
+	f.ingest(original)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+
+	edited := notificationEvent(802, "did:plc:actor", original.Rkey.String(), mentionedProject)
+	edited.Action = "update"
+	edited.Rev = "3aaaaaaaaaaa3"
+	f.ingest(edited)
+	// A subsequent edit replaces the source before the worker runs.
+	unchangedMention := edited
+	unchangedMention.ID++
+	unchangedMention.Rev = "3aaaaaaaaaaa4"
+	unchangedMention.CID = "cid-caption-change"
+	unchangedMention.Record = bytes.ReplaceAll(edited.Record, []byte("hello recipient"), []byte("new caption"))
+	f.ingest(unchangedMention)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention' AND activity_at > now() - interval '10 minutes'`, 1)
+	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='pending'`, 1)
+
+	f.exec(`UPDATE notification_events SET is_new=false`)
+	removed := notificationEvent(804, "did:plc:actor", original.Rkey.String(), project)
+	removed.Action = "update"
+	removed.Rev = "3aaaaaaaaaaa5"
+	f.ingest(removed)
+	f.drain()
+	edited.ID = 805
+	edited.Rev = "3aaaaaaaaaaa6"
+	edited.CID = "cid-material-mention-readded"
+	f.ingest(edited)
+	f.drain()
 	f.assertCount(`SELECT count(*) FROM notification_events`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE state='active' AND NOT is_new`, 1)
+	f.assertCount(`SELECT count(*) FROM push_deliveries`, 1)
+
+	deleted := edited
+	deleted.ID++
+	deleted.Rev = "3aaaaaaaaaaa7"
+	deleted.Action = "delete"
+	deleted.CID = ""
+	deleted.Record = nil
+	f.ingest(deleted)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE state='retracted'`, 1)
+	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='cancelled'`, 1)
+}
+
+func TestPostEditMentionDoesNotDuplicateOriginalReply(t *testing.T) {
+	f := newNotificationPipeline(t)
+	seedCraftskyMember(t, f.pool, "did:plc:added-by-edit")
+	f.ingest(notificationEvent(807, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
+	reply := notificationEvent(808, "did:plc:actor", "3aaaaaaaaaaa4", replyExtra(notificationTarget))
+	f.ingest(reply)
+	edited := notificationEvent(809, "did:plc:actor", reply.Rkey.String(), replyExtra(notificationTarget)+mentionExtra("did:plc:recipient"))
+	edited.Action = "update"
+	edited.Rev = "3aaaaaaaaaaa3"
+	f.ingest(edited)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+
+	anotherRecipient := notificationEvent(815, "did:plc:actor", reply.Rkey.String(), replyExtra(notificationTarget)+mentionExtra("did:plc:added-by-edit"))
+	anotherRecipient.Action = "update"
+	anotherRecipient.Rev = "3aaaaaaaaaaa4"
+	f.ingest(anotherRecipient)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:added-by-edit'
+		AND category='mention' AND root_uri='`+notificationTarget+`'`, 1)
+}
+
+func TestPostEditMentionDoesNotNotifyForBackfillOrUnchangedMention(t *testing.T) {
+	f := newNotificationPipeline(t)
+	original := notificationEvent(812, "did:plc:actor", "3aaaaaaaaaaa4", "")
+	f.ingest(original)
+	f.drain()
+	backfill := notificationEvent(813, "did:plc:actor", original.Rkey.String(), mentionExtra("did:plc:recipient"))
+	backfill.Live = false
+	backfill.Action = "update"
+	backfill.Rev = "3aaaaaaaaaaa3"
+	f.ingest(backfill)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+
+	edited := backfill
+	edited.ID++
+	edited.Rev = "3aaaaaaaaaaa4"
+	edited.CID = "cid-unchanged-backfilled-mention"
+	edited.Live = true
+	edited.Record = bytes.ReplaceAll(backfill.Record, []byte("hello recipient"), []byte("there recipient"))
+	f.ingest(edited)
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM craftsky_post_mentions`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
 }
 
 // IT-012: an edited-only snapshot has no proven original reply recipient.
