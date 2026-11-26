@@ -1,8 +1,9 @@
 # CraftSky online safety
 
-This directory contains the source files for CraftSky's public policies.
-Internal incident procedures, assessments and approval records are managed
-separately from this index. Use the
+This directory contains the source files for CraftSky's public policies and the
+[incident guide](operations/illegal-content-response.md) for handling reports
+and safety incidents. Assessments and approval records are kept separately.
+Use the
 [release runbook](../docs/operations/releases.md#private-beta-and-full-public-launch)
 for the component checks and deployment steps.
 
