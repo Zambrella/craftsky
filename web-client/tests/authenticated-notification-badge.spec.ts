@@ -23,7 +23,7 @@ test.beforeEach(async ({ page, context }) => {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ visual: true })
 	});
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await page.route('https://fixture.craftsky.test/app-icon.png', (route) =>

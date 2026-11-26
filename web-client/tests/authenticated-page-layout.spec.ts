@@ -10,7 +10,7 @@ const alice = {
 
 test.beforeEach(async ({ page, context }) => {
 	await fetch(fixture + '/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
