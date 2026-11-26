@@ -1,5 +1,15 @@
 # Web Client Changelog
 
+## 1.15.1 - 2026-11-26
+
+- fix(search): show recent avatars and limit history to ten
+- feat(search): order trending tags by saved craft preference
+- fix(web-status): proxy status polls through same-origin API
+- test(web): allow status polling in guest request checks
+- docs(online-safety): consolidate launch readiness records
+- fix(web-client): remove message input focus outline
+- fix(composer): keep reply context visible while typing
+
 ## 1.15.0 - 2026-11-25
 
 - feat(projects): expand craft-specific project details and filters
