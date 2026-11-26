@@ -660,6 +660,135 @@
         "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
       }
     },
+    "/v1/admin/moderation/cases/{caseReference}/evidence": {
+      "post": {
+        "operationId": "post_v1_admin_moderation_cases_caseReference_evidence",
+        "summary": "Preserve restricted image evidence from a moderation case",
+        "x-operator-permission": "evidence.preserve",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_caseReference"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "201": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "incidentReference": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "revision": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "incidentReference",
+                    "revision"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bytes": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "Restricted bytes. This request must never be logged or retained in a replay receipt.",
+                    "maxLength": 699052
+                  },
+                  "contentType": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "bytes",
+                  "contentType",
+                  "reason",
+                  "expiresAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Preserves an authorised image from a case with a captured record version. Requires the console Origin, CSRF token and Idempotency-Key. Creates or reuses a linked manual evidence incident. The command leaves moderation decisions and scan results intact."
+      }
+    },
     "/v1/admin/safety/incidents/{incidentReference}/evidence": {
       "post": {
         "operationId": "post_v1_admin_safety_incidents_incidentReference_evidence",

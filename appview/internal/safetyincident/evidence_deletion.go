@@ -28,9 +28,19 @@ func DeleteEvidenceIfUnheld(
 	}
 	deleted := false
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		// Case preservation adds evidence to the same incident. Serialize with
+		// it before deciding whether to clear the last retained owner link.
+		var manualIncidentID uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT incident.id FROM safety_incidents incident
+			JOIN safety_evidence evidence ON evidence.incident_id=incident.id
+			WHERE evidence.id=$1 AND incident.incident_kind='manualEvidence'
+			FOR NO KEY UPDATE OF incident`, evidenceID).Scan(&manualIncidentID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
 		var incidentID uuid.UUID
 		var objectKey string
-		err := tx.QueryRow(ctx, `SELECT incident_id,object_key FROM safety_evidence
+		err = tx.QueryRow(ctx, `SELECT incident_id,object_key FROM safety_evidence
 			WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, evidenceID).Scan(&incidentID, &objectKey)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -71,13 +81,17 @@ func DeleteEvidenceIfUnheld(
 		if _, err := tx.Exec(ctx, `UPDATE safety_incident_subjects subject
 			SET owner_did=NULL
 			WHERE subject.incident_id=$1
+			  AND (NOT $3::boolean OR NOT EXISTS (
+				SELECT 1 FROM safety_evidence evidence
+				WHERE evidence.incident_id=subject.incident_id AND evidence.deleted_at IS NULL
+			  ))
 			  AND NOT EXISTS (
 				SELECT 1 FROM safety_evidence evidence
 				JOIN safety_legal_hold_evidence scope ON scope.evidence_id=evidence.id
 				JOIN safety_legal_holds hold ON hold.id=scope.hold_id
 				WHERE evidence.incident_id=$1 AND evidence.deleted_at IS NULL
 				  AND hold.released_at IS NULL AND hold.expires_at>$2
-			  )`, incidentID, now.UTC()); err != nil {
+			  )`, incidentID, now.UTC(), manualIncidentID != uuid.Nil); err != nil {
 			return err
 		}
 		deleted = true

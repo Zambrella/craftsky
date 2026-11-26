@@ -34,9 +34,12 @@ func (store *Store) ConfirmSystemDetection(ctx context.Context, command ConfirmS
 	}
 	var result Case
 	err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		var state string
-		if err := tx.QueryRow(ctx, `SELECT state FROM safety_incidents WHERE id=$1 FOR UPDATE`, command.IncidentID).Scan(&state); err != nil {
+		var state, incidentKind string
+		if err := tx.QueryRow(ctx, `SELECT state,incident_kind FROM safety_incidents WHERE id=$1 FOR UPDATE`, command.IncidentID).Scan(&state, &incidentKind); err != nil {
 			return err
+		}
+		if incidentKind != "imageMatch" {
+			return ErrInvalidCommand
 		}
 		if state != "detected" && state != "confirmed" && state != "caseCreated" {
 			return ErrCaseNotOpen

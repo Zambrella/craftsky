@@ -343,6 +343,15 @@ files need a separately approved preservation procedure; this console does not
 silently resize or recompress evidence. Uncertain preservation results retain
 the exact submission in memory for **Retry exact command**.
 
+For a report-backed case with a captured record version, an admin can also
+open **Cases → Preserve restricted evidence**, select the authorised original
+image, enter the reason and retention deadline, then review and confirm. The
+first successful upload creates a linked **Manual evidence** incident. Use
+**Open linked safety incident** to view its evidence or create a hold. Further
+uploads from that case use the same incident. Evidence preservation records
+the operator, keeps the original bytes private and leaves the case decision
+and scanner results intact.
+
 The console explains when private storage is not configured. This is configured
 capability reporting, not a live provider-health guarantee. Metadata and existing
 hold administration remain separate from storage access. Production evidence

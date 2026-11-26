@@ -445,3 +445,39 @@ test('other illegal content requires a reviewed basis and preserves it in confir
   expect(await screen.findByRole('heading', { name: 'Internal illegal-content rationale' })).toBeTruthy()
   expect(screen.getByText('Private synthetic offence and legal basis.')).toBeTruthy()
 })
+
+test('admin preserves a selected case image and can open its linked incident', async () => {
+  const evidenceId = '65000000-0000-4000-8000-000000000001'
+  const incidentReference = '65000000-0000-4000-8000-000000000002'
+  const writes: {path: string; body: unknown}[] = []
+  const subjectUri = 'at://did:plc:author/social.craftsky.feed.post/test'
+  fixture((path, init) => {
+    if (path.endsWith('/evidence/capabilities')) {
+      return response({preservationAvailable: true, accessAvailable: true, maxPreservationBytes: 524288, maxAccessBytes: 524288})
+    }
+    if (path.endsWith('/cases/' + reference)) {
+      return response({...initial, subjectUri, subjectCidSnapshot: 'test-cid', incidentReference: writes.length ? incidentReference : undefined})
+    }
+    if (init?.method === 'POST') {
+      writes.push({path, body: JSON.parse(String(init.body))})
+      return response({id: evidenceId, incidentReference, revision: 0}, 201)
+    }
+  })
+  const user = userEvent.setup()
+  render(<CasesWorkspace operator={{...operator, permissions: {...operator.permissions, 'evidence.preserve': true}}} onSessionExpired={() => {}}/>)
+  await user.click(await screen.findByRole('link', {name: 'Review ' + reference}))
+  await user.click(await screen.findByText('Preserve restricted evidence'))
+  await user.upload(await screen.findByLabelText('Evidence file'), new File(['benign'], 'fixture.png', {type: 'image/png'}))
+  await user.type(screen.getByLabelText('Preservation reason'), 'Synthetic verification')
+  fireEvent.change(screen.getByLabelText('Retain until'), {target: {value: '2080-01-01T12:00'}})
+  // jsdom's native file validation does not see user-event's FileList shim.
+  fireEvent.submit(screen.getByRole('form', {name: 'Evidence preservation'}))
+  expect(writes).toHaveLength(0)
+  await user.click(await screen.findByRole('button', {name: 'Confirm evidence preservation'}))
+  expect((await screen.findByRole('link', {name: 'Open linked safety incident'})).getAttribute('href')).toBe('#/incidents/' + incidentReference)
+  expect(screen.getByRole('link', {name: 'Open recorded item'}).getAttribute('href')).toBe('#/evidence/' + evidenceId)
+  expect(writes).toEqual([{path: '/v1/admin/moderation/cases/' + reference + '/evidence', body: {
+    bytes: btoa('benign'), contentType: 'image/png', reason: 'Synthetic verification',
+    expiresAt: new Date('2080-01-01T12:00').toISOString(),
+  }}])
+})

@@ -20,7 +20,7 @@ func NewConsoleWorkReader(pool *pgxpool.Pool, now func() time.Time) *ConsoleWork
 }
 func (s *ConsoleWorkReader) SafeWork(ctx context.Context) ([]safetyincident.WorkItem, error) {
 	rows, err := s.pool.Query(ctx, `SELECT reference,kind,state,priority,created_at,deadline,owner,cover FROM (
- SELECT i.id::text reference,'imageMatch' kind,i.state,CASE WHEN i.priority='immediate' THEN 1 WHEN i.reporting_deadline<=now() OR i.priority='urgent' THEN 2 ELSE 3 END priority,i.detected_at created_at,i.reporting_deadline deadline,
+ SELECT i.id::text reference,i.incident_kind kind,i.state,CASE WHEN i.priority='immediate' THEN 1 WHEN i.reporting_deadline<=now() OR i.priority='urgent' THEN 2 WHEN i.incident_kind='imageMatch' THEN 3 ELSE 5 END priority,i.detected_at created_at,i.reporting_deadline deadline,
  COALESCE(i.assigned_to,(SELECT 'operator:'||a.operator_id FROM safety_operator_assignments a WHERE a.incident_id=i.id AND a.assignment_role='owner' AND a.released_at IS NULL ORDER BY a.assigned_at DESC,a.id DESC LIMIT 1),'') owner,
  COALESCE((SELECT 'operator:'||a.operator_id FROM safety_operator_assignments a WHERE a.incident_id=i.id AND a.assignment_role='cover' AND a.released_at IS NULL ORDER BY a.assigned_at DESC,a.id DESC LIMIT 1),'') cover FROM safety_incidents i WHERE i.state IN ('detected','confirmed','caseCreated','reporting')
  UNION ALL

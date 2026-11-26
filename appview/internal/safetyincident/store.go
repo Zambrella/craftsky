@@ -109,7 +109,7 @@ func (store *Store) SafeWork(ctx context.Context) ([]WorkItem, error) {
 		return nil, errors.New("safety incident store unavailable")
 	}
 	rows, err := store.pool.Query(ctx, `
-		SELECT id,state,detected_at
+		SELECT id,incident_kind,state,detected_at
 		FROM safety_incidents
 		WHERE state IN ('detected','confirmed','caseCreated','reporting')
 		ORDER BY detected_at,id
@@ -122,12 +122,11 @@ func (store *Store) SafeWork(ctx context.Context) ([]WorkItem, error) {
 	for rows.Next() {
 		var id uuid.UUID
 		var item WorkItem
-		if err := rows.Scan(&id, &item.State, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&id, &item.Kind, &item.State, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		item.Reference = id.String()
-		item.Kind = "imageMatch"
-		item.Priority = PriorityFor(PriorityInput{Detected: true}, store.now().UTC())
+		item.Priority = PriorityFor(PriorityInput{Detected: item.Kind == "imageMatch"}, store.now().UTC())
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -139,12 +138,12 @@ func (store *Store) SafeDetail(ctx context.Context, incidentID uuid.UUID) (SafeD
 	}
 	detail := SafeDetail{Reference: incidentID.String(), SubjectCounts: make(map[string]int)}
 	if err := store.pool.QueryRow(ctx, `
-		SELECT incident.incident_kind,incident.state,incident.provider_reference,
-		       incident.integrity_metadata_reference,result.scanner_id,
-		       result.policy_version,result.corpus_version,incident.detected_at,
+		SELECT incident.incident_kind,incident.state,COALESCE(incident.provider_reference,''),
+		       COALESCE(incident.integrity_metadata_reference,''),COALESCE(result.scanner_id,''),
+		       COALESCE(result.policy_version,''),COALESCE(result.corpus_version,''),incident.detected_at,
  COALESCE((to_jsonb(incident)->>'revision')::bigint,0),COALESCE(to_jsonb(incident)->>'priority',''),COALESCE(to_jsonb(incident)->>'assigned_to',''),(to_jsonb(incident)->>'reporting_deadline')::timestamptz
 		FROM safety_incidents incident
-		JOIN image_scan_results result ON result.id=incident.scan_result_id
+		LEFT JOIN image_scan_results result ON result.id=incident.scan_result_id
 		WHERE incident.id=$1
 	`, incidentID).Scan(&detail.Kind, &detail.State, &detail.ProviderReference,
 		&detail.IntegrityMetadataReference, &detail.ScannerID, &detail.PolicyVersion,

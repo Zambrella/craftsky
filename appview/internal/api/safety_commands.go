@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 )
@@ -22,6 +23,7 @@ type SafetyCommandServices struct {
 	Workflows *safetyincident.WorkflowService
 	CSEA      *safetyincident.CSEAWorkflow
 	Now       func() time.Time
+	tx        pgx.Tx
 }
 
 func SafetyCommandHandler(services SafetyCommandServices, operation string) http.Handler {
@@ -44,22 +46,53 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 		}
 		var err error
 		switch operation {
-		case "preserveEvidence":
-			incidentID, parseErr := uuid.Parse(r.PathValue("incidentReference"))
+		case "preserveEvidence", "preserveCaseEvidence":
 			var request struct {
 				Bytes       []byte    `json:"bytes"`
 				ContentType string    `json:"contentType"`
 				Reason      string    `json:"reason"`
 				ExpiresAt   time.Time `json:"expiresAt"`
 			}
-			if parseErr != nil || decodeSafetyCommand(r, &request) != nil || len(request.Bytes) > safetyincident.MaxEvidenceBytes || http.DetectContentType(request.Bytes) != request.ContentType {
+			if decodeSafetyCommand(r, &request) != nil || len(request.Bytes) > safetyincident.MaxEvidenceBytes || http.DetectContentType(request.Bytes) != request.ContentType {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
 				return
 			}
-			result, commandErr := services.Evidence.Preserve(r.Context(), actor, safetyincident.PreserveCommand{
-				IncidentID: incidentID, Bytes: request.Bytes, SHA256: sha256.Sum256(request.Bytes),
+			command := safetyincident.PreserveCommand{
+				Bytes: request.Bytes, SHA256: sha256.Sum256(request.Bytes),
 				ContentType: request.ContentType, Reason: request.Reason, ExpiresAt: request.ExpiresAt,
-			})
+			}
+			if operation == "preserveCaseEvidence" {
+				caseRef, parseErr := moderation.ParseCaseReference(r.PathValue("caseReference"))
+				if parseErr != nil || services.tx == nil {
+					writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
+					return
+				}
+				result, incidentID, commandErr := services.Evidence.PreserveFromCase(r.Context(), services.tx, actor, caseRef.UUID(), command)
+				if commandErr != nil {
+					writeSafetyCommandError(w, r, commandErr)
+					return
+				}
+				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID, "incidentReference": incidentID})
+				return
+			}
+			incidentID, parseErr := uuid.Parse(r.PathValue("incidentReference"))
+			if parseErr != nil {
+				writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
+				return
+			}
+			if services.tx != nil {
+				var sourceKind string
+				if err := services.tx.QueryRow(r.Context(), `SELECT incident_kind FROM safety_incidents WHERE id=$1`, incidentID).Scan(&sourceKind); err != nil {
+					writeSafetyCommandError(w, r, err)
+					return
+				}
+				if sourceKind != "imageMatch" {
+					writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
+					return
+				}
+			}
+			command.IncidentID = incidentID
+			result, commandErr := services.Evidence.Preserve(r.Context(), actor, command)
 			if commandErr == nil {
 				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID})
 				return
@@ -311,7 +344,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 
 func safetyCommandAvailable(services SafetyCommandServices, operation string) bool {
 	switch operation {
-	case "preserveEvidence", "accessEvidence":
+	case "preserveEvidence", "preserveCaseEvidence", "accessEvidence":
 		return services.Evidence != nil
 	case "createHold":
 		return services.Holds != nil

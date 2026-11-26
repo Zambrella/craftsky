@@ -121,7 +121,7 @@ func readConsoleCase(ctx context.Context, db consolePreviewReader, id uuid.UUID,
 	var did syntax.DID
 	var restricted, terminal bool
 	var openedAt time.Time
-	err := db.QueryRow(ctx, `SELECT subject_type,subject_did,COALESCE(subject_uri,''),COALESCE(subject_cid_snapshot,''),origin='systemDetected' OR EXISTS(SELECT 1 FROM safety_incident_subjects s WHERE s.subject_uri=c.subject_uri OR (c.subject_type='account' AND s.owner_did=c.subject_did)),appview_owner_is_terminal(owner_did),created_at FROM moderation_cases c WHERE id=$1`, id).Scan(&kind, &did, &uri, &cid, &restricted, &terminal, &openedAt)
+	err := db.QueryRow(ctx, `SELECT subject_type,subject_did,COALESCE(subject_uri,''),COALESCE(subject_cid_snapshot,''),origin='systemDetected' OR EXISTS(SELECT 1 FROM safety_incident_subjects s JOIN safety_incidents i ON i.id=s.incident_id AND i.incident_kind='imageMatch' WHERE s.subject_uri=c.subject_uri OR (c.subject_type='account' AND s.owner_did=c.subject_did)),appview_owner_is_terminal(owner_did),created_at FROM moderation_cases c WHERE id=$1`, id).Scan(&kind, &did, &uri, &cid, &restricted, &terminal, &openedAt)
 	result := ConsolePreview{State: "unavailable", SubjectType: kind, SubjectDID: did}
 	if err != nil {
 		return result, err
@@ -207,7 +207,7 @@ func readConsoleEvent(ctx context.Context, db consolePreviewReader, did syntax.D
 	var raw json.RawMessage
 	var currentCID string
 	var restricted, terminal, clear bool
-	err := db.QueryRow(ctx, `SELECT e.raw_record,e.cid,EXISTS(SELECT 1 FROM safety_incident_subjects s WHERE s.subject_uri=e.uri),appview_owner_is_terminal(e.owner_did),appview_image_subject_is_clear(e.uri,e.cid) FROM craftsky_business_events e WHERE e.uri=$1`, uri).Scan(&raw, &currentCID, &restricted, &terminal, &clear)
+	err := db.QueryRow(ctx, `SELECT e.raw_record,e.cid,EXISTS(SELECT 1 FROM safety_incident_subjects s JOIN safety_incidents i ON i.id=s.incident_id AND i.incident_kind='imageMatch' WHERE s.subject_uri=e.uri),appview_owner_is_terminal(e.owner_did),appview_image_subject_is_clear(e.uri,e.cid) FROM craftsky_business_events e WHERE e.uri=$1`, uri).Scan(&raw, &currentCID, &restricted, &terminal, &clear)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, nil
 	}
@@ -253,7 +253,7 @@ func readConsolePost(ctx context.Context, db consolePreviewReader, uri, cid stri
 	row := PostRow{URI: uri}
 	var restricted, terminal, clear bool
 	err := db.QueryRow(ctx, `SELECT p.did,p.cid,p.text,p.images,p.created_at,b.display_name,b.avatar_cid,b.avatar_mime,p.record->'embed',j.raw_project,p.quote_uri,p.quote_cid,p.reply_parent_uri,p.reply_parent_cid,p.reply_root_uri,p.reply_root_cid,
- EXISTS(SELECT 1 FROM safety_incident_subjects s WHERE s.subject_uri=p.uri),appview_owner_is_terminal(p.did),appview_image_subject_is_clear(p.uri,p.cid)
+ EXISTS(SELECT 1 FROM safety_incident_subjects s JOIN safety_incidents i ON i.id=s.incident_id AND i.incident_kind='imageMatch' WHERE s.subject_uri=p.uri),appview_owner_is_terminal(p.did),appview_image_subject_is_clear(p.uri,p.cid)
  FROM craftsky_posts p LEFT JOIN bluesky_profiles b ON b.did=p.did LEFT JOIN craftsky_project_posts j ON j.uri=p.uri WHERE p.uri=$1`, uri).Scan(&row.DID, &row.CID, &row.Text, &row.Images, &row.CreatedAt, &row.AuthorDisplayName, &row.AuthorAvatarCID, &row.AuthorAvatarMime, &row.RawEmbed, &row.RawProject, &row.QuoteURI, &row.QuoteCID, &row.ReplyParentURI, &row.ReplyParentCID, &row.ReplyRootURI, &row.ReplyRootCID, &restricted, &terminal, &clear)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, nil, nil
@@ -348,7 +348,7 @@ func readConsoleAccount(ctx context.Context, db consolePreviewReader, did syntax
 	var raw json.RawMessage
 	var terminal, restricted, businessClear bool
 	err := db.QueryRow(ctx, `SELECT b.record_cid,c.record_cid,j.cid,b.display_name,b.description,b.avatar_cid,b.avatar_mime,b.banner_cid,b.banner_mime,COALESCE(c.crafts,ARRAY[]::text[]),j.raw_record,
- appview_owner_is_terminal(a.did),EXISTS(SELECT 1 FROM safety_incident_subjects s WHERE s.owner_did=a.did),COALESCE(appview_image_subject_is_clear(j.uri,j.cid),false)
+ appview_owner_is_terminal(a.did),EXISTS(SELECT 1 FROM safety_incident_subjects s JOIN safety_incidents i ON i.id=s.incident_id AND i.incident_kind='imageMatch' WHERE s.owner_did=a.did),COALESCE(appview_image_subject_is_clear(j.uri,j.cid),false)
  FROM (SELECT $1::text did) a LEFT JOIN bluesky_profiles b ON b.did=a.did LEFT JOIN craftsky_profiles c ON c.did=a.did LEFT JOIN craftsky_business_profiles j ON j.owner_did=a.did`, did).Scan(&profileCID, &craftCID, &businessCID, &displayName, &description, &avatarCID, &avatarMIME, &bannerCID, &bannerMIME, &crafts, &raw, &terminal, &restricted, &businessClear)
 	if err != nil {
 		return result, err
