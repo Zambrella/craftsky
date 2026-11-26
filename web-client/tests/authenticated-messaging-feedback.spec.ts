@@ -314,10 +314,14 @@ test('inbox navigation icons appear before status resolves when navigating from 
 	).toBeVisible();
 });
 
-test('message input keeps text without a clear button', async ({ page }) => {
+test('message input keeps text without a clear button or focus outline', async ({
+	page
+}) => {
 	await page.goto('/messages/conversations/visual-accepted');
 	const input = page.getByRole('textbox', { name: 'Message', exact: true });
 	await input.fill('A draft to keep');
+	await expect(input).toBeFocused();
+	await expect(input).toHaveCSS('outline-style', 'none');
 	await expect(input).toHaveValue('A draft to keep');
 	await expect(
 		page.getByRole('button', { name: 'Discard draft', exact: true })
