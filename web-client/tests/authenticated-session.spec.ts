@@ -73,7 +73,7 @@ async function accounts(page: Page) {
 	});
 }
 test.beforeEach(async ({ page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch(fixture + '/__test/reset');

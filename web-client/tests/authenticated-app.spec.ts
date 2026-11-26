@@ -66,11 +66,37 @@ async function imageFixture(page: Page) {
 	return Buffer.from(encoded, 'base64');
 }
 test.beforeEach(async ({ context, page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch('http://127.0.0.1:19847/__test/reset');
 	await login(context);
+});
+
+test('shows maintenance from an anonymous same-origin status poll', async ({
+	page
+}) => {
+	await page.route('**/api/service-status', (route) =>
+		route.fulfill({
+			json: {
+				schemaVersion: 2,
+				revision: 'maintenance',
+				maintenance: {
+					title: 'Scheduled maintenance',
+					description: 'CraftSky will be back soon.'
+				}
+			}
+		})
+	);
+	const poll = page.waitForRequest('**/api/service-status');
+	await page.goto('/feed');
+	const request = await poll;
+	expect(new URL(request.url()).origin).toBe(base);
+	expect(await request.headerValue('cookie')).toBeNull();
+	expect(await request.headerValue('authorization')).toBeNull();
+	await expect(
+		page.getByRole('alertdialog', { name: 'Scheduled maintenance' })
+	).toBeVisible();
 });
 
 test('publishes through AppView, returns to the feed and edits with the observed CID', async ({

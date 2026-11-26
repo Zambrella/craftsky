@@ -1,6 +1,6 @@
 # App status controls
 
-The app reads `https://status.craftsky.social/app.json` anonymously, independently of AppView, accounts and device identity. A separate Cloudflare Worker reads the private `craftsky-service-status` R2 bucket's `app.json` object. Preview uses `craftsky-status-preview`, `craftsky-service-status-preview` and `https://preview-status.craftsky.social/app.json`.
+The mobile app reads `https://status.craftsky.social/app.json` anonymously, independently of AppView, accounts and device identity. The web app reads the same document through its own `/api/service-status` route, which fetches it anonymously from the web Worker. A separate Cloudflare Worker reads the private `craftsky-service-status` R2 bucket's `app.json` object. Status infrastructure preview uses `craftsky-status-preview`, `craftsky-service-status-preview` and `https://preview-status.craftsky.social/app.json`.
 
 These are intended resources. Local implementation and dry-run validation do not establish that they exist remotely. Initial provisioning, DNS, Worker deployment and live publication require separate authorization. No infrastructure or live status was changed during implementation.
 
@@ -99,7 +99,7 @@ just app-test --no-pub test/service_status test/observability/service_status_dia
 just app-analyze
 ```
 
-Hosted verification is a manual release check after separately authorized setup. Read the preview endpoint with `curl --fail --max-time 3 -i https://preview-status.craftsky.social/app.json`; confirm the JSON, revision, no-store and CORS headers. From the supported web app origin, use browser developer tools to fetch the same endpoint with `credentials: 'omit'`, `redirect: 'error'`, `cache: 'no-store'` and `referrerPolicy: 'no-referrer'`. Inspect the request for absence of cookies/auth/device headers and confirm the body matches. These manual steps replace the standalone hosted browser harness.
+Hosted verification is a manual release check after separately authorized setup. Read the status infrastructure preview endpoint with `curl --fail --max-time 3 -i https://preview-status.craftsky.social/app.json` and confirm the JSON, revision, no-store and CORS headers. On the web app, use browser developer tools to inspect the same-origin `/api/service-status` poll. Confirm the request omits cookies, auth and device headers, and check that the response has `Cache-Control: no-store` and the same revision as `https://status.craftsky.social/app.json`.
 
 For freshness evidence, separately authorize preview-only publication of a combined snapshot, removal of maintenance, removal of minima, then full clear. Use the same mobile clients across changes; after each verified publication, the next successful foreground refresh must observe the replacement within the app's three-second request deadline. Confirm a disposable landing-site deploy/rollback leaves the status revision unchanged. Capture safe results only. No hosted publication or cache/CORS verification has been performed locally.
 

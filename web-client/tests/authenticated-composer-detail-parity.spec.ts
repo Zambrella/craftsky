@@ -214,7 +214,7 @@ test.beforeEach(async ({ page, context }) => {
 			sameSite: 'Lax'
 		}
 	]);
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 });

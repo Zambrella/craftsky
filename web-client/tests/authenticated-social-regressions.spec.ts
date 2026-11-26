@@ -125,7 +125,7 @@ const post = (rkey = 'root', text = 'VISIBLE_REFRESH_CANARY') => ({
 	viewerHasSaved: false
 });
 test.beforeEach(async ({ context, page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch('http://127.0.0.1:19847/__test/reset');

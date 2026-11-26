@@ -81,7 +81,7 @@
 		busy = true;
 		request = new AbortController();
 		try {
-			const response = await fetch('https://status.craftsky.social/app.json', {
+			const response = await fetch('/api/service-status', {
 				credentials: 'omit',
 				redirect: 'error',
 				cache: 'no-store',
