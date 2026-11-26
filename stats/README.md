@@ -6,7 +6,7 @@ Cloudflare Worker serves only those files. No application server, database,
 frontend framework or chart library is needed by the website.
 
 Craft icons in `public/craft_icons/` are unmodified copies of the Flutter app's
-`app/assets/design/icons/*.svg`, selected by the same five craft names as
+`app/assets/design/icons/*.svg`, selected by the same craft names as
 `CraftIcon.assetPathFor`. They use decorative CSS masks, matching the web
 client's icon approach; keep these copies in sync with the app assets.
 
