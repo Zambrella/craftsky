@@ -42,6 +42,45 @@ test.beforeEach(async ({ context, page }) => {
 	]);
 });
 
+test('blank search shows trending hashtags in saved craft order', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/search/hashtags/top*', (route) =>
+		route.fulfill({
+			json: {
+				groups: [
+					{
+						craftType: 'social.craftsky.feed.defs#sewing',
+						items: [{ tag: 'MeMadeMay', count: 12 }]
+					},
+					{
+						craftType: 'social.craftsky.feed.defs#crochet',
+						items: [{ tag: 'grannysquare', count: 10 }]
+					},
+					{
+						craftType: 'social.craftsky.feed.defs#knitting',
+						items: [{ tag: 'sockkal', count: 8 }]
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/search');
+
+	await expect(
+		page.getByRole('heading', { name: 'Trending hashtags' })
+	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 3 })).toHaveText([
+		'Knitting',
+		'Sewing'
+	]);
+	await expect(page.getByRole('link', { name: '#sockkal' })).toBeVisible();
+	await expect(page.getByRole('link', { name: '#MeMadeMay' })).toBeVisible();
+	await expect(page.getByRole('link', { name: '#grannysquare' })).toHaveCount(
+		0
+	);
+});
+
 for (const [name, crafts] of [
 	['null', null],
 	['empty', []],

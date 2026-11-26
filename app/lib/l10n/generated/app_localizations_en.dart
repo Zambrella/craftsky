@@ -2585,6 +2585,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchTrendingHashtagsHeading => 'Trending hashtags';
 
   @override
+  String get searchNewMakersHeading => 'New makers';
+
+  @override
   String get searchProfilesHeading => 'Profiles';
 
   @override
