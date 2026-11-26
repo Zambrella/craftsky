@@ -1,5 +1,13 @@
 # AppView Changelog
 
+## 1.6.1 - 2026-11-26
+
+- fix(search): show recent avatars and limit history to ten
+- fix(appview): notify recipients added by post edits
+- docs(online-safety): consolidate launch readiness records
+- feat(moderation): preserve evidence from moderation cases
+- fix(appview): classify case evidence diagnostics as private
+
 ## 1.6.0 - 2026-11-25
 
 - feat(projects): expand craft-specific project details and filters
