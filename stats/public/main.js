@@ -16,6 +16,12 @@
     sewing: { label: 'Sewing', color: '#638363', icon: '/craft_icons/sewing.svg' },
     embroidery: { label: 'Embroidery', color: '#a98538', icon: '/craft_icons/embroidery.svg' },
     quilting: { label: 'Quilting', color: '#597f96', icon: '/craft_icons/quilting.svg' },
+    spinning: { label: 'Spinning', color: '#886e4f', icon: '/craft_icons/spinning.svg' },
+    dyeing: { label: 'Dyeing', color: '#557d86', icon: '/craft_icons/dyeing.svg' },
+    punchNeedle: { label: 'Punch Needle', color: '#a55c75', icon: '/craft_icons/punch-needle.svg' },
+    macrame: { label: 'Macramé', color: '#9a7650', icon: '/craft_icons/macrame.svg' },
+    weaving: { label: 'Weaving', color: '#777b4f', icon: '/craft_icons/weaving.svg' },
+    felting: { label: 'Felting', color: '#8071a1', icon: '/craft_icons/felting.svg' },
   };
   let request;
   const animations = new Set();
