@@ -13,9 +13,8 @@ gate, Flutter analysis and tests, and website consent tests. Run the applicable
 component checks below for the exact versions being released.
 
 The owner records the public-launch decision, released versions, and enabled
-features in the [launch approval record](../../online-safety/governance/launch-approval.md).
-Track outstanding safety and privacy work in the
-[gap register](../../online-safety/registers/compliance-gap-register.md).
+features in the launch approval record. Track outstanding safety and privacy
+work in the gap register. Both records are kept outside the repository.
 
 - Production images default to `IMAGE_SAFETY_SCANNER_MODE=manual`. The worker
   validates image format and permits serving; moderators review content through
