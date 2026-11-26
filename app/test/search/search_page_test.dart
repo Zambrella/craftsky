@@ -6,7 +6,11 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -21,6 +25,8 @@ import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/widgets/business_identity_icon.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
@@ -215,15 +221,145 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('SearchPage renders blank discovery content', (tester) async {
-    await tester.pumpWidget(_searchPageApp(home: const SearchPage()));
+  testWidgets('SearchPage shows trending hashtags in saved craft order', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _searchPageApp(
+        home: const SearchPage(),
+        crafts: ['knitting', ProjectOptionCatalogs.sewingCraftToken],
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Recent searches'), findsOneWidget);
     expect(find.text('linen dress'), findsOneWidget);
     expect(find.text('Trending hashtags'), findsOneWidget);
     expect(find.text('#MeMadeMay'), findsOneWidget);
-    expect(find.byType(CraftIcon), findsOneWidget);
+    expect(find.text('#sockkal'), findsOneWidget);
+    expect(find.text('#grannysquare'), findsNothing);
+    expect(
+      tester
+          .widgetList<CraftIcon>(find.byType(CraftIcon))
+          .map((icon) => icon.craft),
+      [
+        ProjectOptionCatalogs.knittingCraftToken,
+        ProjectOptionCatalogs.sewingCraftToken,
+      ],
+    );
+  });
+
+  testWidgets('SearchPage hides trending hashtags without preferred crafts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_searchPageApp(home: const SearchPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent searches'), findsOneWidget);
+    expect(find.text('Trending hashtags'), findsNothing);
+    expect(find.text('New makers'), findsNothing);
+    expect(find.byType(ActionChip), findsNothing);
+  });
+
+  testWidgets('SearchPage shows new makers and saves opened profiles', (
+    tester,
+  ) async {
+    final maker = ProfileAccountSummary(
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+      displayName: 'Alice Maker',
+      isCraftskyProfile: true,
+      crafts: ['sewing'],
+    );
+    final saved = <SaveRecentSearchRequest>[];
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
+        GoRoute(
+          path: '/profiles/:did',
+          builder: (_, state) => Text(state.pathParameters['did']!),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      _searchPageApp(
+        home: const SearchPage(),
+        router: router,
+        crafts: ['sewing'],
+        makers: [maker],
+        repository: FakeSearchRepository(
+          onListRecentSearches: () async => const RecentSearchPage(items: []),
+          onTopHashtags: ({craftTypes, limit}) async =>
+              const TopHashtagsResponse(
+                groups: [
+                  TopHashtagGroup(
+                    craftType: ProjectOptionCatalogs.sewingCraftToken,
+                    items: [TopHashtagItem(tag: 'MeMadeMay', count: 12)],
+                  ),
+                ],
+              ),
+          onSaveRecentSearch: (request) async {
+            saved.add(request);
+            return RecentSearchItem(
+              id: 'recent-maker',
+              type: request.type,
+              displayLabel: request.displayLabel,
+              payload: request.payload,
+              updatedAt: DateTime.utc(2026),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final heading = find.text('New makers');
+    expect(heading, findsOneWidget);
+    expect(
+      tester.getTopLeft(heading).dy,
+      greaterThan(tester.getTopLeft(find.text('Trending hashtags')).dy),
+    );
+    expect(find.text('Alice Maker'), findsOneWidget);
+    await tester.tap(find.text('Alice Maker'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('did:plc:alice'), findsOneWidget);
+    expect(saved.single.type, RecentSearchType.profile);
+    expect((saved.single.payload as ProfileRecentSearchPayload).did, maker.did);
+  });
+
+  testWidgets('SearchPage shows only the 10 newest recent searches', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _searchPageApp(
+        home: const SearchPage(),
+        repository: FakeSearchRepository(
+          onListRecentSearches: () async => RecentSearchPage(
+            items: [
+              for (var index = 12; index >= 1; index--)
+                RecentSearchItem(
+                  id: 'recent-$index',
+                  type: RecentSearchType.query,
+                  displayLabel: 'Search $index',
+                  payload: QueryRecentSearchPayload(q: 'Search $index'),
+                  updatedAt: DateTime.utc(2026, 1, index),
+                ),
+            ],
+          ),
+          onTopHashtags: ({craftTypes, limit}) async =>
+              const TopHashtagsResponse(groups: []),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search 12'), findsOneWidget);
+    expect(find.text('Search 3'), findsOneWidget);
+    expect(find.text('Search 2'), findsNothing);
+    expect(find.text('Search 1'), findsNothing);
   });
 
   testWidgets(
@@ -665,23 +801,11 @@ void main() {
       );
       addTearDown(router.dispose);
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            testMemberBrowsingOverride,
-            searchRepositoryProvider.overrideWithValue(repository),
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: ['en'],
-              ),
-            ),
-          ],
-          child: MaterialApp.router(
-            routerConfig: router,
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-          ),
+        _searchPageApp(
+          home: const SearchPage(),
+          router: router,
+          repository: repository,
+          crafts: ['sewing'],
         ),
       );
       await tester.pumpAndSettle();
@@ -727,10 +851,23 @@ Widget _searchPageApp({
   required Widget home,
   FakeSearchRepository? repository,
   GoRouter? router,
+  List<String> crafts = const [],
+  List<ProfileAccountSummary> makers = const [],
 }) {
   return ProviderScope(
     overrides: [
       testMemberBrowsingOverride,
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+      userProfileProvider(
+        testMemberBrowsingAudience.lease.session.account.did,
+        audience: testMemberBrowsingAudience,
+      ).overrideWith(() => _SearchProfile(crafts)),
+      // This override belongs to the test harness's root ProviderScope.
+      // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
+      recentMembersProvider(testMemberBrowsingAudience.lease).overrideWith(
+        (ref) async => makers,
+      ),
       // This override belongs to the test harness's root ProviderScope.
       // ignore: riverpod_lint/scoped_providers_should_specify_dependencies
       activeLanguagePreferencesProvider.overrideWith(
@@ -768,9 +905,27 @@ FakeSearchRepository _blankSearchRepository() {
           craftType: ProjectOptionCatalogs.sewingCraftToken,
           items: [TopHashtagItem(tag: 'MeMadeMay', count: 12)],
         ),
+        TopHashtagGroup(
+          craftType: ProjectOptionCatalogs.crochetCraftToken,
+          items: [TopHashtagItem(tag: 'grannysquare', count: 10)],
+        ),
+        TopHashtagGroup(
+          craftType: ProjectOptionCatalogs.knittingCraftToken,
+          items: [TopHashtagItem(tag: 'sockkal', count: 8)],
+        ),
       ],
     ),
   );
+}
+
+class _SearchProfile extends UserProfile {
+  new(this.crafts);
+
+  final List<String> crafts;
+
+  @override
+  Future<Profile> build(Did did, {BrowsingContext? audience}) async =>
+      Profile(did: did.value, handle: 'test.test', crafts: crafts);
 }
 
 Post _post(String rkey) => PostMapper.fromMap({

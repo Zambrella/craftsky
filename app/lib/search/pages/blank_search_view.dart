@@ -9,12 +9,17 @@ class _BlankSearchView {
     required ValueChanged<String> onOpenQuery,
     required ValueChanged<String> onOpenHashtag,
     required ValueChanged<Did> onOpenProfile,
+    required Future<void> Function(ProfileAccountSummary) beforeOpenMaker,
   }) {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final blankAsync = ref.watch(blankSearchProvider);
-    return switch (blankAsync) {
+    final audience = ref.watch(browsingContextProvider);
+    final makers = audience is MemberBrowsingContext
+        ? ref.watch(recentMembersProvider(audience.lease)).value
+        : null;
+    final discoverySlivers = switch (blankAsync) {
       AsyncValue(:final value?) => [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
@@ -49,6 +54,35 @@ class _BlankSearchView {
         ),
       ],
     };
+    return [
+      ...discoverySlivers,
+      if (makers != null && makers.isNotEmpty)
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            spacing.sp4,
+            0,
+            spacing.sp4,
+            spacing.sp5,
+          ),
+          sliver: SliverList.list(
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.searchNewMakersHeading,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              for (final maker in makers)
+                ProfileAccountListTile(
+                  account: maker,
+                  contentPadding: EdgeInsets.zero,
+                  beforeOpen: () => beforeOpenMaker(maker),
+                ),
+            ],
+          ),
+        ),
+    ];
   }
 }
 
@@ -76,7 +110,7 @@ class _RecentSearchSection extends ConsumerWidget {
           l10n.searchRecentHeading,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        for (final recent in data.recentSearches.items)
+        for (final recent in data.recentSearches.items.take(10))
           if (recent.payload case ProfileRecentSearchPayload(
             :final did,
             :final handle,
@@ -156,19 +190,30 @@ class _RecentSearchSection extends ConsumerWidget {
   }
 }
 
-class _TopHashtagSection extends StatelessWidget {
+class _TopHashtagSection extends ConsumerWidget {
   const new({required this.data, required this.onOpenHashtag});
 
   final BlankSearchData data;
   final ValueChanged<String> onOpenHashtag;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (data.topHashtags.groups.isEmpty) return const SizedBox.shrink();
+    final audience = ref.watch(browsingContextProvider);
+    if (audience is! MemberBrowsingContext) return const SizedBox.shrink();
+    final crafts = ref.watch(preferredCraftLinksProvider(audience.lease)).value;
+    final groupsByCraft = {
+      for (final group in data.topHashtags.groups) group.craftType: group,
+    };
+    final groups = [
+      for (final craft in crafts ?? const <ProjectOption>[])
+        ?groupsByCraft[craft.value],
+    ];
+    if (groups.isEmpty) return const SizedBox.shrink();
+
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    final groups = data.topHashtags.groups;
-    if (groups.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

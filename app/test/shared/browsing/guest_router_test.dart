@@ -232,6 +232,7 @@ void main() {
       expect(find.byType(SearchPage), findsOneWidget);
       expect(find.text('Recent searches'), findsNothing);
       expect(find.text('Top hashtags'), findsNothing);
+      expect(find.text('New makers'), findsNothing);
       await tester.enterText(find.byType(TextField).first, 'sewing');
       await tester.pump(const Duration(seconds: 1));
       expect(tester.takeException(), isNull);

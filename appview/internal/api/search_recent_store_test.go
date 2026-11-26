@@ -5,13 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 const recentSearchStoreDDL = `
@@ -54,7 +57,7 @@ func recentReq(t *testing.T, body string) api.SaveRecentSearchRequest {
 
 func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, recentSearchStoreDDL)
+	pool := testdb.WithSchema(t, recentSearchStoreDDL+profileStoreDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	store := api.NewSearchStore(pool, nil)
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
@@ -131,6 +134,52 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 			t.Fatalf("hard-deleted row %s still listed", deleteID)
 		}
 	}
+}
+
+func TestListRecentSearchesUsesCurrentProfileAvatar(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, recentSearchStoreDDL+profileStoreDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	store := api.NewSearchStore(pool, nil)
+	const viewer = "did:plc:alice"
+	const subject = "did:plc:bob"
+	const avatarBase = "https://cdn.bsky.app/img/avatar/plain/" + subject + "/"
+	req := recentReq(t, `{"type":"profile","displayLabel":"@bob.test","payload":{"did":"did:plc:bob","handle":"bob.test","avatar":"`+avatarBase+`old@jpeg"}}`)
+	saved, err := store.SaveRecentSearch(ctx, viewer, req, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedBskyProfile(t, pool, subject, "Bob", "new")
+
+	handler := api.ListRecentSearchesHandler(store, testlog.Discard())
+	assertAvatar := func(want string) {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "/v1/search/recent", nil)
+		request = request.WithContext(middleware.WithDID(request.Context(), viewer))
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("list status = %d, body = %s", recorder.Code, recorder.Body)
+		}
+		var response api.RecentSearchPageResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Items) != 1 || response.Items[0].ID != saved.ID {
+			t.Fatalf("list items = %+v, want saved search %s", response.Items, saved.ID)
+		}
+		payload := response.Items[0].Payload.(map[string]any)
+		avatar, present := payload["avatar"]
+		if want == "" && present || want != "" && avatar != want {
+			t.Fatalf("avatar = %v (present = %t), want %q", avatar, present, want)
+		}
+	}
+	assertAvatar(avatarBase + "new@jpeg")
+
+	if _, err := pool.Exec(ctx, "UPDATE bluesky_profiles SET avatar_cid = NULL, avatar_mime = NULL WHERE did = $1", subject); err != nil {
+		t.Fatal(err)
+	}
+	assertAvatar("")
 }
 
 func TestSearchStoreDeleteRecentSearchRejectsStaleOwnerGeneration(t *testing.T) {

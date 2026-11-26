@@ -11,7 +11,7 @@ test.beforeEach(async ({ context, page }) => {
 		route.fulfill({ json: { items: [] } })
 	);
 	await page.emulateMedia({ colorScheme: 'light' });
-	await page.route('https://status.craftsky.social/app.json', (r) =>
+	await page.route('**/api/service-status', (r) =>
 		r.fulfill({ json: { schemaVersion: 2, revision: 'healthy' } })
 	);
 	await context.addCookies([

@@ -2117,6 +2117,9 @@
   "searchTrendingHashtagsHeading": "Trending hashtags",
   "@searchTrendingHashtagsHeading": { "description": "Heading above craft-grouped trending hashtags on the blank search page." },
 
+  "searchNewMakersHeading": "New makers",
+  "@searchNewMakersHeading": { "description": "Heading above recently joined makers on the blank search page." },
+
   "searchProfilesHeading": "Profiles",
   "@searchProfilesHeading": { "description": "Heading for profile suggestions or profile results." },
 

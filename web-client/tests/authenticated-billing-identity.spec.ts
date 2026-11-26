@@ -27,7 +27,7 @@ const billingState = {
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([

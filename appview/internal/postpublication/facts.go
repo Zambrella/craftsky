@@ -1,4 +1,4 @@
-// Package postpublication retains bounded original recipient facts, never post bodies.
+// Package postpublication retains recipient facts without retaining post bodies.
 package postpublication
 
 import (
@@ -166,12 +166,10 @@ func Persist(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, owner syntax.DID,
 	if err != nil || result.RowsAffected() == 0 {
 		return err
 	}
-	// Unknown snapshots do not establish recipients; proven creation does.
-	if _, err := tx.Exec(ctx, `DELETE FROM post_publication_mentions WHERE post_uri=$1`, uri); err != nil {
-		return err
-	}
+	// Original proof supersedes a pending edit mention for the same recipient.
 	for _, did := range facts.Mentions {
-		if _, err := tx.Exec(ctx, `INSERT INTO post_publication_mentions(post_uri,recipient_did) VALUES($1,$2) ON CONFLICT DO NOTHING`, uri, did); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO post_publication_mentions(post_uri,recipient_did) VALUES($1,$2)
+			ON CONFLICT(post_uri,recipient_did) DO UPDATE SET edit_activity_at=NULL`, uri, did); err != nil {
 			return err
 		}
 	}
@@ -210,7 +208,8 @@ func MentionDIDs(rec craftskylex.FeedPost) []string {
 }
 
 func OriginalMentions(ctx context.Context, tx Reader, uri syntax.ATURI) ([]string, error) {
-	rows, err := tx.Query(ctx, `SELECT recipient_did FROM post_publication_mentions m JOIN post_publication_state s ON s.uri=m.post_uri WHERE m.post_uri=$1 AND s.origin_status='established'`, uri)
+	rows, err := tx.Query(ctx, `SELECT recipient_did FROM post_publication_mentions
+		WHERE post_uri=$1 AND edit_activity_at IS NULL`, uri)
 	if err != nil {
 		return nil, err
 	}

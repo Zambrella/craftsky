@@ -21,7 +21,7 @@ const grouped = (items: ReturnType<typeof maker>[] = [], hasMore = false) => ({
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
@@ -40,6 +40,45 @@ test.beforeEach(async ({ context, page }) => {
 			sameSite: 'Lax'
 		}
 	]);
+});
+
+test('blank search shows trending hashtags in saved craft order', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/search/hashtags/top*', (route) =>
+		route.fulfill({
+			json: {
+				groups: [
+					{
+						craftType: 'social.craftsky.feed.defs#sewing',
+						items: [{ tag: 'MeMadeMay', count: 12 }]
+					},
+					{
+						craftType: 'social.craftsky.feed.defs#crochet',
+						items: [{ tag: 'grannysquare', count: 10 }]
+					},
+					{
+						craftType: 'social.craftsky.feed.defs#knitting',
+						items: [{ tag: 'sockkal', count: 8 }]
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/search');
+
+	await expect(
+		page.getByRole('heading', { name: 'Trending hashtags' })
+	).toBeVisible();
+	await expect(page.getByRole('heading', { level: 3 })).toHaveText([
+		'Knitting',
+		'Sewing'
+	]);
+	await expect(page.getByRole('link', { name: '#sockkal' })).toBeVisible();
+	await expect(page.getByRole('link', { name: '#MeMadeMay' })).toBeVisible();
+	await expect(page.getByRole('link', { name: '#grannysquare' })).toHaveCount(
+		0
+	);
 });
 
 for (const [name, crafts] of [
@@ -75,6 +114,43 @@ for (const [name, crafts] of [
 		expect(errors).toEqual([]);
 	});
 }
+
+test('search discovery shows only the 10 newest recent searches', async ({
+	page
+}) => {
+	const items = Array.from({ length: 12 }, (_, index) => {
+		const order = 12 - index;
+		return {
+			id: 'recent-' + order,
+			type: 'query',
+			displayLabel: 'Search ' + order,
+			payload: { q: 'search ' + order },
+			updatedAt: new Date(Date.UTC(2026, 0, order)).toISOString()
+		};
+	});
+	await page.route('**/api/appview/v1/search/recent', (route) =>
+		route.fulfill({ json: { items } })
+	);
+	await page.route('**/api/appview/v1/search/recent/recent-12', (route) =>
+		route.fulfill({ status: 204 })
+	);
+	await page.goto('/search');
+
+	const remove = page.getByRole('button', { name: 'Remove recent search' });
+	await expect(remove).toHaveCount(10);
+	await expect(
+		page.getByRole('link', { name: 'Search 3', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Search 2', exact: true })
+	).toHaveCount(0);
+
+	await remove.first().click();
+	await expect(remove).toHaveCount(10);
+	await expect(
+		page.getByRole('link', { name: 'Search 2', exact: true })
+	).toBeVisible();
+});
 
 test('autocomplete matches native grouping, counts, result limits and discovery visibility', async ({
 	page

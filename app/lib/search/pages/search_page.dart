@@ -5,10 +5,12 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/safety/search_support_notice.dart';
@@ -27,6 +29,7 @@ import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
@@ -170,7 +173,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     SearchRoute(q: query, tab: tab).go(context);
   }
 
-  Future<void> _saveProfileRecent(ProfileSearchResult profile) async {
+  Future<void> _saveProfileRecent(ProfileAccountSummary profile) async {
     if (ref.read(isGuestBrowsingProvider)) return;
     final handle = ProfileHandle(profile.handle);
     await ref
@@ -302,6 +305,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               onOpenProfile: (did) => unawaited(
                 UserProfileRoute(did: did).push<void>(context),
               ),
+              beforeOpenMaker: _saveProfileRecent,
             ),
           };
 

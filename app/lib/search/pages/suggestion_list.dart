@@ -8,7 +8,7 @@ class _SuggestionList {
     required WidgetRef ref,
     required String query,
     required bool isWaitingForDebounce,
-    required Future<void> Function(ProfileSearchResult) beforeOpenProfile,
+    required Future<void> Function(ProfileAccountSummary) beforeOpenProfile,
     required ValueChanged<String> onOpenHashtag,
     required VoidCallback onViewAllProfiles,
     required VoidCallback onViewAllHashtags,
@@ -77,7 +77,7 @@ class _SuggestionProfileSection extends StatelessWidget {
   });
 
   final SearchSuggestions suggestions;
-  final Future<void> Function(ProfileSearchResult) beforeOpenProfile;
+  final Future<void> Function(ProfileAccountSummary) beforeOpenProfile;
   final VoidCallback onViewAll;
 
   @override
@@ -91,7 +91,7 @@ class _SuggestionProfileSection extends StatelessWidget {
         for (final profile in suggestions.profiles.items)
           _ProfileResultTile(
             profile: profile,
-            beforeOpen: () => beforeOpenProfile(profile),
+            beforeOpen: () => beforeOpenProfile(profile.summary),
           ),
       ],
     );
