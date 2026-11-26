@@ -414,6 +414,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final isResponse =
         widget.replyTarget != null ||
         widget.publishedEdit?.seed.post.reply != null;
+    final hasMediaInputs = !isResponse || widget.publishedEdit != null;
     final isComment = widget.replyTarget?.reply == null && isResponse;
     final isQuote =
         widget.quoteTarget != null ||
@@ -866,7 +867,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             ),
                           ),
                         ],
-                        if (!isResponse || widget.publishedEdit != null) ...[
+                        if (hasMediaInputs) ...[
                           if (_isLoadingScheduledMedia)
                             const Center(child: CircularProgressIndicator())
                           else if (_scheduledMediaLoadFailed)
@@ -980,7 +981,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                     child: Padding(
                       padding: EdgeInsets.only(bottom: spacing.sp4),
                       child: ComposerBottomAction(
-                        keyboardVisible: keyboardVisible,
+                        keyboardVisible: keyboardVisible && hasMediaInputs,
                         doneKey: const Key('post-composer-done'),
                         actionKey: keys.feed.submit,
                         label: submitLabel,
