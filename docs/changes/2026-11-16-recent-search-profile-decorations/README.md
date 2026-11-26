@@ -14,8 +14,13 @@ Both clients now preserve the read-only customisation and account type for
 rendering. Web recent/autocomplete rows apply the shared profile theme. Flutter
 history writes still serialize only the original display snapshot, so decorated
 fields do not become stored claims or change history deduplication. Existing
-history benefits when loaded again; no resave, migration, API or Lexicon change
-is needed. Names/handles/avatars remain display snapshots; navigation uses DID.
+history benefits when loaded again. Names and handles remain display snapshots,
+and navigation uses DID.
+
+When either client loads history, AppView resolves the current visible avatar
+from the indexed profile by DID. Removing an avatar clears the saved URL in the
+response. Both clients display the first 10 entries from the newest-first
+history list.
 
 ## Validation
 

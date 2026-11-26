@@ -226,6 +226,38 @@ void main() {
     expect(find.byType(CraftIcon), findsOneWidget);
   });
 
+  testWidgets('SearchPage shows only the 10 newest recent searches', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _searchPageApp(
+        home: const SearchPage(),
+        repository: FakeSearchRepository(
+          onListRecentSearches: () async => RecentSearchPage(
+            items: [
+              for (var index = 12; index >= 1; index--)
+                RecentSearchItem(
+                  id: 'recent-$index',
+                  type: RecentSearchType.query,
+                  displayLabel: 'Search $index',
+                  payload: QueryRecentSearchPayload(q: 'Search $index'),
+                  updatedAt: DateTime.utc(2026, 1, index),
+                ),
+            ],
+          ),
+          onTopHashtags: ({craftTypes, limit}) async =>
+              const TopHashtagsResponse(groups: []),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search 12'), findsOneWidget);
+    expect(find.text('Search 3'), findsOneWidget);
+    expect(find.text('Search 2'), findsNothing);
+    expect(find.text('Search 1'), findsNothing);
+  });
+
   testWidgets(
     'recent profile rows retain business identity and selected colour',
     (tester) async {
