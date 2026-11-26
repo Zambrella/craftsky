@@ -140,7 +140,7 @@ func (store *failingEvidenceStore) Delete(context.Context, safetyincident.Object
 }
 
 const retentionPreStateDDL = `
-	CREATE TABLE safety_incidents(id UUID PRIMARY KEY);
+	CREATE TABLE safety_incidents(id UUID PRIMARY KEY, incident_kind TEXT NOT NULL DEFAULT 'imageMatch');
 	CREATE TABLE safety_incident_subjects(
 		incident_id UUID NOT NULL REFERENCES safety_incidents(id) ON DELETE CASCADE,
 		owner_did TEXT

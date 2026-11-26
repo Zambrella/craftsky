@@ -19,7 +19,7 @@ import (
 
 func TestAccountDeletionPreservesOnlyActiveInScopeHeldEvidence(t *testing.T) {
 	pool := testdb.WithSchema(t, `
-		CREATE TABLE safety_incidents(id UUID PRIMARY KEY);
+		CREATE TABLE safety_incidents(id UUID PRIMARY KEY, incident_kind TEXT NOT NULL DEFAULT 'imageMatch');
 		CREATE TABLE safety_incident_subjects(
 			incident_id UUID NOT NULL REFERENCES safety_incidents(id) ON DELETE CASCADE,
 			owner_did TEXT,
@@ -105,7 +105,7 @@ func TestAccountDeletionPreservesOnlyActiveInScopeHeldEvidence(t *testing.T) {
 
 func TestAccountDeletionSerializesEvidenceDeletionAgainstHoldCreation(t *testing.T) {
 	pool := testdb.WithSchema(t, `
-		CREATE TABLE safety_incidents(id UUID PRIMARY KEY);
+		CREATE TABLE safety_incidents(id UUID PRIMARY KEY, incident_kind TEXT NOT NULL DEFAULT 'imageMatch');
 		CREATE TABLE safety_incident_subjects(
 			incident_id UUID NOT NULL REFERENCES safety_incidents(id) ON DELETE CASCADE,
 			owner_did TEXT

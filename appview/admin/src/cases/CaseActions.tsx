@@ -1,11 +1,27 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { request } from '../api'
 import { base, effectLabels, label, reasons, type CaseDetail, type Effect, type Review } from './model'
 import { FollowUp } from './FollowUp'
 import { EffectChoices } from './EffectChoices'
 import { CommandPanel } from '../workspaces/CommandPanel'
+import { PreserveForm, type EvidenceCapabilities } from '../workspaces/PreserveForm'
 
-export function CaseActions({detail, ...props}: {detail:CaseDetail;disabled:boolean;refresh:()=>Promise<void>;onSessionExpired:()=>void;onLocked:(v:boolean)=>void}) {
-  return <CommandPanel {...props} basePath={`${base}/${detail.caseReference}`} reference={detail.caseReference} revision={detail.revision} title={detail.state==='open'?'Record a decision':'Review and follow up'}>{(review,epoch)=>detail.state==='open'?<DecisionForm key={epoch} review={review}/>:<FollowUp key={`${detail.revision}:${epoch}`} detail={detail} review={review}/>}</CommandPanel>
+export function CaseActions({detail, canPreserve, ...props}: {detail:CaseDetail;canPreserve:boolean;disabled:boolean;refresh:()=>Promise<void>;onSessionExpired:()=>void;onLocked:(v:boolean)=>void}) {
+  const [capabilities, setCapabilities] = useState<EvidenceCapabilities | null>(null)
+  const preserveFromCase = canPreserve && detail.origin !== 'systemDetected' && !!detail.subjectUri && !!detail.subjectCidSnapshot
+  useEffect(() => {
+    if (!preserveFromCase) return
+    const controller = new AbortController()
+    void request<EvidenceCapabilities>('/v1/admin/safety/evidence/capabilities', {signal: controller.signal})
+      .then(setCapabilities).catch(() => {})
+    return () => controller.abort()
+  }, [preserveFromCase])
+  return <CommandPanel {...props} basePath={`${base}/${detail.caseReference}`} reference={detail.caseReference} revision={detail.revision} title={detail.state==='open'?'Record a decision':'Review and follow up'}>{(review,epoch) => <>
+    {preserveFromCase && <PreserveForm key={`evidence-${epoch}`} capabilities={capabilities} onReading={props.onLocked}
+      review={command => review({...command, expectedRevision: null})}/>}
+    {canPreserve && detail.incidentReference && <p><a href={`#/incidents/${encodeURIComponent(detail.incidentReference)}`}>Open linked safety incident</a></p>}
+    {detail.state==='open' ? <DecisionForm key={epoch} review={review}/> : <FollowUp key={`${detail.revision}:${epoch}`} detail={detail} review={review}/>}
+  </>}</CommandPanel>
 }
 
 function DecisionForm({ review }: { review: (r: Review) => void }) {
