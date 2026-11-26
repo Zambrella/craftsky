@@ -1,5 +1,13 @@
 # App Changelog
 
+## 1.15.1+24 - 2026-11-26
+
+- fix(search): show recent avatars and limit history to ten
+- feat(search): order trending tags by saved craft preference
+- docs(online-safety): consolidate launch readiness records
+- fix(composer): keep reply submit action visible
+- fix(composer): keep reply context visible while typing
+
 ## 1.15.0+23 - 2026-11-25
 
 - feat(projects): expand craft-specific project details and filters
