@@ -13,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/tap"
 )
@@ -42,10 +43,8 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
-	if !original.Known || original.CreatedAt == nil {
-		return tap.Applied(), nil
-	}
-	// Notification reasons belong to original publication, not edited content.
+	currentRecord := rec
+	// Reply and quote reasons retain their original publication references.
 	rec.Reply = nil
 	if original.ParentURI != "" {
 		rec.Reply = &craftskylex.FeedPost_ReplyRef{Parent: &comatproto.RepoStrongRef{Uri: original.ParentURI, Cid: original.ParentCID}, Root: &comatproto.RepoStrongRef{Uri: original.RootURI, Cid: original.RootCID}}
@@ -119,9 +118,18 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			missingMember = syntax.DID(did)
 		}
 	}
-	createdAt := *original.CreatedAt
-	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt, pendingRecipients); err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
+	event := eventFromSource(source)
+	if original.Known && original.CreatedAt != nil {
+		if err := c.activatePostNotifications(ctx, tx, event, rec, mentions, *original.CreatedAt, pendingRecipients); err != nil {
+			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
+		}
+	}
+	editMissingMember, err := c.projectEditMentions(ctx, tx, event, currentRecord, pendingRecipients)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post edit mentions: %w", err)
+	}
+	if missingMember == "" {
+		missingMember = editMissingMember
 	}
 	// Available recipients are notified even if another recipient is not yet
 	// a member. Replays use the notification service's duplicate protection.
@@ -132,4 +140,48 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 		return tap.Blocked(tap.ReasonMissingMember, tap.Dependency{Kind: "member_did", Key: missingMember.String()}), nil
 	}
 	return tap.Applied(), nil
+}
+
+func (c *CraftskyPost) projectEditMentions(ctx context.Context, tx pgx.Tx, event tap.Event, rec craftskylex.FeedPost, pendingRecipients map[syntax.DID]bool) (syntax.DID, error) {
+	mentions, err := postpublication.PendingEditMentions(ctx, tx, event.URI)
+	if err != nil || len(mentions) == 0 {
+		return "", err
+	}
+	recipients := make([]syntax.DID, 0, len(mentions))
+	for _, mention := range mentions {
+		recipients = append(recipients, mention.Recipient)
+	}
+	// A coalesced edit may have removed a recipient from the current record,
+	// so the dispatcher's locks for current mentions do not cover every alert.
+	states, err := ownerlifecycle.LockOwnerStatesTx(ctx, tx, recipients)
+	if err != nil {
+		return "", err
+	}
+	var missingMember syntax.DID
+	for _, mention := range mentions {
+		recipient := mention.Recipient
+		if pendingRecipients[recipient] {
+			continue
+		}
+		if states[recipient].State != ownerlifecycle.StateTerminal {
+			var member bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM craftsky_profiles WHERE did=$1)`, recipient).Scan(&member); err != nil {
+				return "", err
+			}
+			if !member {
+				if missingMember == "" {
+					missingMember = recipient
+				}
+				continue
+			}
+			activation := postNotificationActivation(event, rec, recipient, notifications.Mention, mention.ActivityAt)
+			if err := notifications.ActivatePublication(ctx, c.lifecycle, tx, activation); err != nil {
+				return "", err
+			}
+		}
+		if err := postpublication.FinishEditMention(ctx, tx, event.URI, recipient); err != nil {
+			return "", err
+		}
+	}
+	return missingMember, nil
 }

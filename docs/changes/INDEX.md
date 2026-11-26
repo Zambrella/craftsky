@@ -272,7 +272,7 @@ These are package-specific historical limits and questions. Check later evidence
 | Change | Implementation | Archive | Other topics | Summary |
 | --- | --- | --- | --- | --- |
 | [Post interaction detail lists](catalog/2026-09-06-post-interaction-details.md) | implemented | archived | interactions, pagination | Added bounded interaction-detail lists while restricting their summaries and navigation to thread-detail contexts. |
-| [Published post editing and version reconciliation](catalog/2026-10-23-edit-posts.md) | implemented | archived | editing, concurrency | Added owner editing of published posts with frozen uncertain writes, record-version ordering and safe typed prefills. |
+| [Published post editing and version reconciliation](catalog/2026-10-23-edit-posts.md) | implemented | archived | editing, concurrency | Added owner editing of published posts with frozen uncertain writes, record-version ordering and safe typed prefills. Live edits now notify newly mentioned recipients once per post. |
 
 ## profiles
 

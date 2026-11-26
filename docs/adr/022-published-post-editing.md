@@ -37,12 +37,17 @@ operation key; an edit must not recreate a deleted record or overwrite a newer
 version. Existing OAuth scopes already authorize the collection; no broader
 credential handoff is introduced.
 
-Edits do not generate social alerts. Preserve bounded original publication
-recipients before coalescing; never add edit-only recipients or replay original
-notifications. Original pending recipients may receive a notification even if
-an edit removes their mention. Do not recall/retract original notifications
-solely due to edits. Existing deletion, safety and eligibility gates remain.
-The maintainer approved this relaxed policy on 2026-10-27.
+Preserve original publication recipients before coalescing. A live edit can
+notify a newly mentioned recipient when AppView can compare it with a previous
+authoritative version. Record the addition before coalescing and use its
+observation time for the alert. A backfill or first-seen snapshot alone cannot
+establish an addition.
+
+Each recipient gets at most one mention, reply, or quote alert per post URI.
+Repeated updates and removals followed by re-additions leave delivered alerts
+and their read state intact. Pending recipients may still receive an alert if a
+later edit removes their mention. Reply and quote reasons remain tied to the
+original publication. Existing deletion, safety and eligibility gates apply.
 
 ## Alternatives and consequences
 

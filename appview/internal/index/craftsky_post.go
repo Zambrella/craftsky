@@ -383,28 +383,33 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 		if !recipientIsMember {
 			continue
 		}
-		if err := notifications.ActivatePublication(ctx, c.lifecycle, tx, notifications.Activation{
-			RecipientDID: recipient,
-			ActorDID:     ev.DID,
-			Category:     category,
-			SubjectKey:   ev.URI.String(),
-			SourceURI:    ev.URI,
-			SourceCID:    ev.CID,
-			SourceRkey:   ev.Rkey,
-			SubjectURI:   postNotificationSubjectURI(category, ev, rec),
-			SubjectCID:   postNotificationSubjectCID(category, ev, rec),
-			ParentURI:    postReplyParentURI(rec),
-			ParentCID:    postReplyParentCID(rec),
-			RootURI:      postReplyRootURI(rec),
-			RootCID:      postReplyRootCID(rec),
-			QuotedURI:    postQuotedURI(rec),
-			QuotedCID:    postQuotedCID(rec),
-			ActivityAt:   createdAt,
-		}); err != nil {
+		activation := postNotificationActivation(ev, rec, recipient, category, createdAt)
+		if err := notifications.ActivatePublication(ctx, c.lifecycle, tx, activation); err != nil {
 			return fmt.Errorf("activate %s notification: %w", category, err)
 		}
 	}
 	return nil
+}
+
+func postNotificationActivation(ev tap.Event, rec craftskylex.FeedPost, recipient syntax.DID, category notifications.Category, activityAt time.Time) notifications.Activation {
+	return notifications.Activation{
+		RecipientDID: recipient,
+		ActorDID:     ev.DID,
+		Category:     category,
+		SubjectKey:   ev.URI.String(),
+		SourceURI:    ev.URI,
+		SourceCID:    ev.CID,
+		SourceRkey:   ev.Rkey,
+		SubjectURI:   postNotificationSubjectURI(category, ev, rec),
+		SubjectCID:   postNotificationSubjectCID(category, ev, rec),
+		ParentURI:    postReplyParentURI(rec),
+		ParentCID:    postReplyParentCID(rec),
+		RootURI:      postReplyRootURI(rec),
+		RootCID:      postReplyRootCID(rec),
+		QuotedURI:    postQuotedURI(rec),
+		QuotedCID:    postQuotedCID(rec),
+		ActivityAt:   activityAt,
+	}
 }
 
 func postReplyParentURI(rec craftskylex.FeedPost) syntax.ATURI {
