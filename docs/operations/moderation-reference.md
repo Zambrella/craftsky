@@ -468,12 +468,11 @@ Canonical internal references:
 - [Operator runbook](moderation-operators.md), including permissions, preview
   boundaries, restricted evidence, consequences, alerts and content boundaries.
 - [Incident guide](../../online-safety/operations/illegal-content-response.md).
-- [Mailbox exercise evidence](../../online-safety/governance/launch-approval.md#external-reporting-mailbox).
-- [Intimate-image verification evidence](../../online-safety/governance/launch-approval.md#intimate-image-response-target).
 - [Restricted evidence storage](restricted-evidence-storage.md).
 - [Working Reporting, Complaints and Appeals Policy](../../online-safety/policies/reporting-complaints-and-appeals.md).
 - [Working Community Guidelines](../../online-safety/policies/community-guidelines.md).
-- [Launch approval and recorded decisions](../../online-safety/governance/launch-approval.md).
+- The launch approval record is kept outside the repository and includes the
+  recorded decisions, mailbox exercise and intimate-image verification evidence.
 
 Source checks: [case decisions](../../appview/admin/src/cases/CaseActions.tsx),
 [consequence help](../../appview/admin/src/cases/ConsequenceHelp.tsx),

@@ -203,6 +203,5 @@ or retention. Leave external submission and phone contact for real incidents.
 The manual portal guide (pp. 6 and 52) describes Priority 1 outage handling.
 The standalone contingency form (p. 1) and Swagger guide (p. 11) also cover
 Priority 2. Confirm the manual Priority 2 and out-of-hours instructions.
-Dated exercise results and open assurance items are in the
-[launch approval record](../governance/launch-approval.md) and
-[gap register](../registers/compliance-gap-register.md).
+Dated exercise results and open assurance items are in the launch approval
+record and gap register kept outside the repository.
