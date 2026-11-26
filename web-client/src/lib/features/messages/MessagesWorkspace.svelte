@@ -1901,7 +1901,7 @@
 	}
 	button:focus-visible,
 	input:focus-visible,
-	textarea:focus-visible {
+	textarea:focus-visible:where(:not(#chat-compose)) {
 		outline: 3px solid var(--primary);
 		outline-offset: 3px;
 	}
