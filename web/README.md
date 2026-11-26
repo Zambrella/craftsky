@@ -161,10 +161,8 @@ URL and verified origins.
 The checked-in policy HTML is generated from `online-safety/policies/` via
 `just policy-artifact`. Generate and review those files before deploying policy
 changes. Deployment copies their existing content without approving drafts or
-changing their effective dates. `web/policy-publication-manifest.json` continues
-to track approval independently. Before full public launch, run
-`just online-safety-readiness` and complete the approvals/evidence in the gap
-register. Open readiness gaps do not prevent beta website publication.
+changing their effective dates. `web/policy-publication-manifest.json` records
+the policy versions, approval metadata, and source and artifact hashes.
 
 ### Rollback
 

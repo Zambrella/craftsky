@@ -75,9 +75,9 @@ illegal-content incident occurred.
 | `appview/internal/moderation/taxonomy.go` | Child exploitation, grooming, abuse material, intimate-image abuse, terrorism, immediate danger, threats, self-harm, stalking, doxxing, evasion and fraud allegations have named routes. Allegations remain separate from legal judgments. | Verify client presentation and production routing. Other offence areas still need an explicit handling mapping; a dedicated UI category for every offence is not presumed necessary. |
 | `appview/internal/moderation/policy.go` and `policy_test.go` | Child-safety, sexual-violation, threat/violence and stalking/privacy decision reasons exist. Named reasons other than `other` can receive strikes; severe suspension uses an explicit allowlist and rationale. | Fraud and self-harm are outside the severe-suspension allowlist; assess whether the available response is sufficient in concrete serious cases. Do not label all serious sanctions absent. |
 | `appview/internal/moderation/system_detected.go` and `system_detected_integration_test.go` | A human-confirmed safety incident can create a system-detected case without a user report and use existing enforcement/appeals. | This is not a generic ability to create a case from any observation; verify the actual operator/incident path and detection coverage. Tests were inspected, not rerun for this document update. |
-| `online-safety/operations/reporting-mailbox-readiness.md` | Owner reports external receipt/reply and routine intake, linked case, acknowledgement and no-action flow passed. Manual five-business-day acknowledgement procedure approved. | Specialized/urgent variants, deadline exercises and deployed shared-URL fix remain outstanding. |
+| [Mailbox exercise](../governance/launch-approval.md#external-reporting-mailbox) | Owner reports external receipt/reply and routine intake, linked case, acknowledgement and no-action flow passed. Manual five-business-day acknowledgement procedure approved. | Specialized/urgent variants, deadline exercises and deployed shared-URL fix remain outstanding. |
 | `online-safety/operations/illegal-content-response.md` | Emergency and disclosure procedures approved; owner reports credible-threat and refused unverified-authority console exercises passed. | Training, genuine agency contact, secure transfer and unavailability handling are not established by synthetic console tests. |
-| `online-safety/operations/intimate-image-readiness.md` | Specialist workflow exists; owner approved internal 24-hour target from original receipt; local linked-receipt regression verified. | Live configuration, visibility action, matching-content process and benign exercise remain pending. |
+| [Intimate-image evidence](../governance/launch-approval.md#intimate-image-response-target) | Specialist workflow exists; owner approved internal 24-hour target from original receipt; local linked-receipt regression verified. | Live configuration, visibility action, matching-content process and benign exercise remain pending. |
 | `docs/operations/restricted-evidence-storage.md` | Dedicated Frankfurt S3 bucket, protections and bucket-only IAM policy created and inspected. Hold-aware cleanup exists in source. | Access key, AppView connection, hold/deletion exercise and retention approval deferred until after branch merge. |
 | `docs/changes/2026-11-09-urgent-safety-email-alerts/validation.md` | Durable, privacy-minimized Brevo alerts implemented and locally tested. | Production configuration, delivery and phone notification unverified. No backup moderator or guaranteed overnight cover. |
 | `appview/internal/chat/`, `online-safety/assessments/childrens-risk-assessment.md` | Launch DMs use Bluesky; provider reports do not enter CraftSky moderation or Brevo alerts. Owner rejected a duplicate local DM escalation route. | Assess the provider boundary and contact controls without treating outsourcing as removal of risk or silently changing the approved reporting destination. |
@@ -117,10 +117,8 @@ Douglas Todd confirmed on 9 November 2026 that video uploads are enabled in the
 intended launch release. Assess uploaded video, playback, reposting and video
 links alongside images and text. DMs remain included as already approved.
 This is a scope decision, not proof of live upload availability, video safety
-review or scanner coverage. The publication manifest's historical
-`videoProductionDisabled` control conflicts with this scope and must be
-reconciled with an evidenced video-enabled release path before final approval;
-do not satisfy it by falsely recording that video is disabled.
+review or scanner coverage. Verify those safeguards against the
+video-enabled release.
 
 ### Agreed Risk Rating: Grooming
 
@@ -298,7 +296,7 @@ service-specific judgment, subject to final calibration and live control review.
 Ofcom's June 2026 Risk Profiles identify media sharing and reposting as relevant
 factors. The specific statutory qualifying-report/deadline duties and Code
 measure applicability require separate review; the internal 24-hour target does
-not replace them. See `online-safety/operations/intimate-image-readiness.md` for
+not replace them. See [Intimate-image evidence](../governance/launch-approval.md#intimate-image-response-target) for
 the outstanding evidence plan. No live action or new policy approval follows
 from this proposed rating.
 

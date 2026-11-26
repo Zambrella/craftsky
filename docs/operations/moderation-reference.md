@@ -258,9 +258,10 @@ be handled as soon as reasonably practicable and no later than seven days under
 the recorded procedure. Do not dump unrelated account data or credentials into a
 report. Do not treat a mailbox attachment as an approved evidence store.
 
-**Current readiness:** NCA registration is recorded as submitted, awaiting
-approval; portal readiness and restricted evidence connection are not verified.
-This branch is a procedure reference, not a claim those prerequisites work.
+**Current readiness:** Douglas confirmed NCA portal access on 26 November 2026.
+Use the [incident guide](../../online-safety/operations/illegal-content-response.md#child-sexual-exploitation-or-abuse)
+for the manual reporting and outage instructions. Restricted evidence
+connection remains to verify.
 Bluesky-only DM reporting remains unchanged; a concern learned through messaging
 may still need emergency/legal escalation, and unresolved provider/duty
 boundaries must not be dismissed simply because a provider report was sent.
@@ -466,9 +467,9 @@ Canonical internal references:
 
 - [Operator runbook](moderation-operators.md), including permissions, preview
   boundaries, restricted evidence, consequences, alerts and content boundaries.
-- [Restricted response runbook](../../online-safety/operations/illegal-content-response.md).
-- [Mailbox readiness and manual intake](../../online-safety/operations/reporting-mailbox-readiness.md).
-- [Intimate-image readiness](../../online-safety/operations/intimate-image-readiness.md).
+- [Incident guide](../../online-safety/operations/illegal-content-response.md).
+- [Mailbox exercise evidence](../../online-safety/governance/launch-approval.md#external-reporting-mailbox).
+- [Intimate-image verification evidence](../../online-safety/governance/launch-approval.md#intimate-image-response-target).
 - [Restricted evidence storage](restricted-evidence-storage.md).
 - [Working Reporting, Complaints and Appeals Policy](../../online-safety/policies/reporting-complaints-and-appeals.md).
 - [Working Community Guidelines](../../online-safety/policies/community-guidelines.md).

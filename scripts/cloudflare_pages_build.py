@@ -77,7 +77,6 @@ def build_site(web: Path, commit: str, dirty: bool) -> Path:
 def main() -> int:
     output = build_site(ROOT / "web", git("rev-parse", "HEAD"), bool(git("status", "--porcelain")))
     print(f"Built public website in {output}")
-    print("Beta publication does not approve policy drafts; run just online-safety-readiness before full launch.")
     return 0
 
 

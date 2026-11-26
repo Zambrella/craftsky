@@ -7,10 +7,15 @@ version ID and use manual dashboard promotion.
 
 ## Private beta and full public launch
 
-Private beta releases use the normal build, test, signing, tag, and deployment
-workflow. Open online-safety gaps do not block beta builds, website publication,
-backend startup, or operational health. Invitation and distribution restrictions
-are managed by the owner; there is no new DID allowlist in this release.
+Use the normal build, test, signing, tag, and deployment workflow for both
+private beta and public releases. `just public-release-check` runs the AppView
+gate, Flutter analysis and tests, and website consent tests. Run the applicable
+component checks below for the exact versions being released.
+
+The owner records the public-launch decision, released versions, and enabled
+features in the [launch approval record](../../online-safety/governance/launch-approval.md).
+Track outstanding safety and privacy work in the
+[gap register](../../online-safety/registers/compliance-gap-register.md).
 
 - Production images default to `IMAGE_SAFETY_SCANNER_MODE=manual`. The worker
   validates image format and permits serving; moderators review content through
@@ -23,16 +28,9 @@ are managed by the owner; there is no new DID allowlist in this release.
   Without it, evidence preservation/access and its retention worker are
   unavailable. Reports, moderation, workflow metadata, holds, and account deletion
   remain available. Existing evidence cannot be deleted without its object store.
-- `just public-release-check` runs quality checks without the gap-register gate.
-  `just online-safety-readiness` remains an explicit owner-run full-launch check.
-  The gap register and policy manifest remain accurate; beta publication does not
-  make draft policies approved or close any gaps.
-
-Before full public launch, complete that readiness check, configure the production
-scanner and evidence store, and record the required approvals and deployment
-verification. Switching to a content scanner requires scanning existing media
-under its own scanner/policy/corpus key; manual-mode results are not scanner
-approval evidence.
+- Switching to a content scanner requires scanning existing media under its own
+  scanner, policy, and corpus key. Record scanner verification against the
+  actual production configuration.
 
 ## Public website deployments
 

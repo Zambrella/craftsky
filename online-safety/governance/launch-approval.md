@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | Accountable owner | Douglas Todd, Founder |
-| Last updated | 9 November 2026 |
-| Status | Owner-led review requested; final release approval pending |
+| Last updated | 26 November 2026 |
+| Status | Owner stated readiness to go live; release details pending |
 | Publication | Internal |
 
 ## Review Route
@@ -29,19 +29,15 @@ through a responsible senior manager and requires evidence-based, up-to-date
 risk assessments and records. Owner approval must cover the completed assessment
 and controls rather than stand in for them.
 
-## Final Decision Still Required
+## Public launch decision
 
-Return to GOV-01 after the individual launch controls are reconciled. Record:
+On 26 November 2026 Douglas Todd stated that he was ready to go live and
+satisfied with the current state, and asked to simplify the readiness code.
+The standalone checker has been retired. Normal build and deployment checks
+apply, and the gap register retains the unresolved evidence and follow-up.
 
-- the exact release candidate and enabled features;
-- approved risk assessments, policies, and source references;
-- tested production and operational safeguards;
-- remaining uncertainties and any lawful alternatives;
-- the owner's decision, date, and accepted residual risks; and
-- any required deployment and publication verification.
-
-No overall release approval, deployment, publication, or external specialist
-approval is recorded by this entry. GOV-02 approval remains separately recorded.
+Record the exact release versions, enabled features, relevant approvals and
+deployment verification here when the public release is made.
 
 ## Report Monitoring — Owner Statement
 
@@ -84,6 +80,13 @@ awaiting NCA approval**. Approval, functioning portal access and operational
 readiness remain unverified. The owner submitted the application; the assistant
 did not submit it. CSEA-01 remains open for those remaining controls.
 
+Update, 26 November 2026: Douglas Todd confirmed access to CraftSky's NCA CSEA
+Industry Reporting Portal and supplied four NCA onboarding guides. This
+supersedes the pending registration/access status above. CSEA-01 remains open
+for administrator and continuity checks, training, urgent/outage procedures,
+restricted evidence and retention, and a reporting exercise. See the
+[portal onboarding record](../operations/illegal-content-response.md#portal-onboarding-and-reporting-exercise--26-november-2026).
+
 ## Children's Access Decision
 
 Douglas Todd explicitly approved the conclusion that CraftSky is likely to be
@@ -118,32 +121,36 @@ CHILD-02 remain separate outstanding controls.
 
 ## External Reporting Mailbox
 
-On 9 November 2026 Douglas Todd confirmed that ordinary external email reaches
-`moderation@craftsky.social` and that replies work from that address. Record this
-as owner-reported operational mailbox evidence, distinct from the outstanding
-intake/acknowledgement/escalation exercise in REPORT-01 and REPORT-02. See
-[mailbox readiness](../operations/reporting-mailbox-readiness.md).
+On 9 November 2026 Douglas Todd confirmed external email receipt and replies at
+`moderation@craftsky.social` and approved manual intake, follow-up and a
+five-UK-business-day routine acknowledgement target. He reported a successful
+benign exercise covering intake, case linkage, acknowledgement and no-action
+resolution with the post still visible.
 
-Update, 9 November 2026: Douglas Todd approved manual email triage, recording
-actionable reports in the moderation console, acknowledging ordinary reports
-with a reference within five UK business days, and recording follow-up/outcomes.
-Urgent concerns take priority over that acknowledgement target. The benign
-end-to-end exercise is prepared but not yet reported completed.
-
-Update, 9 November 2026: following the shared-link rejection and AT URI
-workaround, Douglas Todd reports the full routine reporting flow worked. Record
-external intake, linked case, acknowledgement and no-action resolution as a
-successful owner-run exercise. This does not verify deployment of the HTTPS-link
-fix, Brevo delivery, or the separate urgent/specialist workflows.
+The exercise used the canonical AT URI after the console rejected a shared
+HTTPS link. The local fix normalised recognised post, profile, event and
+focused-reply links to canonical AT URIs and preserved exact subject matching.
+The safety intake, moderation, routes and safety alert Go suites, Go vet,
+53 console tests and the console build passed. Deployment of the HTTPS fix,
+separate correspondence, representative and pseudonymous intake, child
+usability, specialist deadlines and live urgent alert delivery were outside
+the verified scope. REPORT-01 and REPORT-02 track the remaining evidence.
 
 ## Intimate-Image Response Target
 
-On 9 November 2026 Douglas Todd approved a **24-hour internal target** from the
-original report receipt, alongside action as soon as practicable and the
-separately applicable statutory requirements. Checked-in production configuration
-now specifies `24h`. Linked reviews must use the intake's saved original receipt,
-not a later form time. Live configuration/deployment and the benign tabletop
-remain unverified; this decision does not close II-01 or REPORT-02.
+On 9 November 2026 Douglas Todd approved a **24-hour internal target** from
+original receipt, alongside action as soon as practicable and the statutory
+requirements. The Blueprint and production environment example specify
+`SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN=24h`.
+
+The linked review preserves the saved intake receipt. A local regression
+uses an intake already 26 hours old and verifies the 24-hour target is
+overdue as soon as the review opens. The workflow records standing,
+declarations, judgment, searches and outcome. Matching searches and
+takedown use separate operator actions. Live configuration, deadline
+handling, actual takedown and same or substantially-same searches,
+including video coverage, remain to verify under II-01.
+[Receipt regression](../../appview/internal/safetyincident/intimate_receipt_test.go)
 
 ## Initial Emergency Response Procedure
 
@@ -203,9 +210,7 @@ in the launch release. Carry video through the illegal-content and children's
 risk assessments, moderation verification and final release evidence. This
 confirms product scope only; it does not approve the assessments, establish
 scanner/provider effectiveness, activate a production flag or authorize a
-deployment. Reconcile the publication manifest's historical
-`videoProductionDisabled` requirement with this approved scope before final
-release approval.
+deployment. Verify safeguards against the actual video-enabled release.
 
 ## Grooming Risk Rating
 

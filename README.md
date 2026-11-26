@@ -2,7 +2,7 @@
 
 A crafting-focused social platform built on the [AT Protocol](https://atproto.com), where makers share projects, techniques, and works in progress while keeping ownership of their identity and public records.
 
-CraftSky is being developed for private beta. The Flutter and SvelteKit clients and Go backend are implemented, and production infrastructure is deployed. Full public launch still has [readiness checks and approvals](docs/operations/releases.md#private-beta-and-full-public-launch) to complete.
+CraftSky has Flutter and SvelteKit clients, a Go backend, and deployed production infrastructure. See the [release runbook](docs/operations/releases.md#private-beta-and-full-public-launch) for build and deployment procedures.
 
 [Website](https://craftsky.social) · [Contribute](CONTRIBUTING.md) · [Roadmap](docs/roadmap.md) · [Documentation](docs/README.md) · [Report a bug](https://github.com/Zambrella/craftsky/issues/new/choose)
 

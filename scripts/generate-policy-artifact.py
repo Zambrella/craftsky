@@ -8,21 +8,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICIES = [
-    ("/terms", "terms-of-service.md", "terms.html", ["BR-005", "BR-006"]),
-    ("/privacy", "privacy-policy.md", "privacy.html", ["BR-006", "FR-030", "FR-031"]),
-    (
-        "/community-guidelines",
-        "community-guidelines.md",
-        "community-guidelines.html",
-        ["FR-015", "FR-016"],
-    ),
-    (
-        "/reporting",
-        "reporting-complaints-and-appeals.md",
-        "reporting.html",
-        ["FR-014", "FR-018", "FR-020"],
-    ),
-    ("/copyright", "copyright-and-trade-marks.md", "copyright.html", ["FR-038"]),
+    ("/terms", "terms-of-service.md", "terms.html"),
+    ("/privacy", "privacy-policy.md", "privacy.html"),
+    ("/community-guidelines", "community-guidelines.md", "community-guidelines.html"),
+    ("/reporting", "reporting-complaints-and-appeals.md", "reporting.html"),
+    ("/copyright", "copyright-and-trade-marks.md", "copyright.html"),
 ]
 
 
@@ -162,7 +152,7 @@ def render(title: str, route: str, meta: dict[str, str], body: str) -> bytes:
     effective_label = "Effective date" if status == "Approved" else "Proposed effective date"
     warning = ""
     if status != "Approved":
-        warning = '<p class="legal__draft" role="status"><strong>Draft, not effective.</strong> Publication remains blocked pending the approvals and evidence recorded in the release manifest.</p>'
+        warning = '<p class="legal__draft" role="status"><strong>Draft, not effective.</strong> Pending policy approval.</p>'
     document = f"""<!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -192,7 +182,7 @@ def render(title: str, route: str, meta: dict[str, str], body: str) -> bytes:
 
 def main() -> None:
     entries = []
-    for route, source_name, artifact_name, controls in POLICIES:
+    for route, source_name, artifact_name in POLICIES:
         source_path = ROOT / "online-safety" / "policies" / source_name
         source = source_path.read_bytes()
         lines = source.decode().splitlines()
@@ -214,10 +204,6 @@ def main() -> None:
                 "approvedBy": meta.get("Approved by", ""),
                 "sourceDigest": digest(source),
                 "artifactDigest": digest(artifact),
-                "presentTenseClaims": [
-                    {"control": control, "evidence": [], "status": "pending"}
-                    for control in controls
-                ],
             }
         )
 
@@ -226,24 +212,6 @@ def main() -> None:
         "publicationStatus": "approved" if all(entry["approvalStatus"] == "Approved" for entry in entries) else "blocked",
         "generatedFrom": "online-safety/policies",
         "policies": entries,
-        "releaseControls": {
-            "scannerProduction": {
-                "status": "blocked",
-                "evidence": [],
-                "reason": "Production IWF access and validation evidence are external and missing.",
-            },
-            "videoProductionDisabled": {
-                "status": "pending",
-                "evidence": [],
-                "reason": "Production video release-gate evidence is not yet linked.",
-            },
-        },
-        "externalBlockers": [
-            "Specialist policy review before full public launch",
-            "Worldwide jurisdiction review",
-            "Commercial and subscription policy scope decision",
-            "Atomic Cloudflare deployment and rollback evidence",
-        ],
     }
     (ROOT / "web" / "policy-publication-manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n"
