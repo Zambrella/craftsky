@@ -2,9 +2,12 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -107,16 +110,17 @@ func TestSearchPostsHandlerAcceptsPostSearchAndHydrationCapabilities(t *testing.
 
 type projectSearchCapability struct {
 	searchPostHydrationCapability
+	rows []api.SearchPostRow
 }
 
-func (projectSearchCapability) SearchProjectsWithLanguages(
+func (store projectSearchCapability) SearchProjectsWithLanguages(
 	context.Context,
 	string,
 	[]string,
 	api.ProjectSearchRequest,
 	time.Time,
 ) ([]api.SearchPostRow, string, error) {
-	return nil, "", nil
+	return store.rows, "", nil
 }
 
 func TestSearchProjectsHandlerAcceptsProjectSearchAndHydrationCapabilities(t *testing.T) {
@@ -128,6 +132,42 @@ func TestSearchProjectsHandlerAcceptsProjectSearchAndHydrationCapabilities(t *te
 func TestListProjectsHandlerAcceptsProjectSearchAndHydrationCapabilities(t *testing.T) {
 	if handler := api.ListProjectsHandler(projectSearchCapability{}, nil, nil); handler == nil {
 		t.Fatal("ListProjectsHandler returned nil")
+	}
+}
+
+func TestListProjectsKeepsUnresolvedAuthorWithUnavailableHandle(t *testing.T) {
+	const author = "did:plc:project-author"
+	store := projectSearchCapability{
+		rows: []api.SearchPostRow{{Post: &api.PostRow{
+			URI: "at://" + author + "/social.craftsky.feed.post/p",
+			DID: author,
+		}}},
+	}
+	for _, test := range []struct {
+		name     string
+		resolver fakeResolver
+		want     syntax.Handle
+	}{
+		{"lookup failed", fakeResolver{err: errors.New("unavailable")}, syntax.HandleInvalid},
+		{"no handle", fakeResolver{}, syntax.HandleInvalid},
+		{"valid handle", fakeResolver{handleFor: "author.example"}, "author.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler := api.ListProjectsHandler(store, test.resolver, nilLogger())
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, authedReq("GET", "/v1/projects", "", "did:plc:viewer"))
+			var response api.SearchPostPageResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if rec.Code != 200 || len(response.Items) != 1 {
+				t.Fatalf("status=%d project count=%d", rec.Code, len(response.Items))
+			}
+			item := response.Items[0]
+			if item.Author.DID != author || item.Author.Handle != test.want.String() {
+				t.Fatalf("author=%+v, want %s / %s", item.Author, author, test.want)
+			}
+		})
 	}
 }
 

@@ -2,19 +2,22 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/getsentry/sentry-go"
-	"github.com/jackc/pgx/v5/pgconn"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/http/httptest"
-	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/middleware"
-	"social.craftsky/appview/internal/observability"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgconn"
+	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestProjectReadRecurrenceRetainsStageAndRequestCorrelation(t *testing.T) {
@@ -92,6 +95,86 @@ func TestMentionIdentityFailureRetainsCauseAndSingleIssue(t *testing.T) {
 		for _, private := range []string{"PRIVATE_DNS_REASON", "PRIVATE_HOST", "private.example"} {
 			if strings.Contains(sink, private) {
 				t.Fatal("protected value escaped")
+			}
+		}
+	}
+}
+
+func TestPublicProfileIdentityFailureRetainsResolverCause(t *testing.T) {
+	const route = "/v1/public/profiles/{handleOrDid}"
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	store := &publicPageStub{}
+	resolver := fakeResolver{err: &net.DNSError{
+		Err: "PRIVATE_DNS_REASON_CANARY", Name: "PRIVATE_HOST_CANARY", IsTimeout: true,
+	}}
+	mux := http.NewServeMux()
+	mux.Handle("GET "+route, api.PublicPagesHandler(store, resolver, "profile"))
+	handler := middleware.Logging(logger)(middleware.HTTPMetrics(observer)(mux))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/v1/public/profiles/protected-handle.example", nil))
+	observer.Flush(time.Second)
+
+	events := transport.Events()
+	if rec.Code != 503 || !strings.Contains(rec.Body.String(), "identity_unavailable") || store.calls != 0 || len(events) != 1 {
+		t.Fatalf("response/ownership changed: status=%d reads=%d issues=%d", rec.Code, store.calls, len(events))
+	}
+	if events[0].Tags["operation"] != "api.PublicPagesHandler" || events[0].Tags["failure_stage"] != "identity" {
+		t.Fatalf("missing profile identity stage: %v", events[0].Tags)
+	}
+	assertPublicReadTelemetry(t, local.String(), events, rec.Header().Get("X-Request-ID"), "DNS lookup failed", "protected-handle.example")
+}
+
+func TestPublicProjectQueryTimeoutIdentifiesCandidateStage(t *testing.T) {
+	const queryCanary = "protected-query-canary"
+	pool, store := publicReadFixture(t)
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(t.Context())
+	if _, err := tx.Exec(t.Context(), "LOCK TABLE craftsky_project_posts IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatal(err)
+	}
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	handler := middleware.Logging(logger)(middleware.HTTPMetrics(observer)(api.PublicBrowsingHandler(store, nil, "search/projects")))
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/v1/public/search/projects?q="+queryCanary, nil).WithContext(ctx))
+	observer.Flush(time.Second)
+
+	events := transport.Events()
+	if rec.Code != 503 || !strings.Contains(rec.Body.String(), "unavailable") || len(events) != 1 {
+		t.Fatalf("response/ownership changed: status=%d issues=%d", rec.Code, len(events))
+	}
+	if events[0].Tags["error_category"] != "timeout" {
+		t.Fatalf("database deadline lost: %v", events[0].Tags)
+	}
+	assertPublicReadTelemetry(t, local.String(), events, rec.Header().Get("X-Request-ID"), "load public project search candidates", queryCanary)
+}
+
+func assertPublicReadTelemetry(t *testing.T, local string, events []*sentry.Event, requestID, fact, canary string) {
+	t.Helper()
+	serialized, err := json.Marshal(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestID == "" || events[0].Contexts["correlation"]["run_id"] != requestID {
+		t.Fatal("request correlation lost")
+	}
+	for _, sink := range []string{local, string(serialized)} {
+		if !strings.Contains(sink, fact) || !strings.Contains(sink, requestID) {
+			t.Fatalf("missing diagnostic fact %q or request ID", fact)
+		}
+		for _, protected := range []string{canary, "PRIVATE_DNS_REASON_CANARY", "PRIVATE_HOST_CANARY"} {
+			if strings.Contains(sink, protected) {
+				t.Fatalf("protected value escaped: %q", protected)
 			}
 		}
 	}

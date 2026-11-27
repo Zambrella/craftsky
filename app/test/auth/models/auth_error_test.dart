@@ -12,6 +12,11 @@ void main() {
       const SignInTimedOut(),
       StorageFailure(Exception('oops')),
       RegistrationFailure.canceled,
+      RegistrationStartFailure(
+        RegistrationFailure.registrationIncomplete,
+        const BrowserLaunchFailed(),
+        StackTrace.current,
+      ),
     ];
     for (final e in values) {
       final label = switch (e) {
@@ -22,6 +27,7 @@ void main() {
         SignInTimedOut() => 'timed_out',
         StorageFailure() => 'storage',
         RegistrationFailure() => e.name,
+        RegistrationStartFailure(:final outcome) => outcome.name,
       };
       expect(label, isNotEmpty);
     }

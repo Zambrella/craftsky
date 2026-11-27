@@ -30,12 +30,16 @@ import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+import '../../test_support/serialized_sentry_transport.dart';
 
 // --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
@@ -140,10 +144,12 @@ ProviderContainer _container({
   Future<void> Function()? clearSessionPrivateState,
   Future<void> Function()? resetToHome,
   void Function()? onAccountClientDispose,
+  List<ProviderObserver> observers = const [],
 }) {
   final resolvedApi = api ?? _FakeAuthApi();
   launch ??= _LaunchRecorder();
   return ProviderContainer.test(
+    observers: observers,
     overrides: [
       if (registryStorage != null)
         secureSessionRegistryStorageProvider.overrideWithValue(registryStorage),
@@ -594,12 +600,118 @@ void main() {
             model.PendingAuthPurpose.registration,
           );
         } else {
-          expect(state.error, RegistrationFailure.registrationIncomplete);
+          expect(
+            state.error,
+            isA<RegistrationStartFailure>().having(
+              (failure) => failure.outcome,
+              'outcome',
+              RegistrationFailure.registrationIncomplete,
+            ),
+          );
           expect(container.read(pendingAuthProvider), isNull);
         }
       }
     },
   );
+
+  for (final requestFails in [true, false]) {
+    final phase = requestFails ? 'request' : 'browser launch';
+    test(
+      'registration preserves protected $phase diagnostics',
+      () async {
+        final transport = SerializedTransport();
+        await Sentry.init((options) {
+          options
+            ..dsn = 'https://public@example.invalid/1'
+            ..transport = transport;
+          configureDiagnosticOptions(options);
+        });
+        addTearDown(Sentry.close);
+        final local = <String>[];
+        final logs = Logger.root.onRecord.listen(
+          DiagnosticEmitter(platformSink: local.add).emitLocal,
+        );
+        addTearDown(logs.cancel);
+
+        const requestId = 'a0000000-0000-4000-8000-000000000001';
+        const apiFailure = ApiServerError(
+          'PRIVATE_REGISTRATION_RESPONSE',
+          details: ApiFailureDetails(
+            statusCode: 503,
+            appViewError: 'registration_provider_unavailable',
+            method: 'POST',
+            requestId: requestId,
+            responseKind: 'appViewError',
+          ),
+        );
+        final launcherFailure = StateError('PRIVATE_BROWSER_CAPABILITY');
+        final stack = StackTrace.fromString(
+          '#0 requestRegistration (package:craftsky_app/register.dart:12:3)',
+        );
+        final container = _container(
+          api: _FakeAuthApi(
+            onRegister: (_, _) => requestFails
+                ? Future.error(apiFailure, stack)
+                : Future.value(
+                    const LoginResponse(
+                      authUrl:
+                          'https://provider.example/PRIVATE_REGISTRATION_URL',
+                    ),
+                  ),
+          ),
+          launch: _LaunchRecorder()..error = launcherFailure,
+          observers: [const ProviderLogger(reporter: SentryErrorReporter())],
+        );
+        await container
+            .read(authControllerProvider.notifier)
+            .startRegistration();
+        await transport.issueReceived.future.timeout(
+          const Duration(seconds: 5),
+        );
+        await Sentry.close();
+
+        final failure =
+            container.read(authControllerProvider).error!
+                as RegistrationStartFailure;
+        expect(
+          failure.diagnosticCause,
+          same(requestFails ? apiFailure : launcherFailure),
+        );
+        expect(
+          failure.outcome,
+          requestFails
+              ? RegistrationFailure.providerUnavailable
+              : RegistrationFailure.registrationIncomplete,
+        );
+        final event = transport.payloads
+            .map(jsonDecode)
+            .cast<Map<String, dynamic>>()
+            .singleWhere((payload) => payload.containsKey('exception'));
+        final stage = requestFails
+            ? 'registration_request'
+            : 'registration_browser_launch';
+        expect(
+          event['exception'].toString(),
+          contains(failure.diagnosticCause.runtimeType.toString()),
+        );
+        expect(event.toString(), contains(stage));
+        expect(local.join(), contains(stage));
+        if (requestFails) {
+          expect(failure.diagnosticStack, same(stack));
+          expect(
+            event['exception'].toString(),
+            contains('requestRegistration'),
+          );
+          expect(event.toString(), contains(requestId));
+          expect(event.toString(), contains('httpStatus: 503'));
+        }
+        expect(
+          local.join() + transport.payloads.join(),
+          isNot(contains('PRIVATE_')),
+        );
+      },
+    );
+  }
 
   test(
     'UT-010 registry limit remains authoritative before start and after race',

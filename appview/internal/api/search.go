@@ -581,7 +581,7 @@ func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerD
 		return nil, err
 	}
 	for _, row := range rows {
-		handle := syntax.Handle(row.Post.DID)
+		handle := syntax.HandleInvalid
 		if resolver != nil {
 			if resolved, err := resolver.ResolveHandle(ctx, syntax.DID(row.Post.DID)); err == nil && resolved != "" {
 				handle = resolved

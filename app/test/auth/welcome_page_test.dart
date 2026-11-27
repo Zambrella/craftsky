@@ -160,7 +160,11 @@ void main() {
 
     expect(
       tester.container().read(authControllerProvider).error,
-      RegistrationFailure.registrationIncomplete,
+      isA<RegistrationStartFailure>().having(
+        (failure) => failure.outcome,
+        'outcome',
+        RegistrationFailure.registrationIncomplete,
+      ),
     );
     expect(messenger.calls, [
       ('error', "We couldn't verify or complete account creation.", null),
@@ -207,7 +211,11 @@ void main() {
 
     expect(
       tester.container().read(authControllerProvider).error,
-      RegistrationFailure.registrationIncomplete,
+      isA<RegistrationStartFailure>().having(
+        (failure) => failure.outcome,
+        'outcome',
+        RegistrationFailure.registrationIncomplete,
+      ),
     );
     expect(messenger.calls.single.$2, contains("couldn't verify or complete"));
   });

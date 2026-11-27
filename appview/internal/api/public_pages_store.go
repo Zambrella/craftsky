@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/observability"
 )
 
 type PublicAccountTypeReader interface {
@@ -64,15 +65,15 @@ func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*P
 		return nil, ErrProfileNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("public profile read: %w", err)
+		return nil, observability.WrapError("load public profile", err)
 	}
 	handle, err := s.resolver.ResolveHandle(ctx, did)
 	if err != nil {
-		return nil, fmt.Errorf("public profile identity: %w", err)
+		return nil, observability.WrapError("resolve public profile handle", err)
 	}
 	accountType, err := s.accountTypes.ReadAccountType(ctx, did)
 	if err != nil {
-		return nil, err
+		return nil, observability.WrapError("load public profile account type", err)
 	}
 	out := &PublicProfile{CreatedAt: row.CreatedAt, PublicAuthor: PublicAuthor{DID: did, Handle: handle, DisplayName: row.DisplayName, Business: accountType == business.AccountTypeBusiness, AccountType: accountType}, Description: row.Description, Pronouns: row.Pronouns, Crafts: nonNilStrings(row.Crafts), Links: []PublicLink{}}
 	// Profile indexing promotes each cleared image into its serving columns,
@@ -87,25 +88,25 @@ func (s *PublicPageStore) PublicProfile(ctx context.Context, did syntax.DID) (*P
 	}
 	links, _, err := NewProfileStore(s.pool).readProfileLinks(ctx, did, "")
 	if err != nil {
-		return nil, err
+		return nil, observability.WrapError("load public profile links", err)
 	}
 	customisation, err := NewProfileCustomisationStore(s.pool).Read(ctx, did)
 	if err != nil {
-		return nil, err
+		return nil, observability.WrapError("load public profile customisation", err)
 	}
 	out.Customisation = &customisation
 	if err := s.publicProfileCounts(ctx, did, out); err != nil {
-		return nil, err
+		return nil, observability.WrapError("count public profile activity", err)
 	}
 	if reader, ok := s.accountTypes.(BusinessProfileReader); ok && accountType == business.AccountTypeBusiness {
 		profile, err := reader.ReadEligibleProfile(ctx, did)
 		if err != nil {
-			return nil, err
+			return nil, observability.WrapError("load public business profile", err)
 		}
 		out.BusinessProfile = BuildBusinessProfileResponse(did, profile)
 		upcoming, err := reader.HasUpcomingEvents(ctx, did, time.Now().UTC())
 		if err != nil {
-			return nil, err
+			return nil, observability.WrapError("check public business events", err)
 		}
 		out.HasUpcomingEvents = upcoming
 	}

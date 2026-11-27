@@ -84,6 +84,18 @@ final class SentrySanitizer {
     }.contains(responseKind)) {
       selected['responseKind'] = responseKind;
     }
+    final playbackSource = context['playbackSource'];
+    if (const {'local', 'published'}.contains(playbackSource)) {
+      selected['playbackSource'] = playbackSource;
+    }
+    final playbackBackend = context['playbackBackend'];
+    if (const {'media_kit', 'android_video_player'}.contains(playbackBackend)) {
+      selected['playbackBackend'] = playbackBackend;
+    }
+    final playbackFullscreen = context['playbackFullscreen'];
+    if (playbackFullscreen is bool) {
+      selected['playbackFullscreen'] = playbackFullscreen;
+    }
     final transportFailure = context['transportFailure'];
     if (const {
       'connectionTimeout',

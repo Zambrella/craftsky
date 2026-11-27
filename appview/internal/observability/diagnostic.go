@@ -14,11 +14,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 	"social.craftsky/appview/internal/integrations/revenuecat"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
@@ -67,6 +69,22 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 			cause.Message = current.DiagnosticMessage()
 		case *DiagnosticError:
 			cause.Message = boundDiagnosticText(current.Message, 512)
+		case *federatedhttp.Error:
+			switch current.Kind {
+			case federatedhttp.KindDestinationRejected, federatedhttp.KindRedirectRejected, federatedhttp.KindResponseTooLarge,
+				federatedhttp.KindTimeout, federatedhttp.KindCanceled, federatedhttp.KindUpstreamFailure:
+				cause.Message = "federated HTTP: " + string(current.Kind)
+				switch current.Purpose {
+				case federatedhttp.PurposeOAuthMetadata, federatedhttp.PurposeOAuthRequest, federatedhttp.PurposePDSJSON,
+					federatedhttp.PurposePDSUpload, federatedhttp.PurposePDSVideo, federatedhttp.PurposePDSRepository:
+					cause.Message = "federated HTTP " + string(current.Purpose) + ": " + string(current.Kind)
+				}
+			}
+		case syscall.Errno:
+			switch current {
+			case syscall.ECONNABORTED, syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.EHOSTUNREACH, syscall.ENETUNREACH, syscall.EPIPE, syscall.ETIMEDOUT:
+				cause.Message = current.Error()
+			}
 		case *revenuecat.ProviderError:
 			cause.Message = current.DiagnosticMessage()
 			if status := current.StatusCode(); status >= 100 && status <= 599 {
