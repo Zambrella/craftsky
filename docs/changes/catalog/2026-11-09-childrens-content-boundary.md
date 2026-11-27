@@ -26,8 +26,7 @@
     "docs/operations/moderation-operators.md"
   ],
   "code": [
-    "online-safety/policies",
-    "online-safety/registers"
+    "online-safety/policies"
   ],
   "evidence": [
     "docs/changes/2026-11-09-childrens-content-boundary/proposal.md",

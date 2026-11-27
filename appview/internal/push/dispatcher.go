@@ -11,6 +11,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/notifications"
@@ -57,6 +59,16 @@ type DeliveryLifecycleFence interface {
 // post lock. Production adapters provide it to avoid pool-capacity deadlocks.
 type PublicationDeliveryFence interface {
 	WithPostPublicationFence(context.Context, syntax.ATURI, func(context.Context) error) error
+}
+
+// DeliveryTransactionFence lets database work reuse the connection that holds
+// the owner fences. The provider call must stay outside the transaction.
+type DeliveryTransactionFence interface {
+	WithActiveEffectTransaction(context.Context, func(pgx.Tx) error) error
+}
+
+type deliveryWriter interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
 // DispatcherObserver receives aggregate, privacy-safe queue and delivery
@@ -488,7 +500,7 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 					return
 				}
 				processed.Add(1)
-				if err := d.processClaim(workerCtx, items[0]); err != nil {
+				if err := d.processClaim(ctx, items[0]); err != nil {
 					select {
 					case firstError <- err:
 						cancelWorkers()
@@ -531,54 +543,72 @@ func (d *Dispatcher) processClaim(ctx context.Context, item claimedDelivery) err
 	return err
 }
 
+func (d *Dispatcher) withDeliveryTransaction(ctx context.Context, callback func(pgx.Tx) error) error {
+	if fence, ok := d.options.LifecycleFence.(DeliveryTransactionFence); ok {
+		return fence.WithActiveEffectTransaction(ctx, callback)
+	}
+	return pgx.BeginFunc(ctx, d.pool, callback)
+}
+
+func (d *Dispatcher) prepareClaim(ctx context.Context, item claimedDelivery) (bool, *notifications.Preview, error) {
+	var ready bool
+	var preview *notifications.Preview
+	err := d.withDeliveryTransaction(ctx, func(tx pgx.Tx) error {
+		now := d.options.Now().UTC()
+		// Read the current route, claim and eligibility after acquiring all
+		// required fences. A rotated route remains available to a later claim.
+		current, err := d.currentDeliveryStatus(ctx, tx, item, now)
+		if err != nil || !current.routeOwned {
+			return err
+		}
+		if !current.eligible {
+			return d.cancelEligibilityInvalid(ctx, tx, item, now)
+		}
+		switch item.category {
+		case notifications.Reply, notifications.Mention, notifications.Quote:
+			references := []syntax.ATURI{syntax.ATURI(item.subjectURI.String), syntax.ATURI(item.rootURI.String), syntax.ATURI(item.quotedURI.String)}
+			previews, err := notifications.ReadPreviews(ctx, tx, item.recipientDID, append([]syntax.ATURI{item.sourceURI}, references...))
+			if err != nil {
+				return err
+			}
+			preview = previews[item.sourceURI]
+			if preview != nil && preview.ProjectTitle == "" {
+				for _, uri := range references {
+					if subject := previews[uri]; subject != nil && subject.ProjectTitle != "" {
+						preview.ProjectTitle = subject.ProjectTitle
+						break
+					}
+				}
+			}
+		}
+		ready = true
+		return nil
+	})
+	return ready, preview, err
+}
+
 func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDelivery) error {
-	now := d.options.Now().UTC()
+	ready, preview, err := d.prepareClaim(ctx, item)
+	if err != nil || !ready {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var actorDID syntax.DID
 	if item.actorDID != nil {
 		actorDID = *item.actorDID
 	}
 
-	// State can change after a batch is claimed: a notification may be
-	// retracted, a device may be removed, its token may rotate, or this lease
-	// may expire and be recovered. Never send unless this exact claim still
-	// owns the current active delivery.
-	current, err := d.currentDeliveryStatus(ctx, item, now)
-	if err != nil {
-		return err
-	}
-	if !current.routeOwned {
-		return nil
-	}
-	if !current.eligible {
-		return d.cancelEligibilityInvalid(ctx, item, now)
-	}
-
-	var preview *notifications.Preview
-	switch item.category {
-	case notifications.Reply, notifications.Mention, notifications.Quote:
-		previews, err := notifications.ReadPreviews(ctx, d.pool, item.recipientDID, []syntax.ATURI{item.sourceURI, syntax.ATURI(item.subjectURI.String), syntax.ATURI(item.rootURI.String), syntax.ATURI(item.quotedURI.String)})
-		if err != nil {
-			return err
-		}
-		preview = previews[item.sourceURI]
-		for _, uri := range []string{item.subjectURI.String, item.rootURI.String, item.quotedURI.String} {
-			if preview != nil && preview.ProjectTitle == "" {
-				if subject := previews[syntax.ATURI(uri)]; subject != nil && subject.ProjectTitle != "" {
-					copy := *preview
-					copy.ProjectTitle = subject.ProjectTitle
-					preview = &copy
-				}
-			}
-		}
-	}
-	// TTL is always the time remaining until the original absolute delivery
-	// deadline. A retry does not start a fresh delivery window.
+	// Read the clock again after eligibility and preview reads so those
+	// reads cannot grant extra delivery time or consume the send budget.
+	now := d.options.Now().UTC()
 	ttl, ok := ProviderTTL(now, item.deadline)
 	if !ok {
-		if _, err := d.pool.Exec(ctx, `UPDATE push_deliveries d SET status='expired',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt); err != nil {
+		return d.withDeliveryTransaction(ctx, func(tx pgx.Tx) error {
+			_, err := d.finishClaim(ctx, tx, item, now, "expired", "", now)
 			return err
-		}
-		return nil
+		})
 	}
 
 	// The provider call must finish before both the logical delivery deadline
@@ -592,7 +622,9 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 		d.options.FinalizationMargin,
 	)
 	if !usefulWindow {
-		return d.releaseInsufficientWindow(ctx, item, now)
+		return d.withDeliveryTransaction(ctx, func(tx pgx.Tx) error {
+			return d.releaseInsufficientWindow(ctx, tx, item, now)
+		})
 	}
 	sendCtx, cancel := context.WithDeadline(ctx, providerDeadline)
 	sendStartedAt := time.Now()
@@ -631,26 +663,28 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 	// ownership changed while the provider call was in flight, a stale result
 	// cannot overwrite the newer state.
 	finalizationStartedAt := time.Now()
-	finalized := false
-	switch result.Class {
-	case ResultSuccess:
-		finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='succeeded',sent_at=$6,provider_result_class='success',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
-	case ResultRetryable:
-		// Retry this delivery independently with bounded exponential backoff.
-		// If no retry fits before its deadline, expire it instead.
-		next, retry := NextRetry(now, item.deadline, item.attempts, d.options.Jitter())
-		if !retry {
-			finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='expired',provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
-		} else {
-			finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='retry',next_attempt_at=$6,provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$7 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$8 AND d.lease_expires_at>$7 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, next, now, item.leaseExpiresAt)
+	var finalized bool
+	// Give an already attempted send its bounded finalization window even
+	// if the worker was stopped while waiting for the provider response.
+	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), d.options.FinalizationMargin)
+	defer finalCancel()
+	err = d.withDeliveryTransaction(finalCtx, func(tx pgx.Tx) error {
+		status, providerClass, next := "permanent_failure", "permanent", now
+		switch result.Class {
+		case ResultSuccess:
+			status, providerClass = "succeeded", "success"
+		case ResultRetryable:
+			status, providerClass = "expired", "retryable"
+			if retryAt, ok := NextRetry(now, item.deadline, item.attempts, d.options.Jitter(), result.RetryAfter); ok {
+				status, next = "retry", retryAt
+			}
+		case ResultInvalidToken:
+			finalized, err = d.invalidate(finalCtx, tx, item, now)
+			return err
 		}
-	case ResultInvalidToken:
-		// Invalidating a token affects the installation and all account
-		// subscriptions routed through it, so perform that cleanup atomically.
-		finalized, err = d.invalidate(ctx, item, now)
-	default:
-		finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='permanent_failure',provider_result_class='permanent',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
-	}
+		finalized, err = d.finishClaim(finalCtx, tx, item, now, status, providerClass, next)
+		return err
+	})
 	finalizationOutcome := pushOperationOutcomeFinalized
 	if result.Class == ResultSuccess && (err != nil || !finalized) {
 		// Firebase acceptance and the local compare-and-set are not one atomic
@@ -760,19 +794,26 @@ type currentDeliveryState struct {
 	eligible   bool
 }
 
+const currentSubscriptionActivationSQL = `COALESCE(
+	d.subscription_activation_generation=s.activation_generation,
+	s.deactivated_at IS NULL OR d.created_at>s.deactivated_at
+)`
+
 // currentDeliveryStatus distinguishes a stale or rotated claim from a current
 // route whose notification eligibility has been withdrawn. That distinction
 // lets the latter settle terminally without allowing an old token or lease to
 // cancel work now owned by a newer claim.
 func (d *Dispatcher) currentDeliveryStatus(
 	ctx context.Context,
+	db postpublication.Reader,
 	item claimedDelivery,
 	now time.Time,
 ) (currentDeliveryState, error) {
 	var state currentDeliveryState
-	err := d.pool.QueryRow(ctx, `
+	err := db.QueryRow(ctx, `
 		WITH current_claim AS (
-			SELECT n.recipient_did,n.actor_did,n.category,n.state
+			SELECT n.recipient_did,n.actor_did,n.category,n.state,
+			       `+currentSubscriptionActivationSQL+` AS current_activation
 			FROM push_deliveries d
 			JOIN notification_events n ON n.id=d.notification_id
 			JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
@@ -786,15 +827,15 @@ func (d *Dispatcher) currentDeliveryStatus(
 			EXISTS(SELECT 1 FROM current_claim),
 			EXISTS(
 				SELECT 1
-				FROM current_claim claim
+				FROM current_claim e
 				LEFT JOIN notification_preferences preference
-				  ON preference.account_did=claim.recipient_did
-				 AND preference.category=claim.category
-				WHERE claim.state='active'
-				  AND NOT appview_owner_is_terminal(claim.recipient_did)
+				  ON preference.account_did=e.recipient_did
+				 AND preference.category=e.category
+				WHERE e.state='active' AND e.current_activation
+				  AND NOT appview_owner_is_terminal(e.recipient_did)
 				  AND COALESCE(preference.push_enabled, TRUE)
-				  AND (claim.actor_did IS NULL OR (
-					NOT appview_owner_is_terminal(claim.actor_did)
+				  AND (e.actor_did IS NULL OR (
+					NOT appview_owner_is_terminal(e.actor_did)
 					AND (
 						COALESCE(preference.scope, 'everyone')='everyone'
 						OR (
@@ -802,30 +843,31 @@ func (d *Dispatcher) currentDeliveryStatus(
 							AND EXISTS (
 								SELECT 1 FROM pds_set_aggregates follow
 								WHERE follow.kind='follow'
-								  AND follow.actor_did=claim.recipient_did
-								  AND follow.subject_did=claim.actor_did
+								  AND follow.actor_did=e.recipient_did
+								  AND follow.subject_did=e.actor_did
 							)
 						)
 					)
 					AND NOT EXISTS (
 						SELECT 1 FROM actor_mutes mute
-						WHERE mute.owner_did=claim.recipient_did
-						  AND mute.subject_did=claim.actor_did
+						WHERE mute.owner_did=e.recipient_did
+						  AND mute.subject_did=e.actor_did
 					)
 					AND NOT EXISTS (
 						SELECT 1 FROM pds_set_aggregates block
 						WHERE block.kind='block'
-						  AND ((block.actor_did=claim.recipient_did AND block.subject_did=claim.actor_did)
-						   OR (block.actor_did=claim.actor_did AND block.subject_did=claim.recipient_did))
+						  AND ((block.actor_did=e.recipient_did AND block.subject_did=e.actor_did)
+						   OR (block.actor_did=e.actor_did AND block.subject_did=e.recipient_did))
 					)
 				  ))
+			`+notifications.VisibleActorModerationSQL+`
 			)
 	`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(
 		&state.routeOwned,
 		&state.eligible,
 	)
 	if err == nil && state.routeOwned && state.eligible && (item.category == notifications.Reply || item.category == notifications.Mention || item.category == notifications.Quote) {
-		applicable, applicabilityErr := postpublication.CurrentApplies(ctx, d.pool, item.sourceURI, item.recipientDID)
+		applicable, applicabilityErr := postpublication.CurrentApplies(ctx, db, item.sourceURI, item.recipientDID)
 		if applicabilityErr != nil {
 			return state, applicabilityErr
 		}
@@ -838,11 +880,12 @@ func (d *Dispatcher) currentDeliveryStatus(
 
 func (d *Dispatcher) cancelEligibilityInvalid(
 	ctx context.Context,
+	db deliveryWriter,
 	item claimedDelivery,
 	now time.Time,
 ) error {
 	startedAt := time.Now()
-	finalized, err := d.execFinalization(ctx, `
+	finalized, err := execFinalization(ctx, db, `
 		UPDATE push_deliveries d
 		SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=$5
 		WHERE d.id=$1 AND d.account_subscription_id=$2 AND d.status='leased'
@@ -874,11 +917,12 @@ func (d *Dispatcher) cancelEligibilityInvalid(
 
 func (d *Dispatcher) releaseInsufficientWindow(
 	ctx context.Context,
+	db deliveryWriter,
 	item claimedDelivery,
 	now time.Time,
 ) error {
 	startedAt := time.Now()
-	_, err := d.pool.Exec(ctx, `
+	_, err := db.Exec(ctx, `
 		UPDATE push_deliveries
 		SET status='retry', next_attempt_at=$4, lease_owner=NULL,
 			lease_expires_at=NULL, updated_at=$4
@@ -905,14 +949,10 @@ func (d *Dispatcher) releaseInsufficientWindow(
 // in-flight result for an old token cannot deactivate a newly rotated token.
 func (d *Dispatcher) invalidate(
 	ctx context.Context,
+	tx pgx.Tx,
 	item claimedDelivery,
 	now time.Time,
 ) (bool, error) {
-	tx, err := d.pool.Begin(ctx)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback(ctx)
 	var owned bool
 	if err := tx.QueryRow(ctx, `
 		SELECT EXISTS(
@@ -922,6 +962,7 @@ func (d *Dispatcher) invalidate(
 			WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2
 			  AND d.lease_expires_at=$7 AND d.lease_expires_at>$6
 			  AND s.id=$3 AND s.active
+			  AND `+currentSubscriptionActivationSQL+`
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
 			FOR UPDATE OF d, i
 		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(&owned); err != nil {
@@ -930,7 +971,7 @@ func (d *Dispatcher) invalidate(
 	if !owned {
 		// Another operation changed the lease, installation, subscription, or
 		// token while the provider call was in flight. The stale result is ignored.
-		return false, tx.Commit(ctx)
+		return false, nil
 	}
 
 	// One physical installation may route notifications for several signed-in
@@ -939,24 +980,43 @@ func (d *Dispatcher) invalidate(
 	if _, err := tx.Exec(ctx, `UPDATE push_installations SET active=false,deactivated_at=$2,updated_at=$2 WHERE id=$1 AND active AND fcm_token=$3`, item.installationID, now, item.token); err != nil {
 		return false, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=$2,updated_at=$2 WHERE installation_id=$1`, item.installationID, now); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=clock_timestamp(),updated_at=clock_timestamp() WHERE installation_id=$1 AND active`, item.installationID); err != nil {
 		return false, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status=CASE WHEN id=$2 THEN 'permanent_failure' ELSE 'cancelled' END,provider_result_class=CASE WHEN id=$2 THEN 'invalidToken' ELSE provider_result_class END,lease_owner=NULL,lease_expires_at=NULL,updated_at=$3 WHERE account_subscription_id IN(SELECT id FROM push_account_subscriptions WHERE installation_id=$1) AND status IN('pending','retry','leased')`, item.installationID, item.id, now); err != nil {
 		return false, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, err
-	}
 	return true, nil
 }
 
-func (d *Dispatcher) execFinalization(
+func (d *Dispatcher) finishClaim(ctx context.Context, db deliveryWriter, item claimedDelivery, now time.Time, status, providerClass string, next time.Time) (bool, error) {
+	return execFinalization(ctx, db, `
+		UPDATE push_deliveries d
+		SET status=$8,
+		    provider_result_class=COALESCE(NULLIF($9,''),provider_result_class),
+		    sent_at=CASE WHEN $8='succeeded' THEN $6 ELSE sent_at END,
+		    next_attempt_at=CASE WHEN $8='retry' THEN $10 ELSE next_attempt_at END,
+		    lease_owner=NULL,lease_expires_at=NULL,updated_at=$6
+		WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2
+		  AND d.account_subscription_id=$3 AND d.lease_expires_at=$7
+		  AND d.lease_expires_at>$6
+		  AND EXISTS(
+			SELECT 1 FROM push_account_subscriptions s
+			JOIN push_installations i ON i.id=s.installation_id
+			WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5
+			  AND `+currentSubscriptionActivationSQL+`
+		  )
+	`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token,
+		now, item.leaseExpiresAt, status, providerClass, next)
+}
+
+func execFinalization(
 	ctx context.Context,
+	db deliveryWriter,
 	statement string,
 	arguments ...any,
 ) (bool, error) {
-	commandTag, err := d.pool.Exec(ctx, statement, arguments...)
+	commandTag, err := db.Exec(ctx, statement, arguments...)
 	if err != nil {
 		return false, err
 	}

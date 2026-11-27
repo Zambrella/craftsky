@@ -11,7 +11,7 @@ test.beforeEach(async ({ context, page }) => {
 		route.fulfill({ json: { items: [] } })
 	);
 	await page.emulateMedia({ colorScheme: 'light' });
-	await page.route('https://status.craftsky.social/app.json', (r) =>
+	await page.route('**/api/service-status', (r) =>
 		r.fulfill({ json: { schemaVersion: 2, revision: 'healthy' } })
 	);
 	await context.addCookies([
@@ -31,6 +31,63 @@ test.beforeEach(async ({ context, page }) => {
 		}
 	]);
 });
+
+for (const theme of ['dark', 'system']) {
+	test(`dark appearance in ${theme} mode keeps button shadows dark and feedback red`, async ({
+		page
+	}) => {
+		await page.emulateMedia({
+			colorScheme: theme === 'dark' ? 'light' : 'dark'
+		});
+		await page.addInitScript((theme) => {
+			localStorage.setItem('craftsky.theme', theme);
+		}, theme);
+
+		await page.goto('/feed');
+		const newPost = page.getByRole('button', {
+			name: 'Create post',
+			exact: true
+		});
+		const shadow = 'rgb(9, 8, 7) 3px 3px 0px 0px';
+		const outline = 'rgb(245, 239, 228)';
+		const red = 'rgb(255, 138, 128)';
+		await expect(newPost).toHaveCSS('box-shadow', shadow);
+		await expect(newPost).toHaveCSS('border-top-color', outline);
+
+		const like = page
+			.locator('.member-post')
+			.first()
+			.getByRole('button', { name: 'Like', exact: true });
+		await like.click();
+		await expect(like).toHaveAttribute('aria-pressed', 'true');
+		await expect.soft(like.locator('svg')).toHaveCSS('fill', red);
+
+		await page.goto('/compose/project');
+		const post = page.getByRole('button', { name: 'Post', exact: true });
+		await expect.soft(post).toHaveCSS('box-shadow', shadow);
+		await expect.soft(post).toHaveCSS('border-top-color', outline);
+
+		await post.click();
+		const error = page.getByText('Add some text to your post.', {
+			exact: true
+		});
+		await expect(error).toBeVisible();
+		await expect(error).toHaveCSS('color', red);
+
+		await page
+			.getByRole('combobox', { name: 'Primary craft required' })
+			.click();
+		await page.getByRole('option', { name: 'Sewing', exact: true }).click();
+		await page
+			.getByRole('button', { name: 'Sewing details', exact: true })
+			.click();
+		const done = page
+			.getByRole('region', { name: 'Sewing details', exact: true })
+			.getByRole('button', { name: 'Done', exact: true });
+		await expect(done).toHaveCSS('box-shadow', shadow);
+		await expect(done).toHaveCSS('border-top-color', outline);
+	});
+}
 
 test('craft tab navigation never flashes the default preference order', async ({
 	page
@@ -78,7 +135,7 @@ test('compact filter action uses primary colour and Clear all closes with filter
 }, testInfo) => {
 	await page.setViewportSize({ width: 402, height: 874 });
 	await page.goto(
-		'/feed?craft=knitting&sort=popular&color=blue&selfDrafted=true'
+		'/feed?craft=knitting&sort=popular&status=finished&selfDrafted=true'
 	);
 	const filter = page.getByRole('button', { name: /^Filter projects/ });
 	await expect(filter).toHaveCSS('background-color', 'rgb(21, 53, 214)');

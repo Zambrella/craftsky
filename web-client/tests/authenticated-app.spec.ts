@@ -66,23 +66,53 @@ async function imageFixture(page: Page) {
 	return Buffer.from(encoded, 'base64');
 }
 test.beforeEach(async ({ context, page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch('http://127.0.0.1:19847/__test/reset');
 	await login(context);
 });
 
+test('shows maintenance from an anonymous same-origin status poll', async ({
+	page
+}) => {
+	await page.route('**/api/service-status', (route) =>
+		route.fulfill({
+			json: {
+				schemaVersion: 2,
+				revision: 'maintenance',
+				maintenance: {
+					title: 'Scheduled maintenance',
+					description: 'CraftSky will be back soon.'
+				}
+			}
+		})
+	);
+	const poll = page.waitForRequest('**/api/service-status');
+	await page.goto('/feed');
+	const request = await poll;
+	expect(new URL(request.url()).origin).toBe(base);
+	expect(await request.headerValue('cookie')).toBeNull();
+	expect(await request.headerValue('authorization')).toBeNull();
+	await expect(
+		page.getByRole('alertdialog', { name: 'Scheduled maintenance' })
+	).toBeVisible();
+});
+
 test('publishes through AppView, returns to the feed and edits with the observed CID', async ({
 	page
 }) => {
 	await compose(page);
-	await page
-		.getByRole('textbox', {
-			name: 'What would you like to share?',
-			exact: true
-		})
-		.fill(' \nMy new handknitted scarf #knitting\n\t ');
+	const editor = page.getByRole('textbox', {
+		name: 'What would you like to share?',
+		exact: true
+	});
+	await expect(editor).toHaveAttribute(
+		'placeholder',
+		"Share what you're making, learning, or thinking...\n\nYou can @mention people, use #hashtags or add https://links.com."
+	);
+	await expect(editor).toHaveValue('');
+	await editor.fill(' \nMy new handknitted scarf #knitting\n\t ');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 	await expect(page).toHaveURL('/feed');
 	await expect(
@@ -422,7 +452,7 @@ test('compact quote previews derive their route from AT URI and show safe select
 	await expect(page.locator('.quote-card img')).toHaveCount(0);
 	await expect(page.locator('.external-card img')).toHaveCount(0);
 });
-test('project pattern and material annotations link to their makers and hashtags', async ({
+test('project pattern annotations still link to their makers and hashtags', async ({
 	page
 }) => {
 	const facet = (
@@ -495,11 +525,10 @@ test('project pattern and material annotations link to their makers and hashtags
 	).toHaveAttribute('href', /\/search\/tags/);
 	await expect(
 		details.getByRole('link', { name: '@bob.test', exact: true })
-	).toHaveCount(2);
-	for (const link of await details
-		.getByRole('link', { name: '@bob.test', exact: true })
-		.all())
-		await expect(link).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
+	).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
+	await expect(
+		details.getByText('🧶 Linen from', { exact: false })
+	).toHaveCount(0);
 	await expect(
 		details.getByRole('link', { name: '@alice.test', exact: true })
 	).toHaveAttribute('href', '/profiles/did%3Aplc%3Aalice');
@@ -707,6 +736,310 @@ test('schedules private media, restores the schedule and requests publication no
 		requests.some((call) => call.path === '/v1/posts' && call.method === 'POST')
 	).toBe(false);
 });
+
+test('saves and reopens a scheduled Knitting project with methods and patterns', async ({
+	page
+}) => {
+	await page.goto('/compose/project');
+	await page
+		.getByRole('combobox', { name: 'Primary craft required', exact: true })
+		.click();
+	await page.getByRole('option', { name: 'Knitting', exact: true }).click();
+	await page
+		.getByRole('textbox', { name: 'Project title', exact: true })
+		.fill('Scheduled colourwork');
+	await page
+		.getByRole('textbox', { name: 'Project description', exact: true })
+		.fill('A cardigan with two colourwork styles.');
+	const knitting = page.getByRole('region', {
+		name: 'Knitting details',
+		exact: true
+	});
+	const openKnitting = () =>
+		page.getByRole('button', { name: 'Knitting details', exact: true }).click();
+	const select = async (label: string, option: string) => {
+		await knitting
+			.getByRole('searchbox', { name: label, exact: true })
+			.fill(option);
+		await knitting.getByRole('checkbox', { name: option, exact: true }).click();
+	};
+	await openKnitting();
+	await select('Knitting methods', 'Hand');
+	await select('Knitting methods', 'Loom');
+	await knitting.getByRole('button', { name: 'Back to project' }).click();
+	const patternDetails = page.getByRole('region', {
+		name: 'Pattern details',
+		exact: true
+	});
+	const openPatterns = () =>
+		page.getByRole('button', { name: 'Pattern details', exact: true }).click();
+	const patternNames = patternDetails.getByRole('textbox', {
+		name: 'Pattern name',
+		exact: true
+	});
+	await openPatterns();
+	await patternNames.first().fill('Base cardigan');
+	await patternDetails
+		.getByRole('button', { name: 'Add another pattern', exact: true })
+		.click();
+	await patternNames.nth(1).fill('Colourwork chart #chart');
+	await patternDetails.getByRole('button', { name: 'Back to project' }).click();
+	await page.getByRole('button', { name: 'When', exact: true }).click();
+	await page
+		.getByRole('menuitemradio', { name: 'Schedule for later', exact: true })
+		.click();
+	const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+	const local = new Date(
+		tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000
+	)
+		.toISOString()
+		.slice(0, 16);
+	await page.getByLabel('Publish date and time').fill(local);
+	await page.getByRole('button', { name: 'Set time', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Save schedule', exact: true })
+		.click();
+	await expect(page).toHaveURL('/scheduled');
+	const schedule = page
+		.getByRole('listitem')
+		.filter({ hasText: 'Scheduled colourwork' });
+	await schedule
+		.getByRole('link', { name: 'Edit scheduled post', exact: true })
+		.click();
+	await openKnitting();
+	for (const option of ['Hand', 'Loom']) {
+		await expect(
+			knitting.getByRole('button', {
+				name: `Remove ${option} from Knitting methods`,
+				exact: true
+			})
+		).toBeVisible();
+	}
+	await knitting.getByRole('button', { name: 'Back to project' }).click();
+	await openPatterns();
+	await expect(patternNames.first()).toHaveValue('Base cardigan');
+	await expect(patternNames.nth(1)).toHaveValue('Colourwork chart #chart');
+	await patternDetails.getByRole('button', { name: 'Back to project' }).click();
+	await page.getByRole('button', { name: 'Publish now', exact: true }).click();
+	await expect(page).toHaveURL('/scheduled');
+	const requests = await calls();
+	const create = requests.find(
+		(call) => call.method === 'POST' && call.path === '/v1/scheduled-posts'
+	);
+	expect(create?.body).toMatchObject({
+		payload: {
+			kind: 'project',
+			project: {
+				common: {
+					title: 'Scheduled colourwork',
+					patterns: [
+						{ name: 'Base cardigan' },
+						{
+							name: 'Colourwork chart #chart',
+							nameFacets: [{ features: [{ tag: 'chart' }] }]
+						}
+					]
+				},
+				details: {
+					methods: [
+						'social.craftsky.project.knitting.defs#hand',
+						'social.craftsky.project.knitting.defs#loom'
+					]
+				}
+			}
+		}
+	});
+	const publish = requests.find(
+		(call) => call.method === 'POST' && call.path.endsWith('/publication')
+	);
+	expect(publish?.path).toBe(
+		`/v1/scheduled-posts/${create?.body.operationId}/publication`
+	);
+	expect(publish?.body.payload).toEqual(create?.body.payload);
+});
+
+test('keeps saved pattern annotations when a current schedule is edited and published now', async ({
+	page,
+	request
+}) => {
+	const id = crypto.randomUUID();
+	const designer = '@maker.example';
+	const caption = 'Current schedule with #credit  ';
+	const captionFacets = [
+		{
+			index: {
+				byteStart: caption.indexOf('#credit'),
+				byteEnd: caption.trimEnd().length
+			},
+			features: [
+				{
+					$type: 'app.bsky.richtext.facet#link',
+					uri: 'https://example.com/scheduled-credit'
+				}
+			]
+		}
+	];
+	const extensionOnly = { futureFlag: false };
+	const firstSaved = {
+		name: '#wool-blue',
+		nameFacets: [
+			{
+				index: { byteStart: 0, byteEnd: 10 },
+				features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'wool-blue' }]
+			}
+		],
+		designer,
+		designerFacets: [
+			{
+				index: { byteStart: 0, byteEnd: designer.length },
+				features: [
+					{
+						$type: 'app.bsky.richtext.facet#mention',
+						did: 'did:plc:originalmaker'
+					}
+				]
+			}
+		]
+	};
+	const create = await request.post(
+		'http://127.0.0.1:19847/v1/scheduled-posts',
+		{
+			headers: { authorization: `Bearer ${alice.token}` },
+			data: {
+				operationId: id,
+				scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+				payload: {
+					kind: 'project',
+					text: caption,
+					facets: captionFacets,
+					langs: ['en'],
+					sponsored: false,
+					project: {
+						common: {
+							craftType: 'social.craftsky.feed.defs#knitting',
+							status: 'social.craftsky.feed.defs#wip',
+							title: 'Scheduled pattern annotations',
+							patterns: [
+								{ name: 'Remove me' },
+								firstSaved,
+								extensionOnly,
+								{ name: 'Original chart' }
+							]
+						}
+					}
+				}
+			}
+		}
+	);
+	expect(create.status()).toBe(201);
+	const lookups: string[] = [];
+	let reassigned = false;
+	await page.route('**/v1/facets/mentions/resolve?*', (route) => {
+		lookups.push(
+			new URL(route.request().url()).searchParams.get('handle') ?? ''
+		);
+		return reassigned
+			? route.fulfill({ json: { did: 'did:plc:newmaker' } })
+			: route.fulfill({
+					status: 404,
+					json: { error: 'not_found', message: 'Unknown handle' }
+				});
+	});
+	const schedule = page
+		.getByRole('listitem')
+		.filter({ hasText: 'Scheduled pattern annotations' });
+	const open = async () => {
+		await schedule
+			.getByRole('link', { name: 'Edit scheduled post', exact: true })
+			.click();
+		await page
+			.getByRole('button', { name: 'Pattern details', exact: true })
+			.click();
+	};
+	const panel = page.getByRole('region', {
+		name: 'Pattern details',
+		exact: true
+	});
+	const pattern = (index: number) =>
+		panel.getByRole('group', { name: `Pattern ${index}`, exact: true });
+	const nameInput = (index: number) =>
+		pattern(index).getByRole('textbox', {
+			name: 'Pattern name',
+			exact: true
+		});
+	const designerInput = (index: number) =>
+		pattern(index).getByRole('textbox', { name: 'Designer', exact: true });
+	await page.goto('/scheduled');
+	await open();
+	await panel
+		.getByRole('button', { name: 'Remove pattern 1', exact: true })
+		.click();
+	await nameInput(3).fill('Updated chart');
+	await designerInput(1).fill('@temporary.example');
+	await designerInput(1).fill(designer);
+	await panel.getByRole('button', { name: 'Back to project' }).click();
+	const update = page.waitForRequest(
+		(request) => request.method() === 'PUT' && request.url().endsWith('/' + id)
+	);
+	await page
+		.getByRole('button', { name: 'Save schedule', exact: true })
+		.click();
+	await expect(page).toHaveURL('/scheduled');
+	const updated = (await update).postDataJSON().payload;
+	expect(updated.text).toBe(caption);
+	expect(updated.facets).toEqual(captionFacets);
+	expect(updated.project.common.patterns).toEqual([
+		firstSaved,
+		extensionOnly,
+		{ name: 'Updated chart' }
+	]);
+	expect(lookups).toEqual([]);
+	await open();
+	await expect(designerInput(1)).toHaveValue(designer);
+	await expect(nameInput(3)).toHaveValue('Updated chart');
+	await panel
+		.getByRole('button', { name: 'Add another pattern', exact: true })
+		.click();
+	await nameInput(4).fill('New chart');
+	await designerInput(4).fill(designer);
+	await panel
+		.getByRole('button', { name: 'Add another pattern', exact: true })
+		.click();
+	await panel.getByRole('button', { name: 'Back to project' }).click();
+	reassigned = true;
+	const publish = page.waitForRequest(
+		(request) =>
+			request.method() === 'POST' &&
+			request.url().endsWith('/' + id + '/publication')
+	);
+	await page.getByRole('button', { name: 'Publish now', exact: true }).click();
+	await expect(page).toHaveURL('/scheduled');
+	const published = (await publish).postDataJSON().payload;
+	expect(published.text).toBe(caption);
+	expect(published.facets).toEqual(captionFacets);
+	expect(published.project.common.patterns).toEqual([
+		firstSaved,
+		extensionOnly,
+		{ name: 'Updated chart' },
+		{
+			name: 'New chart',
+			designer,
+			designerFacets: [
+				{
+					index: { byteStart: 0, byteEnd: designer.length },
+					features: [
+						{
+							$type: 'app.bsky.richtext.facet#mention',
+							did: 'did:plc:newmaker'
+						}
+					]
+				}
+			]
+		}
+	]);
+	expect(lookups).toEqual(['maker.example']);
+});
+
 test('supports mobile navigation and project fields without horizontal overflow', async ({
 	page
 }) => {
@@ -733,8 +1066,10 @@ test('supports mobile navigation and project fields without horizontal overflow'
 	await page
 		.getByRole('button', { name: 'Sewing details', exact: true })
 		.click();
-	await page.getByLabel('Size made').fill('12');
-	await page.getByLabel('Fit notes').fill('Shortened the sleeves');
+	await page
+		.getByRole('combobox', { name: 'Project type', exact: true })
+		.fill('Dress');
+	await page.getByRole('option', { name: 'Dress', exact: true }).click();
 	await page
 		.getByRole('region', { name: 'Sewing details', exact: true })
 		.getByRole('button', { name: 'Back to project', exact: true })
@@ -757,7 +1092,18 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		path: test.info().outputPath('mobile-project-editor.png'),
 		fullPage: false
 	});
-	await page.getByRole('button', { name: 'Clear Status', exact: true }).click();
+	const status = page.getByRole('combobox', {
+		name: 'Status required',
+		exact: true
+	});
+	await expect(status).toHaveValue('Finished');
+	await expect(
+		page.getByRole('button', { name: 'Clear Status', exact: true })
+	).toHaveCount(0);
+	await status.click();
+	await page
+		.getByRole('option', { name: 'Work in progress', exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
 	await expect(
@@ -778,8 +1124,8 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
 	await expect(
-		page.getByRole('combobox', { name: 'Status', exact: true })
-	).toHaveValue('');
+		page.getByRole('combobox', { name: 'Status required', exact: true })
+	).toHaveValue('Work in progress');
 	await expect(
 		page.getByRole('textbox', { name: 'Project description', exact: true })
 	).toHaveValue('A summer dress made from linen');
@@ -787,11 +1133,8 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		.getByRole('button', { name: 'Sewing details', exact: true })
 		.click();
 	await expect(
-		page.getByRole('textbox', { name: 'Size made', exact: true })
-	).toHaveValue('12');
-	await expect(
-		page.getByRole('textbox', { name: 'Fit notes', exact: true })
-	).toHaveValue('Shortened the sleeves');
+		page.getByRole('combobox', { name: 'Project type', exact: true })
+	).toHaveValue('Garment · Dress');
 	await page
 		.getByRole('region', { name: 'Sewing details', exact: true })
 		.getByRole('button', { name: 'Back to project', exact: true })
@@ -814,7 +1157,7 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	await page.getByRole('option', { name: 'Sewing', exact: true }).click();
 	await page
 		.getByRole('textbox', { name: 'Project title', exact: true })
-		.fill('Three detail pages');
+		.fill('Two detail pages');
 	await page
 		.getByRole('textbox', { name: 'Project description', exact: true })
 		.fill('A summer project with details worth keeping.');
@@ -873,23 +1216,17 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	await page.goBack();
 	await expect(pattern).toBeHidden();
 
-	const materials = await open('Materials and style');
-	await materials
-		.getByRole('textbox', { name: 'Materials', exact: true })
-		.fill('Merino wool');
-	await materials.getByRole('button', { name: 'Add', exact: true }).click();
-	await materials
-		.getByRole('textbox', { name: 'Materials', exact: true })
-		.fill('Brass buttons');
-	await materials.getByRole('button', { name: 'Add', exact: true }).click();
-	await back('Materials and style');
+	await expect(
+		page.getByRole('button', { name: 'Materials and style', exact: true })
+	).toHaveCount(0);
 	const craft = await open('Sewing details');
 	await craft
-		.getByRole('textbox', { name: 'Size made', exact: true })
-		.fill('12');
+		.getByRole('combobox', { name: 'Project type', exact: true })
+		.click();
+	await page.getByRole('option', { name: 'Other', exact: true }).click();
 	await craft
-		.getByRole('textbox', { name: 'Fit notes', exact: true })
-		.fill('Shortened sleeves');
+		.getByRole('textbox', { name: 'What did you make?', exact: true })
+		.fill('Textile sculpture');
 	await back('Sewing details');
 
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
@@ -897,7 +1234,7 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	await page.goto('/drafts');
 	const row = page
 		.getByRole('listitem')
-		.filter({ has: page.getByText('Three detail pages', { exact: true }) });
+		.filter({ has: page.getByText('Two detail pages', { exact: true }) });
 	await row
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
@@ -913,24 +1250,16 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	await expect(
 		page.getByRole('button', { name: 'Pattern details', exact: true })
 	).toBeFocused();
-	const restoredMaterials = await open('Materials and style');
-	await expect(
-		restoredMaterials.getByText('Merino wool', { exact: true })
-	).toBeVisible();
-	await expect(
-		restoredMaterials.getByText('Brass buttons', { exact: true })
-	).toBeVisible();
-	await expect(
-		restoredMaterials.getByRole('textbox', { name: 'Materials', exact: true })
-	).toHaveValue('');
-	await back('Materials and style');
 	const restoredCraft = await open('Sewing details');
 	await expect(
-		restoredCraft.getByRole('textbox', { name: 'Size made', exact: true })
-	).toHaveValue('12');
+		restoredCraft.getByRole('combobox', { name: 'Project type', exact: true })
+	).toHaveValue('Other');
 	await expect(
-		restoredCraft.getByRole('textbox', { name: 'Fit notes', exact: true })
-	).toHaveValue('Shortened sleeves');
+		restoredCraft.getByRole('textbox', {
+			name: 'What did you make?',
+			exact: true
+		})
+	).toHaveValue('Textile sculpture');
 	await back('Sewing details');
 	expect(
 		(await calls()).filter(

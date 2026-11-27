@@ -117,7 +117,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text("Share what you're making, learning, or thinking..."),
+      find.textContaining("Share what you're making, learning, or thinking..."),
       findsOneWidget,
     );
     expect(find.textContaining('required'), findsOneWidget);

@@ -91,7 +91,7 @@ void main() {
       expect(find.text('Shortened sleeves'), findsNothing);
     });
 
-    testWidgets('detail renders common, pattern, and sewing fields', (
+    testWidgets('detail keeps active common, pattern, and sewing fields', (
       tester,
     ) async {
       await _pump(
@@ -141,8 +141,8 @@ void main() {
         isA<Column>(),
       );
       expect(find.text('Wiksten Haori in indigo linen'), findsOneWidget);
-      expect(find.text('DURATION'), findsOneWidget);
-      expect(find.text('3 weekends'), findsOneWidget);
+      expect(find.text('DURATION'), findsNothing);
+      expect(find.text('3 weekends'), findsNothing);
       expect(find.text('PATTERN'), findsOneWidget);
       expect(_richText('Wiksten Haori'), findsOneWidget);
       expect(_richText('Jenny Gordy'), findsOneWidget);
@@ -154,85 +154,108 @@ void main() {
       expect(find.text('PROJECT TYPE'), findsOneWidget);
       expect(find.text('Garment > Coat or jacket'), findsOneWidget);
       expect(find.text('PROJECT SUBTYPE'), findsNothing);
-      expect(find.text('SIZE MADE'), findsOneWidget);
-      expect(find.text('Medium'), findsOneWidget);
-      expect(find.text('FIT NOTES'), findsOneWidget);
-      expect(find.text('Shortened sleeves'), findsOneWidget);
-      expect(find.text('MATERIALS'), findsOneWidget);
-      expect(find.text('linen'), findsOneWidget);
-      expect(find.text('cotton thread'), findsOneWidget);
-      expect(find.text('COLOURS'), findsOneWidget);
-      expect(find.text('Blue'), findsOneWidget);
-      expect(find.text('Natural'), findsOneWidget);
-      expect(find.text('DESIGN'), findsOneWidget);
-      expect(find.text('Minimalist'), findsOneWidget);
+      expect(find.text('SIZE MADE'), findsNothing);
+      expect(find.text('Medium'), findsNothing);
+      expect(find.text('FIT NOTES'), findsNothing);
+      expect(find.text('Shortened sleeves'), findsNothing);
+      expect(find.text('MATERIALS'), findsNothing);
+      expect(find.text('linen'), findsNothing);
+      expect(find.text('cotton thread'), findsNothing);
+      expect(find.text('COLOURS'), findsNothing);
+      expect(find.text('Blue'), findsNothing);
+      expect(find.text('Natural'), findsNothing);
+      expect(find.text('DESIGN'), findsNothing);
+      expect(find.text('Minimalist'), findsNothing);
       expect(find.text('TAGS'), findsOneWidget);
       expect(find.text('jacket'), findsOneWidget);
       expect(find.text('stashbuster'), findsOneWidget);
     });
 
-    testWidgets('detail formats knitting gauge and tool fields', (
+    testWidgets(
+      'detail shows knitting methods and hides retired measurements',
+      (
+        tester,
+      ) async {
+        await _pump(
+          tester,
+          const ProjectCard(
+            variant: ProjectCardVariant.detail,
+            project: Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.knittingCraftToken,
+              ),
+              details: KnittingProjectDetails(
+                yarnWeight:
+                    '${ProjectOptionCatalogs.projectDefsPrefix}#fingering',
+                needleSizeMm: '3.5mm',
+                gauge: ProjectGauge(
+                  stitches: 24,
+                  rows: 32,
+                  measurement: 10,
+                  unit: 'cm',
+                ),
+                finishedSize: '40 in bust',
+                extraFields: {
+                  'methods': [ProjectOptionCatalogs.knittingMachineMethodToken],
+                },
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('KNITTING METHODS'), findsOneWidget);
+        expect(find.text('Machine'), findsOneWidget);
+        expect(find.text('YARN WEIGHT'), findsNothing);
+        expect(find.text('Fingering'), findsNothing);
+        expect(find.text('NEEDLE SIZE'), findsNothing);
+        expect(find.text('3.5mm'), findsNothing);
+        expect(find.text('GAUGE'), findsNothing);
+        expect(find.text('24 sts / 32 rows per 10 cm'), findsNothing);
+        expect(find.text('FINISHED SIZE'), findsNothing);
+        expect(find.text('40 in bust'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'detail shows the Tunisian method without retired fields',
+      (tester) async {
+        await _pump(
+          tester,
+          const ProjectCard(
+            variant: ProjectCardVariant.detail,
+            project: Project(
+              common: ProjectCommon(
+                craftType: ProjectOptionCatalogs.crochetCraftToken,
+              ),
+              details: CrochetProjectDetails(
+                hookSizeMm: '4.0mm',
+                gauge: ProjectGauge(stitches: 18, measurement: 4, unit: 'in'),
+                finishedSize: 'Baby blanket',
+                extraFields: {
+                  'techniques': [
+                    {'technique': 'tunisianCrochet'},
+                    {'technique': 'grannySquare'},
+                  ],
+                },
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('CROCHET METHODS'), findsOneWidget);
+        expect(find.text('Tunisian'), findsOneWidget);
+        expect(find.text('TECHNIQUES'), findsNothing);
+        expect(find.text('Granny square'), findsNothing);
+        expect(find.text('HOOK SIZE'), findsNothing);
+        expect(find.text('4.0mm'), findsNothing);
+        expect(find.text('18 sts per 4 in'), findsNothing);
+        expect(find.text('Baby blanket'), findsNothing);
+      },
+    );
+
+    testWidgets('detail shows the quilt type without retired quilting fields', (
       tester,
     ) async {
-      await _pump(
-        tester,
-        const ProjectCard(
-          variant: ProjectCardVariant.detail,
-          project: Project(
-            common: ProjectCommon(
-              craftType: ProjectOptionCatalogs.knittingCraftToken,
-            ),
-            details: KnittingProjectDetails(
-              yarnWeight:
-                  '${ProjectOptionCatalogs.projectDefsPrefix}#fingering',
-              needleSizeMm: '3.5mm',
-              gauge: ProjectGauge(
-                stitches: 24,
-                rows: 32,
-                measurement: 10,
-                unit: 'cm',
-              ),
-              finishedSize: '40 in bust',
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('YARN WEIGHT'), findsOneWidget);
-      expect(find.text('Fingering'), findsOneWidget);
-      expect(find.text('NEEDLE SIZE'), findsOneWidget);
-      expect(find.text('3.5mm'), findsOneWidget);
-      expect(find.text('GAUGE'), findsOneWidget);
-      expect(find.text('24 sts / 32 rows per 10 cm'), findsOneWidget);
-      expect(find.text('FINISHED SIZE'), findsOneWidget);
-      expect(find.text('40 in bust'), findsOneWidget);
-    });
-
-    testWidgets('detail formats crochet gauge without rows', (tester) async {
-      await _pump(
-        tester,
-        const ProjectCard(
-          variant: ProjectCardVariant.detail,
-          project: Project(
-            common: ProjectCommon(
-              craftType: ProjectOptionCatalogs.crochetCraftToken,
-            ),
-            details: CrochetProjectDetails(
-              hookSizeMm: '4.0mm',
-              gauge: ProjectGauge(stitches: 18, measurement: 4, unit: 'in'),
-              finishedSize: 'Baby blanket',
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('HOOK SIZE'), findsOneWidget);
-      expect(find.text('4.0mm'), findsOneWidget);
-      expect(find.text('18 sts per 4 in'), findsOneWidget);
-      expect(find.text('Baby blanket'), findsOneWidget);
-    });
-
-    testWidgets('detail formats quilting fields', (tester) async {
       await _pump(
         tester,
         const ProjectCard(
@@ -255,12 +278,182 @@ void main() {
         ),
       );
 
-      expect(find.text('Quilt > Throw quilt'), findsOneWidget);
-      expect(find.text('60 x 72 in'), findsOneWidget);
-      expect(find.text('PIECING TECHNIQUE'), findsOneWidget);
-      expect(find.text('Improv'), findsOneWidget);
-      expect(find.text('QUILTING METHOD'), findsOneWidget);
-      expect(find.text('Hand quilted'), findsOneWidget);
+      expect(find.text('Quilt > Throw or lap quilt'), findsOneWidget);
+      expect(find.text('60 x 72 in'), findsNothing);
+      expect(find.text('PIECING TECHNIQUE'), findsNothing);
+      expect(find.text('Improv'), findsNothing);
+      expect(find.text('QUILTING METHOD'), findsNothing);
+      expect(find.text('Hand quilted'), findsNothing);
+    });
+
+    testWidgets(
+      'detail uses active felting choices with a safe legacy fallback',
+      (
+        tester,
+      ) async {
+        const oldDetails = {
+          'method': 'needle',
+          'form': 'retired form',
+          'core': 'retired core',
+        };
+        for (final (raw, needleVisible) in [
+          (oldDetails, true),
+          ({...oldDetails, 'methods': <String>[]}, false),
+        ]) {
+          await _pump(
+            tester,
+            ProjectCard(
+              variant: ProjectCardVariant.detail,
+              project: Project(
+                common: const ProjectCommon(
+                  craftType: ProjectOptionCatalogs.feltingCraftToken,
+                ),
+                details: UnknownProjectDetails(
+                  type: 'social.craftsky.project.felting#details',
+                  raw: raw,
+                ),
+              ),
+            ),
+          );
+          expect(
+            find.text('FELTING METHODS'),
+            needleVisible ? findsOneWidget : findsNothing,
+          );
+          expect(
+            find.text('Needle'),
+            needleVisible ? findsOneWidget : findsNothing,
+          );
+          expect(find.text('FELTING METHOD'), findsNothing);
+          expect(find.text('retired form'), findsNothing);
+          expect(find.text('retired core'), findsNothing);
+        }
+      },
+    );
+
+    testWidgets('detail shows current embroidery choices without old groups', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const ProjectCard(
+          variant: ProjectCardVariant.detail,
+          project: Project(
+            common: ProjectCommon(
+              craftType: ProjectOptionCatalogs.embroideryCraftToken,
+            ),
+            details: UnknownProjectDetails(
+              type: 'social.craftsky.project.embroidery#details',
+              raw: {
+                'method': 'social.craftsky.project.embroidery.defs#machine',
+                'style': 'social.craftsky.project.embroidery.defs#crossStitch',
+                'methods': [
+                  {
+                    'method': 'social.craftsky.project.embroidery.defs#hand',
+                    'styles': [
+                      {
+                        'style':
+                            'social.craftsky.project.embroidery.defs#sashiko',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('EMBROIDERY METHOD'), findsOneWidget);
+      expect(find.text('Machine'), findsOneWidget);
+      expect(find.text('EMBROIDERY STYLE'), findsOneWidget);
+      expect(find.text('Cross-stitch'), findsOneWidget);
+      expect(find.text('EMBROIDERY METHODS'), findsNothing);
+      expect(find.text('Hand (Sashiko)'), findsNothing);
+    });
+
+    testWidgets('detail does not infer a new type from retired dyeing fields', (
+      tester,
+    ) async {
+      const oldDetails = {
+        'materialForm': 'social.craftsky.project.dyeing#roving',
+        'recipeNotes': 'Former recipe notes',
+      };
+      for (final (raw, typeVisible) in [
+        (oldDetails, false),
+        (
+          {
+            ...oldDetails,
+            'projectType': 'social.craftsky.project.dyeing#fabric',
+          },
+          true,
+        ),
+      ]) {
+        await _pump(
+          tester,
+          ProjectCard(
+            variant: ProjectCardVariant.detail,
+            project: Project(
+              common: const ProjectCommon(
+                craftType: ProjectOptionCatalogs.dyeingCraftToken,
+              ),
+              details: UnknownProjectDetails(
+                type: 'social.craftsky.project.dyeing#details',
+                raw: raw,
+              ),
+            ),
+          ),
+        );
+        expect(
+          find.text('DYED ITEM'),
+          typeVisible ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.text('Fabric'),
+          typeVisible ? findsOneWidget : findsNothing,
+        );
+        expect(find.text('Material form'), findsNothing);
+        expect(find.text('Roving'), findsNothing);
+        expect(find.text('Former recipe notes'), findsNothing);
+      }
+    });
+
+    testWidgets('detail allows active fields in untyped historical details', (
+      tester,
+    ) async {
+      for (final (craft, detailsType, itemVisible) in [
+        (ProjectOptionCatalogs.sewingCraftToken, null, true),
+        (
+          ProjectOptionCatalogs.sewingCraftToken,
+          knittingProjectDetailsType,
+          false,
+        ),
+        (ProjectOptionCatalogs.spinningCraftToken, null, false),
+      ]) {
+        await _pump(
+          tester,
+          ProjectCard(
+            variant: ProjectCardVariant.detail,
+            project: Project(
+              common: ProjectCommon(craftType: craft),
+              details: UnknownProjectDetails(
+                type: detailsType,
+                raw: const {
+                  'projectType':
+                      '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
+                  'projectSubtype':
+                      '${ProjectOptionCatalogs.sewingDefsPrefix}#coatJacket',
+                  'fitNotes': 'Old fit details',
+                },
+              ),
+            ),
+          ),
+        );
+        expect(
+          find.text('Garment > Coat or jacket'),
+          itemVisible ? findsOneWidget : findsNothing,
+        );
+        expect(find.text('Old fit details'), findsNothing);
+      }
     });
 
     testWidgets('metadata label column scales with text scaler', (
@@ -273,7 +466,7 @@ void main() {
           project: Project(
             common: ProjectCommon(
               craftType: ProjectOptionCatalogs.sewingCraftToken,
-              duration: 'Scaled value',
+              pattern: ProjectPattern(difficulty: 'Scaled value'),
             ),
           ),
         ),
@@ -281,7 +474,7 @@ void main() {
       );
 
       expect(
-        tester.getTopLeft(find.text('Scaled value')).dx,
+        tester.getTopLeft(find.text('Scaled Value')).dx,
         greaterThan(160),
       );
     });

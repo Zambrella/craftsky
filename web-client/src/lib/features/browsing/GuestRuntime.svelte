@@ -9,6 +9,7 @@
 	} from '$app/navigation';
 	import { PageHistory, pageHistoryContext } from '../shell/page-history';
 	import { PublicCraftskyAPI } from '#lib/api/public-client.ts';
+	import { projectDetailFilterKeys } from '#lib/api/project-detail-filter-keys.ts';
 	import { GuestSession } from './guest-session.svelte';
 	import { guestRoute } from '#lib/routes.ts';
 	import BrowsingShell from './BrowsingShell.svelte';
@@ -127,6 +128,7 @@
 						'sort',
 						'cursor',
 						'status',
+						'projectItem',
 						'projectType',
 						'projectSubtype',
 						'patternDifficulty',
@@ -135,6 +137,9 @@
 						'yarnWeight',
 						'piecingTechnique',
 						'quiltingMethod',
+						'knittingMethod',
+						'feltingMethod',
+						...projectDetailFilterKeys,
 						'selfDrafted'
 					]
 				: target.pathname.startsWith('/search')

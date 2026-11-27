@@ -20,7 +20,7 @@
 	import MemberPost from './MemberPost.svelte';
 	import { rememberPage } from '../shell/page-history';
 	import ProjectFiltersPage from './ProjectFiltersPage.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, onNavigate } from '$app/navigation';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import { label } from '#lib/public.ts';
@@ -30,8 +30,26 @@
 	import EmptyState from './EmptyState.svelte';
 	import LoadMore from '#lib/LoadMore.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
+	import { craftIconMask } from './craft-icons';
+	import { craftChoice } from '../composer/project-options';
 	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
 	const guest = $derived(api.audience === 'guest');
+	const tabStripId = 'home-feed-tabs';
+	let tabStrip = $state<HTMLElement>();
+	onNavigate(({ from, to }) => {
+		if (
+			!tabStrip ||
+			from?.url.pathname !== '/feed' ||
+			to?.url.pathname !== '/feed'
+		)
+			return;
+		const offset = tabStrip.scrollLeft;
+		// Feed query changes remount the strip along with the feed content.
+		return () => {
+			const nextStrip = document.getElementById(tabStripId);
+			if (nextStrip) nextStrip.scrollLeft = offset;
+		};
+	});
 	type FeedItem = {
 		key: string;
 		post: PostPresentation;
@@ -65,7 +83,9 @@
 		if (loaded)
 			historyView?.save({ profile, items, cursor, pages: loadedPages });
 	}
-	const craft = page.url.searchParams.get('craft') || '';
+	const requestedCraft = page.url.searchParams.get('craft') || '';
+	const craft =
+		craftChoice(requestedCraft)?.offered === false ? '' : requestedCraft;
 	const extendedNetwork = $derived(
 		!guest &&
 			!craft &&
@@ -132,9 +152,10 @@
 						...options,
 						craftType: craft
 							? [
-									craft.includes('#')
-										? craft
-										: `social.craftsky.feed.defs#${craft}`
+									craftChoice(craft)?.id ??
+										(craft.includes('#')
+											? craft
+											: `social.craftsky.feed.defs#${craft}`)
 								]
 							: undefined,
 						sort:
@@ -240,7 +261,13 @@
 					>{/if}
 			</div>{/if}
 	</div>
-	<nav class="tabs" use:dragScroll aria-label="Home feeds">
+	<nav
+		id={tabStripId}
+		bind:this={tabStrip}
+		class="tabs"
+		use:dragScroll
+		aria-label="Home feeds"
+	>
 		<a
 			href="/feed"
 			aria-current={!craft && !extendedNetwork ? 'page' : undefined}
@@ -254,12 +281,12 @@
 				><Icon name="extendedNetwork" size={18} />Extended network</a
 			>{/if}
 		{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
-				craftKey(item.id)}<a
+				craftKey(item.id)}{@const icon = craftIconMask(key)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
-				>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
+				>{#if icon}<span
 						class="feed-craft-icon"
-						style:--craft-icon={`url('/craft_icons/${key}.svg')`}
+						style:--craft-icon={icon}
 						aria-hidden="true"
 					></span>{/if}{label(key)}</a
 			>{/each}

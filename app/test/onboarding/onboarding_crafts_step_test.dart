@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_crafts_step.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/gestures.dart';
@@ -16,7 +17,11 @@ void main() {
         Profile(
           did: 'did:plc:alice',
           handle: 'alice.test',
-          crafts: const ['quilting', 'sewing', 'future-craft'],
+          crafts: const [
+            'social.craftsky.feed.defs#quilting',
+            'sewing',
+            'future-craft',
+          ],
         ),
       ).copyWith(step: OnboardingStep.crafts);
       var requestMoreCalls = 0;
@@ -67,9 +72,11 @@ void main() {
         tester.getTopLeft(row('quilting')).dy,
         lessThan(tester.getTopLeft(row('sewing')).dy),
       );
-      expect(find.byType(Checkbox), findsNWidgets(5));
+      const hasNewCrafts = ProjectTaxonomy.releasePhase >= 2;
+      expect(find.byType(Checkbox), findsNWidgets(hasNewCrafts ? 11 : 5));
       expect(find.text('future-craft'), findsNothing);
-      expect(find.text('Weaving'), findsNothing);
+      expect(row('weaving'), findsNWidgets(hasNewCrafts ? 1 : 0));
+      expect(row('punch-needle'), findsNWidgets(hasNewCrafts ? 1 : 0));
       await tester.tap(find.byTooltip('Reorder Sewing'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Move up'));
@@ -86,6 +93,7 @@ void main() {
       await tester.tap(row('sewing'));
       await tester.pumpAndSettle();
       expectDefault('quilting');
+      await tester.ensureVisible(find.text('Request more'));
       await tester.tap(find.text('Request more'));
       expect(requestMoreCalls, 1);
     },
@@ -160,16 +168,18 @@ void main() {
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) => OnboardingCraftsStep(
-                state: state,
-                onToggle: (_) {},
-                onReorder: (crafts) => setState(
-                  () => state = state.copyWith(
-                    selectedCraftIds: crafts.map((craft) => craft.id).toSet(),
+            body: SingleChildScrollView(
+              child: StatefulBuilder(
+                builder: (context, setState) => OnboardingCraftsStep(
+                  state: state,
+                  onToggle: (_) {},
+                  onReorder: (crafts) => setState(
+                    () => state = state.copyWith(
+                      selectedCraftIds: crafts.map((craft) => craft.id).toSet(),
+                    ),
                   ),
+                  onRequestMore: () {},
                 ),
-                onRequestMore: () {},
               ),
             ),
           ),

@@ -1,0 +1,31 @@
+export const projectDetailFilterKeys = [
+	'crochetMethod',
+	'technique',
+	'techniqueSubtype',
+	'embroideryMethod',
+	'embroideryStyle',
+	'spinningTool',
+	'fibrePreparation',
+	'draftingTechnique',
+	'plyingTechnique',
+	'finishedYarnMassUnit',
+	'finishedYarnLengthUnit',
+	'materialForm',
+	'dyeType',
+	'applicationMethod',
+	'colorEffect',
+	'loopHeightUnit',
+	'cordConstruction',
+	'knot',
+	'loomType',
+	'weaveStructure',
+	'materialRole',
+	'settUnit',
+	'feltingForm',
+	'needleGauge',
+	'needleSizeMm',
+	'hookSizeMm',
+	'gaugeUnit'
+] as const;
+
+export type ProjectDetailFilterKey = (typeof projectDetailFilterKeys)[number];

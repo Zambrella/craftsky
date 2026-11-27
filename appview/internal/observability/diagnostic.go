@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/getsentry/sentry-go"
@@ -83,6 +84,23 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 		}
 		if network, ok := current.(net.Error); ok && network.Timeout() {
 			cause.Message = "network request timed out"
+			message := network.Error()
+			switch {
+			case message == "net/http: timeout awaiting response headers", message == "http2: timeout awaiting response headers":
+				cause.Message = "network request timed out awaiting response headers"
+			case cause.Type == "*http.timeoutError" && strings.HasSuffix(message, " (Client.Timeout exceeded while awaiting headers)"):
+				cause.Message = "HTTP client deadline reached before response headers"
+			case cause.Type == "*http.timeoutError" && strings.HasSuffix(message, " (Client.Timeout or context cancellation while reading body)"):
+				cause.Message = "HTTP client interrupted while reading the response body"
+			case message == "net/http: TLS handshake timeout":
+				cause.Message = "network request timed out during TLS handshake"
+			}
+		}
+		if operation, ok := current.(*net.OpError); ok {
+			switch operation.Op {
+			case "dial", "read", "write":
+				cause.Message += " (network operation=" + operation.Op + ")"
+			}
 		}
 		if dns, ok := current.(*net.DNSError); ok {
 			cause.Message = fmt.Sprintf("DNS lookup failed (not_found=%t timeout=%t temporary=%t)", dns.IsNotFound, dns.IsTimeout, dns.IsTemporary)
@@ -104,6 +122,9 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 				cause.ProviderCode = code
 				cause.Message += " " + code
 			}
+		}
+		if message, status := identityHTTPDiagnostic(current); status != "" {
+			cause.Message, cause.Code = message, status
 		}
 		if code, status := firebaseDiagnostic(current); code != "" || status != 0 {
 			cause.ProviderCode = code
@@ -171,6 +192,7 @@ func logDiagnosticAt(ctx context.Context, logger *slog.Logger, input DiagnosticI
 	}
 	causes := DescribeError(input.Error, input.Context)
 	fields := withDiagnosticCorrelation(ctx, input.Context)
+	addRequestDiagnosticRoute(ctx, fields)
 	for key, value := range providerDiagnosticFields(causes) {
 		fields[key] = value
 	}

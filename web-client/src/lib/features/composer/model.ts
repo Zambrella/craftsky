@@ -11,33 +11,12 @@ import {
 	type Project
 } from '#lib/api/client.ts';
 import type { Draft, PendingWrite } from '../drafts/store.ts';
-import catalogue from './catalogue.json';
-export interface CatalogueEntry {
-	id: string;
-	family: string;
-	label: string;
-	craft?: string | null;
-	parents: string[];
-}
-const entries: CatalogueEntry[] = catalogue;
-export const options = (family: string, craft?: string, parent?: string) =>
-	entries.filter(
-		(entry) =>
-			entry.family === family &&
-			(!entry.craft || !craft || entry.craft === craft) &&
-			(!parent || !entry.parents.length || entry.parents.includes(parent))
-	);
-export const label = (token: string) =>
-	catalogue.find((entry) => entry.id === token)?.label ||
-	token.split('#').at(-1) ||
-	token;
+import { craftChoice } from './project-options';
+export { label, options } from './project-options';
 export const defaultProject = (crafts: readonly string[] = []): JsonObject => {
 	const craft = crafts
-		.map(
-			(value) =>
-				options('craft').find((item) => item.id.split('#').at(-1) === value)?.id
-		)
-		.find(Boolean);
+		.map(craftChoice)
+		.find((choice) => choice && choice.offered !== false)?.id;
 	return {
 		common: {
 			...(craft ? { craftType: craft } : {}),
@@ -53,6 +32,95 @@ export function record(value: unknown): JsonObject {
 export function str(value: unknown): string {
 	return typeof value === 'string' ? value : '';
 }
+export function effectivePatterns<T>(patterns?: T[], legacy?: T): T[] {
+	return patterns ?? (legacy ? [legacy] : []);
+}
+export function patternRows(common: JsonObject): JsonObject[] {
+	return effectivePatterns(
+		Array.isArray(common.patterns) ? common.patterns.map(record) : undefined,
+		common.pattern ? record(common.pattern) : undefined
+	);
+}
+export function projectPatternLabels(craft: string) {
+	const kind = craftChoice(craft)?.profileId;
+	const label =
+		kind === 'weaving'
+			? 'Pattern or draft'
+			: kind === 'felting'
+				? 'Pattern or template'
+				: 'Pattern';
+	return {
+		title: label === 'Pattern' ? 'Pattern details' : label,
+		name: `${label} name`,
+		description: `Add ${label.toLowerCase()} names, credits, links and difficulty`
+	};
+}
+function retainedRow(original: JsonObject[], row: JsonObject) {
+	return typeof row.existingIndex === 'number'
+		? original.find((entry) => entry.existingIndex === row.existingIndex)
+		: undefined;
+}
+export function effectiveSizes(
+	detail: Record<string, unknown>,
+	tool: 'needle' | 'hook'
+): string[] {
+	const sizes = detail[`${tool}SizesMm`];
+	const legacy = str(detail[`${tool}SizeMm`]);
+	return Array.isArray(sizes)
+		? sizes.filter((size): size is string => typeof size === 'string')
+		: legacy
+			? [legacy]
+			: [];
+}
+export function projectWrite(project: JsonObject): JsonObject {
+	const common = { ...record(project.common) };
+	if (common.patterns !== undefined || common.pattern) {
+		common.patterns = patternRows(common)
+			.filter(
+				(pattern) =>
+					typeof pattern.existingIndex === 'number' ||
+					hasPatternContent(pattern)
+			)
+			.map((object) => {
+				const pattern = { ...object };
+				delete pattern.existingIndex;
+				return pattern;
+			});
+		delete common.pattern;
+	}
+	if (!project.details) return { ...project, common };
+	const details = { ...record(project.details) };
+	if (typeof details.projectSubtype === 'string') {
+		const subtype = details.projectSubtype.trim();
+		if (subtype) details.projectSubtype = subtype;
+		else delete details.projectSubtype;
+	}
+	const tool = str(details.$type).endsWith('.knitting#details')
+		? 'needle'
+		: str(details.$type).endsWith('.crochet#details')
+			? 'hook'
+			: undefined;
+	if (
+		tool &&
+		(details[`${tool}SizesMm`] !== undefined || details[`${tool}SizeMm`])
+	) {
+		details[`${tool}SizesMm`] = effectiveSizes(details, tool);
+		delete details[`${tool}SizeMm`];
+	}
+	return { ...project, common, details };
+}
+export const patternFields = ['name', 'designer', 'publisher'] as const;
+export const hasPatternContent = (pattern: JsonObject) =>
+	Object.entries(pattern).some(
+		([key, value]) =>
+			key !== 'existingIndex' &&
+			(typeof value === 'string'
+				? !!value.trim()
+				: value === true ||
+					(Array.isArray(value)
+						? value.length > 0
+						: value != null && value !== false))
+	);
 /** Resolve a carousel selection against fresh target assets, never an arbitrary query CID. */
 export function selectedQuoteImage(
 	post: Pick<Post, 'images'>,
@@ -181,7 +249,9 @@ export function validateDraft(draft: Draft, scheduling = false): string[] {
 			);
 		const common = record(draft.project?.common);
 		const detail = record(draft.project?.details);
-		const pattern = record(common.pattern);
+		const patterns = patternRows(common);
+		const patternName = projectPatternLabels(str(common.craftType)).name;
+		if (patterns.length > 5) errors.push('Use up to five patterns.');
 		const materials = Array.isArray(common.materials) ? common.materials : [];
 		if (
 			materials.length > 10 ||
@@ -191,12 +261,27 @@ export function validateDraft(draft: Draft, scheduling = false): string[] {
 		)
 			errors.push('Use up to ten materials, with up to 100 characters each.');
 		if (!common.craftType) errors.push('Choose a primary craft.');
+		if (!str(common.status).trim()) errors.push('Choose a project status.');
+		if (!validateText(str(detail.projectSubtype).trim(), 100, 100))
+			errors.push('Project subtype is too long.');
 		for (const [value, max, bytes, name] of [
 			[common.title, 200, 500, 'Project title'],
 			[common.duration, 100, 500, 'Duration'],
-			[pattern.name, 200, 500, 'Pattern name'],
-			[pattern.designer, 200, 500, 'Designer'],
-			[pattern.publisher, 200, 500, 'Publisher'],
+			...patterns.flatMap((pattern) =>
+				patternFields.map(
+					(field) =>
+						[
+							pattern[field],
+							200,
+							500,
+							{
+								name: patternName,
+								designer: 'Designer',
+								publisher: 'Publisher'
+							}[field]
+						] as const
+				)
+			),
 			[detail.fitNotes, 600, 6000, 'Fit notes']
 		] as const)
 			if (typeof value === 'string' && !validateText(value, max, bytes))
@@ -212,11 +297,106 @@ export function validateDraft(draft: Draft, scheduling = false): string[] {
 			errors.push(
 				'Gauge needs positive stitches, measurement and a unit. Rows are optional.'
 			);
+		errors.push(
+			...validateCraftDetails(
+				detail,
+				record(record(draft.edit?.editable.project).details)
+			)
+		);
 	}
 	return errors;
 }
+function validateCraftDetails(
+	detail: JsonObject,
+	previous: JsonObject
+): string[] {
+	const errors: string[] = [];
+	const yarn = record(detail.finishedYarn);
+	const priorYarn = record(previous.finishedYarn);
+	const kind = str(detail.$type);
+	const changed = (value: unknown, before: unknown) =>
+		JSON.stringify(value) !== JSON.stringify(before);
+	const spinning = kind === 'social.craftsky.project.spinning#details';
+	const measurements = [
+		...(spinning
+			? [
+					[yarn.mass, priorYarn.mass, 'Finished yarn mass'],
+					[yarn.length, priorYarn.length, 'Finished yarn length']
+				]
+			: []),
+		...(kind === 'social.craftsky.project.punchNeedle#details'
+			? [[detail.loopHeight, previous.loopHeight, 'Loop height']]
+			: []),
+		...(kind === 'social.craftsky.project.weaving#details'
+			? [[detail.sett, previous.sett, 'Sett']]
+			: [])
+	];
+	for (const [value, before, name] of measurements) {
+		const measurement = record(value);
+		if (
+			value &&
+			changed(value, before) &&
+			(!decimal(measurement.amount) || !str(measurement.unit))
+		)
+			errors.push(`${name} needs a positive decimal amount and a unit.`);
+	}
+	if (spinning) {
+		for (const [value, before, name] of [
+			[detail.plyCount, previous.plyCount, 'Ply count'],
+			[yarn.wrapsPerInch, priorYarn.wrapsPerInch, 'Wraps per inch']
+		] as const) {
+			if (value !== undefined && changed(value, before) && !positive(value))
+				errors.push(`${name} must be a positive whole number.`);
+		}
+	}
+	if (
+		kind === 'social.craftsky.project.knitting#details' &&
+		detail.machineGaugeMm !== undefined &&
+		changed(detail.machineGaugeMm, previous.machineGaugeMm) &&
+		!decimal(detail.machineGaugeMm)
+	)
+		errors.push('Machine needle spacing needs a positive decimal amount.');
+	if (
+		kind === 'social.craftsky.project.macrame#details' &&
+		Array.isArray(detail.cords)
+	) {
+		const original =
+			previous.$type === kind && Array.isArray(previous.cords)
+				? previous.cords.map(record)
+				: [];
+		if (
+			detail.cords
+				.map(record)
+				.some(
+					(cord) =>
+						cord.diameterMm !== undefined &&
+						cord.diameterMm !== retainedRow(original, cord)?.diameterMm &&
+						!decimal(cord.diameterMm)
+				)
+		)
+			errors.push('Cord diameter needs a positive decimal amount.');
+	}
+	if (
+		kind === 'social.craftsky.project.weaving#details' &&
+		changed(detail.materials, previous.materials) &&
+		Array.isArray(detail.materials) &&
+		detail.materials.some(
+			(row) => !str(record(row).role) || !str(record(row).text).trim()
+		)
+	)
+		errors.push('Each weaving material needs a name and a role.');
+	return errors;
+}
+
 function positive(value: unknown) {
 	return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+function decimal(value: unknown) {
+	return (
+		typeof value === 'string' &&
+		/^\d+(?:\.\d+)?$/.test(value) &&
+		Number(value) > 0
+	);
 }
 export function validLanguage(value: string): boolean {
 	try {
@@ -273,6 +453,34 @@ export async function buildFacets(
 	return facets;
 }
 
+/** Count only tag features on the byte ranges AppView can index. */
+export function facetHashtags(text: string, facets: unknown): string[] {
+	if (!Array.isArray(facets)) return [];
+	const bytes = new TextEncoder().encode(text).length;
+	return facets.flatMap((value) => {
+		const facet = record(value);
+		const { byteStart, byteEnd } = record(facet.index);
+		if (
+			typeof byteStart !== 'number' ||
+			!Number.isInteger(byteStart) ||
+			typeof byteEnd !== 'number' ||
+			!Number.isInteger(byteEnd) ||
+			byteStart < 0 ||
+			byteEnd <= byteStart ||
+			byteEnd > bytes ||
+			!Array.isArray(facet.features)
+		)
+			return [];
+		return facet.features.flatMap((value) => {
+			const feature = record(value);
+			return feature.$type === 'app.bsky.richtext.facet#tag' &&
+				typeof feature.tag === 'string'
+				? [feature.tag]
+				: [];
+		});
+	});
+}
+
 /** Regenerate annotations only for new or edited project text leaves. */
 export async function projectFacets(
 	project: JsonObject,
@@ -283,8 +491,10 @@ export async function projectFacets(
 	const next = JSON.parse(JSON.stringify(project)) as JsonObject;
 	const common = record(next.common);
 	const previous = record(before?.common);
-	const pattern = record(common.pattern);
-	const oldPattern = record(previous.pattern);
+	const patterns = patternRows(common);
+	const oldPatterns = patternRows(previous);
+	const preservePatterns =
+		!!before && JSON.stringify(patterns) === JSON.stringify(oldPatterns);
 	const prefix = [...precedingHashtags];
 	if (Array.isArray(common.tags)) {
 		const accepted = acceptedHashtags([
@@ -330,16 +540,23 @@ export async function projectFacets(
 			)
 		].sort((a, b) => a.index.byteStart - b.index.byteStart);
 	}
-	for (const field of ['name', 'designer', 'publisher']) {
-		const text = str(pattern[field]);
-		const facets = await fieldFacets(
-			text,
-			pattern[`${field}Facets`],
-			!!before && text === str(oldPattern[field])
-		);
-		if (facets.length)
-			pattern[`${field}Facets`] = facets as unknown as JsonObject[];
-		else delete pattern[`${field}Facets`];
+	for (const pattern of patterns) {
+		const oldPattern = retainedRow(oldPatterns, pattern);
+		for (const field of patternFields) {
+			const text = str(pattern[field]);
+			const key = `${field}Facets`;
+			if (oldPattern && text === str(oldPattern[field])) {
+				if (oldPattern[key] !== undefined) pattern[key] = oldPattern[key];
+				else delete pattern[key];
+			} else if (!preservePatterns) {
+				const facets = await buildFacets(text, resolve, prefix);
+				if (facets.length) pattern[key] = facets as unknown as JsonObject[];
+				else delete pattern[key];
+			}
+			// Keep authored facets on unchanged leaves. AppView applies the discovery
+			// limit to every saved tag, including tags this client would not generate.
+			prefix.push(...facetHashtags(text, pattern[key]));
+		}
 	}
 	const oldMaterials = Array.isArray(previous.materials)
 		? previous.materials.map(record)
@@ -370,8 +587,8 @@ export function postPayload(draft: Draft, facets: Facet[]): PostPayload {
 	if (facets.length) payload.facets = facets;
 	if (draft.instagramImport)
 		payload.instagramImport = { ...draft.instagramImport };
-	if (draft.kind === 'project')
-		payload.project = draft.project as unknown as Project;
+	if (draft.kind === 'project' && draft.project)
+		payload.project = projectWrite(draft.project) as unknown as Project;
 	if (draft.reply) payload.reply = draft.reply;
 	if (draft.images.length)
 		payload.images = draft.images.map((image) => {
@@ -447,18 +664,141 @@ export function editChanges(draft: Draft, facets: Facet[]): PostEditChanges {
 	}
 	return changes as unknown as PostEditChanges;
 }
+const commonEntryFields: Record<string, string[]> = {
+	patterns: [
+		'url',
+		'name',
+		'nameFacets',
+		'difficulty',
+		'designer',
+		'designerFacets',
+		'publisher',
+		'publisherFacets',
+		'selfDrafted'
+	],
+	materials: ['text', 'facets'],
+	additionalCrafts: ['craftType']
+};
+const detailEntryFields: Record<string, string[]> = {
+	techniques: ['technique', 'subtypes'],
+	subtypes: ['subtype'],
+	methods: ['method', 'styles'],
+	styles: ['style'],
+	draftingTechniques: ['technique'],
+	plyingTechniques: ['technique'],
+	cords: ['material', 'construction', 'diameterMm'],
+	knots: ['knot'],
+	materials: ['role', 'text'],
+	needleGauges: ['gauge']
+};
+const detailObjectFields: Record<string, string[]> = {
+	gauge: ['stitches', 'rows', 'measurement', 'unit'],
+	finishedYarn: ['mass', 'length', 'wrapsPerInch'],
+	mass: ['amount', 'unit'],
+	length: ['amount', 'unit'],
+	loopHeight: ['amount', 'unit'],
+	sett: ['amount', 'unit']
+};
+
+function detailObjectPatch(
+	key: string,
+	before: unknown,
+	after: JsonObject
+): JsonObject {
+	const base = record(before);
+	const patch: JsonObject = {};
+	for (const field of detailObjectFields[key]) {
+		const value = after[field];
+		if (JSON.stringify(base[field]) === JSON.stringify(value)) continue;
+		patch[field] =
+			detailObjectFields[field] &&
+			value &&
+			typeof value === 'object' &&
+			!Array.isArray(value)
+				? detailObjectPatch(field, base[field], value)
+				: (value ?? null);
+	}
+	return patch;
+}
+
+function entryPatch(
+	before: unknown,
+	after: unknown[],
+	fields: string[]
+): JsonObject[] {
+	const original = Array.isArray(before) ? before.map(record) : [];
+	return after.map((value) => {
+		const item = record(value);
+		const index = item.existingIndex;
+		const base = typeof index === 'number' ? (original[index] ?? {}) : {};
+		const patch: JsonObject =
+			typeof index === 'number' ? { existingIndex: index } : {};
+		for (const field of fields) {
+			if (JSON.stringify(base[field]) === JSON.stringify(item[field])) continue;
+			const value = item[field];
+			if (
+				(field === 'subtypes' || field === 'styles') &&
+				Array.isArray(value)
+			) {
+				patch[field] = entryPatch(base[field], value, detailEntryFields[field]);
+			} else patch[field] = value ?? null;
+		}
+		return patch;
+	});
+}
+
 function diffProject(before: JsonObject, after: JsonObject): JsonObject {
 	const changes: JsonObject = {};
 	for (const key of ['common', 'details']) {
-		const left = record(before[key]),
-			right = record(after[key]);
+		const right = record(after[key]);
+		const original = record(before[key]);
+		if (key === 'details' && before.details && !after.details) {
+			changes.details = null;
+			continue;
+		}
+		const left =
+			key === 'details' && original.$type !== right.$type ? {} : original;
 		const patch: JsonObject = {};
 		for (const leaf of new Set([...Object.keys(left), ...Object.keys(right)])) {
+			if (leaf === 'pattern' && Array.isArray(right.patterns)) continue;
+			if (leaf === 'needleSizeMm' && Array.isArray(right.needleSizesMm))
+				continue;
+			if (leaf === 'hookSizeMm' && Array.isArray(right.hookSizesMm)) continue;
 			if (JSON.stringify(left[leaf]) === JSON.stringify(right[leaf])) continue;
-			if (leaf === 'materials' || leaf === 'additionalCrafts') {
-				const values = Array.isArray(right[leaf]) ? right[leaf] : [];
-				patch[leaf] = values.map((item) => record(item));
-			} else patch[leaf] = right[leaf] ?? null;
+			if (leaf === 'patterns') {
+				patch[leaf] = entryPatch(
+					patternRows(left),
+					patternRows(right).filter(
+						(pattern) =>
+							typeof pattern.existingIndex === 'number' ||
+							hasPatternContent(pattern)
+					),
+					commonEntryFields[leaf]
+				);
+			} else {
+				const fields = (
+					key === 'common' ? commonEntryFields : detailEntryFields
+				)[leaf];
+				const value =
+					key === 'details' && leaf === 'projectSubtype'
+						? str(right[leaf]).trim() || undefined
+						: right[leaf];
+				if (
+					key === 'details' &&
+					detailObjectFields[leaf] &&
+					value &&
+					typeof value === 'object' &&
+					!Array.isArray(value)
+				) {
+					patch[leaf] = detailObjectPatch(leaf, left[leaf], value);
+				} else if (
+					fields &&
+					Array.isArray(value) &&
+					value.every((entry) => entry && typeof entry === 'object')
+				) {
+					patch[leaf] = entryPatch(left[leaf], value, fields);
+				} else patch[leaf] = value ?? null;
+			}
 		}
 		if (Object.keys(patch).length) changes[key] = patch;
 	}

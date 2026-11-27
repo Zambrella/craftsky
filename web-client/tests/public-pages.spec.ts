@@ -63,7 +63,9 @@ test('serves post text, project details and share metadata in initial HTML', asy
 		'href',
 		'https://app.craftsky.social/posts/did%3Aplc%3Aalice/first'
 	);
-	await expect(page.getByText('Blue linen', { exact: true })).toBeVisible();
+	await expect(page.getByText('Garment', { exact: true })).toBeVisible();
+	await expect(page.getByText('Blue linen', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('Summer dress', { exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Summer dress' })).toHaveCount(0);
 	const sponsored = page.getByText('Sponsored', { exact: true });
 	await expect(sponsored).toBeVisible();

@@ -167,14 +167,51 @@ void main() {
       isTrue,
     );
 
+    await container.pump();
+    expect(repository.completions, hasLength(1));
     repository.completions[0].completeError(Exception('old failure'));
-    repository.completions[1].complete(repository.initial);
     expect(await first, isFalse);
+    await Future<void>.delayed(Duration.zero);
+    repository.completions[1].complete(repository.initial);
     expect(await second, isTrue);
     expect(
       container
           .read(notificationPreferencesProvider)
           .value!
+          .known[NotificationCategory.like]!
+          .pushEnabled,
+      isTrue,
+    );
+  });
+
+  test('two failed overlapping edits restore the persisted field', () async {
+    final repository = _PreferencesRepository();
+    final container = ProviderContainer.test(
+      overrides: [
+        notificationPreferencesRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    await container.read(notificationPreferencesProvider.future);
+    final notifier = container.read(notificationPreferencesProvider.notifier);
+    final first = notifier.setPushEnabled(
+      NotificationCategory.like,
+      value: false,
+    );
+    final second = notifier.setPushEnabled(
+      NotificationCategory.like,
+      value: true,
+    );
+    await container.pump();
+    expect(repository.completions, hasLength(1));
+    repository.completions.single.completeError(Exception('first failure'));
+    expect(await first, isFalse);
+    await Future<void>.delayed(Duration.zero);
+    repository.completions[1].completeError(Exception('second failure'));
+    expect(await second, isFalse);
+    expect(
+      container
+          .read(notificationPreferencesProvider)
+          .requireValue
           .known[NotificationCategory.like]!
           .pushEnabled,
       isTrue,

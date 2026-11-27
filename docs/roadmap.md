@@ -6,7 +6,7 @@ This is a hand-maintained overview of implementation history and future ideas. I
 
 The Flutter client, AppView, public record schemas, and production infrastructure are implemented for private-beta development. Code and documentation contributions are open under AGPL-3.0; the CLA remains an inactive draft.
 
-A checked item records implementation or preparation, not independent verification of deployment, store availability, policy approval, or full public-launch readiness. The [release runbook](operations/releases.md#private-beta-and-full-public-launch) and [online-safety gap register](../online-safety/registers/compliance-gap-register.md) track the remaining launch controls. In particular, subscription and video availability depend on configuration, and draft policies still require their recorded approvals.
+A checked item records implementation or preparation, not independent verification of deployment, store availability, policy approval, or full public-launch readiness. The [release runbook](operations/releases.md#private-beta-and-full-public-launch) and the online-safety gap register kept outside the repository track the remaining launch controls. In particular, subscription and video availability depend on configuration, and draft policies still require their recorded approvals.
 
 For a first contribution, use an issue whose scope has been accepted by a maintainer rather than selecting an unchecked roadmap idea. See the [triage process](maintainers/triage.md) for how tasks become contributor-ready.
 

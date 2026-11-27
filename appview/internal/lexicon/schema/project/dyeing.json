@@ -1,0 +1,151 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.dyeing",
+  "description": "Compatibility definitions for dyeing project details.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Saved details of older dyeing projects.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for what was dyed. Choose Other when no listed category fits. Use materialForm for older records when projectType is absent.",
+          "knownValues": [
+            "social.craftsky.project.dyeing#unspunFibre",
+            "social.craftsky.project.dyeing#yarnThread",
+            "social.craftsky.project.dyeing#fabric",
+            "social.craftsky.project.dyeing#finishedItem",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type."
+        },
+        "materialForm": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: form of the material when it was dyed. Use the project description for new posts.",
+          "knownValues": [
+            "social.craftsky.project.dyeing#spunYarn",
+            "social.craftsky.project.dyeing#fleece",
+            "social.craftsky.project.dyeing#roving",
+            "social.craftsky.project.dyeing#otherUnspunFibre"
+          ]
+        },
+        "dyeType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: type of dye used. Use the project description or hashtags for new posts.",
+          "knownValues": [
+            "social.craftsky.project.dyeing#acid",
+            "social.craftsky.project.dyeing#fibreReactive",
+            "social.craftsky.project.dyeing#natural"
+          ]
+        },
+        "applicationMethod": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: how the dye was applied to the material. Use the project description or hashtags for new posts.",
+          "knownValues": [
+            "social.craftsky.project.dyeing#kettleDyed",
+            "social.craftsky.project.dyeing#handPainted",
+            "social.craftsky.project.dyeing#dipDyed"
+          ]
+        },
+        "colorEffect": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: colour effect in the dyed material. Use the project description or hashtags for new posts.",
+          "knownValues": [
+            "social.craftsky.project.dyeing#semiSolid",
+            "social.craftsky.project.dyeing#speckled",
+            "social.craftsky.project.dyeing#selfStriping"
+          ]
+        },
+        "recipeNotes": {
+          "type": "string",
+          "maxLength": 6000,
+          "maxGraphemes": 600,
+          "description": "Deprecated: optional notes about the dyeing recipe or process. Use the project description for new posts."
+        }
+      }
+    },
+    "spunYarn": {
+      "type": "token",
+      "description": "Yarn that was spun before dyeing."
+    },
+    "fleece": {
+      "type": "token",
+      "description": "Unspun fleece."
+    },
+    "roving": {
+      "type": "token",
+      "description": "Unspun roving."
+    },
+    "otherUnspunFibre": {
+      "type": "token",
+      "description": "Unspun fibre in another form."
+    },
+    "acid": {
+      "type": "token",
+      "description": "Acid dye."
+    },
+    "fibreReactive": {
+      "type": "token",
+      "description": "Fibre-reactive dye."
+    },
+    "natural": {
+      "type": "token",
+      "description": "Natural dye."
+    },
+    "kettleDyed": {
+      "type": "token",
+      "description": "Dyed in a kettle or dye bath."
+    },
+    "handPainted": {
+      "type": "token",
+      "description": "Dye applied to selected areas by hand."
+    },
+    "dipDyed": {
+      "type": "token",
+      "description": "Dyed by dipping part or all of the material."
+    },
+    "semiSolid": {
+      "type": "token",
+      "description": "A mostly consistent colour with subtle variation."
+    },
+    "speckled": {
+      "type": "token",
+      "description": "Small, distinct flecks of colour."
+    },
+    "selfStriping": {
+      "type": "token",
+      "description": "Colour sections arranged to produce stripes as the yarn is worked."
+    },
+    "unspunFibre": {
+      "type": "token",
+      "description": "Unspun fibre."
+    },
+    "yarnThread": {
+      "type": "token",
+      "description": "Yarn or thread."
+    },
+    "fabric": {
+      "type": "token",
+      "description": "Fabric."
+    },
+    "finishedItem": {
+      "type": "token",
+      "description": "Finished item."
+    }
+  }
+}

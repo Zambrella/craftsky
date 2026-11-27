@@ -56,7 +56,9 @@ void main() {
 
     await tester.tap(find.text('Knitting'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Crochet').last);
+    final crochet = find.widgetWithText(ListTile, 'Crochet');
+    expect((tester.widget<ListTile>(crochet).title! as Text).style, isNull);
+    await tester.tap(crochet);
     await tester.pumpAndSettle();
 
     expect(changed, 'crochet');

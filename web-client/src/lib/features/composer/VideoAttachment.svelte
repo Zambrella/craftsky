@@ -4,23 +4,108 @@
 	import { page } from '$app/state';
 	import type { DraftMedia } from '../drafts/store.ts';
 	import { mountComposerPage } from './page-layout';
+	import ComposerDetailAction from './ComposerDetailAction.svelte';
+	import { prepareImage } from './media';
+	import {
+		captureVideoThumbnailFrames,
+		videoThumbnailPercent,
+		videoThumbnailPercents,
+		type VideoThumbnailPercent
+	} from './video-thumbnail-frames';
+	import { userErrorMessage } from '#lib/user-facing-error.ts';
 	import Icon from '../shell/Icon.svelte';
 	let {
 		media,
 		disabled = false,
 		autoOpen = false,
+		customThumbnail = false,
+		onthumbnail,
+		onframe,
 		onalt,
 		onremove
 	}: {
 		media: DraftMedia;
 		disabled?: boolean;
 		autoOpen?: boolean;
+		customThumbnail?: boolean;
+		onthumbnail: (image: Blob | undefined) => void;
+		onframe: (percent: VideoThumbnailPercent) => void;
 		onalt: (value: string) => void;
 		onremove: () => void;
 	} = $props();
 	const uid = $props.id();
 	let open = $state(false);
 	let url = $state('');
+	let thumbnailURL = $state('');
+	let frameURLs = $state<Partial<Record<VideoThumbnailPercent, string>>>({});
+	const selectedPercent = $derived(
+		videoThumbnailPercent(media.thumbnailFramePercent)
+	);
+	const videoRatio = $derived(
+		media.width && media.height ? `${media.width} / ${media.height}` : undefined
+	);
+	let thumbnailInput = $state<HTMLInputElement>();
+	let thumbnailError = $state('');
+	let preparingThumbnail = $state(false);
+	$effect(() => {
+		const source = media.thumbnail;
+		const objectURL = source ? URL.createObjectURL(source) : '';
+		thumbnailURL = objectURL;
+		return () => {
+			if (objectURL) URL.revokeObjectURL(objectURL);
+		};
+	});
+	$effect(() => {
+		const source = media.blob;
+		if (!open || !customThumbnail || !source || media.previewUnavailable)
+			return;
+		const capture = new AbortController();
+		const signal = AbortSignal.any([
+			capture.signal,
+			AbortSignal.timeout(10_000)
+		]);
+		const urls: Partial<Record<VideoThumbnailPercent, string>> = {};
+		void captureVideoThumbnailFrames(
+			source,
+			media.durationMs,
+			signal,
+			(percent, image) => {
+				const url = URL.createObjectURL(image);
+				urls[percent] = url;
+				frameURLs[percent] = url;
+			}
+		).catch(() => {});
+		return () => {
+			capture.abort();
+			for (const url of Object.values(urls)) URL.revokeObjectURL(url);
+			frameURLs = {};
+		};
+	});
+	async function selectThumbnail(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file || preparingThumbnail || disabled) return;
+		const id = media.id;
+		preparingThumbnail = true;
+		thumbnailError = '';
+		try {
+			const image = await prepareImage(
+				file,
+				file.name,
+				{},
+				{
+					maxDimension: 1280,
+					maxBytes: 1_000_000
+				}
+			);
+			if (open && media.id === id && !disabled) onthumbnail(image.blob);
+		} catch (error) {
+			thumbnailError = userErrorMessage(error);
+		} finally {
+			preparingThumbnail = false;
+		}
+	}
 	let button: HTMLButtonElement;
 	let previous: HTMLElement | undefined;
 	async function show() {
@@ -120,6 +205,7 @@
 			<h2>Video details</h2>
 		</header>
 		<div class="video-details-scroll">
+			<h3 class="detail-heading video-preview-heading">Video</h3>
 			{#if media.previewUnavailable}<p class="muted">
 					Preview unavailable in this browser. You can still upload this video.
 				</p>{:else}<video
@@ -129,19 +215,93 @@
 					src={url}
 					aria-label="Local video preview"><track kind="captions" /></video
 				>{/if}
-			<label
-				>Video description<textarea
+			{#if customThumbnail || thumbnailURL}
+				<div class="thumbnail-controls">
+					<h3 class="detail-heading">Thumbnail</h3>
+					{#if thumbnailURL}
+						<img
+							class="thumbnail-preview"
+							src={thumbnailURL}
+							alt="Video thumbnail preview"
+							style:aspect-ratio={videoRatio}
+							style:width={media.width && media.height
+								? `min(100%, ${Math.round((240 * media.width) / media.height)}px)`
+								: undefined}
+						/>
+					{:else if media.blob && customThumbnail && ((media.durationMs ?? 0) > 0 || frameURLs[0])}
+						<div
+							class="thumbnail-grid"
+							role="group"
+							aria-label="Automatic thumbnail frames"
+						>
+							{#each videoThumbnailPercents as percent (percent)}
+								<button
+									type="button"
+									aria-label={`Frame at ${percent}%`}
+									aria-pressed={selectedPercent === percent}
+									{disabled}
+									onclick={() => onframe(percent)}
+								>
+									<span class="thumbnail-frame" style:aspect-ratio={videoRatio}>
+										{#if frameURLs[percent]}
+											<img src={frameURLs[percent]} alt="" />
+										{:else}
+											<Icon name="video" />
+										{/if}
+									</span>
+									{#if selectedPercent === percent}
+										<span class="thumbnail-selected"
+											><Icon name="check" size={16} /></span
+										>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					{#if thumbnailURL}
+						<button
+							type="button"
+							class="thumbnail-remove"
+							{disabled}
+							onclick={() => {
+								thumbnailError = '';
+								onthumbnail(undefined);
+							}}>Remove custom thumbnail</button
+						>
+					{:else if customThumbnail}
+						<input
+							hidden
+							type="file"
+							accept="image/*"
+							bind:this={thumbnailInput}
+							onchange={selectThumbnail}
+						/>
+						<button
+							type="button"
+							disabled={disabled || preparingThumbnail}
+							class="thumbnail-image-action"
+							onclick={() => thumbnailInput?.click()}
+						>
+							<Icon name="image" size={20} />
+							Add custom thumbnail
+						</button>
+					{/if}
+					{#if thumbnailError}<p role="alert">{thumbnailError}</p>{/if}
+				</div>
+			{/if}
+			<label>
+				<span class="detail-heading">Video description</span>
+				<textarea
 					name="draft.video.alt"
 					maxlength="1000"
 					rows="3"
 					value={media.alt}
 					{disabled}
 					placeholder="Describe what happens in this video"
-					oninput={(event) => onalt(event.currentTarget.value)}
-				></textarea></label
-			>
-			<p class="muted">MP4 or MOV · up to ten minutes · up to 300 MB</p>
+					oninput={(event) => onalt(event.currentTarget.value)}></textarea>
+			</label>
 		</div>
+		<ComposerDetailAction ondone={close} {disabled} />
 	</section>{/if}
 
 <style>
@@ -212,7 +372,7 @@
 		left: var(--app-content-left, 0px);
 		width: var(--app-content-width, 100vw);
 		z-index: 25;
-		height: 100dvh;
+		height: var(--composer-detail-height, 100dvh);
 		display: flex;
 		flex-direction: column;
 		background: var(--paper);
@@ -232,7 +392,15 @@
 	}
 	.video-details-scroll {
 		overflow: auto;
-		padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+		padding: 16px 16px calc(84px + env(safe-area-inset-bottom));
+	}
+	.detail-heading {
+		margin: 0;
+		font-size: 16px;
+		font-weight: 700;
+	}
+	.video-details-scroll .video-preview-heading {
+		margin-bottom: 8px;
 	}
 	video {
 		display: block;
@@ -240,6 +408,89 @@
 		max-height: 60dvh;
 		margin-bottom: 16px;
 		background: black;
+	}
+	.thumbnail-controls {
+		display: grid;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+	.thumbnail-preview {
+		display: block;
+		max-width: min(100%, 420px);
+		max-height: 240px;
+		object-fit: cover;
+	}
+	.thumbnail-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		width: min(100%, 420px);
+		justify-self: center;
+	}
+	video,
+	.thumbnail-preview,
+	.thumbnail-grid button {
+		border: 1px solid var(--hairline);
+		border-radius: 8px;
+	}
+	.thumbnail-grid button {
+		position: relative;
+		display: block;
+		padding: 0;
+		box-shadow: none;
+		overflow: hidden;
+		background: var(--surface);
+	}
+	.thumbnail-grid button[aria-pressed='true'] {
+		border-color: var(--primary);
+	}
+	.thumbnail-grid button[aria-pressed='true']::after {
+		content: '';
+		position: absolute;
+		inset: -1px;
+		border: 4px solid var(--primary);
+		border-radius: inherit;
+		pointer-events: none;
+	}
+	.thumbnail-frame {
+		display: grid;
+		place-items: center;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		overflow: hidden;
+	}
+	.thumbnail-selected {
+		position: absolute;
+		inset-block-start: 6px;
+		inset-inline-end: 6px;
+		display: grid;
+		place-items: center;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		background: var(--primary);
+		color: var(--on-primary);
+	}
+	.thumbnail-frame img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.thumbnail-remove {
+		justify-self: start;
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--red-ink);
+	}
+	.thumbnail-remove:hover {
+		background: color-mix(in srgb, var(--red-ink) 8%, transparent);
+	}
+	.thumbnail-image-action {
+		width: 100%;
+		border-color: var(--hairline);
+		background: transparent;
+		color: var(--primary);
 	}
 	label {
 		display: grid;

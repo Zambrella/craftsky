@@ -105,6 +105,29 @@ final class ChatConversation {
   final ChatActor peer;
   final ChatMessage? lastMessage;
 
+  ChatConversation withSendEligibility({required bool allowed}) =>
+      ChatConversation._(
+        id: id,
+        revision: revision,
+        bucket: bucket,
+        muted: muted,
+        unreadCount: unreadCount,
+        canSend: allowed,
+        peer: peer,
+        lastMessage: lastMessage,
+      );
+
+  ChatConversation withLastMessage(ChatMessage message) => ChatConversation._(
+    id: id,
+    revision: revision,
+    bucket: bucket,
+    muted: muted,
+    unreadCount: unreadCount,
+    canSend: canSend,
+    peer: peer,
+    lastMessage: message,
+  );
+
   @override
   String toString() => 'ChatConversation(<redacted>)';
 }

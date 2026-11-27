@@ -39,7 +39,7 @@ async function readJSON(route: Route, value: unknown) {
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
@@ -294,7 +294,7 @@ test('native content-language chips preserve authoritative preferences after fai
 		exact: true
 	});
 	await expect(primaryLanguage).toHaveCSS('border-radius', '14px');
-	await expect(primaryLanguage).toHaveCSS('padding-right', '56px');
+	await expect(primaryLanguage).toHaveCSS('padding-right', '52px');
 	await page
 		.getByRole('button', {
 			name: 'Remove English from Content languages',

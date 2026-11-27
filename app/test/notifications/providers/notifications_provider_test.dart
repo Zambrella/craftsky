@@ -549,6 +549,38 @@ void main() {
     },
   );
 
+  test('pagination keeps rows suppressed during the request hidden', () async {
+    final page = Completer<NotificationPage>();
+    final repository = _FakeNotificationRepository()
+      ..responses.addAll([
+        Future.value(
+          NotificationPage(items: [_follow('old')], cursor: 'next'),
+        ),
+        page.future,
+      ]);
+    final container = ProviderContainer.test(
+      overrides: [
+        notificationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    await container.read(notificationsProvider.future);
+    final notifier = container.read(notificationsProvider.notifier);
+    final more = notifier.loadMore();
+    expect(notifier.suppressActor('did:plc:alice'), 1);
+    final loading = container.read(notificationsProvider);
+    expect(loading.isLoading, isTrue);
+    expect(loading.requireValue.items, isEmpty);
+
+    page.complete(
+      NotificationPage(items: [_follow('new', actorDid: 'did:plc:bob')]),
+    );
+    await more;
+    expect(
+      container.read(notificationsProvider).requireValue.items.map(_socialRkey),
+      ['new'],
+    );
+  });
+
   test(
     'AT-006 suppressActor removes loaded rows and returns the count',
     () async {

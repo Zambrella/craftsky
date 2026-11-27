@@ -5,10 +5,13 @@
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
+	import { craftFeeds } from './craft-feeds';
+	import { craftIconMask } from './craft-icons';
 	import type {
 		CraftskyAPI,
 		Author,
 		PostPresentation,
+		Profile,
 		Hashtag,
 		RecentSearch,
 		SearchSuggestions,
@@ -51,6 +54,9 @@
 		pages: number;
 	};
 	const history = getContext<PageHistory | undefined>(pageHistoryContext);
+	const currentProfile = getContext<(() => Profile | undefined) | undefined>(
+		'craftsky-profile'
+	);
 	let historyView: PageView<SearchSnapshot> | undefined;
 	let work = $state(new Work('social.Search.action'));
 	let loaded = false;
@@ -63,6 +69,17 @@
 	let suggestionController: AbortController | undefined;
 	const showSuggestions = $derived(!guest && suggesting && !!query.trim());
 	let top = $state<TopHashtags>();
+	const trendingGroups = $derived.by(() => {
+		const groupsByCraft = new Map(
+			top?.groups.map((group) => [group.craftType, group])
+		);
+		return craftFeeds(currentProfile?.()?.crafts ?? [], true).flatMap(
+			({ id }) => {
+				const group = groupsByCraft.get(id);
+				return group ? [group] : [];
+			}
+		);
+	});
 	let authors = $state<Author[]>([]),
 		posts = $state<PostPresentation[]>([]),
 		tags = $state<Hashtag[]>([]),
@@ -409,7 +426,7 @@
 		</p>{/if}
 	{#if !q && !guest}{#if recent.length}<section class="search-discovery">
 				<h2>Recent searches</h2>
-				{#each recent as item}
+				{#each recent.slice(0, 10) as item}
 					{@const author = recentAuthor(item)}
 					{#snippet removeRecent()}
 						<button
@@ -450,15 +467,17 @@
 					{/if}
 				{/each}
 			</section>{/if}
-		{#if top?.groups.length}<section class="search-discovery stack">
+		{#if trendingGroups.length}<section class="search-discovery stack">
 				<h2>Trending hashtags</h2>
-				{#each top.groups as group}<div class="stack">
+				{#each trendingGroups as group (group.craftType)}{@const icon =
+						craftIconMask(group.craftType)}
+					<div class="stack">
 						<h3>
-							<span
-								class="trending-craft"
-								style:--craft-icon={`url('/craft_icons/${group.craftType.split('#').at(-1)}.svg')`}
-								aria-hidden="true"
-							></span>{label(group.craftType)}
+							{#if icon}<span
+									class="trending-craft"
+									style:--craft-icon={icon}
+									aria-hidden="true"
+								></span>{/if}{label(group.craftType)}
 						</h3>
 						<div class="tag-chips">
 							{#each group.items as tag}<a
@@ -618,7 +637,7 @@
 	.tag-chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px;
+		gap: 4px 8px;
 	}
 	.tag-chips a {
 		display: inline-flex;

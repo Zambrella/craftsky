@@ -5,8 +5,8 @@ import "time"
 const maxRetryDelay = 15 * time.Minute
 
 // NextRetry applies bounded exponential backoff. jitter is a fractional
-// adjustment in [-1,1] supplied by the dispatcher for deterministic tests.
-func NextRetry(now, deadline time.Time, attempt int, jitter float64) (time.Time, bool) {
+// adjustment in [-1,1]. A provider retry floor takes precedence over jitter.
+func NextRetry(now, deadline time.Time, attempt int, jitter float64, minimum time.Duration) (time.Time, bool) {
 	if attempt < 1 {
 		attempt = 1
 	}
@@ -24,7 +24,7 @@ func NextRetry(now, deadline time.Time, attempt int, jitter float64) (time.Time,
 		jitter = 1
 	}
 	delay += time.Duration(float64(delay) * 0.2 * jitter)
-	next := now.Add(delay)
+	next := now.Add(max(delay, minimum))
 	if !next.Before(deadline) {
 		return time.Time{}, false
 	}

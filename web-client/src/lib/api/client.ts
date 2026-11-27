@@ -867,9 +867,11 @@ export class CraftskyAPI {
 				'/v1/chat/push-preferences',
 				{ body: { pushEnabled } }
 			),
-		notificationOpen: (reference: string) =>
+		notificationOpen: (reference: string, signal?: AbortSignal) =>
 			this.transport.get<{ type: 'conversation'; conversationId: string }>(
-				`/v1/chat/notification-opens/${segment(reference)}`
+				`/v1/chat/notification-opens/${segment(reference)}`,
+				undefined,
+				signal
 			)
 	};
 	readonly media = {
@@ -896,10 +898,13 @@ export class CraftskyAPI {
 			}),
 		videoLimits: () =>
 			this.transport.get<T.VideoUploadLimits>('/v1/blobs/videos/limits'),
-		videoAuthorization: () =>
+		videoAuthorization: (thumbnail?: Blob) =>
 			this.transport.request<T.JsonObject>(
 				'POST',
-				'/v1/blobs/videos/authorization'
+				'/v1/blobs/videos/authorization',
+				thumbnail
+					? { body: thumbnail, headers: { 'Content-Type': 'image/jpeg' } }
+					: undefined
 			),
 		cancelVideo: (jobId: string, signal?: AbortSignal) =>
 			this.transport.request<void>(

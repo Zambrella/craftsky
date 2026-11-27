@@ -7,7 +7,10 @@ test('supports submitted-query guest search without discovery or autocomplete', 
 }) => {
 	const requests: string[] = [];
 	page.on('request', (request) => {
-		if (new URL(request.url()).pathname.startsWith('/api/'))
+		const path = new URL(request.url()).pathname;
+		const statusPoll =
+			request.method() === 'GET' && path === '/api/service-status';
+		if (path.startsWith('/api/') && !statusPoll)
 			requests.push(request.method() + ' ' + request.url());
 	});
 	await page.goto('/search');

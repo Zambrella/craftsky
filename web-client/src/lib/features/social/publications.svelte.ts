@@ -7,6 +7,13 @@ import type {
 } from '#lib/api/types.ts';
 import { visible } from './model';
 import { craftKey } from './craft-feeds';
+import { effectivePatterns } from '../composer/model';
+import { craftChoice, projectOptionFor } from '../composer/project-options';
+import {
+	isNewCraftFilter,
+	matchesCraftDetailFilters
+} from './craft-detail-filters';
+import { matchesNamedProjectItem } from './filter-model';
 import { reportFailure } from '../diagnostics/client.ts';
 import type { ProjectFilters } from '#lib/api/types.ts';
 export const publicationsContext = Symbol('confirmed-publications');
@@ -295,18 +302,92 @@ export function matchesProject(
 		craftKey(project.common.craftType) !== craftKey(craft)
 	)
 		return false;
+	const difficulties = filters.patternDifficulty;
+	const desiredDifficulties = Array.isArray(difficulties)
+		? difficulties
+		: difficulties
+			? [difficulties]
+			: [];
+	const selfDrafted =
+		filters.selfDrafted === true || filters.selfDrafted === 'true';
+	const patterns = effectivePatterns(
+		project.common.patterns,
+		project.common.pattern
+	);
+	if (
+		(desiredDifficulties.length || selfDrafted) &&
+		!patterns.some(
+			(pattern) =>
+				(!selfDrafted || pattern.selfDrafted === true) &&
+				(!desiredDifficulties.length ||
+					(pattern.difficulty &&
+						desiredDifficulties.some(
+							(difficulty) =>
+								typeof difficulty === 'string' &&
+								craftKey(difficulty) === craftKey(pattern.difficulty ?? '')
+						)))
+		)
+	)
+		return false;
+	if (!matchesCraftDetailFilters(project.details, craft, filters)) return false;
 	const fields: Record<string, unknown> = {
 		...project.details,
 		status: project.common.status,
-		patternDifficulty: project.common.pattern?.difficulty,
 		color: project.common.colors,
-		designTag: project.common.designTags,
-		selfDrafted: project.common.pattern?.selfDrafted ?? false
+		designTag: project.common.designTags
 	};
 	return Object.entries(filters).every(([key, selected]) => {
-		if (key === 'selfDrafted')
-			return fields[key] === (selected === true || selected === 'true');
+		if (
+			key === 'selfDrafted' ||
+			key === 'patternDifficulty' ||
+			isNewCraftFilter(key)
+		)
+			return true;
 		const desired = Array.isArray(selected) ? selected : [selected];
+		if (key === 'projectItem') {
+			const details = project.details;
+			if (!details || details.$type !== craftChoice(craft)?.detailsType)
+				return false;
+			let type = details.projectType;
+			if (
+				craftKey(craft) === 'dyeing' &&
+				!Object.hasOwn(details, 'projectType')
+			) {
+				const material = details.materialForm;
+				type =
+					typeof material === 'string' && /^[a-z0-9]+$/i.test(material)
+						? `social.craftsky.project.dyeing#${material}`
+						: material;
+			}
+			return desired.some((value) => {
+				if (typeof value !== 'string') return false;
+				if (projectOptionFor(value)?.family === 'projectType') {
+					return (
+						matchesNamedProjectItem(type, value) ||
+						(typeof type === 'string' &&
+							matchesNamedProjectItem(details.projectSubtype, value))
+					);
+				}
+				return matchesNamedProjectItem(details.projectSubtype, value);
+			});
+		}
+		if (key === 'projectType' || key === 'projectSubtype') {
+			const details = project.details;
+			if (!details) return false;
+			const values = [details.projectSubtype];
+			if (key === 'projectType') {
+				values.push(
+					craftKey(craft) === 'dyeing' && !Object.hasOwn(details, 'projectType')
+						? details.materialForm
+						: details.projectType
+				);
+			}
+			return desired.some(
+				(value) =>
+					typeof value === 'string' &&
+					values.some((actual) => matchesNamedProjectItem(actual, value))
+			);
+		}
 		const actual = Array.isArray(fields[key])
 			? (fields[key] as unknown[])
 			: [fields[key]];

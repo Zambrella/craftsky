@@ -141,6 +141,7 @@ export interface Project {
 		duration?: string;
 		additionalCrafts?: { craftType: string }[];
 		pattern?: ProjectPattern;
+		patterns?: ProjectPattern[];
 		materials?: { text: string; facets?: Facet[] }[];
 		colors?: string[];
 		designTags?: string[];
@@ -691,6 +692,7 @@ export interface ChatIncomingSetting {
 	persisted: boolean;
 }
 export interface VideoUploadLimits {
+	customThumbnail?: boolean;
 	canUpload: boolean;
 	message?: string;
 	error?: string;

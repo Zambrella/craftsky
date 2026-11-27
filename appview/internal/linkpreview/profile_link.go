@@ -5,12 +5,17 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"golang.org/x/image/draw"
 	"golang.org/x/net/html"
 )
+
+const maxProfileIconCandidates = 8
 
 type ProfileLinkPreview struct {
 	Reachable bool
@@ -22,7 +27,9 @@ type ProfileLinkPreview struct {
 func (s *Service) FetchProfileLinkPreview(ctx context.Context, raw string) (ProfileLinkPreview, error) {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	response, finalURL, err := s.fetcher.FetchPage(ctx, raw)
+	pageCtx, cancelPage := context.WithTimeout(ctx, pagePhaseTimeout)
+	defer cancelPage()
+	response, finalURL, err := s.fetcher.FetchPage(pageCtx, raw)
 	if err != nil {
 		return ProfileLinkPreview{}, err
 	}
@@ -30,46 +37,61 @@ func (s *Service) FetchProfileLinkPreview(ctx context.Context, raw string) (Prof
 	if response.StatusCode < 200 || response.StatusCode >= 400 {
 		return ProfileLinkPreview{}, nil
 	}
-	result := ProfileLinkPreview{Reachable: true}
-	candidates := []string{}
-	if isHTMLContentType(response.Header.Get("Content-Type")) {
-		head, err := DecodeHTMLHead(response.Body, response.Header.Get("Content-Type"))
-		if err == nil {
-			tokenizer := html.NewTokenizer(bytes.NewReader(head))
-			for tokenizer.Next() != html.ErrorToken {
+	return ProfileLinkPreview{Reachable: true, Icon: s.findProfileIcon(ctx, response, finalURL)}, nil
+}
+
+func (s *Service) findProfileIcon(ctx context.Context, response *http.Response, finalURL *url.URL) *Thumbnail {
+	seen := make(map[string]bool)
+	contentType := response.Header.Get("Content-Type")
+	if isHTMLContentType(contentType) {
+		if tokenizer, _, err := newBoundedHTMLTokenizer(response.Body, contentType); err == nil {
+			// Some sites stream icon links into the body after closing the head.
+			for ctx.Err() == nil && len(seen) < maxProfileIconCandidates {
+				tokenType := tokenizer.Next()
+				if tokenType == html.ErrorToken {
+					break
+				}
+				if tokenType != html.StartTagToken && tokenType != html.SelfClosingTagToken {
+					continue
+				}
 				token := tokenizer.Token()
 				if token.Data != "link" {
 					continue
 				}
 				attrs := attributeMap(token.Attr)
-				rel := " " + strings.ToLower(attrs["rel"]) + " "
-				if !strings.Contains(rel, " icon ") && !strings.Contains(rel, " apple-touch-icon ") {
+				rel := strings.Fields(strings.ToLower(attrs["rel"]))
+				href := strings.TrimSpace(attrs["href"])
+				if href == "" || !slices.Contains(rel, "icon") && !slices.Contains(rel, "apple-touch-icon") {
 					continue
 				}
-				candidate, err := finalURL.Parse(attrs["href"])
-				if err == nil {
-					candidates = append(candidates, candidate.String())
+				candidate, err := finalURL.Parse(href)
+				if err != nil {
+					continue
+				}
+				target := candidate.String()
+				if seen[target] {
+					continue
+				}
+				seen[target] = true
+				if icon := s.fetchProfileIcon(ctx, target); icon != nil {
+					return icon
 				}
 			}
 		}
 	}
-	fallback := *finalURL
-	fallback.Path = "/favicon.ico"
-	fallback.RawPath = ""
-	fallback.RawQuery = ""
-	fallback.Fragment = ""
-	candidates = append(candidates, fallback.String())
-	for _, candidate := range candidates {
-		thumbnail := s.fetchThumbnail(ctx, candidate)
-		if thumbnail == nil {
-			continue
-		}
-		result.Icon = s.profileIcon(ctx, thumbnail.Bytes)
-		if result.Icon != nil {
-			break
-		}
+	fallback := finalURL.ResolveReference(&url.URL{Path: "/favicon.ico"}).String()
+	if seen[fallback] {
+		return nil
 	}
-	return result, nil
+	return s.fetchProfileIcon(ctx, fallback)
+}
+
+func (s *Service) fetchProfileIcon(ctx context.Context, target string) *Thumbnail {
+	thumbnail := s.fetchThumbnail(ctx, target)
+	if thumbnail == nil {
+		return nil
+	}
+	return s.profileIcon(ctx, thumbnail.Bytes)
 }
 
 func (s *Service) profileIcon(ctx context.Context, input []byte) *Thumbnail {

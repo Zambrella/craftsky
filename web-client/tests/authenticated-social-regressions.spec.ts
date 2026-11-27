@@ -125,7 +125,7 @@ const post = (rkey = 'root', text = 'VISIBLE_REFRESH_CANARY') => ({
 	viewerHasSaved: false
 });
 test.beforeEach(async ({ context, page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch('http://127.0.0.1:19847/__test/reset');
@@ -256,6 +256,7 @@ test('craft filters support multiple selections, repeated wire values and URL re
 			.getByRole('group', { name: 'Pattern difficulty options', exact: true })
 			.getByRole('checkbox', { name: 'Intermediate', exact: true })
 	).toHaveCount(1);
+	await page.keyboard.press('Escape');
 	await page
 		.getByRole('searchbox', { name: 'Project type', exact: true })
 		.click();
@@ -271,32 +272,29 @@ test('craft filters support multiple selections, repeated wire values and URL re
 		.getByRole('checkbox', { name: 'Accessory', exact: true })
 		.click();
 	await page
-		.getByRole('searchbox', { name: 'Project subtype', exact: true })
+		.getByRole('searchbox', { name: 'Knitting method', exact: true })
 		.click();
-	expect(
-		await page
-			.getByRole('group', { name: 'Project subtype options', exact: true })
-			.getByRole('checkbox')
-			.count()
-	).toBeGreaterThan(1);
-	await page.keyboard.press('Escape');
-	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await page
-		.getByRole('group', { name: 'Color options', exact: true })
-		.getByRole('checkbox', { name: 'Blue', exact: true })
+		.getByRole('group', { name: 'Knitting method options', exact: true })
+		.getByRole('checkbox', { name: 'Hand', exact: true })
 		.click();
-	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await page
-		.getByRole('group', { name: 'Color options', exact: true })
-		.getByRole('checkbox', { name: 'Red', exact: true })
+		.getByRole('searchbox', { name: 'Knitting method', exact: true })
+		.click();
+	await page
+		.getByRole('group', { name: 'Knitting method options', exact: true })
+		.getByRole('checkbox', { name: 'Machine', exact: true })
 		.click();
 	await page
 		.getByRole('button', { name: 'Apply filters', exact: true })
 		.click();
 	await expect.poll(() => requests.length).toBe(2);
 	const query = requests[1].searchParams;
-	expect(query.getAll('color').sort()).toEqual(['blue', 'red']);
-	expect(query.getAll('projectType').sort()).toEqual([
+	expect(query.getAll('knittingMethod').sort()).toEqual([
+		'social.craftsky.project.knitting.defs#hand',
+		'social.craftsky.project.knitting.defs#machine'
+	]);
+	expect(query.getAll('projectItem').sort()).toEqual([
 		'social.craftsky.project.defs#accessory',
 		'social.craftsky.project.defs#garment'
 	]);
@@ -309,16 +307,18 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	await expect(
 		page.getByRole('region', { name: 'Filter Knitting projects', exact: true })
 	).toBeVisible();
-	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
+	await page
+		.getByRole('searchbox', { name: 'Knitting method', exact: true })
+		.click();
 	await expect(
 		page
-			.getByRole('group', { name: 'Color options', exact: true })
-			.getByRole('checkbox', { name: 'Blue', exact: true })
+			.getByRole('group', { name: 'Knitting method options', exact: true })
+			.getByRole('checkbox', { name: 'Hand', exact: true })
 	).toBeChecked();
 	await expect(
 		page
-			.getByRole('group', { name: 'Color options', exact: true })
-			.getByRole('checkbox', { name: 'Red', exact: true })
+			.getByRole('group', { name: 'Knitting method options', exact: true })
+			.getByRole('checkbox', { name: 'Machine', exact: true })
 	).toBeChecked();
 });
 test('pin controls use the actual slot state and exclude replies', async ({

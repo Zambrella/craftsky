@@ -21,6 +21,10 @@ import (
 )
 
 const adjudicationTestDDL = caseIntakeTestDDL + `
+CREATE TABLE safety_incidents(
+  id UUID PRIMARY KEY, source_case_id UUID UNIQUE, incident_kind TEXT NOT NULL DEFAULT 'imageMatch',
+  state TEXT NOT NULL DEFAULT 'detected', updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE moderation_outputs (
     id TEXT PRIMARY KEY, source_did TEXT NOT NULL, subject_type TEXT NOT NULL,
     subject_did TEXT NOT NULL, subject_collection TEXT, subject_rkey TEXT,

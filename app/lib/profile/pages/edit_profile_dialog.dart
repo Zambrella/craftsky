@@ -321,7 +321,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   /// Existing craft IDs that are not currently selectable. These include
   /// legacy enum values and unknown values from newer clients.
-  late final List<String> _preservedCrafts;
   late Profile _ordinaryBaseline;
   late List<ProfileLink> _links;
   late BusinessDeclarationDraft _businessBaseline;
@@ -350,18 +349,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _pronounsFocusNode = FocusNode(debugLabel: _fieldPronouns);
     _bioFocusNode = FocusNode(debugLabel: _fieldBio);
 
-    final selected = <Craft>{};
-    final preserved = <String>[];
-    for (final id in widget.profile.crafts) {
-      final craft = Craft.fromId(id);
-      if (craft != null && isCanonicalSelectableCraft(id)) {
-        selected.add(craft);
-      } else {
-        preserved.add(id);
-      }
-    }
-    _initialSelectedCrafts = Set.unmodifiable(selected);
-    _preservedCrafts = List.unmodifiable(preserved);
+    _initialSelectedCrafts = Set.unmodifiable([
+      for (final id in selectableCraftIdsFrom(widget.profile.crafts))
+        Craft.fromId(id)!,
+    ]);
   }
 
   @override
@@ -398,10 +389,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     }
     if ((values[_fieldBio] as String? ?? '') != initialBio) return true;
 
-    final initialIds = _ordinaryBaseline.crafts
-        .where(isCanonicalSelectableCraft)
-        .toSet()
-        .toList();
+    final initialIds = selectableCraftIdsFrom(_ordinaryBaseline.crafts);
     final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
         .map((c) => c.id)
         .toList();
@@ -448,11 +436,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final businessChanged = _hasBusinessChanges;
     final businessDraft = _currentBusinessDraft;
 
-    // Re-attach hidden legacy and unknown values unchanged.
-    final craftsPayload = <String>[
-      ...selectedCrafts.map((c) => c.id),
-      ..._preservedCrafts,
-    ];
+    final craftsPayload = storedCraftSelection(
+      _ordinaryBaseline.crafts,
+      selectedCrafts.map((craft) => craft.id).toList(),
+    );
     final description = (values[_fieldBio] as String? ?? '').trim();
     final pronounsValue = (values[_fieldPronouns] as String? ?? '').trim();
 
@@ -631,7 +618,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           actionChild: isSaving
               ? const StitchProgressIndicator(size: 18)
               : null,
-          child: FormBuilder(
+          contentBuilder: (_, clearance) => FormBuilder(
             key: _formKey,
             // Re-render on any field change so the save button picks up
             // the dirty/valid state without us hand-rolling listeners
@@ -674,7 +661,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                       spacing.sp4,
                       spacing.sp4,
                       spacing.sp4,
-                      spacing.sp6 + MediaQuery.paddingOf(context).bottom,
+                      spacing.sp6 + clearance,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,6 +3,7 @@
 	import { pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { mountComposerPage } from './page-layout';
+	import ComposerDetailAction from './ComposerDetailAction.svelte';
 	import { contextMenu } from '../social/context-menu';
 	import { reorderRow } from '../social/reorder-row';
 	import Icon from '../shell/Icon.svelte';
@@ -325,6 +326,10 @@
 				</div>{/each}
 			{@render picker(false)}
 		</div>
+		<ComposerDetailAction
+			ondone={close}
+			disabled={disabled || editing.length > 0}
+		/>
 	</section>{/if}
 
 <style>
@@ -491,7 +496,7 @@
 		left: var(--app-content-left, 0px);
 		width: var(--app-content-width, 100vw);
 		z-index: 25;
-		height: 100dvh;
+		height: var(--composer-detail-height, 100dvh);
 		max-width: none;
 		max-height: none;
 		margin: 0;
@@ -519,6 +524,6 @@
 	}
 	.photo-page-scroll {
 		overflow: auto;
-		padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+		padding: 16px 16px calc(84px + env(safe-area-inset-bottom));
 	}
 </style>

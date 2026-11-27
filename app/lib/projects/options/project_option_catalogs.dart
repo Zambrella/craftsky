@@ -4,8 +4,10 @@ import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 
 abstract final class ProjectOptionCatalogs {
   static const maxFilterValuesPerFamily = 10;
+  static const maxFilterValues = 50;
   static const feedDefsPrefix = 'social.craftsky.feed.defs';
   static const projectDefsPrefix = 'social.craftsky.project.defs';
+  static const otherProjectTypeToken = '$projectDefsPrefix#other';
   static const knittingDefsPrefix = 'social.craftsky.project.knitting.defs';
   static const crochetDefsPrefix = 'social.craftsky.project.crochet.defs';
   static const sewingDefsPrefix = 'social.craftsky.project.sewing.defs';
@@ -16,6 +18,16 @@ abstract final class ProjectOptionCatalogs {
   static const sewingCraftToken = '$feedDefsPrefix#sewing';
   static const embroideryCraftToken = '$feedDefsPrefix#embroidery';
   static const quiltingCraftToken = '$feedDefsPrefix#quilting';
+  static const spinningCraftToken = '$feedDefsPrefix#spinning';
+  static const dyeingCraftToken = '$feedDefsPrefix#dyeing';
+  static const punchNeedleCraftToken = '$feedDefsPrefix#punchNeedle';
+  static const macrameCraftToken = '$feedDefsPrefix#macrame';
+  static const weavingCraftToken = '$feedDefsPrefix#weaving';
+  static const feltingCraftToken = '$feedDefsPrefix#felting';
+  static const knittingMachineMethodToken = '$knittingDefsPrefix#machine';
+  static const needleFeltingMethodToken =
+      'social.craftsky.project.felting#needle';
+
   static const finishedStatusToken = '$feedDefsPrefix#finished';
   static const wipStatusToken = '$feedDefsPrefix#wip';
 
@@ -24,13 +36,9 @@ abstract final class ProjectOptionCatalogs {
   /// AppView accepts supported bare aliases as compatibility inputs, but
   /// Flutter should prefer these full lexicon tokens for requests and expect
   /// them in responses.
-  static const defaultSupportedCraftTokens = <String>[
-    knittingCraftToken,
-    crochetCraftToken,
-    sewingCraftToken,
-    embroideryCraftToken,
-    quiltingCraftToken,
-  ];
+  static final List<String> defaultSupportedCraftTokens = List.unmodifiable(
+    craftTypes.map((option) => option.value),
+  );
 
   static const knittingCraftFilterToken = CraftTypeFilterToken(
     knittingCraftToken,
@@ -47,16 +55,44 @@ abstract final class ProjectOptionCatalogs {
     '$projectDefsPrefix#stripes',
   );
 
-  static final List<ProjectOption> craftTypes = ProjectTaxonomy.options(
+  static final List<ProjectOption> allCraftTypes = ProjectTaxonomy.options(
     'craft',
   );
 
+  static final List<ProjectOption> craftTypes = List.unmodifiable(
+    allCraftTypes.where((option) => _availableCrafts.contains(option.value)),
+  );
+
+  static final Set<String> _availableCrafts = {
+    for (final entry in ProjectTaxonomy.entries)
+      if (entry.family == 'craft' &&
+          (entry.phase ?? 1) <= ProjectTaxonomy.releasePhase)
+        entry.id,
+  };
+
+  static String profileIdForCraftToken(String craft) {
+    final normalized = craft.trim().toLowerCase();
+    return ProjectTaxonomy.entries
+            .where(
+              (entry) =>
+                  entry.family == 'craft' &&
+                  entry.id.toLowerCase() == normalized,
+            )
+            .firstOrNull
+            ?.profileId ??
+        normalized;
+  }
+
+  static List<ProjectOption> designTagsForCraft(String? craft) =>
+      ProjectTaxonomy.options('designTag', craft: craft);
+
   static List<ProjectOption> craftTypesForPreferences(Iterable<String> crafts) {
     final byId = {
-      for (final option in craftTypes) option.value.split('#').last: option,
+      for (final option in craftTypes)
+        profileIdForCraftToken(option.value): option,
     };
     final preferred = [
-      for (final id in crafts.toSet()) ?byId[id],
+      for (final id in crafts.map(profileIdForCraftToken).toSet()) ?byId[id],
     ];
     return [
       ...preferred,
@@ -197,69 +233,33 @@ abstract final class ProjectOptionCatalogs {
     'quiltingMethod',
   );
 
-  static List<ProjectOption> projectTypesForCraft(String craftToken) {
-    final allowed = switch (craftToken) {
-      quiltingCraftToken => const {
-        '$projectDefsPrefix#quilt',
-        '$projectDefsPrefix#homeGoods',
-        '$projectDefsPrefix#accessory',
-        '$projectDefsPrefix#garment',
-        '$projectDefsPrefix#toyHobby',
-        '$projectDefsPrefix#pet',
-        '$projectDefsPrefix#component',
-        '$projectDefsPrefix#other',
-      },
-      sewingCraftToken => const {
-        '$projectDefsPrefix#garment',
-        '$projectDefsPrefix#accessory',
-        '$projectDefsPrefix#homeGoods',
-        '$projectDefsPrefix#toyHobby',
-        '$projectDefsPrefix#pet',
-        '$projectDefsPrefix#medical',
-        '$projectDefsPrefix#component',
-        '$projectDefsPrefix#alteration',
-        '$projectDefsPrefix#costume',
-        '$projectDefsPrefix#other',
-      },
-      knittingCraftToken || crochetCraftToken => const {
-        '$projectDefsPrefix#garment',
-        '$projectDefsPrefix#accessory',
-        '$projectDefsPrefix#homeGoods',
-        '$projectDefsPrefix#toyHobby',
-        '$projectDefsPrefix#pet',
-        '$projectDefsPrefix#medical',
-        '$projectDefsPrefix#component',
-        '$projectDefsPrefix#costume',
-        '$projectDefsPrefix#other',
-      },
-      _ => const <String>{},
-    };
-    return projectTypes
-        .where((option) => allowed.contains(option.value))
-        .toList();
-  }
+  static List<ProjectOption> projectTypesForCraft(String craftToken) =>
+      ProjectTaxonomy.projectTypesFor(craftToken);
+
+  static String projectValueLabel(String value) =>
+      ProjectTaxonomy.entries
+          .where((entry) => entry.id == value)
+          .firstOrNull
+          ?.label ??
+      value;
 
   static List<ProjectOption> projectSubtypesFor({
     required String craftToken,
     required String? projectTypeToken,
   }) {
     if (projectTypeToken == null || projectTypeToken.isEmpty) {
-      return const <ProjectOption>[];
+      return const [];
     }
-    return projectSubtypesForCraft(
-      craftToken,
-    ).where((option) => option.parentValue == projectTypeToken).toList();
+    return ProjectTaxonomy.projectSubtypesFor(craftToken, projectTypeToken);
   }
 
   static List<ProjectOption> projectSubtypesForTypes({
     required String craftToken,
     required Iterable<String> projectTypeTokens,
-  }) {
-    final parents = projectTypeTokens.toSet();
-    return projectSubtypesForCraft(
-      craftToken,
-    ).where((option) => parents.contains(option.parentValue)).toList();
-  }
+  }) => [
+    for (final type in projectTypeTokens)
+      ...ProjectTaxonomy.projectSubtypesFor(craftToken, type),
+  ];
 
   static List<String> retainValidSubtypes({
     required String craftToken,
@@ -273,25 +273,12 @@ abstract final class ProjectOptionCatalogs {
     return subtypeTokens.where(valid.contains).toList();
   }
 
-  static bool isSubtypeSelectionEnabled({
-    required String craftToken,
-    required String? projectTypeToken,
-  }) {
-    return projectSubtypesFor(
-      craftToken: craftToken,
-      projectTypeToken: projectTypeToken,
-    ).isNotEmpty;
-  }
-
-  static List<ProjectOption> projectSubtypesForCraft(String craftToken) {
-    return switch (craftToken) {
-      sewingCraftToken => sewingProjectSubtypes,
-      knittingCraftToken => knittingProjectSubtypes,
-      crochetCraftToken => crochetProjectSubtypes,
-      quiltingCraftToken => quiltingProjectSubtypes,
-      _ => const <ProjectOption>[],
-    };
-  }
+  static List<ProjectOption> projectSubtypesForCraft(String craftToken) =>
+      projectSubtypesForTypes(
+        craftToken: craftToken,
+        projectTypeTokens: projectTypesForCraft(craftToken)
+            .map((option) => option.value),
+      );
 
   static String? clearInvalidSubtype({
     required String craftToken,
@@ -305,28 +292,4 @@ abstract final class ProjectOptionCatalogs {
     ).any((option) => option.value == subtypeToken);
     return valid ? subtypeToken : null;
   }
-
-  static final List<ProjectOption> sewingProjectSubtypes =
-      ProjectTaxonomy.options(
-        'projectSubtype',
-        craft: sewingCraftToken,
-      );
-
-  static final List<ProjectOption> knittingProjectSubtypes =
-      ProjectTaxonomy.options(
-        'projectSubtype',
-        craft: knittingCraftToken,
-      );
-
-  static final List<ProjectOption> crochetProjectSubtypes =
-      ProjectTaxonomy.options(
-        'projectSubtype',
-        craft: crochetCraftToken,
-      );
-
-  static final List<ProjectOption> quiltingProjectSubtypes =
-      ProjectTaxonomy.options(
-        'projectSubtype',
-        craft: quiltingCraftToken,
-      );
 }

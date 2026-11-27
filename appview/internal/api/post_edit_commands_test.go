@@ -342,7 +342,7 @@ func TestEditPostProjectLeafChangesPreserveUnknownSiblings(t *testing.T) {
 			Common        struct {
 				Title        *string
 				FutureCommon struct{ Integer json.Number }
-				Pattern      struct {
+				Patterns     []struct {
 					Name, FuturePattern string
 					SelfDrafted         bool
 				}
@@ -355,7 +355,7 @@ func TestEditPostProjectLeafChangesPreserveUnknownSiblings(t *testing.T) {
 		t.Fatal(err)
 	}
 	common := fields.Project.Common
-	if !fields.Project.FutureProject || common.Title != nil || common.FutureCommon.Integer != "9007199254740993" || common.Pattern.SelfDrafted || common.Pattern.Name != "Keep name" || common.Pattern.FuturePattern != "keep" {
+	if !fields.Project.FutureProject || common.Title != nil || common.FutureCommon.Integer != "9007199254740993" || len(common.Patterns) != 1 || common.Patterns[0].SelfDrafted || common.Patterns[0].Name != "Keep name" || common.Patterns[0].FuturePattern != "keep" {
 		t.Fatalf("project merge lost data: %s", commands.desired)
 	}
 }
@@ -411,10 +411,47 @@ func TestEditPostDetailsLeafPreservesUnknownSiblings(t *testing.T) {
 }
 
 // UT-002: all remaining supported detail variants use presence-aware leaves.
+func TestEditPostLegacyToolSizes(t *testing.T) {
+	for _, tc := range []struct {
+		name, stored, changes, want string
+		status                      int
+	}{
+		{"legacy replace", `"needleSizeMm":"4.0mm"`, `{"project":{"details":{"needleSizeMm":"4.5mm"}}}`, `["4.5mm"]`, 200},
+		{"legacy clear", `"needleSizesMm":["4.0mm"]`, `{"project":{"details":{"needleSizeMm":null}}}`, `[]`, 200},
+		{"unrelated save", `"needleSizesMm":["4.0mm","4.5mm"]`, `{"text":"updated"}`, `["4.0mm","4.5mm"]`, 200},
+		{"legacy replace of multiple", `"needleSizesMm":["4.0mm","4.5mm"]`, `{"project":{"details":{"needleSizeMm":"5.0mm"}}}`, "", 422},
+		{"legacy clear of multiple", `"needleSizesMm":["4.0mm","4.5mm"]`, `{"project":{"details":{"needleSizeMm":null}}}`, "", 422},
+		{"current clear", `"needleSizeMm":"4.0mm","needleSizesMm":["4.0mm","4.5mm"]`, `{"project":{"details":{"needleSizesMm":[]}}}`, `[]`, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			current := `{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-01-01T00:00:00Z","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"},"details":{"$type":"social.craftsky.project.knitting#details",` + tc.stored + `}}}`
+			commands, response := servePostEdit(t, current, tc.changes)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d want=%d body=%s", response.Code, tc.status, response.Body.String())
+			}
+			if tc.status != 200 {
+				if len(commands.desired) != 0 {
+					t.Fatal("rejected edit attempted a write")
+				}
+				return
+			}
+			var record struct {
+				Project struct{ Details map[string]json.RawMessage }
+			}
+			if err := json.Unmarshal(commands.desired, &record); err != nil {
+				t.Fatal(err)
+			}
+			if d := record.Project.Details; string(d["needleSizesMm"]) != tc.want || d["needleSizeMm"] != nil {
+				t.Fatalf("wanted sizes %s without scalar, got %s", tc.want, commands.desired)
+			}
+		})
+	}
+}
+
 func TestEditPostCraftDetailsChanges(t *testing.T) {
 	for _, tc := range []struct{ craft, base, changes, field, want string }{
-		{"knitting", `"needleSizeMm":"3","gauge":{"stitches":20,"rows":30,"measurement":10,"unit":"cm","futureGauge":"keep"}`, `"needleSizeMm":"4","gauge":{"stitches":22}`, "needleSizeMm", `"4"`},
-		{"crochet", `"hookSizeMm":"3","gauge":{"stitches":20,"rows":30,"measurement":10,"unit":"cm","futureGauge":"keep"}`, `"hookSizeMm":"4","gauge":{"stitches":22}`, "hookSizeMm", `"4"`},
+		{"knitting", `"needleSizeMm":"3","gauge":{"stitches":20,"rows":30,"measurement":10,"unit":"cm","futureGauge":"keep"}`, `"needleSizeMm":"4","gauge":{"stitches":22}`, "needleSizesMm", `["4"]`},
+		{"crochet", `"hookSizeMm":"3","gauge":{"stitches":20,"rows":30,"measurement":10,"unit":"cm","futureGauge":"keep"}`, `"hookSizeMm":"4","gauge":{"stitches":22}`, "hookSizesMm", `["4"]`},
 		{"quilting", `"size":"small","piecingTechnique":"hand"`, `"size":"large"`, "size", `"large"`},
 	} {
 		t.Run(tc.craft, func(t *testing.T) {
@@ -457,13 +494,17 @@ func TestEditPostChangedPatternTextDoesNotRetainOldFacets(t *testing.T) {
 	}
 	var record struct {
 		Project struct {
-			Common struct{ Pattern map[string]json.RawMessage }
+			Common struct{ Patterns []map[string]json.RawMessage }
 		}
 	}
 	if err := json.Unmarshal(commands.desired, &record); err != nil {
 		t.Fatal(err)
 	}
-	pattern := record.Project.Common.Pattern
+	patterns := record.Project.Common.Patterns
+	if len(patterns) != 1 {
+		t.Fatalf("expected canonical singleton: %s", commands.desired)
+	}
+	pattern := patterns[0]
 	if _, present := pattern["nameFacets"]; present {
 		t.Fatalf("stale pattern facets retained: %s", commands.desired)
 	}
@@ -498,7 +539,7 @@ func TestEditPostValidatesNestedUTF8FacetRanges(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != 422 || result.Fields["project.common.pattern.nameFacets"] == "" {
+	if response.Code != 422 || result.Fields["project.common.patterns[0].nameFacets"] == "" {
 		t.Fatalf("invalid nested facet accepted: %d %s", response.Code, response.Body.String())
 	}
 }
@@ -709,5 +750,111 @@ func TestEditPostRetainsExternalURIAcrossCaptionChange(t *testing.T) {
 	_, rejected := servePostEdit(t, raw, `{"embed":{"external":{"uri":"at://did:plc:other/social.craftsky.feed.post/new"}}}`)
 	if rejected.Code != 422 {
 		t.Fatalf("new unsupported preview URI accepted: %d %s", rejected.Code, rejected.Body.String())
+	}
+}
+
+func TestEditPostPatternListCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		name, stored, patch, want string
+		status                    int
+	}{
+		{"legacy partial update", `"pattern":{"name":"Old","designer":"Mina","future":true}`,
+			`{"pattern":{"name":"New"}}`, `[{"designer":"Mina","future":true,"name":"New"}]`, 200},
+		{"legacy clear canonical singleton", `"patterns":[{"name":"Old"}]`,
+			`{"pattern":null}`, `[]`, 200},
+		{"legacy clear multiple rejected", `"patterns":[{"name":"First"},{"name":"Second"}]`,
+			`{"pattern":null}`, "", 422},
+		{"unrelated save preserves all", `"patterns":[{"name":"First"},{"name":"Second"}]`,
+			`{"title":"New title"}`, `[{"name":"First"},{"name":"Second"}]`, 200},
+		{"empty legacy object preserves all", `"patterns":[{"name":"First"},{"name":"Second"}]`,
+			`{"title":"New title","pattern":{}}`, `[{"name":"First"},{"name":"Second"}]`, 200},
+		{"current edit keeps retained entry", `"pattern":{"name":"Stale"},"patterns":[{"name":"First"},{"name":"Second","designer":"Mina","future":true}]`,
+			`{"patterns":[{"existingIndex":1,"name":"New"}]}`, `[{"designer":"Mina","future":true,"name":"New"}]`, 200},
+		{"sibling edit keeps extension-only entry and authored tag", `"patterns":[{"futurePatternField":"keep"},{"name":"#wool-blue","nameFacets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"wool-blue"}]}]},{"name":"Third"}]`,
+			`{"patterns":[{"existingIndex":0},{"existingIndex":1},{"existingIndex":2,"name":"Revised third"}]}`,
+			`[{"futurePatternField":"keep"},{"name":"#wool-blue","nameFacets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"wool-blue"}]}]},{"name":"Revised third"}]`, 200},
+		{"current clear removes both representations", `"pattern":{"name":"Stale"},"patterns":[{"name":"First"}]`,
+			`{"patterns":[]}`, `[]`, 200},
+		{"null patch clears without legacy fallback", `"pattern":{"name":"Stale"},"patterns":[{"name":"First"}]`,
+			`{"patterns":null}`, `[]`, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := `{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-01-01T00:00:00Z","project":{"common":{"craftType":"social.craftsky.feed.defs#sewing",` + tc.stored + `}}}`
+			commands, response := servePostEdit(t, raw, `{"project":{"common":`+tc.patch+`}}`)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d want=%d body=%s", response.Code, tc.status, response.Body.String())
+			}
+			if response.Code != 200 {
+				if len(commands.desired) != 0 {
+					t.Fatal("rejected edit attempted a write")
+				}
+				return
+			}
+			var record struct {
+				Project struct{ Common map[string]json.RawMessage }
+			}
+			if err := json.Unmarshal(commands.desired, &record); err != nil {
+				t.Fatal(err)
+			}
+			if common := record.Project.Common; string(common["patterns"]) != tc.want || common["pattern"] != nil {
+				t.Fatalf("wanted patterns %s without singular, got %s", tc.want, commands.desired)
+			}
+		})
+	}
+}
+
+func TestEditPostRetainsGroupedDetailsAndSupportsNewCraft(t *testing.T) {
+	for _, tc := range []struct{ craft, stored, changes, want string }{
+		{"embroidery", `"methods":[{"method":"hand","future":9,"styles":[{"style":"sashiko"},{"style":"blackwork","future":true}]},{"method":"machine","styles":[{"style":"threeDimensionalPuff"}]}]`,
+			`"methods":[{"existingIndex":0,"styles":[{"existingIndex":1}]},{"existingIndex":1}]`,
+			`"methods":[{"future":9,"method":"hand","styles":[{"future":true,"style":"blackwork"}]},{"method":"machine","styles":[{"style":"threeDimensionalPuff"}]}]`},
+		{"weaving", `"materials":[{"role":"warp","text":"linen","future":"keep"},{"role":"weft","text":"wool"}],"sett":{"amount":"12","unit":"ends-per-inch","future":true}`,
+			`"materials":[{"existingIndex":0},{"existingIndex":1,"text":"cotton"}],"sett":{"amount":"14.5"}`,
+			`"sett":{"amount":"14.5","future":true,"unit":"ends-per-inch"}`},
+	} {
+		t.Run(tc.craft, func(t *testing.T) {
+			raw := `{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-01-01T00:00:00Z","project":{"common":{"craftType":"social.craftsky.feed.defs#` + tc.craft + `"},"details":{"$type":"social.craftsky.project.` + tc.craft + `#details",` + tc.stored + `}}}`
+			commands, response := servePostEdit(t, raw, `{"project":{"details":{`+tc.changes+`}}}`)
+			if response.Code != http.StatusOK || !strings.Contains(string(commands.desired), tc.want) || strings.Contains(string(commands.desired), "existingIndex") {
+				t.Fatalf("status=%d response=%s record=%s", response.Code, response.Body.String(), commands.desired)
+			}
+		})
+	}
+}
+
+func TestEditPostRetainsHistoricalDetailsWhenSavingSimplifiedFields(t *testing.T) {
+	raw := `{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-01-01T00:00:00.000Z","project":{"common":{"craftType":"social.craftsky.feed.defs#embroidery","duration":"1 month","designTags":["floral"]},"details":{"$type":"social.craftsky.project.embroidery#details","projectSubtype":"Old custom subtype","methods":[{"method":"hand","styles":[{"style":"sashiko","extension":9007199254740993}]}],"extension":true}}}`
+	changes := `{"project":{"details":{"projectType":"social.craftsky.project.defs#homeGoods","projectSubtype":"Lampshade","method":"social.craftsky.project.embroidery.defs#machine","style":"social.craftsky.project.embroidery.defs#crossStitch"}}}`
+	commands, response := servePostEdit(t, raw, changes)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d response=%s", response.Code, response.Body.String())
+	}
+	var record struct {
+		Project struct {
+			Common, Details map[string]json.RawMessage
+		}
+	}
+	if err := json.Unmarshal(commands.desired, &record); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"projectType":    `"social.craftsky.project.defs#homeGoods"`,
+		"projectSubtype": `"Lampshade"`,
+		"method":         `"social.craftsky.project.embroidery.defs#machine"`,
+		"style":          `"social.craftsky.project.embroidery.defs#crossStitch"`,
+		"methods":        `[{"method":"hand","styles":[{"style":"sashiko","extension":9007199254740993}]}]`,
+		"extension":      "true",
+	} {
+		if got := string(record.Project.Details[key]); got != want {
+			t.Errorf("details.%s = %s, want %s", key, got, want)
+		}
+	}
+	if string(record.Project.Common["duration"]) != `"1 month"` || string(record.Project.Common["designTags"]) != `["floral"]` {
+		t.Errorf("historical common fields changed: %s", commands.desired)
+	}
+
+	commands, response = servePostEdit(t, string(commands.desired), `{"project":{"details":{"projectSubtype":null}}}`)
+	if response.Code != http.StatusOK || strings.Contains(string(commands.desired), `"projectSubtype"`) {
+		t.Fatalf("subtype clear status=%d response=%s record=%s", response.Code, response.Body.String(), commands.desired)
 	}
 }

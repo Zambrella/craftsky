@@ -15,6 +15,7 @@ export type ServerOperation =
 	| 'auth.request'
 	| 'auth.session'
 	| 'auth.callback'
+	| 'auth.logout'
 	| 'appview.proxy';
 export type ServerStage =
 	'configuration' | 'fetch' | 'response' | 'decode' | 'request';

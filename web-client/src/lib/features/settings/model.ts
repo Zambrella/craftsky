@@ -5,6 +5,7 @@ import type { BusinessEvent, JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
 import { requireRecordText } from './text-limits.ts';
+import { craftBackgroundIds } from '../social/craft-icons';
 export const languageOptions = Object.entries(languageCatalogue)
 	.map(([tag, name]) => ({ tag, name }))
 	.sort((a, b) => a.name.localeCompare(b.name));
@@ -77,11 +78,7 @@ export const colours: Record<string, string> = {
 };
 export const backgrounds = [
 	'none',
-	'craft-sewing',
-	'craft-knitting',
-	'craft-crochet',
-	'craft-quilting',
-	'craft-embroidery',
+	...craftBackgroundIds,
 	'animated-flow',
 	'animated-waves',
 	'animated-weave',

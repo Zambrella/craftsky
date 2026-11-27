@@ -1,5 +1,43 @@
 # Web Client Changelog
 
+## 1.15.1 - 2026-11-26
+
+- fix(search): show recent avatars and limit history to ten
+- feat(search): order trending tags by saved craft preference
+- fix(web-status): proxy status polls through same-origin API
+- test(web): allow status polling in guest request checks
+- docs(online-safety): consolidate launch readiness records
+- fix(web-client): remove message input focus outline
+- fix(composer): keep reply context visible while typing
+
+## 1.15.0 - 2026-11-25
+
+- feat(projects): expand craft-specific project details and filters
+- test(web-client): update project detail expectations
+
+## 1.14.0 - 2026-11-22
+
+- feat(web): add a generated project schema explorer
+- feat(video): add custom thumbnail selection and upload
+- fix(chat): preserve failed message recovery across clients
+- test(web-client): update share link guidance assertion
+- fix(web-client): preserve feed tab scroll position
+- fix(profile-links): resolve streamed icons and generate valid rkeys
+- feat(profile): default to posts tab
+- fix(notifications): harden cross-client notification handling
+- perf(chat): preload conversations and bound sync refreshes
+- fix(observability): preserve safe failure details across clients
+- fix(notifications): fence stale opens and push deliveries
+- test(web): wait for relationship loading hydration
+
+## 1.13.2 - 2026-11-18
+
+- fix(web-client): reject stale notification badge polls
+
+## 1.13.1 - 2026-11-18
+
+- test(web-client): unmount profile page before resizing
+
 ## 1.13.0 - 2026-11-17
 
 - fix(release): verify guest landing redirects

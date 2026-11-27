@@ -721,8 +721,20 @@ describe('account-specific proxy and session actions', () => {
 	});
 	it('keeps cookies when logout cannot reach AppView, then removes only the named account after success', async () => {
 		const jar = new CookieJar().add(A).add(B).active(B.id);
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const requestId = '20000000-0000-4000-8000-000000000001';
 		fetcher
-			.mockResolvedValueOnce(response({ error: 'unavailable' }, 503))
+			.mockResolvedValueOnce(
+				response(
+					{
+						error: 'unavailable',
+						message: 'PRIVATE_UPSTREAM_MESSAGE',
+						requestId
+					},
+					503,
+					{ 'X-Request-ID': requestId }
+				)
+			)
 			.mockResolvedValueOnce(response(undefined, 204));
 		expect(
 			(
@@ -732,6 +744,17 @@ describe('account-specific proxy and session actions', () => {
 				)
 			).status
 		).toBe(503);
+		expect(log).toHaveBeenCalledOnce();
+		const diagnostic = String(log.mock.calls[0][0]);
+		expect(JSON.parse(diagnostic)).toMatchObject({
+			operation: 'auth.logout',
+			httpStatus: 503,
+			errorCode: 'unavailable',
+			appViewRequestId: requestId
+		});
+		expect(diagnostic).not.toContain('PRIVATE_UPSTREAM_MESSAGE');
+		expect(diagnostic).not.toContain(A.token);
+		expect(diagnostic).not.toContain(A.id);
 		expect(credentials(jar.cookies, new URL(origin))).toHaveLength(2);
 		expect(
 			(

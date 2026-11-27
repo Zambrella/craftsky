@@ -337,6 +337,15 @@ func installSourceProjectionTx(
 	if err != nil {
 		return err
 	}
+	var editMentions []syntax.DID
+	if event.Collection == "social.craftsky.feed.post" && event.Action == "update" && event.Live &&
+		orderingStatus == "authoritative" && disposition == "eligible" &&
+		validation.StructuralStatus == sourcevalidation.Valid && validation.SemanticStatus == sourcevalidation.Valid {
+		editMentions, err = postpublication.AddedMentions(ctx, tx, event.URI, event.Record)
+		if err != nil {
+			return fmt.Errorf("compare post edit mentions: %w", err)
+		}
+	}
 	var record, cid any
 	recordBytes := 0
 	if event.Action != "delete" {
@@ -377,6 +386,9 @@ func installSourceProjectionTx(
 	}
 	if err := postpublication.Persist(ctx, tx, event.URI, event.DID, publication); err != nil {
 		return err
+	}
+	if err := postpublication.QueueEditMentions(ctx, tx, event.URI, editMentions, now); err != nil {
+		return fmt.Errorf("queue post edit mentions: %w", err)
 	}
 	if err := restrictPostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition, now); err != nil {
 		return err

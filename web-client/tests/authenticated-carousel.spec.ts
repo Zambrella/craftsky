@@ -61,7 +61,7 @@ test.beforeEach(async ({ context, page }) => {
 			sameSite: 'Lax'
 		}
 	]);
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await page.route('https://fixture.craftsky.test/**', (route) =>
@@ -178,6 +178,22 @@ test('compact navigation displays and announces capped unread counts', async ({
 }) => {
 	await page.route('**/api/appview/v1/notifications/new-count', (route) =>
 		route.fulfill({ json: { newCount: 123 } })
+	);
+	await page.route('**/api/appview/v1/chat/status', (route) =>
+		route.fulfill({
+			json: {
+				enabled: true,
+				generation: 1,
+				state: 'ready',
+				pushEnabled: false,
+				capabilities: {
+					canRead: true,
+					canSend: true,
+					canReport: true,
+					canSetPolicy: true
+				}
+			}
+		})
 	);
 	await page.route('**/api/appview/v1/chat/unread-counts', (route) =>
 		route.fulfill({ json: { accepted: 6, requests: 2 } })

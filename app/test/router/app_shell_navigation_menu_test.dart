@@ -822,6 +822,109 @@ void main() {
     expect(router.state.matchedLocation, '/feed');
   });
 
+  testWidgets('Android Back returns every top-level destination to Home', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    bool? frameworkHandlesBack;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+          frameworkHandlesBack = call.arguments as bool;
+        }
+        return null;
+      },
+    );
+    final router = await _pumpShell(
+      tester,
+      const Size(500, 800),
+      platform: TargetPlatform.android,
+      initialLocation: '/settings',
+    );
+
+    expect(router.state.matchedLocation, '/settings');
+    expect(frameworkHandlesBack, isTrue);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, '/feed');
+
+    for (final location in [
+      '/search',
+      '/messages',
+      '/notifications',
+      '/profile',
+      '/saved',
+      '/scheduled',
+      '/drafts',
+      '/projects',
+    ]) {
+      router.go(location);
+      await tester.pumpAndSettle();
+
+      expect(router.state.matchedLocation, location);
+      expect(frameworkHandlesBack, isTrue, reason: location);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/feed');
+    }
+
+    expect(frameworkHandlesBack, isFalse);
+    expect(await tester.binding.handlePopRoute(), isFalse);
+  }, variant: const TargetPlatformVariant({TargetPlatform.android}));
+
+  testWidgets(
+    'Android Back closes child pages, dialogs, and the drawer first',
+    (
+      tester,
+    ) async {
+      final router = await _pumpShell(
+        tester,
+        const Size(500, 800),
+        platform: TargetPlatform.android,
+        initialLocation: '/settings/about',
+      );
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/settings');
+
+      showDialog<void>(
+        context: tester.element(find.text('/settings')),
+        builder: (_) => const AlertDialog(title: Text('Dialog')),
+      );
+      await tester.pumpAndSettle();
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('Dialog'), findsNothing);
+      expect(router.state.matchedLocation, '/settings');
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(router.state.matchedLocation, '/settings');
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/feed');
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
+  testWidgets('iOS has no Home fallback for platform Back', (tester) async {
+    final router = await _pumpShell(
+      tester,
+      const Size(500, 800),
+      initialLocation: '/settings',
+    );
+
+    expect(await tester.binding.handlePopRoute(), isFalse);
+    expect(router.state.matchedLocation, '/settings');
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
   testWidgets('CORR-003 rapid drawer selection dispatches once', (
     tester,
   ) async {
@@ -944,6 +1047,28 @@ void main() {
       findsOne,
     );
   });
+
+  for (final wide in [false, true]) {
+    testWidgets('Android hides Feedback in the ${wide ? 'rail' : 'drawer'}', (
+      tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        wide ? const Size(1200, 720) : const Size(500, 670),
+        platform: TargetPlatform.android,
+      );
+      if (!wide) {
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.byType(wide ? NavigationRail : Drawer), findsOneWidget);
+      expect(find.text('Feedback'), findsNothing);
+      expect(find.text('Terms'), findsOneWidget);
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.text('1.0.0 (1)'), findsOneWidget);
+    });
+  }
 
   testWidgets('UIP-008 build version appears below Feedback', (tester) async {
     await _pumpShell(tester, const Size(500, 800));
@@ -1314,6 +1439,8 @@ Future<GoRouter> _pumpShell(
   TextScaler? textScaler,
   RecordingMessenger? messenger,
   ThemeMode themeMode = ThemeMode.light,
+  TargetPlatform platform = TargetPlatform.iOS,
+  String initialLocation = '/feed',
   bool wrapInAuthenticatedShell = false,
   VoidCallback? onFeedLoad,
   ChatRepository? chatRepository,
@@ -1324,7 +1451,7 @@ Future<GoRouter> _pumpShell(
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   final router = GoRouter(
-    initialLocation: '/feed',
+    initialLocation: initialLocation,
     redirect: (context, state) {
       onRedirect?.call(state.matchedLocation);
       return null;
@@ -1368,7 +1495,19 @@ Future<GoRouter> _pumpShell(
                           appBar: AppBar(leading: const AppShellDrawerButton()),
                           body: Text(path),
                         ),
+                  routes: [
+                    if (path == '/settings')
+                      GoRoute(
+                        path: 'about',
+                        builder: (_, _) => const Scaffold(body: Text('About')),
+                      ),
+                  ],
                 ),
+                if (path == '/feed')
+                  GoRoute(
+                    path: '/projects',
+                    builder: (_, _) => const Scaffold(body: Text('/projects')),
+                  ),
               ],
             ),
         ],
@@ -1449,8 +1588,8 @@ Future<GoRouter> _pumpShell(
       ],
       child: MaterialApp.router(
         routerConfig: router,
-        theme: AppTheme.lightThemeData,
-        darkTheme: AppTheme.darkThemeData,
+        theme: AppTheme.lightThemeData.copyWith(platform: platform),
+        darkTheme: AppTheme.darkThemeData.copyWith(platform: platform),
         themeMode: themeMode,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,

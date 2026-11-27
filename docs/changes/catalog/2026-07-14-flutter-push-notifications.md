@@ -33,7 +33,8 @@
   ],
   "evidence": [
     "docs/changes/2026-07-14-flutter-push-notifications/05-implementation-plan.md#final-verification",
-    "docs/changes/2026-07-14-flutter-push-notifications/06-implementation-review.md"
+    "docs/changes/2026-07-14-flutter-push-notifications/06-implementation-review.md",
+    "docs/2026-11-20-notification-audit.md"
   ],
   "supersededBy": [],
   "followUps": [
@@ -53,6 +54,8 @@ The Flutter push slice wires provider-neutral notification services, account-bou
 The review is Approved with notes and its cleanup suggestions are followed by a recorded simplification pass, 72 notification tests, clean analysis and backend race verification. ADC sender-selection checks demonstrate configuration only, not live Firebase invocation or phone delivery.
 
 Historical evidence: [05-implementation-plan.md — Final Verification](../../../docs/changes/2026-07-14-flutter-push-notifications/05-implementation-plan.md#final-verification); [06-implementation-review.md](../../../docs/changes/2026-07-14-flutter-push-notifications/06-implementation-review.md).
+
+The November audit records later Flutter startup, registration, badge and Activity fixes. [CraftSky notification audit](../../2026-11-20-notification-audit.md)
 
 ## Current entry points
 

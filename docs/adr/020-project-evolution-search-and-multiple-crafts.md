@@ -31,8 +31,8 @@ owner PDS records.
 Maintain a versioned application taxonomy of existing stable record values,
 English labels, aliases, and parent/equivalent relationships. Broader concepts
 are directional; related types are not all synonyms. Taxonomy changes do not
-rewrite public values. Generated Flutter data and embedded Go data share the
-same catalog. A searchable-field contract covers every project property,
+rewrite public values. Generated Flutter and Svelte data and embedded Go data
+share the same catalog. A searchable-field contract covers every project property,
 explicit exclusions, weights, visibility, and catalog version. Hashtag counts
 and discovery use all-time visible posts, with one count per post and tag.
 
@@ -44,6 +44,10 @@ clients. Retain the existing string and array limits. These values already
 validate as bounded strings; this additive documentation change requires no
 record migration or new NSID. Regenerate the embedded schema catalog alongside
 the Lexicon update.
+
+The [simplified authoring decision](029-additive-project-craft-details.md#simplified-authoring-decision)
+retires the colour picker for new first-party projects. Saved colours remain
+valid and searchable.
 
 ## Alternatives and consequences
 

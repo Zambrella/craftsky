@@ -20,6 +20,7 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
@@ -977,11 +978,11 @@ void main() {
       expect(updateCallCount, 1);
     });
 
-    testWidgets('save invisibly preserves legacy and unknown crafts', (
+    testWidgets('save preserves original craft values on profile edits', (
       tester,
     ) async {
       final profile = _seedProfile.copyWith(
-        crafts: ['sewing', 'weaving', 'future-craft'],
+        crafts: ['social.craftsky.feed.defs#sewing', 'weaving', 'future-craft'],
       );
       List<String>? capturedCrafts;
       final repo = FakeProfileRepository(
@@ -1007,7 +1008,10 @@ void main() {
       );
 
       await _pumpEditDialog(tester, repo: repo);
-      expect(find.text('Weaving'), findsNothing);
+      expect(
+        find.text('Weaving'),
+        findsNWidgets(ProjectTaxonomy.releasePhase >= 2 ? 1 : 0),
+      );
       expect(find.text('future-craft'), findsNothing);
 
       await tester.enterText(
@@ -1018,7 +1022,7 @@ void main() {
       await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
       await tester.pumpAndSettle();
 
-      expect(capturedCrafts, ['sewing', 'weaving', 'future-craft']);
+      expect(capturedCrafts, profile.crafts);
     });
 
     testWidgets(

@@ -1,77 +1,81 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import { label } from '#lib/public.ts';
 	import MultiSelect from '#lib/MultiSelect.svelte';
-	import { filterFamilies, filterOptions } from './filter-model';
-	let { craft = '', expanded = false }: { craft?: string; expanded?: boolean } =
-		$props();
+	import {
+		craftChoice,
+		sortedProjectOptions
+	} from '../composer/project-options';
+	import {
+		browseFilters,
+		filterFamilies,
+		filterOptions,
+		filterValueLabel,
+		projectItemFilterChoices,
+		selectedProjectItems,
+		sameFilterValue
+	} from './filter-model';
+	import { craftFilterFamilies } from './craft-detail-filters';
+	let { craft = '' }: { craft?: string } = $props();
+	const initial = untrack(() => browseFilters(page.url.searchParams, craft));
 	let selected = $state<Record<string, string[]>>(
 		Object.fromEntries(
 			filterFamilies.map(([family]) => [
 				family,
-				[
-					...new Set(
-						page.url.searchParams.getAll(family).filter((value) => value.trim())
-					)
-				]
+				Array.isArray(initial[family]) ? [...initial[family]] : []
 			])
 		)
 	);
 	let selfDrafted = $state(page.url.searchParams.get('selfDrafted') === 'true');
 	let feedback = $state('');
 	const maximum = $derived(craft ? 49 : 50);
-	const order = [
-		'projectType',
-		'projectSubtype',
+	const fieldOrder = [
+		'status',
 		'patternDifficulty',
-		'color',
-		'designTag',
-		'yarnWeight',
-		'piecingTechnique',
-		'quiltingMethod',
-		'status'
+		'selfDrafted',
+		'projectItem',
+		...craftFilterFamilies.map(([key]) => key)
 	];
-	const titles: Record<string, string> = {
-		color: 'Color',
-		designTag: 'Design'
-	};
-	function options(family: string) {
-		const values = filterOptions(family, craft, selected.projectType);
-		return [
-			...values.map((option) => ({ id: option.id, label: option.labels.en })),
-			...(selected[family] || [])
-				.filter((value) => !values.some((option) => option.id === value))
-				.map((value) => ({ id: value, label: label(value) }))
-		];
+	const itemValues = $derived(selectedProjectItems(craft, selected));
+	const itemOptions = $derived(projectItemFilterChoices(craft, itemValues));
+	function options(family: string, values: ReturnType<typeof filterOptions>) {
+		const active = selected[family] || [];
+		return sortedProjectOptions([
+			...values.map((option) => ({
+				id:
+					active.find((value) => sameFilterValue(option.id, value)) ??
+					option.id,
+				label: option.labels.en,
+				aliases: option.aliases
+			})),
+			...active
+				.filter(
+					(value) => !values.some((option) => sameFilterValue(option.id, value))
+				)
+				.map((value) => ({
+					id: value,
+					label: filterValueLabel(family, craft, value) ?? label(value)
+				}))
+		]);
 	}
 	function update(family: string, next: string[]) {
+		const nextSelections = { ...selected, [family]: next };
+		if (family === 'projectItem') {
+			nextSelections.projectType = [];
+			nextSelections.projectSubtype = [];
+		}
 		if (
 			next.length > 10 ||
-			Object.entries(selected).reduce(
-				(sum, [key, values]) =>
-					sum + (key === family ? next.length : values.length),
+			Object.values(nextSelections).reduce(
+				(sum, values) => sum + values.length,
 				0
 			) > maximum
 		) {
 			feedback = `Choose up to 10 options in each filter and ${maximum} options across these filters.`;
 			return false;
 		}
-		selected = { ...selected, [family]: next };
-		if (family === 'projectType') {
-			const allowed = new Set(
-				next.length
-					? filterOptions('projectSubtype', craft, next).map(
-							(option) => option.id
-						)
-					: []
-			);
-			selected = {
-				...selected,
-				projectSubtype: selected.projectSubtype.filter((value) =>
-					allowed.has(value)
-				)
-			};
-		}
+		selected = nextSelections;
 		feedback = '';
 		return true;
 	}
@@ -84,54 +88,62 @@
 	}
 </script>
 
-<div class="filter-panel" class:embedded={expanded}>
-	<div class="filter-grid">
-		{#each order as family}{@const values = options(family)}{@const title =
-				titles[family] ||
-				filterFamilies.find(([key]) => key === family)?.[1] ||
-				family}
-			{#if values.length || family === 'projectSubtype'}<div
-					data-filter={family}
-				>
+<div class="filter-fields">
+	{#each fieldOrder as family (family)}
+		{#if family === 'selfDrafted'}
+			<label class="self-drafted" data-filter={family}
+				><span>Self drafted</span><input
+					type="checkbox"
+					role="switch"
+					name="selfDrafted"
+					value="true"
+					bind:checked={selfDrafted}
+				/></label
+			>
+		{:else if family === 'projectItem'}
+			{#if itemOptions.length}
+				<div data-filter={family}>
 					<MultiSelect
-						label={title}
-						options={values}
-						values={selected[family]}
-						disabled={family === 'projectSubtype' &&
-							!selected.projectType.length}
+						label={craftChoice(craft)?.profileId === 'dyeing'
+							? 'What did you dye?'
+							: 'Project type'}
+						options={itemOptions}
+						values={itemValues}
 						onchange={(next) => update(family, next)}
 					/>
-					{#each selected[family] as value}<input
-							type="hidden"
-							name={family}
-							{value}
-						/>{/each}
-				</div>{/if}
-		{/each}
-		<label class="self-drafted"
-			><span>Self drafted</span><input
-				type="checkbox"
-				role="switch"
-				name="selfDrafted"
-				value="true"
-				bind:checked={selfDrafted}
-			/></label
-		>
-	</div>
+				</div>
+			{/if}
+		{:else}
+			{@const choices = options(family, filterOptions(family, craft))}
+			{@const title =
+				filterFamilies.find(([key]) => key === family)?.[1] || family}
+			{#if choices.length}
+				<div data-filter={family}>
+					<MultiSelect
+						label={title}
+						options={choices}
+						values={selected[family]}
+						onchange={(next) => update(family, next)}
+					/>
+				</div>
+			{/if}
+		{/if}
+	{/each}
+	{#each Object.entries(selected) as [family, values] (family)}
+		{#each values as value (value)}<input
+				type="hidden"
+				name={family}
+				{value}
+			/>{/each}
+	{/each}
 	{#if feedback}<p class="filter-feedback" role="status">{feedback}</p>{/if}
 </div>
 
 <style>
-	.filter-panel {
+	.filter-fields {
 		padding: 16px;
-		border: 0;
-		border-radius: 0;
-		box-shadow: none;
-		background: transparent;
-	}
-	.filter-grid {
 		display: grid;
-		gap: 24px;
+		gap: 16px;
 	}
 	.self-drafted {
 		display: flex;
@@ -140,7 +152,7 @@
 		justify-content: space-between;
 		min-height: 48px;
 		font-size: 16px;
-		font-weight: 400;
+		font-weight: 700;
 	}
 	.self-drafted input {
 		appearance: none;
@@ -172,7 +184,7 @@
 	}
 	.filter-feedback {
 		color: var(--red-ink);
-		margin-top: 16px;
+		margin: 0;
 		font-size: 14px;
 	}
 </style>

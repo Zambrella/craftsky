@@ -3,6 +3,7 @@ package scheduledposts
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -65,5 +66,24 @@ func TestFreezePublicationIdentityAndBody(t *testing.T) {
 		recovered.RecordHash != frozen.RecordHash ||
 		!bytes.Equal(recovered.RecordBytes, frozen.RecordBytes) {
 		t.Fatalf("recovery changed frozen publication: got %#v, want %#v", recovered, frozen)
+	}
+}
+
+func TestPublicationRecordKeepsProjectPatternMetadataLosslessly(t *testing.T) {
+	project := json.RawMessage(`{"common":{"craftType":"social.craftsky.feed.defs#sewing","patterns":[{"name":"Sleeves","future":9007199254740993},{"name":"Collar"}]}}`)
+	record, err := publicationRecord(Payload{Kind: PostKindProject, Text: "Two patterns", Project: project}, nil, time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded struct{ Project json.RawMessage }
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decoded.Project, project) {
+		t.Fatalf("publication changed project data: %s", decoded.Project)
 	}
 }

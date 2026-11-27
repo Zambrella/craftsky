@@ -2349,3 +2349,72 @@ func TestCraftskyPost_SharedHashtagBudget(t *testing.T) {
 		}
 	}
 }
+
+// IT-005: only actual caption tag facets spend slots, and retained pattern
+// annotations can remain in the record even when they exceed the search budget.
+func TestCraftskyPost_LaterPatternTagUsesAvailableCaptionBudget(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := t.Context()
+	const owner = "did:plc:patternbudget"
+	const uri = syntax.ATURI("at://" + owner + "/social.craftsky.feed.post/budget")
+	seedCraftskyMember(t, pool, owner)
+	facet := func(start, end int, feature map[string]string) map[string]any {
+		return map[string]any{
+			"index": map[string]int{"byteStart": start, "byteEnd": end}, "features": []any{feature},
+		}
+	}
+	tagFacet := func(start int, tag string) map[string]any {
+		return facet(start, start+len(tag)+1, map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": tag})
+	}
+	var caption strings.Builder
+	captionFacets := make([]any, 0, 10)
+	for i := 1; i <= 9; i++ {
+		tag := fmt.Sprintf("thread%d", i)
+		captionFacets = append(captionFacets, tagFacet(caption.Len(), tag))
+		fmt.Fprintf(&caption, "#%s ", tag)
+	}
+	captionFacets = append(captionFacets, facet(caption.Len(), caption.Len()+len("#credit"), map[string]string{
+		"$type": "app.bsky.richtext.facet#link", "uri": "https://example.com/credit",
+	}))
+	caption.WriteString("#credit")
+	record, err := json.Marshal(map[string]any{
+		"$type": "social.craftsky.feed.post", "text": caption.String(), "facets": captionFacets,
+		"sponsored": false, "createdAt": fixedCreatedAt,
+		"project": map[string]any{"common": map[string]any{
+			"craftType": "social.craftsky.feed.defs#knitting",
+			"patterns": []any{
+				map[string]any{"name": "Base pattern"},
+				map[string]any{"name": "Other #lace", "nameFacets": []any{tagFacet(6, "lace")}},
+				map[string]any{"name": "#overflow", "nameFacets": []any{tagFacet(0, "overflow")}},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx := index.NewCraftskyPost(pool, testLogger())
+	event := tap.Event{URI: uri, DID: owner, Rkey: "budget", Collection: "social.craftsky.feed.post", CID: "cid", Action: "create", Record: record}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES($1,'post',$2,'clear')`, uri, event.CID); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewSearchStore(pool, nil)
+	for _, tc := range []struct {
+		tag  string
+		want int
+	}{{"lace", 1}, {"credit", 0}, {"overflow", 0}} {
+		rows, _, err := store.SearchHashtagPosts(ctx, tc.tag, api.SearchSortChronological, 10, "", testTime(t).Add(time.Hour))
+		if err != nil || len(rows) != tc.want {
+			t.Fatalf("hashtag %q results=%v err=%v, want %d matches", tc.tag, rows, err, tc.want)
+		}
+		if tc.want == 1 && rows[0].Post.URI != uri.String() {
+			t.Fatalf("matched URI=%s, want %s", rows[0].Post.URI, uri)
+		}
+	}
+	var retainedTag string
+	if err := pool.QueryRow(ctx, `SELECT record#>>'{project,common,patterns,2,nameFacets,0,features,0,tag}' FROM craftsky_posts WHERE uri=$1`, uri).Scan(&retainedTag); err != nil || retainedTag != "overflow" {
+		t.Fatalf("retained out-of-budget source tag=%q err=%v", retainedTag, err)
+	}
+}

@@ -89,7 +89,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
         actionChild: widget.isSubmitting
             ? const StitchProgressIndicator(size: 18)
             : null,
-        child: SafeArea(
+        contentBuilder: (_, clearance) => SafeArea(
           top: false,
           bottom: false,
           child: SingleChildScrollView(
@@ -98,7 +98,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
               spacing.sp4,
               spacing.sp4,
               spacing.sp4,
-              spacing.sp6 + MediaQuery.paddingOf(context).bottom,
+              spacing.sp6 + clearance,
             ),
             child: FormBuilder(
               key: _formKey,

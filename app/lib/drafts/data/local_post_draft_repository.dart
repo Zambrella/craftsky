@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 enum DraftRepositoryFailureReason {
@@ -104,11 +105,15 @@ final class ExistingStoredVideo extends DraftVideoWrite {
     required this.expectedSourceSha256,
     required this.expectedPosterSha256,
     required this.altText,
+    this.thumbnail,
+    this.thumbnailFrame = VideoThumbnailFrame.midpoint,
   });
 
   final String storageRevision;
   final String expectedSourceSha256;
   final String expectedPosterSha256;
+  final Uint8List? thumbnail;
+  final VideoThumbnailFrame thumbnailFrame;
   final String altText;
 }
 
@@ -124,6 +129,8 @@ final class PreparedDraftVideo extends DraftVideoWrite {
     required this.altText,
     required this.posterMimeType,
     required this.posterBytes,
+    this.thumbnail,
+    this.thumbnailFrame = VideoThumbnailFrame.midpoint,
   });
 
   final String displayFileName;
@@ -136,6 +143,8 @@ final class PreparedDraftVideo extends DraftVideoWrite {
   final String altText;
   final String posterMimeType;
   final Uint8List posterBytes;
+  final Uint8List? thumbnail;
+  final VideoThumbnailFrame thumbnailFrame;
 
   @override
   String toString() => 'PreparedDraftVideo(<redacted>)';
@@ -186,6 +195,7 @@ abstract interface class LocalVideoDraftRepository {
   Stream<List<int>> openVideoSource(String draftId);
 
   Future<Uint8List> readVideoPoster(String draftId);
+  Future<Uint8List?> readVideoThumbnail(String draftId);
 }
 
 abstract interface class InstagramPublicationDraftRepository {

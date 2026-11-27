@@ -11,7 +11,7 @@
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "The kind of knitting project.",
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
           "knownValues": [
             "social.craftsky.project.defs#garment",
             "social.craftsky.project.defs#accessory",
@@ -28,76 +28,56 @@
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "More specific knitting project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.",
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.",
           "knownValues": [
-            "social.craftsky.project.knitting.defs#sweater",
-            "social.craftsky.project.knitting.defs#cardigan",
             "social.craftsky.project.knitting.defs#pullover",
+            "social.craftsky.project.knitting.defs#cardigan",
             "social.craftsky.project.knitting.defs#top",
-            "social.craftsky.project.knitting.defs#tee",
-            "social.craftsky.project.knitting.defs#tank",
-            "social.craftsky.project.knitting.defs#dress",
-            "social.craftsky.project.knitting.defs#skirt",
             "social.craftsky.project.knitting.defs#vest",
+            "social.craftsky.project.knitting.defs#coatJacket",
             "social.craftsky.project.knitting.defs#shrugBolero",
             "social.craftsky.project.knitting.defs#poncho",
-            "social.craftsky.project.knitting.defs#coatJacket",
+            "social.craftsky.project.knitting.defs#dress",
+            "social.craftsky.project.knitting.defs#skirt",
             "social.craftsky.project.knitting.defs#babyOnesie",
             "social.craftsky.project.knitting.defs#hat",
-            "social.craftsky.project.knitting.defs#beanie",
+            "social.craftsky.project.knitting.defs#hood",
             "social.craftsky.project.knitting.defs#headband",
             "social.craftsky.project.knitting.defs#scarf",
             "social.craftsky.project.knitting.defs#cowl",
             "social.craftsky.project.knitting.defs#shawlWrap",
-            "social.craftsky.project.knitting.defs#neckTorso",
-            "social.craftsky.project.knitting.defs#mittens",
-            "social.craftsky.project.knitting.defs#gloves",
-            "social.craftsky.project.knitting.defs#fingerlessMitts",
+            "social.craftsky.project.knitting.defs#glovesMittens",
             "social.craftsky.project.knitting.defs#socks",
             "social.craftsky.project.knitting.defs#slippers",
             "social.craftsky.project.knitting.defs#bag",
-            "social.craftsky.project.knitting.defs#belt",
-            "social.craftsky.project.knitting.defs#jewelry",
             "social.craftsky.project.knitting.defs#blanket",
-            "social.craftsky.project.knitting.defs#afghan",
             "social.craftsky.project.knitting.defs#babyBlanket",
             "social.craftsky.project.knitting.defs#pillow",
             "social.craftsky.project.knitting.defs#rug",
             "social.craftsky.project.knitting.defs#washcloth",
-            "social.craftsky.project.knitting.defs#dishcloth",
             "social.craftsky.project.knitting.defs#teaTowel",
+            "social.craftsky.project.knitting.defs#coasterPlacemat",
             "social.craftsky.project.knitting.defs#cozy",
-            "social.craftsky.project.knitting.defs#decorative",
+            "social.craftsky.project.knitting.defs#ornament",
             "social.craftsky.project.knitting.defs#softToy",
-            "social.craftsky.project.knitting.defs#doll",
             "social.craftsky.project.knitting.defs#dollClothes",
-            "social.craftsky.project.knitting.defs#puppet",
-            "social.craftsky.project.knitting.defs#mobile",
             "social.craftsky.project.knitting.defs#playFood",
-            "social.craftsky.project.knitting.defs#ball",
-            "social.craftsky.project.knitting.defs#game",
             "social.craftsky.project.knitting.defs#petSweater",
             "social.craftsky.project.knitting.defs#petBedding",
             "social.craftsky.project.knitting.defs#petToy",
             "social.craftsky.project.knitting.defs#petAccessory",
-            "social.craftsky.project.knitting.defs#mask",
-            "social.craftsky.project.knitting.defs#heatColdPack",
+            "social.craftsky.project.knitting.defs#prosthesis",
             "social.craftsky.project.knitting.defs#adaptiveClothing",
-            "social.craftsky.project.knitting.defs#compression",
-            "social.craftsky.project.knitting.defs#braceSupport",
             "social.craftsky.project.knitting.defs#swatch",
-            "social.craftsky.project.knitting.defs#square",
             "social.craftsky.project.knitting.defs#motif",
-            "social.craftsky.project.knitting.defs#patch",
-            "social.craftsky.project.knitting.defs#trim",
-            "social.craftsky.project.knitting.defs#cord"
+            "social.craftsky.project.knitting.defs#trim"
           ]
         },
         "yarnWeight": {
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "Yarn weight category. Tokens follow Craft Yarn Council standards.",
+          "description": "Deprecated: Yarn weight category. Tokens follow Craft Yarn Council standards.",
           "knownValues": [
             "social.craftsky.project.defs#lace",
             "social.craftsky.project.defs#fingering",
@@ -113,7 +93,7 @@
           "type": "string",
           "maxLength": 20,
           "maxGraphemes": 20,
-          "description": "Metric needle size used. Clients may display US or UK size aliases, but records store the metric mm value.",
+          "description": "Deprecated: Legacy metric needle size in millimetres. When present, needleSizesMm takes precedence.",
           "knownValues": [
             "0.5mm",
             "0.75mm",
@@ -147,16 +127,157 @@
             "25.0mm"
           ]
         },
+        "needleSizesMm": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: Metric needle sizes used in the project. Each entry uses the same millimetre format as the legacy scalar. A present list, including an empty list, takes precedence over the scalar.",
+          "items": {
+            "type": "string",
+            "maxLength": 20,
+            "maxGraphemes": 20,
+            "knownValues": [
+              "0.5mm",
+              "0.75mm",
+              "1.0mm",
+              "1.25mm",
+              "1.5mm",
+              "2.0mm",
+              "2.25mm",
+              "2.5mm",
+              "2.75mm",
+              "3.0mm",
+              "3.25mm",
+              "3.5mm",
+              "3.75mm",
+              "4.0mm",
+              "4.25mm",
+              "4.5mm",
+              "4.75mm",
+              "5.0mm",
+              "5.5mm",
+              "6.0mm",
+              "6.5mm",
+              "7.0mm",
+              "7.5mm",
+              "8.0mm",
+              "9.0mm",
+              "10.0mm",
+              "12.0mm",
+              "15.0mm",
+              "19.0mm",
+              "25.0mm"
+            ]
+          }
+        },
         "gauge": {
           "type": "ref",
           "ref": "social.craftsky.project.defs#gauge",
-          "description": "Structured stitch gauge measured over a stated distance."
+          "description": "Deprecated: Structured stitch gauge measured over a stated distance."
         },
         "finishedSize": {
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 100,
-          "description": "Free-text finished size or dimensions, e.g. '42in chest', 'EU 39 socks', 'toddler size', or '180cm x 45cm scarf'."
+          "description": "Deprecated: Free-text finished size or dimensions."
+        },
+        "methods": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Knitting methods used. Select Hand (needles), Machine and Loom independently. An absent or empty list leaves the method unspecified.",
+          "items": {
+            "type": "string",
+            "maxLength": 100,
+            "maxGraphemes": 100,
+            "minLength": 1,
+            "knownValues": [
+              "social.craftsky.project.knitting.defs#hand",
+              "social.craftsky.project.knitting.defs#machine",
+              "social.craftsky.project.knitting.defs#loom"
+            ]
+          }
+        },
+        "machineModel": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: Make or model of the knitting machine used."
+        },
+        "machineGaugeMm": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "Deprecated: Machine needle spacing as a decimal in millimetres, e.g. '4.5'. The separate gauge field describes measured stitch gauge."
+        },
+        "techniques": {
+          "type": "array",
+          "maxLength": 20,
+          "description": "Deprecated: Techniques used in the knitting project. Describe techniques or use hashtags for new projects.",
+          "items": {
+            "type": "ref",
+            "ref": "#techniqueSelection"
+          }
+        }
+      }
+    },
+    "techniqueSelection": {
+      "type": "object",
+      "description": "One knitting technique and any refinements selected for it.",
+      "required": [
+        "technique"
+      ],
+      "properties": {
+        "technique": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The knitting technique used, such as Cables or Colourwork.",
+          "minLength": 1,
+          "knownValues": [
+            "social.craftsky.project.knitting.defs#brioche",
+            "social.craftsky.project.knitting.defs#cables",
+            "social.craftsky.project.knitting.defs#colourwork",
+            "social.craftsky.project.knitting.defs#entrelac",
+            "social.craftsky.project.knitting.defs#lace",
+            "social.craftsky.project.knitting.defs#modularKnitting",
+            "social.craftsky.project.knitting.defs#tuckStitch",
+            "social.craftsky.project.knitting.defs#slipStitch",
+            "social.craftsky.project.knitting.defs#doubleBedJacquard"
+          ]
+        },
+        "subtypes": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Optional refinements of this technique. The application catalog supplies the eligible subtypes, such as Stranded for Colourwork.",
+          "items": {
+            "type": "ref",
+            "ref": "#techniqueSubtype"
+          }
+        }
+      }
+    },
+    "techniqueSubtype": {
+      "type": "object",
+      "description": "One subtype associated with the enclosing knitting technique.",
+      "required": [
+        "subtype"
+      ],
+      "properties": {
+        "subtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "The more specific knitting technique, such as Fair Isle.",
+          "minLength": 1,
+          "knownValues": [
+            "social.craftsky.project.knitting.defs#corrugatedRibbing",
+            "social.craftsky.project.knitting.defs#doubleKnitting",
+            "social.craftsky.project.knitting.defs#fairIsle",
+            "social.craftsky.project.knitting.defs#illusion",
+            "social.craftsky.project.knitting.defs#intarsia",
+            "social.craftsky.project.knitting.defs#ladderbackJacquard",
+            "social.craftsky.project.knitting.defs#mosaic",
+            "social.craftsky.project.knitting.defs#stranded"
+          ]
         }
       }
     }

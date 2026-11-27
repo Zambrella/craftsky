@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/data/oauth_handoff_mode.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -38,17 +39,34 @@ enum MessagingDestination {
   settings,
 }
 
+/// A one-time, in-memory handoff to the selected conversation.
+final class ChatLinkPrefill {
+  new(this._lease, this._url);
+
+  final ActiveAccountLease _lease;
+  String? _url;
+
+  String? take(ActiveAccountLease lease) {
+    if (lease != _lease) return null;
+    final url = _url;
+    _url = null;
+    return url;
+  }
+}
+
 /// Cold routes reconstruct private state from the current activation and ID.
 class MessagingRoutePage extends ConsumerStatefulWidget {
   const new({
     required this.destination,
     this.conversationId,
     this.recipientDid,
+    this.linkPrefill,
     super.key,
   });
   final MessagingDestination destination;
   final String? conversationId;
   final String? recipientDid;
+  final ChatLinkPrefill? linkPrefill;
   @override
   ConsumerState<MessagingRoutePage> createState() => _MessagingRoutePageState();
 }
@@ -187,6 +205,7 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
           key: ValueKey(lease),
           account: account,
           conversationId: id,
+          takeSharedLink: () => widget.linkPrefill?.take(lease),
           onClose: _close,
           onReport: (message) => unawaited(_report(account, id, message)),
           onReportConversation: () => unawaited(_report(account, id, null)),

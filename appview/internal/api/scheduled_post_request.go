@@ -206,6 +206,16 @@ func validateScheduledPostRequest(
 	if err := ValidatePostCreateWithLimits(postRequest, limits); err != nil {
 		return uuid.Nil, nil, nil, err
 	}
+	if postRequest.Project != nil {
+		project, err := projectForPublication(postRequest.Project)
+		if err != nil {
+			return uuid.Nil, nil, nil, err
+		}
+		request.Payload.Project, err = json.Marshal(project)
+		if err != nil {
+			return uuid.Nil, nil, nil, err
+		}
+	}
 	payloadBytes, err := scheduledposts.EncodePayload(request.Payload.canonical())
 	if err != nil {
 		return uuid.Nil, nil, nil, err

@@ -102,5 +102,12 @@ func BuildRecentSearchResponse(row RecentSearchRow) (RecentSearchResponse, error
 	if err := json.Unmarshal(row.NormalizedPayload, &payload); err != nil {
 		return RecentSearchResponse{}, err
 	}
+	if profile, ok := payload.(map[string]any); ok && row.currentProfileAvatar != nil {
+		if *row.currentProfileAvatar == "" {
+			delete(profile, "avatar")
+		} else {
+			profile["avatar"] = *row.currentProfileAvatar
+		}
+	}
 	return RecentSearchResponse{ID: row.ID, Type: row.Type, DisplayLabel: row.DisplayLabel, Payload: payload, UpdatedAt: row.UpdatedAt.UTC().Format(time.RFC3339)}, nil
 }

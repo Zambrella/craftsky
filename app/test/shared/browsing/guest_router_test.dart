@@ -90,7 +90,9 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp.router(
-              theme: AppTheme.lightThemeData,
+              theme: AppTheme.lightThemeData.copyWith(
+                platform: TargetPlatform.android,
+              ),
               localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               routerConfig: router,
@@ -164,7 +166,7 @@ void main() {
           expect(find.byType(NavigationBar), findsNothing);
           expect(find.text('Terms'), findsOneWidget);
           expect(find.text('Privacy'), findsOneWidget);
-          expect(find.text('Feedback'), findsOneWidget);
+          expect(find.text('Feedback'), findsNothing);
         } else {
           expect(
             tester
@@ -176,7 +178,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Terms'), findsOneWidget);
           expect(find.text('Privacy'), findsOneWidget);
-          expect(find.text('Feedback'), findsOneWidget);
+          expect(find.text('Feedback'), findsNothing);
           expect(find.widgetWithText(ListTile, 'Messages'), findsNothing);
           await tester.tap(find.widgetWithText(ListTile, 'Home'));
           await tester.pumpAndSettle();
@@ -230,11 +232,61 @@ void main() {
       expect(find.byType(SearchPage), findsOneWidget);
       expect(find.text('Recent searches'), findsNothing);
       expect(find.text('Top hashtags'), findsNothing);
+      expect(find.text('New makers'), findsNothing);
       await tester.enterText(find.byType(TextField).first, 'sewing');
       await tester.pump(const Duration(seconds: 1));
       expect(tester.takeException(), isNull);
       expect(find.text('Submit a search to explore CraftSky'), findsOneWidget);
     },
+  );
+
+  testWidgets(
+    'Android Back closes the guest drawer before returning from Search to Home',
+    (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          sessionRegistryProvider.overrideWith(_EmptyRegistry.new),
+          searchRepositoryProvider.overrideWithValue(FakeSearchRepository()),
+          projectRepositoryProvider.overrideWithValue(
+            FakeProjectRepository(
+              onListProjects: ({required query, limit, cursor}) async =>
+                  const PostPage(items: []),
+            ),
+          ),
+        ],
+      );
+      container.read(guestSessionProvider).explore();
+      final subscription = container.listen(goRouterProvider, (_, _) {});
+      addTearDown(subscription.close);
+      final router = subscription.read()..go('/search');
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+            builder: (context, child) => FormFactorWidget(child: child!),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(router.state.matchedLocation, '/search');
+
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(router.state.matchedLocation, '/feed');
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
   );
 
   testWidgets(

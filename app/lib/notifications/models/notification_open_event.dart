@@ -131,6 +131,7 @@ final class NotificationOpenAttempt {
             final sourceUri? => ValidNotificationFacts._(
               category: category,
               sourceUri: sourceUri,
+              rootUri: _parsePostUri(data['rootUri']),
             ),
             null => const InvalidNotificationFacts(
               NotificationFactFailureClass.missingOrMalformedRequiredFacts,

@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const taxonomy = require('../../web-client/src/lib/features/composer/project-taxonomy.json');
 
 const API = 'https://appview.craftsky.social/v1/public/stats';
 const craft = (name) => `social.craftsky.feed.defs#${name}`;
@@ -10,8 +11,9 @@ const snapshot = {
   finishedProjectPosts: 607,
   // Deliberately unsorted: the page should rank the chart by count.
   projectsByCraft: [
-    { craft: craft('sewing'), count: 340 },
+    { craft: craft('sewing'), count: 320 },
     { craft: craft('embroidery'), count: 0 },
+    { craft: craft('punchNeedle'), count: 20 },
     { craft: craft('knitting'), count: 660 },
   ],
 };
@@ -44,8 +46,18 @@ test('shows the fetched snapshot, ranks crafts, and links the join CTA', async (
   const rows = chart.locator('[data-craft]');
   await expect(rows.nth(0)).toHaveAttribute('data-craft', craft('knitting'));
   await expect(rows.nth(1)).toHaveAttribute('data-craft', craft('sewing'));
-  await expect(chart.locator(`[data-craft="${craft('knitting')}"]`)).toContainText('660');
-  await expect(chart.locator(`[data-craft="${craft('sewing')}"]`)).toContainText('340');
+  await expect(rows.nth(2)).toHaveAttribute('data-craft', craft('punchNeedle'));
+  const supportedCrafts = taxonomy.filter(({ family }) => family === 'craft');
+  await expect(rows).toHaveCount(supportedCrafts.length);
+  for (const { id, label, profileId } of supportedCrafts) {
+    const row = chart.locator(`[data-craft="${id}"]`);
+    const icon = `${profileId}.svg`;
+    const count = snapshot.projectsByCraft.find(({ craft }) => craft === id)?.count ?? 0;
+    await expect(row.getByText(label, { exact: true })).toBeVisible();
+    await expect(row.locator('.craft-count')).toHaveText(String(count));
+    await expect(row.locator('.craft-mark')).toHaveAttribute('data-icon', icon);
+    expect((await page.request.get(`/craft_icons/${icon}`)).ok()).toBe(true);
+  }
   const join = page.getByRole('link', { name: /join craftsky/i });
   await expect(join.last()).toHaveAttribute('href', 'https://app.craftsky.social');
 });

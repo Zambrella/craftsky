@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { Video } from '#lib/api/client.ts';
 	import { connectBunnyPlayer } from './bunny-player.ts';
+	import { safeLink } from './model';
 	let {
 		video,
 		embed,
@@ -9,6 +10,7 @@
 	}: { video: Video; embed: string; onfallback: () => void } = $props();
 	let src = $state('');
 	let loading = $state(true);
+	const thumbnail = $derived(safeLink(video.thumbnail || ''));
 	const aspect = $derived(
 		video.aspectRatio &&
 			video.aspectRatio.width > 0 &&
@@ -52,6 +54,12 @@
 			referrerpolicy="strict-origin-when-cross-origin"
 			onerror={onfallback}
 		></iframe>{/if}
+	{#if loading && thumbnail}<img
+			class="poster"
+			src={thumbnail}
+			alt=""
+			loading="lazy"
+		/>{/if}
 	{#if loading}<span class="loader" role="status" aria-label="Loading video"
 			><span class="spinner"></span></span
 		>{/if}
@@ -68,6 +76,15 @@
 		width: 100%;
 		height: 100%;
 		border: 0;
+	}
+	.poster {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #000;
+		pointer-events: none;
 	}
 	.loader {
 		position: absolute;

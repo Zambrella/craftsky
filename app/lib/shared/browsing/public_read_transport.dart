@@ -100,6 +100,7 @@ final class PublicReadRequest {
         'status',
         'projectType',
         'projectSubtype',
+        'projectItem',
         'patternDifficulty',
         'color',
         'designTag',

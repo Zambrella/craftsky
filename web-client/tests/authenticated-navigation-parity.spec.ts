@@ -53,7 +53,7 @@ async function timeline(page: Page, value: ReturnType<typeof post>) {
 
 test.beforeEach(async ({ context, page }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
@@ -186,18 +186,20 @@ test('pattern text permits deleting the hash and plain names, with the self-draf
 	page
 }) => {
 	await page.goto('/compose/project');
+	const openPatterns = () =>
+		page.getByRole('button', { name: 'Pattern details', exact: true }).click();
+	const backToProject = () =>
+		page.getByRole('button', { name: 'Back to project', exact: true }).click();
 	const field = page.getByRole('textbox', {
-		name: 'Pattern tag or name',
+		name: 'Pattern name',
 		exact: true
 	});
+	await openPatterns();
 	await field.fill('#');
 	await expect(field).toHaveValue('#');
 	await field.press('Backspace');
 	await expect(field).toHaveValue('');
 	await field.fill('Falconer pants');
-	await page
-		.getByRole('button', { name: 'Pattern details', exact: true })
-		.click();
 	const toggle = page.getByRole('switch', {
 		name: 'Self-drafted pattern',
 		exact: true
@@ -212,11 +214,11 @@ test('pattern text permits deleting the hash and plain names, with the self-draf
 		)
 	).toBeLessThan(2);
 	await toggle.check();
-	await page
-		.getByRole('button', { name: 'Back to project', exact: true })
-		.click();
+	await backToProject();
+	await openPatterns();
 	await expect(field).toHaveValue('Falconer pants');
 	await field.fill('#falconer');
+	await backToProject();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page).toHaveURL(/\/feed$/);
 	await page.getByRole('link', { name: 'Drafts', exact: true }).click();
@@ -224,6 +226,7 @@ test('pattern text permits deleting the hash and plain names, with the self-draf
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.first()
 		.click();
+	await openPatterns();
 	await expect(field).toHaveValue('#falconer');
 });
 
@@ -461,8 +464,12 @@ for (const width of [1280, 390]) {
 					},
 					{ times: 1 }
 				);
+				const requestStarted = page.waitForRequest(endpoint);
 				await page.goto(path);
 				try {
+					// The initial skeleton can be replaced during hydration. Measure
+					// after the mounted list has started its held request.
+					await requestStarted;
 					await page.addStyleTag({
 						content: '.settings-workspace { --profile-accent: #1535d6; }'
 					});

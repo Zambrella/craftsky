@@ -14,7 +14,7 @@ test.beforeEach(async ({ page, context }) => {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ visual: true })
 	});
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await page.route('https://fixture.craftsky.test/app-icon.png', (route) =>
@@ -634,6 +634,24 @@ test('extended network has its own empty state and never inserts a newly publish
 	await expect(
 		page.getByText('My own post stays in Following', { exact: true })
 	).toHaveCount(0);
+});
+
+test('switching feeds preserves the horizontal tab strip position', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/feed');
+	const tabs = page.getByRole('navigation', { name: 'Home feeds' });
+	const sewing = tabs.getByRole('link', { name: 'Sewing', exact: true });
+	await sewing.scrollIntoViewIfNeeded();
+	const offset = await tabs.evaluate((strip) => strip.scrollLeft);
+	expect(offset).toBeGreaterThan(0);
+
+	await switchTab(sewing);
+	await expect(sewing).toHaveAttribute('aria-current', 'page');
+	await expect
+		.poll(() => tabs.evaluate((strip) => strip.scrollLeft))
+		.toBe(offset);
 });
 
 test('feed tabs retain independent scroll positions and all loaded pages', async ({

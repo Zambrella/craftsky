@@ -15,9 +15,8 @@ func Delete(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, now time.Time) err
 	if err != nil {
 		return err
 	}
-	// Only established original publications could have queued notification work.
-	// Unknown/tombstone-only sources need no notification storage dependency.
-	if original.Known {
+	// An established publication or an edited backfill can have queued alerts.
+	if original.Present && !original.Deleted {
 		if err := notifications.RestrictStoredPublication(ctx, tx, uri, []string{}, now); err != nil {
 			return err
 		}

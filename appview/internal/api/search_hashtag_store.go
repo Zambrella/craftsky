@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"social.craftsky/appview/internal/middleware"
@@ -155,7 +156,7 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 			)` + hashtagAggregationCTEs + `
 			ORDER BY c.post_count DESC, c.tag_key ASC
 			LIMIT $2`
-		rows, err := s.pool.Query(ctx, q, craft, req.Limit, viewerDID.String())
+		rows, err := s.pool.Query(ctx, q, strings.ToLower(craft), req.Limit, viewerDID.String())
 		if err != nil {
 			return nil, fmt.Errorf("top hashtags: %w", err)
 		}

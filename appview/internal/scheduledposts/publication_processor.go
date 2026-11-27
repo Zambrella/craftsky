@@ -641,11 +641,7 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 		record["langs"] = payload.Langs
 	}
 	if len(payload.Project) > 0 {
-		var project any
-		if err := json.Unmarshal(payload.Project, &project); err != nil {
-			return nil, err
-		}
-		record["project"] = project
+		record["project"] = payload.Project
 	}
 	if len(blobs) > 0 {
 		images := make([]map[string]any, 0, len(payload.Media))

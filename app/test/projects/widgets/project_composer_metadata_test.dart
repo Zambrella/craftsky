@@ -1,15 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
-import 'package:craftsky_app/feed/providers/composer_image_state.dart';
-import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
-import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -19,7 +18,6 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:crypto/crypto.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -124,64 +122,69 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('project-composer-pattern-details-action')),
+      findsOneWidget,
+    );
+    await _openDetail(
+      tester,
+      const Key('project-composer-pattern-details-action'),
+    );
     final field = tester.widget<TextField>(
       _facetTextField(const Key('project-composer-pattern-name-editor')),
     );
 
     expect(field.controller?.text, '#SockKAL');
-    expect(
-      find.byKey(const Key('project-composer-pattern-details-action')),
-      findsOneWidget,
-    );
   });
 
-  testWidgets('opening a draft mounts JSON-decoded lists on page two', (
-    tester,
-  ) async {
-    const composerId = 'page-two-draft-composer';
-    final designTag = ProjectOptionCatalogs.designTags.first.value;
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+  testWidgets(
+    'opening a draft preserves an old subtype as a removable selection',
+    (
+      tester,
+    ) async {
+      const composerId = 'page-two-draft-composer';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
             ),
-          ),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: ProjectComposerSheet(
-              composerId: composerId,
-              draftSeed: _pageTwoDraftSeed(designTag),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProjectComposerSheet(
+                composerId: composerId,
+                draftSeed: _craftDraftSeed(),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    await _openDetail(
-      tester,
-      const Key('project-composer-common-details-action'),
-    );
-    await tester.pumpAndSettle();
+      expect(find.text('Materials and style'), findsNothing);
+      expect(find.text('Duration'), findsNothing);
+      await _openDetail(
+        tester,
+        const Key('project-composer-craft-details-action'),
+      );
 
-    expect(tester.takeException(), isNull);
-    expect(
-      find.byKey(const Key('${ProjectComposerFields.colours}-remove-blue')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(Key('${ProjectComposerFields.designTags}-remove-$designTag')),
-      findsOneWidget,
-    );
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(InputChip, 'Knitting'), findsOneWidget);
+      expect(find.text('Home goods · Lampshade'), findsOneWidget);
+      expect(find.byKey(const Key('project-custom-subtype')), findsNothing);
+      await tester.tap(find.byTooltip('Clear Project type'));
+      await tester.pumpAndSettle();
+      expect(find.text('Home goods · Lampshade'), findsNothing);
+    },
+  );
 
   testWidgets(
     'AT-007 pattern details are available without a pattern name',
@@ -212,7 +215,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Pattern tag or name'), findsOneWidget);
+      expect(find.text('Pattern name'), findsNothing);
       expect(find.text('Pattern details'), findsOneWidget);
       expect(find.text('Link'), findsNothing);
       expect(find.text('Difficulty'), findsNothing);
@@ -224,6 +227,7 @@ void main() {
         const Key('project-composer-pattern-details-action'),
       );
 
+      expect(find.text('Pattern name'), findsOneWidget);
       expect(find.text('Designer'), findsOneWidget);
       expect(find.text('Publisher'), findsOneWidget);
       expect(find.text('Link'), findsOneWidget);
@@ -257,78 +261,6 @@ void main() {
       );
     },
   );
-
-  testWidgets('AT-007 colour metadata enforces count limits and removal', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          composerImagesProvider('metadata-colours-composer').overrideWithValue(
-            _readyImagesState,
-          ),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(
-              composerId: 'metadata-colours-composer',
-            ),
-          ),
-        ),
-      ),
-    );
-
-    await _selectCraft(tester, 'Embroidery');
-    await _openDetail(
-      tester,
-      const Key('project-composer-common-details-action'),
-    );
-
-    final firstTen = ProjectOptionCatalogs.colours.take(10).toList();
-    final eleventh = ProjectOptionCatalogs.colours[10];
-
-    await tester.ensureVisible(
-      find.byKey(const Key('${ProjectComposerFields.colours}-search-input')),
-    );
-    await tester.pumpAndSettle();
-
-    for (final option in firstTen) {
-      await _searchAndTapColour(tester, option);
-    }
-
-    expect(find.text(firstTen.first.label), findsWidgets);
-
-    await _searchAndTapColour(tester, eleventh);
-
-    expect(find.text('You can choose up to 10.'), findsOneWidget);
-    expect(find.text(eleventh.label), findsWidgets);
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-
-    final firstRemoveButton = find.byKey(
-      Key('${ProjectComposerFields.colours}-remove-${firstTen.first.value}'),
-    );
-    await tester.ensureVisible(firstRemoveButton);
-    await tester.pumpAndSettle();
-    await tester.tap(firstRemoveButton);
-    await tester.pumpAndSettle();
-
-    await _searchAndTapColour(tester, eleventh);
-
-    expect(find.text('You can choose up to 10.'), findsNothing);
-    expect(find.text(eleventh.label), findsWidgets);
-  });
 
   testWidgets(
     'AT-007 pattern metadata supports hashtag and mention suggestions',
@@ -378,6 +310,10 @@ void main() {
         ),
       );
 
+      await _openDetail(
+        tester,
+        const Key('project-composer-pattern-details-action'),
+      );
       await tester.enterText(
         _facetTextField(const Key('project-composer-pattern-name-editor')),
         '#sock',
@@ -387,11 +323,6 @@ void main() {
       expect(find.text('#SockKAL'), findsOneWidget);
       await tester.tap(find.text('#SockKAL'));
       await tester.pumpAndSettle();
-
-      await _openDetail(
-        tester,
-        const Key('project-composer-pattern-details-action'),
-      );
 
       await tester.enterText(
         _facetTextField(const Key('project-composer-pattern-designer-editor')),
@@ -403,30 +334,6 @@ void main() {
       expect(find.text('@alice.craftsky.social'), findsOneWidget);
     },
   );
-}
-
-const _readyImagesState = ComposerImagesState(
-  images: [
-    ComposerImageDraft(
-      id: 'image-1',
-      fileName: 'project.jpg',
-      mimeType: 'image/jpeg',
-      altText: 'Finished project photo',
-      phase: ImageUploaded(
-        UploadedDraftImage(cid: 'bafkimage', mime: 'image/jpeg', size: 123),
-      ),
-    ),
-  ],
-);
-
-Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
-  final craftDropdown = find.byKey(const Key('craftType-select-button'));
-  await tester.ensureVisible(craftDropdown);
-  await tester.pumpAndSettle();
-  await tester.tap(craftDropdown);
-  await tester.pumpAndSettle();
-  await tester.tap(find.text(craftLabel).last);
-  await tester.pumpAndSettle();
 }
 
 Finder _facetTextField(Key editorKey) {
@@ -444,37 +351,23 @@ Future<void> _openDetail(WidgetTester tester, Key key) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _searchAndTapColour(
-  WidgetTester tester,
-  ProjectOption option,
-) async {
-  final searchInput = find.byKey(
-    const Key('${ProjectComposerFields.colours}-search-input'),
-  );
-  final optionFinder = find.byKey(
-    Key('${ProjectComposerFields.colours}-option-${option.value}'),
-  );
-  await tester.ensureVisible(searchInput);
-  await tester.pumpAndSettle();
-  await tester.tap(searchInput);
-  await tester.pump();
-  await tester.enterText(searchInput, option.label);
-  await tester.pumpAndSettle();
-  await tester.tap(optionFinder);
-  await tester.pumpAndSettle();
-}
-
 LocalPostDraftSeed _patternDraftSeed() {
   return _projectDraftSeed(const {
     ProjectComposerFields.patternName: '#SockKAL',
   });
 }
 
-LocalPostDraftSeed _pageTwoDraftSeed(String designTag) {
+LocalPostDraftSeed _craftDraftSeed() {
+  const craft = ProjectOptionCatalogs.embroideryCraftToken;
   return _projectDraftSeed({
-    ProjectComposerFields.craftType: ProjectOptionCatalogs.embroideryCraftToken,
+    ProjectComposerFields.craftType: craft,
+    ProjectComposerFields.additionalCrafts: [
+      ProjectOptionCatalogs.knittingCraftToken,
+    ],
+    ProjectComposerFields.projectTypeFor(craft):
+        'social.craftsky.project.defs#homeGoods',
+    ProjectComposerFields.projectSubtypeFor(craft): 'Lampshade',
     ProjectComposerFields.colours: <dynamic>['blue'],
-    ProjectComposerFields.designTags: <dynamic>[designTag],
   }, withMedia: true);
 }
 

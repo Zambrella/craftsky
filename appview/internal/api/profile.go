@@ -418,6 +418,7 @@ func PutMeProfileHandler(
 
 		reqBody, err := DecodeProfilePut(r.Body)
 		if err != nil {
+			logProfilePutRejection(r.Context(), logger, did, err, "decode", http.StatusBadRequest, "malformed_body")
 			if fe, ok := err.(*FieldError); ok {
 				envelope.WriteError(w, http.StatusBadRequest, fe.Code,
 					"request body rejected", runID, fe.Fields)
@@ -428,6 +429,7 @@ func PutMeProfileHandler(
 			return
 		}
 		if err := ValidateProfilePutWithLimits(reqBody, limits); err != nil {
+			logProfilePutRejection(r.Context(), logger, did, err, "validation", http.StatusUnprocessableEntity, "validation_failed")
 			if fe, ok := err.(*FieldError); ok {
 				message := "validation failed"
 				for _, field := range []string{"avatar", "banner"} {

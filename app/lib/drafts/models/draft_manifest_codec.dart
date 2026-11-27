@@ -8,6 +8,7 @@ import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 
 export 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 
@@ -214,6 +215,12 @@ abstract final class DraftManifestCodec {
     'sourceSha256': video.sourceSha256,
     'posterByteLength': video.posterByteLength,
     'posterSha256': video.posterSha256,
+    'thumbnailFramePercent': video.thumbnailFrame.percent,
+    if (video.thumbnailStorageFileName != null) ...{
+      'thumbnailStorageFileName': video.thumbnailStorageFileName,
+      'thumbnailByteLength': video.thumbnailByteLength,
+      'thumbnailSha256': video.thumbnailSha256,
+    },
     'posterMimeType': video.posterMimeType,
     'width': video.width,
     'height': video.height,
@@ -236,6 +243,12 @@ abstract final class DraftManifestCodec {
         sourceSha256: video['sourceSha256']! as String,
         posterByteLength: video['posterByteLength']! as int,
         posterSha256: video['posterSha256']! as String,
+        thumbnailFrame: VideoThumbnailFrame.fromPercent(
+          video['thumbnailFramePercent'],
+        ),
+        thumbnailStorageFileName: video['thumbnailStorageFileName'] as String?,
+        thumbnailByteLength: video['thumbnailByteLength'] as int?,
+        thumbnailSha256: video['thumbnailSha256'] as String?,
         posterMimeType: video['posterMimeType']! as String,
         width: video['width']! as int,
         height: video['height']! as int,

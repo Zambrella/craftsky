@@ -33,6 +33,22 @@ func WriteJSON(w http.ResponseWriter, status int, value any) {
 // middleware.GetRunID(r.Context())). Pass "" only from tests or from
 // code paths that run before the Logging middleware.
 func WriteError(w http.ResponseWriter, status int, code, message, requestID string, fields map[string]string) {
+	if status >= http.StatusInternalServerError {
+		// Pass only the application-owned machine code to HTTP diagnostics.
+		// Response wrappers can expose their underlying writer via Unwrap.
+		writer := w
+		for range 8 {
+			if recorder, ok := writer.(interface{ RecordAPIErrorCode(string) }); ok {
+				recorder.RecordAPIErrorCode(code)
+				break
+			}
+			wrapper, ok := writer.(interface{ Unwrap() http.ResponseWriter })
+			if !ok {
+				break
+			}
+			writer = wrapper.Unwrap()
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	// Ignore the encode error: the status header is already sent;

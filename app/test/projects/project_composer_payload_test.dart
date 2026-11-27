@@ -1,10 +1,227 @@
+import 'package:craftsky_app/feed/composer/post_edit_changes.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
 import 'package:craftsky_app/projects/composer/project_composer_payload.dart';
+import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_detail_fields.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('keeps a published machine gauge when changing an unrelated field', () {
+    const craft = ProjectOptionCatalogs.knittingCraftToken;
+    final fieldName = ProjectDetailFields.formName(craft);
+    final original = <String, dynamic>{
+      ProjectComposerFields.craftType: craft,
+      fieldName: <String, Object?>{
+        'methods': [ProjectOptionCatalogs.knittingMachineMethodToken],
+        'machineGaugeMm': 'standard gauge',
+      },
+    };
+    final edited = {...original, ProjectComposerFields.title: 'Cardigan'};
+    final result = buildProjectComposerPayload(
+      formValues: edited,
+      originalFormValues: original,
+    );
+    expect(result.errors, isEmpty);
+    expect(
+      (result.project!.toCreateMap()['details'] as Map)['machineGaugeMm'],
+      'standard gauge',
+    );
+    expect(buildProjectComposerPayload(formValues: edited).errors, isNotEmpty);
+  });
+
+  test(
+    'write ordered plural sizes and hydrate a legacy size or explicit clear',
+    () {
+      for (final (craft, key, scalar, plural) in [
+        (
+          ProjectOptionCatalogs.knittingCraftToken,
+          'knittingNeedleSizes',
+          'needleSizeMm',
+          'needleSizesMm',
+        ),
+        (
+          ProjectOptionCatalogs.crochetCraftToken,
+          'crochetHookSizes',
+          'hookSizeMm',
+          'hookSizesMm',
+        ),
+      ]) {
+        final result = buildProjectComposerPayload(
+          formValues: {
+            ProjectComposerFields.craftType: craft,
+            key: ['4.5mm', '4.0mm'],
+          },
+        );
+        final details = result.project!.toCreateMap()['details'] as Map;
+        expect(details[plural], ['4.5mm', '4.0mm']);
+        expect(details.containsKey(scalar), isFalse);
+
+        Map<String, dynamic> hydrate(Map<String, dynamic> details) =>
+            hydrateScheduledProjectComposer({
+              'common': {'craftType': craft},
+              'details': details,
+            });
+
+        expect(hydrate({scalar: '4.0mm'})[key], ['4.0mm']);
+        expect(hydrate({scalar: '4.0mm', plural: <String>[]})[key], isEmpty);
+      }
+    },
+  );
+
+  test(
+    'retain ordered pattern data and identity through hydration and edit',
+    () {
+      const adapter = ProjectDraftSnapshotAdapter();
+      const basic = ProjectPattern(
+        name: 'Bodice',
+        extraFields: {'existingIndex': 0},
+      );
+      const sleeve = ProjectPattern(
+        name: 'Sleeve',
+        designer: 'Mina',
+        extraFields: {'existingIndex': 1, 'future': true},
+      );
+      final form = hydrateScheduledProjectComposer({
+        'common': {
+          'craftType': ProjectOptionCatalogs.sewingCraftToken,
+          'pattern': {'name': 'Suppressed'},
+          'patterns': [basic.toMap(), sleeve.toMap()],
+        },
+      });
+      final saved = adapter.decodeKnownFields(adapter.encodeKnownFields(form));
+      final original = buildProjectComposerPayload(formValues: saved).project!;
+      expect(original.common.effectivePatterns.map((entry) => entry.name), [
+        'Bodice',
+        'Sleeve',
+      ]);
+      expect(original.toCreateMap()['common'], isNot(contains('pattern')));
+
+      final current = original.copyWith.common(
+        patterns: [
+          sleeve.copyWith(name: 'New sleeve'),
+        ],
+      );
+      expect(buildPublishedProjectPatch(initial: original, current: current), {
+        'common': {
+          'patterns': [
+            {'existingIndex': 1, 'name': 'New sleeve'},
+          ],
+        },
+      });
+      expect(
+        buildPublishedProjectPatch(
+          initial: original,
+          current: original.copyWith.common(patterns: const []),
+        ),
+        {
+          'common': {'patterns': <Object?>[]},
+        },
+      );
+      final blocked = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.sewingCraftToken,
+          ProjectComposerFields.patterns: [
+            for (var i = 1; i <= 6; i++) ProjectPattern(name: 'Pattern $i'),
+          ],
+        },
+      );
+      expect(
+        blocked.errors.single.code,
+        ProjectComposerValidationCode.tooManyValues,
+      );
+    },
+  );
+
+  test('a facet budget refresh does not edit an unchanged legacy pattern', () {
+    final form = hydrateScheduledProjectComposer({
+      'common': {
+        'craftType': ProjectOptionCatalogs.sewingCraftToken,
+        'pattern': {
+          'name': '#quilt',
+          'nameFacets': [
+            {
+              'index': {'byteStart': 0, 'byteEnd': 6},
+              'features': [
+                {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'quilt'},
+              ],
+            },
+          ],
+          'existingIndex': 0,
+        },
+      },
+    });
+    final original = buildProjectComposerPayload(formValues: form).project!;
+    final refreshed = original.copyWith.common(
+      patterns: [
+        original.common.effectivePatterns.single.copyWith(nameFacets: null),
+      ],
+    );
+    expect(
+      buildPublishedProjectPatch(initial: original, current: refreshed),
+      isEmpty,
+    );
+  });
+
+  test('edition keeps Embroidery styles under their original methods', () {
+    const craft = ProjectOptionCatalogs.embroideryCraftToken;
+    const type = 'social.craftsky.project.embroidery#details';
+    final field = ProjectDetailFields.formName(craft);
+    final originalForm = hydrateScheduledProjectComposer({
+      'common': {'craftType': craft},
+      'details': {
+        r'$type': type,
+        'methods': [
+          {
+            'existingIndex': 0,
+            'method': 'hand',
+            'styles': [
+              {'existingIndex': 0, 'style': 'sashiko'},
+            ],
+          },
+          {
+            'existingIndex': 1,
+            'method': 'machine',
+            'styles': [
+              {'existingIndex': 0, 'style': '3d-puff', 'future': 12},
+            ],
+          },
+        ],
+      },
+    });
+    final updatedForm = {
+      ...originalForm,
+      field: {
+        'methods': [
+          {
+            'existingIndex': 1,
+            'method': 'machine',
+            'styles': [
+              {'existingIndex': 0, 'style': '3d-puff', 'future': 12},
+            ],
+          },
+        ],
+      },
+    };
+    final initial = buildProjectComposerPayload(formValues: originalForm)
+        .project!;
+    final current = buildProjectComposerPayload(formValues: updatedForm)
+        .project!;
+    expect(
+      buildPublishedProjectPatch(initial: initial, current: current),
+      {
+        'details': {
+          'methods': [
+            {'existingIndex': 1},
+          ],
+        },
+      },
+    );
+  });
+
   test('duration is trimmed, optional, and bounded for project records', () {
     for (final (input, expected, valid) in [
       ('  4 weeks  ', '4 weeks', true),
@@ -145,15 +362,27 @@ void main() {
       );
 
       expect(result.errors, isEmpty);
-      expect(result.project!.common.pattern, isA<ProjectPattern>());
-      expect(result.project!.common.pattern?.name, 'Hitchhiker');
-      expect(result.project!.common.pattern?.url, isNull);
       expect(
-        result.project!.common.pattern?.difficulty,
+        result.project!.common.effectivePatterns.firstOrNull,
+        isA<ProjectPattern>(),
+      );
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.name,
+        'Hitchhiker',
+      );
+      expect(result.project!.common.effectivePatterns.firstOrNull?.url, isNull);
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.difficulty,
         'social.craftsky.feed.defs#intermediate',
       );
-      expect(result.project!.common.pattern?.designer, 'Martina Behm');
-      expect(result.project!.common.pattern?.publisher, isNull);
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.designer,
+        'Martina Behm',
+      );
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.publisher,
+        isNull,
+      );
     });
 
     test('UT-007 treats a lone pattern hashtag placeholder as empty', () {
@@ -166,7 +395,7 @@ void main() {
       );
 
       expect(result.errors, isEmpty);
-      expect(result.project!.common.pattern, isNull);
+      expect(result.project!.common.effectivePatterns.firstOrNull, isNull);
     });
 
     test('self-drafted alone creates pattern metadata', () {
@@ -179,8 +408,14 @@ void main() {
       );
 
       expect(result.errors, isEmpty);
-      expect(result.project!.common.pattern?.selfDrafted, isTrue);
-      expect(result.project!.common.pattern?.name, isNull);
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.selfDrafted,
+        isTrue,
+      );
+      expect(
+        result.project!.common.effectivePatterns.firstOrNull?.name,
+        isNull,
+      );
     });
 
     test('difficulty catalog has the approved four values', () {
@@ -277,7 +512,7 @@ void main() {
           'social.craftsky.project.knitting.defs#sweater',
         );
         expect(details.yarnWeight, 'social.craftsky.project.defs#dk');
-        expect(details.needleSizeMm, '4.0mm');
+        expect(details.needleSizesMm, ['4.0mm']);
         expect(details.finishedSize, '42in chest');
         expect(details.gauge?.stitches, 20);
         expect(details.gauge?.rows, isNull);
@@ -367,7 +602,7 @@ void main() {
         details.projectSubtype,
         'social.craftsky.project.crochet.defs#amigurumi',
       );
-      expect(details.hookSizeMm, '5.0mm');
+      expect(details.hookSizesMm, ['5.0mm']);
       expect(details.gauge?.rows, 20);
       expect(details.gauge?.unit, 'cm');
 

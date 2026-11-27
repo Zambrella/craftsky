@@ -2,13 +2,15 @@ package api
 
 import (
 	"math"
-	"social.craftsky/appview/internal/projectcatalog"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/projectcatalog"
 )
+
+const submittedSearchVersion = 4
 
 type PopularityCursor struct {
 	RankedAt  time.Time
@@ -219,7 +221,7 @@ func EncodeRelevanceSearchCursor(kind, query string, score float64, createdAt ti
 func encodeTieredRelevanceSearchCursor(kind, query string, tier int, score float64, createdAt time.Time, uri string) (string, error) {
 	return envelope.EncodeCursor(map[string]any{
 		"tier":           tier,
-		"searchVersion":  2,
+		"searchVersion":  submittedSearchVersion,
 		"catalogVersion": projectcatalog.Current.Version,
 		"kind":           kind,
 		"query":          query,
@@ -236,7 +238,7 @@ func DecodeRelevanceSearchCursor(cursor, kind, query string) (RelevanceCursor, e
 	}
 	searchVersion, validSearchVersion := numberAsInt(cur["searchVersion"])
 	catalogVersion, validCatalogVersion := numberAsInt(cur["catalogVersion"])
-	if !validSearchVersion || searchVersion != 2 || !validCatalogVersion || catalogVersion != projectcatalog.Current.Version || cur["kind"] != kind || cur["query"] != query {
+	if !validSearchVersion || searchVersion != submittedSearchVersion || !validCatalogVersion || catalogVersion != projectcatalog.Current.Version || cur["kind"] != kind || cur["query"] != query {
 		return RelevanceCursor{}, envelope.ErrInvalidCursor
 	}
 	tier, ok := numberAsInt(cur["tier"])

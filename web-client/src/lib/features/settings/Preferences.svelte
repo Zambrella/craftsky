@@ -3,13 +3,21 @@
 	import { useSubscriptionFeature } from '../shell/subscription-feature';
 	const premium = useSubscriptionFeature();
 	import { profileShaderStyle } from '../social/profile-background-shader.ts';
+	import { texture } from '../social/model';
 	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import LoggedOutVisibility from './LoggedOutVisibility.svelte';
 
 	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { confirmNavigation } from '../social/navigation-prompt';
-	import { onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import {
+		messagesSessionContext,
+		type MessagesSession
+	} from '../messages/session';
+	const messagesSession = getContext<MessagesSession | undefined>(
+		messagesSessionContext
+	);
 
 	import Avatar from '#lib/Avatar.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
@@ -68,13 +76,7 @@
 			danger: true
 		}
 	);
-	let pattern = $derived(
-		background === 'none' || profileShaderStyle(background) !== undefined
-			? ''
-			: background.startsWith('craft-')
-				? `/profile_backgrounds/${background}.svg`
-				: `/profile_backgrounds/${background}.png`
-	);
+	let pattern = $derived(texture({ colour, profileBackground: background }));
 	let loadedPlus = $state(false);
 	const allowsPlus = $derived(premium.allowed('plus', loadedPlus));
 	let canSetPolicy = $state(false),
@@ -126,7 +128,8 @@
 		if (section === 'messaging')
 			return work.load(
 				async () => {
-					const status = await api.chat.status();
+					const status = await (messagesSession?.loadStatus(true) ??
+						api.chat.status());
 					const [policy, prefs] = await Promise.all([
 						status.enabled && status.capabilities.canSetPolicy
 							? api.chat.incoming()
@@ -219,6 +222,7 @@
 		await work.run(
 			async () => {
 				const status = await api.chat.setConnection(enabled);
+				messagesSession?.setStatus(status);
 				if (status.enabled !== enabled)
 					throw new UserFacingError(
 						'Messaging connection change was not confirmed. Try again.'
@@ -443,7 +447,7 @@
 							{ id: 'everyone', label: 'Everyone' },
 							{ id: 'peopleIFollow', label: 'People I follow' }
 						]}
-						disabled={work.busy}
+						disabled={work.busy || !!work.retry}
 						onchange={(value) => notification(category, 'scope', value)}
 					/>{/if}
 				<label class="switch-row notification-push"
@@ -452,7 +456,7 @@
 						role="switch"
 						aria-label={`${notificationLabels[category]} push notifications`}
 						checked={pref.pushEnabled}
-						disabled={work.busy}
+						disabled={work.busy || !!work.retry}
 						onchange={(event) =>
 							notification(
 								category,
@@ -488,7 +492,7 @@
 					{#if pattern}<div
 							class="preview-pattern"
 							aria-hidden="true"
-							style={`mask-image:url('${pattern}')`}
+							style:mask-image={pattern}
 						></div>{/if}
 					<Avatar
 						author={{
@@ -699,7 +703,7 @@
 		background: color-mix(in srgb, var(--ink) 30%, var(--paper));
 		color: var(--surface);
 		border-color: color-mix(in srgb, var(--ink) 40%, var(--paper));
-		box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 20%, var(--paper));
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--shadow) 20%, var(--paper));
 	}
 	.notification-intro {
 		margin: 16px 0 24px;

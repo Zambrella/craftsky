@@ -53,7 +53,7 @@ test.beforeEach(async ({ context }) => {
 			sameSite: 'Lax'
 		}
 	]);
-	await context.route('https://status.craftsky.social/app.json', (route) =>
+	await context.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 });
@@ -101,7 +101,9 @@ test('typing and discarding never save; explicit saves survive reload and stale 
 	]);
 	await other.close();
 });
-test('chat typing is unsaved until Save draft is chosen', async ({ page }) => {
+test('chat typing shows no draft error and does not persist after leaving', async ({
+	page
+}) => {
 	await fetch('http://127.0.0.1:19847/__test/control', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
@@ -109,24 +111,24 @@ test('chat typing is unsaved until Save draft is chosen', async ({ page }) => {
 	});
 	await page.goto('/messages/conversations/visual-accepted');
 	const text = page.getByRole('textbox', { name: 'Message', exact: true });
-	await text.fill('PRIVATE_CHAT_DRAFT_CANARY');
-	expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
-		'PRIVATE_CHAT_DRAFT_CANARY'
-	);
-	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await text.fill('PRIVATE_CHAT_COMPOSER_CANARY');
+	await expect(text).toHaveValue('PRIVATE_CHAT_COMPOSER_CANARY');
+	await expect(
+		page.getByRole('button', { name: 'Send message', exact: true })
+	).toBeEnabled();
 	await expect(
 		page.getByRole('button', { name: 'Save draft', exact: true })
 	).toHaveCount(0);
-	await page.reload();
-	await expect(text).toHaveValue('PRIVATE_CHAT_DRAFT_CANARY');
-	await text.fill('Unsaved replacement');
+	await expect(page.locator('.messages-workspace [role="alert"]')).toHaveCount(
+		0
+	);
+	expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+		'PRIVATE_CHAT_COMPOSER_CANARY'
+	);
 	await page.getByRole('link', { name: 'Back to messages' }).click();
-	const prompt = page.getByRole('dialog', { name: 'Discard unsaved message?' });
-	await expect(prompt).toBeVisible();
-	await prompt.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(page).toHaveURL(/\/messages$/);
 	await page.goto('/messages/conversations/visual-accepted');
-	await expect(text).toHaveValue('PRIVATE_CHAT_DRAFT_CANARY');
+	await expect(text).toHaveValue('');
 });
 test('stopping a pending publication retains the frozen request and retry reuses it', async ({
 	page

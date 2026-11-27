@@ -6,6 +6,8 @@ import type {
 	StrongRef
 } from '#lib/api/client.ts';
 
+import type { VideoThumbnailPercent } from '../composer/video-thumbnail-frames';
+
 export interface DraftMedia {
 	id: string;
 	name: string;
@@ -17,6 +19,9 @@ export interface DraftMedia {
 	existingIndex?: number;
 	remoteUrl?: string;
 	previewUnavailable?: boolean;
+	durationMs?: number;
+	thumbnailFramePercent?: VideoThumbnailPercent;
+	thumbnail?: Blob;
 	uploaded?: BlobReference;
 	scheduledId?: string;
 }
@@ -64,6 +69,12 @@ export interface Draft {
 	embedChanges?: JsonObject | null;
 	edit?: PostEditSeed;
 	scheduleId?: string;
+	/** Saved annotations for this schedule, kept device-private with recovery. */
+	scheduleBaseline?: {
+		text: string;
+		facets: JsonObject[];
+		patterns?: JsonObject[];
+	};
 	/** Device-private scheduling choice; never part of a public post payload. */
 	scheduleLater?: boolean;
 	scheduledAt?: string;

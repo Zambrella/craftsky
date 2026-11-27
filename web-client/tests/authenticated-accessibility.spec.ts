@@ -9,7 +9,7 @@ const account = {
 };
 test.beforeEach(async ({ page, context }) => {
 	await fetch('http://127.0.0.1:19847/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
@@ -134,22 +134,25 @@ for (const colorScheme of ['light', 'dark'] as const) {
 			page.getByRole('button', { name: 'Back to projects' })
 		).toBeFocused();
 		await audit(page);
-		const color = page.getByRole('searchbox', { name: 'Color' });
-		await color.focus();
-		await color.fill('Blue');
+		const status = page.getByRole('searchbox', { name: 'Status' });
+		await status.focus();
+		await status.fill('Finished');
 		await page.keyboard.press('ArrowDown');
-		const blue = page.getByRole('checkbox', { name: 'Blue', exact: true });
-		await expect(blue).toBeFocused();
+		const finished = page.getByRole('checkbox', {
+			name: 'Finished',
+			exact: true
+		});
+		await expect(finished).toBeFocused();
 		await page.keyboard.press('Space');
 		await expect(
-			page.getByRole('button', { name: 'Remove Blue from Color' })
+			page.getByRole('button', { name: 'Remove Finished from Status' })
 		).toBeVisible();
-		await expect(color).toBeFocused();
-		await color.press('ArrowDown');
-		await expect(blue).toBeChecked();
+		await expect(status).toBeFocused();
+		await status.press('ArrowDown');
+		await expect(finished).toBeChecked();
 		await audit(page);
 		await page.keyboard.press('Escape');
-		await expect(color).toBeFocused();
+		await expect(status).toBeFocused();
 		await expect(page).toHaveURL(/\/feed\/filters/);
 	});
 }

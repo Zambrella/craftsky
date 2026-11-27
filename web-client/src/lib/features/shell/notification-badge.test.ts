@@ -6,6 +6,14 @@ function badge() {
 	return badge;
 }
 describe('optimistic notification badge', () => {
+	it('keeps the latest poll when an older poll completes afterward', () => {
+		const state = badge();
+		const older = state.capture();
+		const newer = state.capture();
+		state.accept(1, newer);
+		state.accept(0, older);
+		expect(state.count).toBe(1);
+	});
 	it('clears immediately and rejects stale polls before and during acknowledgement', () => {
 		const state = badge(),
 			oldPoll = state.capture();

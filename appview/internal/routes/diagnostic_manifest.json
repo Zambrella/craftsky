@@ -865,6 +865,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/evidence",
+    "category": "appview.admin.moderation.cases.detail.evidence",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/moderation/cases/{caseReference}/restorations",
     "category": "appview.admin.moderation.cases.detail.restorations",
     "public": false

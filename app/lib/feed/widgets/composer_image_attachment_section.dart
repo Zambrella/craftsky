@@ -411,7 +411,7 @@ class _ComposerImageAttachmentSectionState
           label: AppLocalizations.of(context).postComposeDone,
           actionKey: const Key('composer-details-done'),
           onPressed: () => Navigator.of(context).maybePop(),
-          child: GestureDetector(
+          contentBuilder: (_, clearance) => GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
             child: SafeArea(
@@ -422,7 +422,7 @@ class _ComposerImageAttachmentSectionState
                   spacing.sp4,
                   spacing.sp4,
                   spacing.sp4,
-                  spacing.sp4 + MediaQuery.paddingOf(context).bottom,
+                  spacing.sp4 + clearance,
                 ),
                 child: section._buildDetails(
                   context,

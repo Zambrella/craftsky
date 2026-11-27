@@ -2,21 +2,30 @@
 	import { clearFieldError } from './field-validation';
 	import { tick } from 'svelte';
 	import Icon from './features/shell/Icon.svelte';
+	import { label as formatLabel } from './public';
+	import {
+		matchingSelectOptions,
+		selectedOptionLabel,
+		selectOptionMatches,
+		type SelectOption
+	} from './select-options';
 	let {
 		label,
+		showLabel = true,
 		helperText,
 		values,
 		options,
 		disabled = false,
 		required = false,
 		maximum = 10,
-		placeholder = '',
+		placeholder,
 		onchange
 	}: {
 		label: string;
+		showLabel?: boolean;
 		helperText?: string;
 		values: string[];
-		options: { id: string; label: string; description?: string }[];
+		options: SelectOption[];
 		disabled?: boolean;
 		required?: boolean;
 		maximum?: number;
@@ -30,19 +39,18 @@
 		above = $state(false),
 		available = $state(280);
 	let suppressFocus = false;
-	const matches = $derived(
-		options.filter((option) =>
-			[option.label, option.description || '']
-				.join(' ')
-				.toLocaleLowerCase()
-				.includes(query.trim().toLocaleLowerCase())
-		)
-	);
+	const matches = $derived(matchingSelectOptions(options, query));
+	const parentIds = $derived(new Set(matches.map(({ parentId }) => parentId)));
+	const hasHierarchy = $derived(options.some(({ parentId }) => parentId));
+	const groups = $derived([...new Set(matches.map(({ group }) => group))]);
 	const selected = $derived(
-		values.map((id) => ({
-			id,
-			label: options.find((option) => option.id === id)?.label || id
-		}))
+		[...new Set(values)].map((id) => {
+			const option = options.find((option) => option.id === id);
+			return {
+				id,
+				label: option ? selectedOptionLabel(option) : formatLabel(id)
+			};
+		})
 	);
 	function close(restore = false) {
 		open = false;
@@ -119,11 +127,13 @@
 	bind:this={root}
 	use:outside
 >
-	<label for={uid}
-		>{label}{#if required}<small class="required-note" aria-hidden="true"
-				>required</small
-			>{/if}</label
-	>
+	{#if showLabel}
+		<label for={uid}
+			>{label}{#if required}<small class="required-note" aria-hidden="true"
+					>required</small
+				>{/if}</label
+		>
+	{/if}
 	<div class="selection-field">
 		{#if selected.length}<div class="selection-values">
 				{#each selected as value (value.id)}<button
@@ -144,7 +154,7 @@
 				aria-required={required}
 				data-value={required ? values.join(',') : undefined}
 				autocomplete="off"
-				{placeholder}
+				placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
 				{disabled}
 				bind:value={query}
 				aria-controls={open ? uid + '-choices' : undefined}
@@ -161,7 +171,10 @@
 				onkeydown={async (event) => {
 					if (event.key === 'Enter') {
 						event.preventDefault();
-						if (open && matches[0]) toggle(matches[0].id);
+						const match = matches.find((option) =>
+							selectOptionMatches(option, query)
+						);
+						if (open && match) toggle(match.id);
 					}
 					if (event.key === 'Escape' && open) {
 						event.preventDefault();
@@ -191,37 +204,62 @@
 			role="group"
 			aria-label={`${label} options`}
 		>
-			{#each matches as option (option.id)}<label
-					class="select-option"
-					class:chosen={values.includes(option.id)}
-					onpointerdown={(event) => event.preventDefault()}
-					><input
-						type="checkbox"
-						aria-label={option.label}
-						onkeydown={(event) => {
-							if (event.key === 'Escape') {
-								event.preventDefault();
-								event.stopPropagation();
-								close(true);
-							}
-						}}
-						checked={values.includes(option.id)}
-						disabled={!values.includes(option.id) && values.length >= maximum}
-						onchange={(event) => {
-							const checked = event.currentTarget.checked;
-							if (!toggle(option.id)) event.currentTarget.checked = !checked;
-						}}
-					/><span
-						>{option.label}{#if option.description}<small
-								class="option-description">{option.description}</small
-							>{/if}</span
-					></label
-				>{:else}<p>No matches found.</p>{/each}
+			{#each groups as group, groupIndex (group)}
+				{#if group}<p class="select-option-heading">{group}</p>{/if}
+				{#each matches.filter((option) => option.group === group) as option, optionIndex (option.parentId + ':' + option.id)}
+					{@const descriptionID = `${uid}-description-${groupIndex}-${optionIndex}`}
+					{@const contextId = `${uid}-context-${groupIndex}-${optionIndex}`}
+					<label
+						class="select-option"
+						class:chosen={values.includes(option.id)}
+						class:select-option-top-level={hasHierarchy && !option.parentId}
+						class:select-option-parent={parentIds.has(option.id)}
+						class:select-option-child={Boolean(option.parentId)}
+						onpointerdown={(event) => event.preventDefault()}
+						><input
+							type="checkbox"
+							aria-label={option.label}
+							aria-describedby={[
+								option.selectionLabel && contextId,
+								option.description && descriptionID
+							]
+								.filter(Boolean)
+								.join(' ') || undefined}
+							onkeydown={(event) => {
+								if (event.key === 'Escape') {
+									event.preventDefault();
+									event.stopPropagation();
+									close(true);
+								}
+							}}
+							checked={values.includes(option.id)}
+							disabled={!values.includes(option.id) && values.length >= maximum}
+							onchange={(event) => {
+								const checked = event.currentTarget.checked;
+								if (!toggle(option.id)) event.currentTarget.checked = !checked;
+							}}
+						/><span
+							>{option.label}{#if option.selectionLabel}<span
+									id={contextId}
+									hidden>{option.selectionLabel}</span
+								>{/if}{#if option.description}<small
+									id={descriptionID}
+									class="option-description">{option.description}</small
+								>{/if}</span
+						></label
+					>{/each}
+			{:else}<p>No matches found.</p>{/each}
 		</div>{/if}
 	{#if helperText}<p class="field-helper">{helperText}</p>{/if}
 </div>
 
 <style>
+	.select-option-heading {
+		margin: 0;
+		padding: 8px 14px 3px;
+		font-weight: 600;
+		color: var(--ink-3);
+	}
 	.native-multi-select > label {
 		display: flex;
 		flex-direction: row;
@@ -243,6 +281,7 @@
 	.option-description {
 		display: block;
 		font-size: 14px;
+		font-weight: 400;
 		line-height: 1.5;
 		color: var(--ink-2);
 	}
@@ -259,7 +298,7 @@
 		font-size: 16px;
 		font-weight: 700;
 		line-height: 1.3;
-		margin-bottom: 8px;
+		margin-bottom: var(--field-label-gap);
 	}
 	.selection-field {
 		margin: 0 3px 3px 0;
@@ -269,19 +308,24 @@
 		flex-direction: column;
 		align-items: stretch;
 		gap: 8px;
-		padding: 10px 16px;
-		min-height: 48px;
+		justify-content: center;
+		padding: var(--field-padding-block) var(--field-padding-inline);
+		min-height: var(--field-min-height);
 		border: 1.5px solid var(--ink-3);
 		border-radius: 14px;
 		background: var(--surface);
 	}
 	.selection-field:focus-within {
 		transform: none;
-		border-color: var(--ink);
 		box-shadow: 3px 3px 0 var(--shadow);
 	}
+	.selection-field:focus-within:not(:has(input[aria-invalid='true'])) {
+		border-color: var(--ink);
+		outline: 2px solid var(--ink);
+		outline-offset: -2px;
+	}
 	.disabled {
-		opacity: 0.45;
+		opacity: 0.5;
 	}
 	.selection-values {
 		display: flex;
@@ -335,7 +379,7 @@
 		flex: none;
 		display: grid;
 		place-items: center;
-		width: 32px;
+		width: 24px;
 	}
 	.select-choices {
 		position: absolute;
@@ -363,11 +407,14 @@
 		padding: 10px 14px;
 		border-radius: 8px;
 		font-size: 16px;
-		font-weight: 400;
+		font-weight: var(--select-option-weight, 400);
 		cursor: pointer;
 	}
 	.select-option:first-child {
 		background: color-mix(in srgb, var(--primary-soft) 30%, var(--surface));
+	}
+	.select-option.select-option-child {
+		padding-inline-start: 42px;
 	}
 	.select-option.chosen,
 	.select-option:hover,

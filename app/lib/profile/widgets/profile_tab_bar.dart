@@ -11,8 +11,8 @@ import 'package:material_ui/material_ui.dart';
 /// via [ProfileTabLabel.label] on the current [AppLocalizations] —
 /// keeping the enum locale-agnostic.
 enum ProfileTab {
-  projects,
   posts,
+  projects,
   comments,
   reposts,
   products,
@@ -22,8 +22,8 @@ enum ProfileTab {
 
 abstract final class ProfileTabPolicy {
   static const ordinaryTabs = <ProfileTab>[
-    ProfileTab.projects,
     ProfileTab.posts,
+    ProfileTab.projects,
     ProfileTab.comments,
     ProfileTab.reposts,
   ];
@@ -32,10 +32,7 @@ abstract final class ProfileTabPolicy {
     ProfileTab.products,
     ProfileTab.upcomingEvents,
     ProfileTab.about,
-    ProfileTab.projects,
-    ProfileTab.posts,
-    ProfileTab.comments,
-    ProfileTab.reposts,
+    ...ordinaryTabs,
   ];
 
   static List<ProfileTab> forProfile({

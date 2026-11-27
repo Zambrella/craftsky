@@ -46,4 +46,6 @@ The first implementation review found that a reply regression did not assert the
 
 No AppView route, Lexicon, dependency or durable cache was added by this slice. Its provider design is historical: subsequent Riverpod lifecycle work and current home-feed guidance apply to today's implementation. Use the linked tests when tracing list retention and interaction propagation.
 
+[Home feed guidance](../../development/home-feeds.md) records how tapping Home again selects and refreshes the first Flutter tab.
+
 Evidence: [05-implementation-plan.md](../2026-05-29-timeline-feed-flutter/05-implementation-plan.md#review-fix-verification); [06-implementation-review.md](../2026-05-29-timeline-feed-flutter/06-implementation-review.md). Current entry points are listed in the metadata; consult maintained guidance before applying historical rules.

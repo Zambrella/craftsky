@@ -16,7 +16,6 @@ void main() {
       'postTypeProjectDescription',
       'projectComposerTitle',
       'projectComposerNextAction',
-      'projectComposerDetailsPrompt',
       'projectComposerOptionalDetailsPrompt',
       'projectComposerProjectTitleLabel',
       'projectComposerProjectTitleHint',
@@ -34,13 +33,13 @@ void main() {
       'projectComposerPatternSectionLabel',
       'projectComposerPatternInfoSectionLabel',
       'projectComposerMoreDetailsLabel',
-      'projectComposerMoreDetailsHeading',
-      'projectComposerMoreDetailsPrompt',
       'projectComposerPatternDetailsTitle',
       'projectComposerPatternDetailsDescription',
       'projectComposerCommonDetailsTitle',
       'projectComposerCommonDetailsDescription',
       'projectComposerCraftDetailsTitle',
+      'projectComposerGenericCraftDetailsTitle',
+      'projectComposerAdditionalCraftsDescription',
       'projectComposerCraftDetailsDescription',
       'projectComposerDetailsAdded',
       'projectComposerCraftCleared',
@@ -77,7 +76,7 @@ void main() {
 
     expect(arb['projectComposerColoursLabel'], 'Colours');
     expect(arb['projectComposerColoursSearchHint'], 'Search colours');
-    expect(arb['projectComposerPatternNameLabel'], 'Pattern tag or name');
+    expect(arb['projectComposerPatternNameLabel'], 'Pattern name');
     expect(arb['projectComposerPatternDetailsTitle'], 'Pattern details');
     expect(arb['projectComposerPhotoRequiredError'], 'Add at least one photo.');
   });

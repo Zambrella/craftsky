@@ -8,6 +8,7 @@ enum VideoUploadIneligibilityReason {
 final class VideoUploadLimits {
   const new({
     required this.canUpload,
+    this.customThumbnail = false,
     this.remainingDailyVideos,
     this.remainingDailyBytes,
     this.reason,
@@ -15,6 +16,7 @@ final class VideoUploadLimits {
 
   factory fromMap(Map<String, dynamic> map) => VideoUploadLimits(
     canUpload: map['canUpload'] as bool,
+    customThumbnail: map['customThumbnail'] == true,
     remainingDailyVideos: map['remainingDailyVideos'] as int?,
     remainingDailyBytes: map['remainingDailyBytes'] as int?,
     reason: switch (map['reason']) {
@@ -28,6 +30,7 @@ final class VideoUploadLimits {
   );
 
   final bool canUpload;
+  final bool customThumbnail;
   final int? remainingDailyVideos;
   final int? remainingDailyBytes;
   final VideoUploadIneligibilityReason? reason;

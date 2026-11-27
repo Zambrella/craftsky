@@ -72,6 +72,16 @@ describe('native preference presentation contracts', () => {
 		for (const value of backgrounds)
 			expect(backgroundLabels[value]).toBeTruthy();
 		expect(backgroundLabels['craft-embroidery']).toBe('Embroidery');
+		expect(
+			backgrounds.slice(6, 12).map((value) => backgroundLabels[value])
+		).toEqual([
+			'Spinning',
+			'Dyeing',
+			'Punch Needle',
+			'Macramé',
+			'Weaving',
+			'Felting'
+		]);
 		expect(backgroundLabels['animated-textile']).toBe('Woven');
 		expect(Object.keys(backgroundLabels)).toHaveLength(backgrounds.length);
 	});

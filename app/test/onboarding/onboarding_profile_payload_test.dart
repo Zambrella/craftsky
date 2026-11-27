@@ -8,6 +8,7 @@ import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart'
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/projects/options/project_taxonomy.g.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -50,6 +51,28 @@ final class _Update {
 }
 
 void main() {
+  test('retained craft preferences keep their saved token spelling', () {
+    const legacySewing = 'social.craftsky.feed.defs#sewing';
+    const original = [legacySewing, 'future-craft', 'knitting'];
+    final state = OnboardingFlowState.fromProfile(
+      _fullProfile().copyWith(crafts: original),
+    ).copyWith(step: OnboardingStep.crafts);
+    expect(state.selectedCraftIds, {'sewing', 'knitting'});
+    expect(state.craftsDirty, isFalse);
+    expect(OnboardingProfilePayload.fromState(state).crafts, original);
+
+    final reordered = state.copyWith(
+      selectedCraftIds: {'knitting', 'sewing', 'crochet'},
+    );
+    expect(reordered.craftsDirty, isTrue);
+    expect(OnboardingProfilePayload.fromState(reordered).crafts, [
+      'knitting',
+      legacySewing,
+      'crochet',
+      'future-craft',
+    ]);
+  });
+
   test(
     'onboarding links retain failed drafts and survive later steps',
     () async {
@@ -298,7 +321,12 @@ void main() {
     expect(sent?.displayName, 'Alice');
     expect(sent?.pronouns, 'they/them');
     expect(sent?.description, 'Bio');
-    expect(sent?.crafts, ['quilting', 'weaving', 'future-craft']);
+    expect(sent?.crafts, [
+      if (ProjectTaxonomy.releasePhase >= 2) 'weaving',
+      'quilting',
+      if (ProjectTaxonomy.releasePhase < 2) 'weaving',
+      'future-craft',
+    ]);
     expect(sent?.avatar, isNull);
     expect(sent?.clearAvatar, isFalse);
     expect(sent?.banner, isNull);

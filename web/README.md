@@ -4,14 +4,14 @@ Static public site served at https://craftsky.social.
 
 ## Contents
 
-- `index.html` — landing page, nine sections
+- `index.html` — marketing landing page with launch countdown
 - `why-instagram-sucks-for-crafters.html` + `why-instagram.css` — sourced comparison campaign at `/why-instagram-sucks-for-crafters`
-- `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
   `copyright.html` — generated policies; publication approval and remaining full-launch evidence are recorded in the readiness manifest
 - `safety.html` — generated safety and support guide
+- `/project-schema.html` — interactive project schema generated from the repository Lexicons on every build
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
-- `main.js` — waiting-list modal + PostHog event tracking
+- `main.js` — launch countdown, page interactions, and PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture
 - `robots.txt` — allow all crawlers
 
@@ -26,6 +26,8 @@ python3 web/test/server.py
 Visit http://127.0.0.1:4173/. The server maps clean URLs such as `/privacy`
 to their `.html` files. Stop it with Ctrl+C. Python's built-in
 `http.server` does not resolve these URLs and will return 404 for site links.
+To include the generated schema page locally, run `just web-build` first and
+start the server with `WEB_TEST_ROOT=dist python3 web/test/server.py`.
 
 ## Check for token drift
 
@@ -92,18 +94,20 @@ just web-build
 just web-check
 ```
 
-`web-build` creates a fresh `web/dist/` with the homepage, waitlist, all five
+`web-build` creates a fresh `web/dist/` with the homepage, all five
 policy pages, the safety guide at `/safety`, the Instagram import help article at `/instagram-import`,
-JavaScript, CSS, robots.txt and image/font assets. It excludes
+the generated `/project-schema.html`, JavaScript, CSS, robots.txt and image/font assets. It excludes
 packages, tests, email templates, documentation, configuration and policy
 approval metadata. New public pages must be added to `ROUTES` in
 `scripts/cloudflare_pages_build.py`; other root files must be added to
 `PUBLIC_FILES`. Hidden asset files and unsupported asset extensions are excluded.
 
 `site-release.json` contains the Git commit, dirty-checkout flag and SHA-256
-hashes of the public files. This metadata is public. Build output and local
+hashes of the upload files. Cloudflare consumes `_redirects` as routing
+configuration. Its rewrite serves the schema at the exact `.html` URL.
+The release metadata is public. Build output and local
 deployment receipts are Git-ignored. `web-check` runs the build/deployment unit
-tests and the consent browser suite **against the built artifact**. Existing
+tests and browser suite **against the built artifact**. Existing
 `web-test-consent` still tests the source website.
 The build tests also check that local page links and referenced assets exist in
 the published artifact. GitHub Actions runs these checks for website changes.
@@ -140,7 +144,8 @@ The command requires a clean checkout equal to freshly fetched `origin/main`,
 confirms the existing Worker is accessible in the configured account, runs
 `web-check`, and uploads the complete artifact as a Worker version. It verifies
 every published file at that version's URL, including clean `/privacy` and
-`/terms` routes, before running `wrangler versions deploy <version-id>@100`.
+`/terms` routes and the exact `/project-schema.html` path, before running
+`wrangler versions deploy <version-id>@100`.
 It confirms the deployed version and percentage via deployment discovery, then
 verifies all files at `https://craftsky.social`. These commands preserve the
 existing custom domains/routes and do not run `wrangler triggers deploy`.
@@ -156,10 +161,8 @@ URL and verified origins.
 The checked-in policy HTML is generated from `online-safety/policies/` via
 `just policy-artifact`. Generate and review those files before deploying policy
 changes. Deployment copies their existing content without approving drafts or
-changing their effective dates. `web/policy-publication-manifest.json` continues
-to track approval independently. Before full public launch, run
-`just online-safety-readiness` and complete the approvals/evidence in the gap
-register. Open readiness gaps do not prevent beta website publication.
+changing their effective dates. `web/policy-publication-manifest.json` records
+the policy versions, approval metadata, and source and artifact hashes.
 
 ### Rollback
 

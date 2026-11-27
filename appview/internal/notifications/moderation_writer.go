@@ -33,8 +33,8 @@ func (ModerationWriter) InsertModerationIntentTx(ctx context.Context, tx pgx.Tx,
 	if err != nil {
 		return fmt.Errorf("insert moderation notification event: %w", err)
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO push_deliveries(id,notification_id,account_subscription_id,status,next_attempt_at,deadline_at)
-		SELECT gen_random_uuid(),$1,subscription.id,'pending',$2::timestamptz,$2::timestamptz+interval '6 hours'
+	_, err = tx.Exec(ctx, `INSERT INTO push_deliveries(id,notification_id,account_subscription_id,status,next_attempt_at,deadline_at,subscription_activation_generation)
+		SELECT gen_random_uuid(),$1,subscription.id,'pending',$2::timestamptz,$2::timestamptz+interval '6 hours',subscription.activation_generation
 		FROM push_account_subscriptions subscription
 		JOIN push_installations installation ON installation.id=subscription.installation_id
 		WHERE subscription.account_did=$3 AND subscription.active AND installation.active

@@ -105,6 +105,23 @@ func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map
 	return out, nil
 }
 
+// The list and badge queries both use e for the event and $1 for its viewer.
+const notificationVisibilityPredicate = `
+	  AND NOT appview_owner_is_terminal(e.recipient_did)
+	  AND (e.actor_did IS NULL OR (
+		NOT appview_owner_is_terminal(e.actor_did)
+		AND NOT EXISTS (
+			SELECT 1 FROM actor_mutes mute
+			WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM pds_set_aggregates block
+			WHERE block.kind = 'block'
+			  AND ((block.actor_did = $1 AND block.subject_did = e.actor_did)
+			   OR (block.actor_did = e.actor_did AND block.subject_did = $1))
+		)
+	  ))` + notifications.VisibleActorModerationSQL
+
 func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string, category notifications.Category) ([]*NotificationRow, string, error) {
 	var curIndexedAt, curID any
 	if cursor != "" {
@@ -134,43 +151,9 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
 			  AND ($5::text = '' OR e.category = $5)
-			  AND NOT appview_owner_is_terminal(e.recipient_did)
-			  AND (e.actor_did IS NULL OR (
-				NOT appview_owner_is_terminal(e.actor_did)
-				AND NOT EXISTS (
-					SELECT 1 FROM actor_mutes mute
-					WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
-				)
-				AND NOT EXISTS (
-					SELECT 1 FROM pds_set_aggregates block
-					WHERE block.kind = 'block'
-					  AND ((block.actor_did = $1 AND block.subject_did = e.actor_did)
-					   OR (block.actor_did = e.actor_did AND block.subject_did = $1))
-				)
-			  ))
+			  ` + notificationVisibilityPredicate + `
 			  AND ($2::timestamptz IS NULL
 			       OR (e.indexed_at, e.id) < ($2::timestamptz, $3::uuid))
-			  AND NOT EXISTS (
-				SELECT 1
-				FROM moderation_outputs mo
-				WHERE mo.action = 'apply'
-				  AND NOT appview_owner_is_terminal(mo.source_did)
-				  AND mo.subject_type = 'account'
-				  AND mo.subject_did = e.actor_did
-				  AND mo.value IN ('hide', 'takedown')
-				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
-				  AND NOT EXISTS (
-					SELECT 1
-					FROM moderation_outputs neg
-					WHERE neg.action = 'negate'
-					  AND neg.source_did = mo.source_did
-					  AND neg.subject_type = mo.subject_type
-					  AND neg.subject_did = mo.subject_did
-					  AND neg.value = mo.value
-					  AND (neg.expires_at IS NULL OR neg.expires_at > now())
-					  AND neg.indexed_at > mo.indexed_at
-				  )
-			  )
 			ORDER BY e.indexed_at DESC, e.id DESC
 			LIMIT $4
 		),
@@ -224,7 +207,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		)
 		SELECT
 			e.id::text, e.category,
-			e.newness_revision > COALESCE((SELECT last_seen_revision FROM notification_seen_state WHERE account_did = $1), 0),
+			e.is_new,
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
 			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL AND blocked_reference.id IS NULL),

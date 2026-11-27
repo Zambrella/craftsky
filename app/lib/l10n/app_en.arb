@@ -906,9 +906,6 @@
   "projectComposerRequiredLabel": "required",
   "@projectComposerRequiredLabel": { "description": "Small marker shown beside project composer field labels when the field is required." },
 
-  "projectComposerDetailsPrompt": "Fill in the details about your project",
-  "@projectComposerDetailsPrompt": { "description": "Short helper text shown above the project title on the first project composer page." },
-
   "projectComposerOptionalDetailsPrompt": "This information is optional but will help others find your project",
   "@projectComposerOptionalDetailsPrompt": { "description": "Short helper text shown at the top of the optional details page in the project composer." },
 
@@ -923,7 +920,7 @@
   "projectComposerDescriptionLabel": "Project description",
   "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
 
-  "projectComposerDescriptionHint": "Tell everyone about your project",
+  "projectComposerDescriptionHint": "Tell everyone about your project.",
   "@projectComposerDescriptionHint": { "description": "Hint text inside the main project description text field in the project composer." },
 
   "projectComposerCraftTypeLabel": "Primary craft",
@@ -992,17 +989,18 @@
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
 
-  "projectComposerMoreDetailsHeading": "Add more details",
-  "@projectComposerMoreDetailsHeading": { "description": "Heading above the optional detail actions in the project composer." },
-
-  "projectComposerMoreDetailsPrompt": "Optional details help other crafters discover and understand your project.",
-  "@projectComposerMoreDetailsPrompt": { "description": "Helper text above the optional detail actions in the project composer." },
-
   "projectComposerPatternDetailsTitle": "Pattern details",
   "@projectComposerPatternDetailsTitle": { "description": "Title of the optional pattern details action and page." },
 
-  "projectComposerPatternDetailsDescription": "Add designer, publisher, link and difficulty",
+  "projectComposerPatternDetailsDescription": "Add patterns and their details",
   "@projectComposerPatternDetailsDescription": { "description": "Description shown when no optional pattern details have been added." },
+
+  "projectComposerPatternOrDraftTitle": "Pattern or draft",
+  "projectComposerPatternOrDraftDescription": "Add patterns or weaving drafts",
+  "projectComposerPatternOrDraftName": "Pattern or draft name",
+  "projectComposerPatternOrTemplateTitle": "Pattern or template",
+  "projectComposerPatternOrTemplateDescription": "Add patterns or felting templates",
+  "projectComposerPatternOrTemplateName": "Pattern or template name",
 
   "projectComposerCommonDetailsTitle": "Materials and style",
   "@projectComposerCommonDetailsTitle": { "description": "Title of the common optional project metadata action and page." },
@@ -1016,8 +1014,14 @@
     "placeholders": { "craft": { "type": "String", "example": "Knitting" } }
   },
 
-  "projectComposerCraftDetailsDescription": "Add project type and craft-specific details",
+  "projectComposerGenericCraftDetailsTitle": "Craft details",
+  "@projectComposerGenericCraftDetailsTitle": { "description": "Title of the project composer craft details action when the craft name is unavailable." },
+
+  "projectComposerCraftDetailsDescription": "Add other crafts and details about what you made",
   "@projectComposerCraftDetailsDescription": { "description": "Description shown when no craft-specific details have been added." },
+
+  "projectComposerAdditionalCraftsDescription": "Add other crafts used in this project",
+  "@projectComposerAdditionalCraftsDescription": { "description": "Description for the craft details action when only additional crafts can be added." },
 
   "projectComposerDetailsAdded": "{count, plural, =1{1 detail added} other{{count} details added}}",
   "@projectComposerDetailsAdded": {
@@ -1064,9 +1068,11 @@
   "projectComposerYarnWeightLabel": "Yarn weight",
   "@projectComposerYarnWeightLabel": { "description": "Label for yarn-weight detail fields." },
 
+  "projectComposerNeedleSizesLabel": "Needle sizes",
   "projectComposerNeedleSizeLabel": "Needle size",
   "@projectComposerNeedleSizeLabel": { "description": "Label for the knitting needle-size detail field." },
 
+  "projectComposerHookSizesLabel": "Hook sizes",
   "projectComposerHookSizeLabel": "Hook size",
   "@projectComposerHookSizeLabel": { "description": "Label for the crochet hook-size detail field." },
 
@@ -1118,16 +1124,30 @@
   "projectComposerCraftRequiredError": "Choose a craft type.",
   "@projectComposerCraftRequiredError": { "description": "Validation error shown when submitting a project post without selecting a craft type." },
 
+  "projectComposerStatusRequiredError": "Choose a status.",
+  "@projectComposerStatusRequiredError": { "description": "Validation error shown when submitting a project post without selecting a status." },
+
   "projectComposerPhotoRequiredError": "Add at least one photo.",
   "@projectComposerPhotoRequiredError": { "description": "Validation error shown when submitting a project post without a photo." },
 
   "projectComposerGaugeInvalidError": "Complete the gauge or clear it.",
   "@projectComposerGaugeInvalidError": { "description": "Validation error shown when gauge values are partial, missing a unit, or not positive whole numbers." },
 
-  "projectComposerPatternNameLabel": "Pattern tag or name",
-  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern tag-or-name field in the project composer." },
+  "projectComposerAddDetailEntry": "Add entry",
+  "projectComposerRemoveDetailEntry": "Remove entry",
+  "projectComposerInvalidCraftDetails": "Check the measurements and complete any added entries.",
+  "projectComposerAddPattern": "Add another pattern",
+  "projectComposerRemovePattern": "Remove pattern",
+  "projectComposerPatternNumber": "Pattern {number}",
+  "@projectComposerPatternNumber": {
+    "placeholders": { "number": { "type": "int" } }
+  },
+  "projectComposerDyedItemLabel": "What did you dye?",
+  "projectComposerCustomSubtypeLabel": "What did you make?",
+  "projectComposerPatternNameLabel": "Pattern name",
+  "@projectComposerPatternNameLabel": { "description": "Label for the optional pattern name field in the project composer." },
 
-  "projectComposerPatternNameHint": "Add pattern name",
+  "projectComposerPatternNameHint": "#PatternName",
   "@projectComposerPatternNameHint": { "description": "Placeholder text for the optional pattern-name field in the project composer." },
 
   "projectComposerPatternUrlLabel": "Link",
@@ -1151,13 +1171,13 @@
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
-  "projectComposerPatternDesignerHint": "Add pattern designer",
+  "projectComposerPatternDesignerHint": "Add or @mention pattern designer",
   "@projectComposerPatternDesignerHint": { "description": "Placeholder text for the optional pattern designer field in the project composer." },
 
   "projectComposerPatternPublisherLabel": "Publisher",
   "@projectComposerPatternPublisherLabel": { "description": "Label for the optional pattern publisher field in the project composer." },
 
-  "projectComposerPatternPublisherHint": "Add pattern publisher",
+  "projectComposerPatternPublisherHint": "Add or @mention pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeQuoteLabel": "Your thoughts",
@@ -1171,6 +1191,9 @@
 
   "postComposeBodyHint": "Share what you're making, learning, or thinking...",
   "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
+  "composerBodyInputHelp": "You can @mention people, use #hashtags or add https://links.com.",
+  "@composerBodyInputHelp": { "description": "Second paragraph of the placeholder in regular and project post body fields." },
 
   "postComposeRequiredLabel": "required",
   "@postComposeRequiredLabel": { "description": "Small marker shown beside required text fields in the regular post composer." },
@@ -2024,6 +2047,10 @@
   "craftWeaving": "Weaving",
   "@craftWeaving": { "description": "Display label for the 'weaving' craft option." },
 
+  "craftDyeing": "Dyeing",
+  "craftPunchNeedle": "Punch Needle",
+  "projectsFilterKnittingMethod": "Knitting method",
+  "projectsFilterFeltingMethod": "Felting method",
   "craftSpinning": "Spinning",
   "@craftSpinning": { "description": "Display label for the 'spinning' craft option." },
 
@@ -2089,6 +2116,9 @@
 
   "searchTrendingHashtagsHeading": "Trending hashtags",
   "@searchTrendingHashtagsHeading": { "description": "Heading above craft-grouped trending hashtags on the blank search page." },
+
+  "searchNewMakersHeading": "New makers",
+  "@searchNewMakersHeading": { "description": "Heading above recently joined makers on the blank search page." },
 
   "searchProfilesHeading": "Profiles",
   "@searchProfilesHeading": { "description": "Heading for profile suggestions or profile results." },
@@ -3819,7 +3849,20 @@
   "recordShareLinkFailed": "Could not open sharing options. Please try again.",
   "recordLinkCopied": "Link copied",
   "recordCopyLinkFailed": "Could not copy link. Please try again.",
+  "postVideoThumbnailUpload": "Add custom thumbnail",
+  "postVideoThumbnailFrame": "Frame at {percent}%",
+  "@postVideoThumbnailFrame": {
+    "description": "Screen reader label for a thumbnail choice at a percentage of the video's duration.",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+  "postVideoThumbnailRemove": "Remove custom thumbnail",
+  "postVideoThumbnailPreview": "Video thumbnail preview",
+  "postVideoThumbnailInvalid": "Could not prepare the thumbnail. Choose another image.",
+  "postVideoThumbnailUploadFailed": "Could not upload the thumbnail. Try again or remove it to use the automatic cover.",
   "postComposeVideoDetailsTitle": "Video details",
+  "postComposeVideoPreviewHeading": "Video",
+  "postComposeVideoThumbnailHeading": "Thumbnail",
+  "postComposeVideoAltTextHeading": "Alt text",
   "@postComposeVideoDetailsTitle": { "description": "Title of the local video inspection and description page." },
   "postVideoLocalPreviewUnavailable": "This video can’t be previewed here. You can still add a description and publish it.",
   "@postVideoLocalPreviewUnavailable": { "description": "Shown when local preview preparation fails without removing the selected attachment." },
@@ -3877,16 +3920,15 @@
   "chatComposeLabel": "Message",
   "chatSend": "Send message",
   "chatSending": "Sending…",
-  "chatSendFailed": "This message was not sent. Your draft is kept.",
+  "chatSendFailed": "This message was not sent.",
   "chatSendUncertain": "We could not confirm whether this message was sent. Your text is kept. It will not be sent again automatically.",
   "chatCheckStatus": "Check status",
-  "chatDiscardDraft": "Discard draft",
-  "chatDraftSaveFailed": "Could not save this draft on your device. Your text is kept here. Try saving again before leaving.",
-  "chatSaveDraft": "Save draft",
+  "chatDiscardMessage": "Discard message",
+  "chatRecoverySaveFailed": "Could not save delivery recovery on this device.",
   "chatMessageInvalid": "Write a nonblank message with at most 1,000 characters and 10,000 UTF-8 bytes.",
   "chatCannotSend": "You cannot send to this conversation right now.",
   "chatSendAgain": "Send again",
-  "chatSendAgainWarning": "The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.",
+  "chatSendAgainWarning": "The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.",
   "chatIncomingTitle": "Who can message me",
   "chatIncomingExplanation": "This setting is shared with Bluesky and other apps. Changes may take time to appear there and do not remove existing conversations.",
   "chatIncomingEveryone": "Everyone",
@@ -3918,7 +3960,7 @@
       }
     }
   },
-"chatSyncStale": "Messages may be out of date. Your loaded messages and draft are kept.",
+"chatSyncStale": "Messages may be out of date. Your loaded messages and current text are kept.",
   "chatSyncUpdating": "Updating your shared inbox…",
 "chatPreviewPost": "CraftSky post",
   "chatPreviewProfile": "CraftSky profile",

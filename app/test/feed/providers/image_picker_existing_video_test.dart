@@ -34,85 +34,98 @@ void main() {
     },
   );
 
-  group('iOS native video preparation', () {
-    const channel = MethodChannel('social.craftsky/local_video');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    late XFile file;
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    group('${platform.name} native video preparation', () {
+      const channel = MethodChannel('social.craftsky/local_video');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      late XFile file;
 
-    setUp(() {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      file = XFile.fromData(
-        Uint8List.fromList([0, 0, 0, 20, ...'ftypisom'.codeUnits]),
-      );
-    });
-
-    tearDown(() {
-      debugDefaultTargetPlatformOverride = null;
-      messenger.setMockMethodCallHandler(channel, null);
-    });
-
-    test('uses native portrait metadata and poster without a player', () async {
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'probe');
-        expect(call.arguments, {'path': file.path});
-        return {
-          'width': 1080,
-          'height': 1920,
-          'durationMs': 5025,
-          'posterBytes': Uint8List.fromList([1, 2, 3]),
-        };
+      setUp(() {
+        debugDefaultTargetPlatformOverride = platform;
+        file = XFile.fromData(
+          Uint8List.fromList([0, 0, 0, 20, ...'ftypisom'.codeUnits]),
+        );
       });
 
-      final selection = await ImagePickerExistingVideo(pick: () async => file)
-          .pickExisting();
-      expect(selection?.width, 1080);
-      expect(selection?.height, 1920);
-      expect(selection?.duration, const Duration(milliseconds: 5025));
-      expect(selection?.posterBytes, [1, 2, 3]);
-    });
+      tearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        messenger.setMockMethodCallHandler(channel, null);
+      });
 
-    test('rejects an empty poster instead of falling back to MPV', () async {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (_) async => {
-          'width': 1080,
-          'height': 1920,
-          'posterBytes': Uint8List(0),
+      test(
+        'uses native portrait metadata and poster without a player',
+        () async {
+          messenger.setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'probe');
+            expect(call.arguments, {'path': file.path});
+            return {
+              'width': 1080,
+              'height': 1920,
+              'durationMs': 5025,
+              'posterBytes': Uint8List.fromList([1, 2, 3]),
+            };
+          });
+
+          final selection = await ImagePickerExistingVideo(
+            pick: () async => file,
+          ).pickExisting();
+          expect(selection?.width, 1080);
+          expect(selection?.height, 1920);
+          expect(selection?.duration, const Duration(milliseconds: 5025));
+          expect(selection?.posterBytes, [1, 2, 3]);
         },
       );
-      await expectLater(
-        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
-        throwsStateError,
-      );
-    });
 
-    test('preserves platform failures without invoking a player', () async {
-      messenger.setMockMethodCallHandler(channel, (_) async {
-        throw PlatformException(code: 'video_probe_failed');
+      test('keeps a clip with unknown duration eligible', () async {
+        messenger.setMockMethodCallHandler(
+          channel,
+          (_) async => {
+            'width': 1920,
+            'height': 1080,
+            'posterBytes': Uint8List.fromList([1, 2, 3]),
+          },
+        );
+        final composer = ComposerVideoController(
+          picker: ImagePickerExistingVideo(pick: () async => file),
+        );
+        await composer.selectExisting();
+        expect(composer.selection, isNotNull);
+        expect(composer.selection?.duration, isNull);
       });
-      await expectLater(
-        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
-        throwsA(
-          isA<PlatformException>().having(
-            (e) => e.code,
-            'code',
-            'video_probe_failed',
+
+      test('rejects an empty native poster', () async {
+        messenger.setMockMethodCallHandler(
+          channel,
+          (_) async => {
+            'width': 1080,
+            'height': 1920,
+            'posterBytes': Uint8List(0),
+          },
+        );
+        await expectLater(
+          ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+          throwsStateError,
+        );
+      });
+
+      test('preserves platform failures without invoking a player', () async {
+        messenger.setMockMethodCallHandler(channel, (_) async {
+          throw PlatformException(code: 'video_poster_unavailable');
+        });
+        await expectLater(
+          ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+          throwsA(
+            isA<PlatformException>().having(
+              (e) => e.code,
+              'code',
+              'video_poster_unavailable',
+            ),
           ),
-        ),
-      );
+        );
+      });
     });
-  });
-
-  test('UT-001 unknown production duration remains eligible', () async {
-    final duration = await resolveVideoDuration(
-      current: Duration.zero,
-      changes: const Stream<Duration>.empty(),
-      timeout: Duration.zero,
-    );
-
-    expect(duration, isNull);
-  });
+  }
 
   test(
     'MOV without platform MIME is detected and accepted by the composer',

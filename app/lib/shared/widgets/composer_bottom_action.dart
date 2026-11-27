@@ -1,6 +1,15 @@
+import 'dart:async';
+
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/animated_chunky_button.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+
+void dismissComposerKeyboard(BuildContext context) {
+  FocusScope.of(context).unfocus();
+  // The platform keyboard can still be visible after the input loses focus.
+  unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+}
 
 /// Morphs the submit action into a compact keyboard-dismissal button.
 class ComposerBottomAction extends StatelessWidget {
@@ -33,7 +42,7 @@ class ComposerBottomAction extends StatelessWidget {
     compactLabel: AppLocalizations.of(context).postComposeDone,
     actionKey: keyboardVisible ? doneKey : actionKey,
     onPressed: keyboardVisible
-        ? () => FocusScope.of(context).unfocus()
+        ? () => dismissComposerKeyboard(context)
         : onPressed,
     focusNode: keyboardVisible ? null : focusNode,
     style: style,

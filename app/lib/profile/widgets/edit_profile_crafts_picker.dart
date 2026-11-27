@@ -74,14 +74,15 @@ class EditProfileCraftsPicker extends StatelessWidget {
     final label = craftLabel(craft, l10n);
     final isSelected = index != null;
     final canReorder = enabled && crafts.length > 1;
+    final canToggle = enabled && (isSelected || selected.length < 10);
     return ListTile(
       key: ValueKey('craft-choice-${craft.id}'),
       contentPadding: EdgeInsets.zero,
-      onTap: enabled ? () => onToggle(craft) : null,
+      onTap: canToggle ? () => onToggle(craft) : null,
       leading: Checkbox(
         value: isSelected,
         semanticLabel: label,
-        onChanged: enabled ? (_) => onToggle(craft) : null,
+        onChanged: canToggle ? (_) => onToggle(craft) : null,
       ),
       title: CraftIconLabel(craft: craft.id, label: label, flexibleLabel: true),
       subtitle: index == 0

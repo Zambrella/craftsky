@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 )
 
 var ErrUnsupportedMethod = errors.New("unsupported messaging operation")
@@ -99,7 +100,7 @@ func (transport *Transport) callFixed(ctx context.Context, verb string, method s
 	}
 	response, err := client.Do(ctx, request)
 	if err != nil {
-		return err
+		return observability.OAuthRefreshFailure(err)
 	}
 	defer response.Body.Close()
 	const maxResponse = 2 << 20

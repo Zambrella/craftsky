@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ var allowedEventContextKeys = map[string]struct{}{
 	"provider_code":     {},
 	"error_category":    {},
 	"error_code":        {},
+	"api_error_code":    {},
 	"failure_stage":     {},
 	"failure_reason":    {},
 	"duration":          {},
@@ -50,6 +52,8 @@ var allowedEventContextKeys = map[string]struct{}{
 	"case_reference":    {},
 	"occurred_at":       {},
 }
+
+var apiErrorCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,79}$`)
 
 func SanitizeEventContext(ctx EventContext) EventContext {
 	out := EventContext{}
@@ -71,6 +75,12 @@ func SanitizeEventContext(ctx EventContext) EventContext {
 			break
 		}
 		value := ctx[key]
+		if key == "api_error_code" {
+			if code, ok := value.(string); ok && apiErrorCodePattern.MatchString(code) {
+				out[key] = code
+			}
+			continue
+		}
 		switch v := value.(type) {
 		case string:
 			if key == "release" && v == "" {

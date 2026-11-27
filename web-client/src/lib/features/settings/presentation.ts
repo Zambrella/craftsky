@@ -1,3 +1,6 @@
+import { craftIconIds } from '../social/craft-icons';
+import { label } from '../composer/project-options';
+
 /** Order and labels mirror Flutter SettingsPage and NotificationCategory.preferenceValues. */
 export const settingsGroups = [
 	{
@@ -79,11 +82,9 @@ export const backgroundLabels: Record<string, string> = {
 	'animated-lagoon': 'Lagoon',
 	'animated-nebula': 'Nebula',
 	'animated-prism': 'Prism',
-	'craft-sewing': 'Sewing',
-	'craft-knitting': 'Knitting',
-	'craft-crochet': 'Crochet',
-	'craft-quilting': 'Quilting',
-	'craft-embroidery': 'Embroidery'
+	...Object.fromEntries(
+		craftIconIds.map((craft) => [`craft-${craft}`, label(craft)])
+	)
 };
 export function visibleSettingsGroups(restricted: boolean, business: boolean) {
 	return settingsGroups

@@ -1960,12 +1960,6 @@ abstract class AppLocalizations {
   /// **'required'**
   String get projectComposerRequiredLabel;
 
-  /// Short helper text shown above the project title on the first project composer page.
-  ///
-  /// In en, this message translates to:
-  /// **'Fill in the details about your project'**
-  String get projectComposerDetailsPrompt;
-
   /// Short helper text shown at the top of the optional details page in the project composer.
   ///
   /// In en, this message translates to:
@@ -2005,7 +1999,7 @@ abstract class AppLocalizations {
   /// Hint text inside the main project description text field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Tell everyone about your project'**
+  /// **'Tell everyone about your project.'**
   String get projectComposerDescriptionHint;
 
   /// Label for the project composer craft-type field.
@@ -2128,18 +2122,6 @@ abstract class AppLocalizations {
   /// **'More project details'**
   String get projectComposerMoreDetailsLabel;
 
-  /// Heading above the optional detail actions in the project composer.
-  ///
-  /// In en, this message translates to:
-  /// **'Add more details'**
-  String get projectComposerMoreDetailsHeading;
-
-  /// Helper text above the optional detail actions in the project composer.
-  ///
-  /// In en, this message translates to:
-  /// **'Optional details help other crafters discover and understand your project.'**
-  String get projectComposerMoreDetailsPrompt;
-
   /// Title of the optional pattern details action and page.
   ///
   /// In en, this message translates to:
@@ -2149,8 +2131,44 @@ abstract class AppLocalizations {
   /// Description shown when no optional pattern details have been added.
   ///
   /// In en, this message translates to:
-  /// **'Add designer, publisher, link and difficulty'**
+  /// **'Add patterns and their details'**
   String get projectComposerPatternDetailsDescription;
+
+  /// No description provided for @projectComposerPatternOrDraftTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern or draft'**
+  String get projectComposerPatternOrDraftTitle;
+
+  /// No description provided for @projectComposerPatternOrDraftDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add patterns or weaving drafts'**
+  String get projectComposerPatternOrDraftDescription;
+
+  /// No description provided for @projectComposerPatternOrDraftName.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern or draft name'**
+  String get projectComposerPatternOrDraftName;
+
+  /// No description provided for @projectComposerPatternOrTemplateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern or template'**
+  String get projectComposerPatternOrTemplateTitle;
+
+  /// No description provided for @projectComposerPatternOrTemplateDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add patterns or felting templates'**
+  String get projectComposerPatternOrTemplateDescription;
+
+  /// No description provided for @projectComposerPatternOrTemplateName.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern or template name'**
+  String get projectComposerPatternOrTemplateName;
 
   /// Title of the common optional project metadata action and page.
   ///
@@ -2170,11 +2188,23 @@ abstract class AppLocalizations {
   /// **'{craft} details'**
   String projectComposerCraftDetailsTitle(String craft);
 
+  /// Title of the project composer craft details action when the craft name is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft details'**
+  String get projectComposerGenericCraftDetailsTitle;
+
   /// Description shown when no craft-specific details have been added.
   ///
   /// In en, this message translates to:
-  /// **'Add project type and craft-specific details'**
+  /// **'Add other crafts and details about what you made'**
   String get projectComposerCraftDetailsDescription;
+
+  /// Description for the craft details action when only additional crafts can be added.
+  ///
+  /// In en, this message translates to:
+  /// **'Add other crafts used in this project'**
+  String get projectComposerAdditionalCraftsDescription;
 
   /// Summary count for a populated optional project detail group.
   ///
@@ -2260,11 +2290,23 @@ abstract class AppLocalizations {
   /// **'Yarn weight'**
   String get projectComposerYarnWeightLabel;
 
+  /// No description provided for @projectComposerNeedleSizesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Needle sizes'**
+  String get projectComposerNeedleSizesLabel;
+
   /// Label for the knitting needle-size detail field.
   ///
   /// In en, this message translates to:
   /// **'Needle size'**
   String get projectComposerNeedleSizeLabel;
+
+  /// No description provided for @projectComposerHookSizesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hook sizes'**
+  String get projectComposerHookSizesLabel;
 
   /// Label for the crochet hook-size detail field.
   ///
@@ -2368,6 +2410,12 @@ abstract class AppLocalizations {
   /// **'Choose a craft type.'**
   String get projectComposerCraftRequiredError;
 
+  /// Validation error shown when submitting a project post without selecting a status.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a status.'**
+  String get projectComposerStatusRequiredError;
+
   /// Validation error shown when submitting a project post without a photo.
   ///
   /// In en, this message translates to:
@@ -2380,16 +2428,64 @@ abstract class AppLocalizations {
   /// **'Complete the gauge or clear it.'**
   String get projectComposerGaugeInvalidError;
 
-  /// Label for the optional pattern tag-or-name field in the project composer.
+  /// No description provided for @projectComposerAddDetailEntry.
   ///
   /// In en, this message translates to:
-  /// **'Pattern tag or name'**
+  /// **'Add entry'**
+  String get projectComposerAddDetailEntry;
+
+  /// No description provided for @projectComposerRemoveDetailEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove entry'**
+  String get projectComposerRemoveDetailEntry;
+
+  /// No description provided for @projectComposerInvalidCraftDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the measurements and complete any added entries.'**
+  String get projectComposerInvalidCraftDetails;
+
+  /// No description provided for @projectComposerAddPattern.
+  ///
+  /// In en, this message translates to:
+  /// **'Add another pattern'**
+  String get projectComposerAddPattern;
+
+  /// No description provided for @projectComposerRemovePattern.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove pattern'**
+  String get projectComposerRemovePattern;
+
+  /// No description provided for @projectComposerPatternNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern {number}'**
+  String projectComposerPatternNumber(int number);
+
+  /// No description provided for @projectComposerDyedItemLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What did you dye?'**
+  String get projectComposerDyedItemLabel;
+
+  /// No description provided for @projectComposerCustomSubtypeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What did you make?'**
+  String get projectComposerCustomSubtypeLabel;
+
+  /// Label for the optional pattern name field in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern name'**
   String get projectComposerPatternNameLabel;
 
   /// Placeholder text for the optional pattern-name field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add pattern name'**
+  /// **'#PatternName'**
   String get projectComposerPatternNameHint;
 
   /// Label for the optional pattern URL field in the project composer.
@@ -2437,7 +2533,7 @@ abstract class AppLocalizations {
   /// Placeholder text for the optional pattern designer field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add pattern designer'**
+  /// **'Add or @mention pattern designer'**
   String get projectComposerPatternDesignerHint;
 
   /// Label for the optional pattern publisher field in the project composer.
@@ -2449,7 +2545,7 @@ abstract class AppLocalizations {
   /// Placeholder text for the optional pattern publisher field in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Add pattern publisher'**
+  /// **'Add or @mention pattern publisher'**
   String get projectComposerPatternPublisherHint;
 
   /// Text box label when composing a quote post.
@@ -2481,6 +2577,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share what you\'re making, learning, or thinking...'**
   String get postComposeBodyHint;
+
+  /// Second paragraph of the placeholder in regular and project post body fields.
+  ///
+  /// In en, this message translates to:
+  /// **'You can @mention people, use #hashtags or add https://links.com.'**
+  String get composerBodyInputHelp;
 
   /// Small marker shown beside required text fields in the regular post composer.
   ///
@@ -4342,6 +4444,30 @@ abstract class AppLocalizations {
   /// **'Weaving'**
   String get craftWeaving;
 
+  /// No description provided for @craftDyeing.
+  ///
+  /// In en, this message translates to:
+  /// **'Dyeing'**
+  String get craftDyeing;
+
+  /// No description provided for @craftPunchNeedle.
+  ///
+  /// In en, this message translates to:
+  /// **'Punch Needle'**
+  String get craftPunchNeedle;
+
+  /// No description provided for @projectsFilterKnittingMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Knitting method'**
+  String get projectsFilterKnittingMethod;
+
+  /// No description provided for @projectsFilterFeltingMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Felting method'**
+  String get projectsFilterFeltingMethod;
+
   /// Display label for the 'spinning' craft option.
   ///
   /// In en, this message translates to:
@@ -4473,6 +4599,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Trending hashtags'**
   String get searchTrendingHashtagsHeading;
+
+  /// Heading above recently joined makers on the blank search page.
+  ///
+  /// In en, this message translates to:
+  /// **'New makers'**
+  String get searchNewMakersHeading;
 
   /// Heading for profile suggestions or profile results.
   ///
@@ -9217,11 +9349,65 @@ abstract class AppLocalizations {
   /// **'Could not copy link. Please try again.'**
   String get recordCopyLinkFailed;
 
+  /// No description provided for @postVideoThumbnailUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Add custom thumbnail'**
+  String get postVideoThumbnailUpload;
+
+  /// Screen reader label for a thumbnail choice at a percentage of the video's duration.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame at {percent}%'**
+  String postVideoThumbnailFrame(int percent);
+
+  /// No description provided for @postVideoThumbnailRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove custom thumbnail'**
+  String get postVideoThumbnailRemove;
+
+  /// No description provided for @postVideoThumbnailPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Video thumbnail preview'**
+  String get postVideoThumbnailPreview;
+
+  /// No description provided for @postVideoThumbnailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare the thumbnail. Choose another image.'**
+  String get postVideoThumbnailInvalid;
+
+  /// No description provided for @postVideoThumbnailUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upload the thumbnail. Try again or remove it to use the automatic cover.'**
+  String get postVideoThumbnailUploadFailed;
+
   /// Title of the local video inspection and description page.
   ///
   /// In en, this message translates to:
   /// **'Video details'**
   String get postComposeVideoDetailsTitle;
+
+  /// No description provided for @postComposeVideoPreviewHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get postComposeVideoPreviewHeading;
+
+  /// No description provided for @postComposeVideoThumbnailHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Thumbnail'**
+  String get postComposeVideoThumbnailHeading;
+
+  /// No description provided for @postComposeVideoAltTextHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Alt text'**
+  String get postComposeVideoAltTextHeading;
 
   /// Shown when local preview preparation fails without removing the selected attachment.
   ///
@@ -9532,7 +9718,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendFailed.
   ///
   /// In en, this message translates to:
-  /// **'This message was not sent. Your draft is kept.'**
+  /// **'This message was not sent.'**
   String get chatSendFailed;
 
   /// No description provided for @chatSendUncertain.
@@ -9547,23 +9733,17 @@ abstract class AppLocalizations {
   /// **'Check status'**
   String get chatCheckStatus;
 
-  /// No description provided for @chatDiscardDraft.
+  /// No description provided for @chatDiscardMessage.
   ///
   /// In en, this message translates to:
-  /// **'Discard draft'**
-  String get chatDiscardDraft;
+  /// **'Discard message'**
+  String get chatDiscardMessage;
 
-  /// No description provided for @chatDraftSaveFailed.
+  /// No description provided for @chatRecoverySaveFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.'**
-  String get chatDraftSaveFailed;
-
-  /// No description provided for @chatSaveDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Save draft'**
-  String get chatSaveDraft;
+  /// **'Could not save delivery recovery on this device.'**
+  String get chatRecoverySaveFailed;
 
   /// No description provided for @chatMessageInvalid.
   ///
@@ -9586,7 +9766,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSendAgainWarning.
   ///
   /// In en, this message translates to:
-  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.'**
+  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.'**
   String get chatSendAgainWarning;
 
   /// No description provided for @chatIncomingTitle.
@@ -9712,7 +9892,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSyncStale.
   ///
   /// In en, this message translates to:
-  /// **'Messages may be out of date. Your loaded messages and draft are kept.'**
+  /// **'Messages may be out of date. Your loaded messages and current text are kept.'**
   String get chatSyncStale;
 
   /// No description provided for @chatSyncUpdating.

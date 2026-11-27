@@ -1,5 +1,43 @@
 # App Changelog
 
+## 1.15.1+24 - 2026-11-26
+
+- fix(search): show recent avatars and limit history to ten
+- feat(search): order trending tags by saved craft preference
+- docs(online-safety): consolidate launch readiness records
+- fix(composer): keep reply submit action visible
+- fix(composer): keep reply context visible while typing
+
+## 1.15.0+23 - 2026-11-25
+
+- feat(projects): expand craft-specific project details and filters
+- fix(app): resolve Flutter checks for project composer
+
+## 1.14.1+22 - 2026-11-24
+
+- fix(android): use native playback for local video previews
+
+## 1.14.0+21 - 2026-11-22
+
+- feat(web): add a generated project schema explorer
+- chore(release): app 1.13.1+20
+- feat(video): add custom thumbnail selection and upload
+- fix(chat): preserve failed message recovery across clients
+- style(chat): wrap draft restoration comment
+- fix(chat): keep send action visible with keyboard
+- test(chat): use the keyed send action finder
+- feat(profile): default to posts tab
+- fix(notifications): harden cross-client notification handling
+- perf(chat): preload conversations and bound sync refreshes
+- fix(observability): preserve safe failure details across clients
+- fix(notifications): fence stale opens and push deliveries
+- fix(notifications): enforce active lease validation
+- fix(router): return to home on Android back
+
+## 1.13.1+20 - 2026-11-18
+
+- fix(navigation): hide feedback links on Android
+
 ## 1.13.0+19 - 2026-11-17
 
 - feat(social): link plain text profile bios

@@ -164,6 +164,22 @@ func TestPostNotificationWaitsForRecipientMembership(t *testing.T) {
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
 }
 
+func TestPostNotificationDoesNotWaitForLowerPriorityQuoteToReplyRecipient(t *testing.T) {
+	f := newNotificationPipeline(t)
+	f.ingest(notificationEvent(1, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
+	f.drain()
+
+	missingQuote := "at://did:plc:recipient/social.craftsky.feed.post/3aaaaaaaaaaa4"
+	f.ingest(notificationEvent(2, "did:plc:actor", "3aaaaaaaaaaa3", replyExtra(notificationTarget)+quoteExtra(missingQuote)))
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply' AND recipient_did='did:plc:recipient'`, 1)
+	f.assertCount(`SELECT count(*) FROM tap_projection_jobs WHERE projection_kind='post_notifications' AND state='blocked'`, 0)
+
+	f.ingest(notificationEvent(3, "did:plc:recipient", "3aaaaaaaaaaa4", ""))
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events`, 1)
+}
+
 func TestPostNotificationDeleteWhileWaitingCannotNotify(t *testing.T) {
 	f := newNotificationPipeline(t)
 	ev := notificationEvent(1, "did:plc:actor", "3aaaaaaaaaaa3", replyExtra(notificationTarget))
@@ -275,4 +291,20 @@ func TestPostNotificationAvailableRecipientDoesNotWaitForOtherMember(t *testing.
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+}
+
+func TestPostNotificationAvailableRecipientDoesNotWaitForUnrelatedMissingSubject(t *testing.T) {
+	f := newNotificationPipeline(t)
+	seedCraftskyMember(t, f.pool, "did:plc:mentioned")
+	f.ingest(notificationEvent(1, "did:plc:actor", "3aaaaaaaaaaa3", replyExtra(notificationTarget)+mentionExtra("did:plc:mentioned")))
+	f.drain()
+
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention' AND recipient_did='did:plc:mentioned'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:recipient'`, 0)
+	f.assertCount(`SELECT count(*) FROM tap_projection_jobs WHERE projection_kind='post_notifications' AND state='blocked' AND dependency_kind='subject_uri'`, 1)
+
+	f.ingest(notificationEvent(2, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
+	f.drain()
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply' AND recipient_did='did:plc:recipient'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
 }

@@ -38,6 +38,7 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,6 +116,7 @@ bool _hasRoomForNavigationFooter(
   double availableHeight, {
   required bool rail,
   required bool hasVersion,
+  required bool showFeedback,
   int? destinationCount,
   bool hasCompose = true,
 }) {
@@ -126,7 +128,7 @@ bool _hasRoomForNavigationFooter(
       spacing.sp4;
   final footerHeight =
       2 * _utilityLinkHeight +
-      56 +
+      (showFeedback ? 56 : 0) +
       (hasVersion ? spacing.sp5 * (textScale > 1 ? textScale : 1) : 0) +
       (rail ? spacing.sp3 + spacing.sp2 : spacing.sp4);
   final composeHeight = rail && hasCompose ? spacing.sp8 : 0;
@@ -607,6 +609,37 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
+/// Declares whether the shell handles Back before Android starts the gesture.
+class _AndroidBackToHome extends StatelessWidget {
+  const new({required this.navigationShell, required this.child});
+
+  final StatefulNavigationShell navigationShell;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return child;
+
+    final router = GoRouter.of(context);
+    final branch = navigationShell.route.branches[navigationShell.currentIndex];
+    final state = router.state;
+    // The guest drawer lives on the parent route. The member drawer uses this
+    // route's local history.
+    final backToHome =
+        state.matchedLocation != RouteLocations.home &&
+        branch.routes.contains(state.topRoute) &&
+        ModalRoute.canPopOf(context) == false &&
+        AppShellDrawerScope.maybeOf(context)?.isDrawerOpen != true;
+    return PopScope<Object?>(
+      canPop: !backToHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && backToHome) router.go(RouteLocations.home);
+      },
+      child: child,
+    );
+  }
+}
+
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   late final AccountActivationCoordinator _activation;
@@ -652,7 +685,12 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => _AndroidBackToHome(
+    navigationShell: widget.navigationShell,
+    child: _buildShell(context),
+  );
+
+  Widget _buildShell(BuildContext context) {
     if (ref.watch(isGuestBrowsingProvider)) {
       return widget.navigationShell;
     }
@@ -751,8 +789,6 @@ class _AppShellState extends ConsumerState<AppShell>
       GoRouterState.of(context).matchedLocation,
       widget.navigationShell.currentIndex,
     );
-    final router = GoRouter.of(context);
-
     if (formFactor.isLarge) {
       if (_AuthenticatedShellNavigationScope.maybeOf(context)
           case final scope?) {
@@ -790,6 +826,7 @@ class _AppShellState extends ConsumerState<AppShell>
       );
     }
 
+    final router = GoRouter.of(context);
     return Scaffold(
       key: _compactScaffoldKey,
       // Child pages own the edge gesture for platform Back navigation.
@@ -953,6 +990,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
     final l10n = AppLocalizations.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
+    final showFeedback = theme.platform != TargetPlatform.android;
     return Drawer(
       backgroundColor: swatches.paper3,
       surfaceTintColor: Colors.transparent,
@@ -966,6 +1004,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
               constraints.maxHeight,
               rail: false,
               hasVersion: buildVersionLabel != null,
+              showFeedback: showFeedback,
               destinationCount: widget.guest ? 2 : null,
               hasCompose: !widget.guest,
             );
@@ -1077,16 +1116,17 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: () => _openExternalLink(
-                            context,
-                            onOpenFeedback,
+                        if (showFeedback)
+                          OutlinedButton.icon(
+                            onPressed: () => _openExternalLink(
+                              context,
+                              onOpenFeedback,
+                            ),
+                            icon: const Icon(CraftskyIconsBold.comment),
+                            label: Text(l10n.navigationFeedback),
                           ),
-                          icon: const Icon(CraftskyIconsBold.comment),
-                          label: Text(l10n.navigationFeedback),
-                        ),
                         if (buildVersionLabel case final label?) ...[
-                          SizedBox(height: spacing.sp1),
+                          if (showFeedback) SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],
@@ -1253,6 +1293,7 @@ class _ShellNavigationRail extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
+    final showFeedback = theme.platform != TargetPlatform.android;
     return Material(
       color: theme.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
@@ -1265,6 +1306,7 @@ class _ShellNavigationRail extends StatelessWidget {
             constraints.maxHeight,
             rail: true,
             hasVersion: buildVersionLabel != null,
+            showFeedback: showFeedback,
             destinationCount: guest ? 2 : null,
             hasCompose: !guest,
           );
@@ -1380,13 +1422,14 @@ class _ShellNavigationRail extends StatelessWidget {
                           onPressed: () => unawaited(onOpenPrivacy()),
                           child: Text(l10n.navigationPrivacy),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () => unawaited(onOpenFeedback()),
-                          icon: const Icon(CraftskyIconsBold.comment),
-                          label: Text(l10n.navigationFeedback),
-                        ),
+                        if (showFeedback)
+                          OutlinedButton.icon(
+                            onPressed: () => unawaited(onOpenFeedback()),
+                            icon: const Icon(CraftskyIconsBold.comment),
+                            label: Text(l10n.navigationFeedback),
+                          ),
                         if (buildVersionLabel case final label?) ...[
-                          SizedBox(height: spacing.sp1),
+                          if (showFeedback) SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],

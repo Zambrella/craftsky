@@ -28,6 +28,12 @@ class CraftIcon extends StatelessWidget {
       'sewing' => '$_assetPrefix/sewing.svg',
       'embroidery' => '$_assetPrefix/embroidery.svg',
       'quilting' => '$_assetPrefix/quilting.svg',
+      'spinning' => '$_assetPrefix/spinning.svg',
+      'dyeing' => '$_assetPrefix/dyeing.svg',
+      'punchneedle' || 'punch-needle' => '$_assetPrefix/punch-needle.svg',
+      'macrame' => '$_assetPrefix/macrame.svg',
+      'weaving' => '$_assetPrefix/weaving.svg',
+      'felting' => '$_assetPrefix/felting.svg',
       _ => null,
     };
   }

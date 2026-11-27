@@ -17,8 +17,11 @@ The shell owns the title, tabs and contextual actions. Following and Extended
 network expose the existing new-post chooser on compact layouts; project tabs
 expose their existing Filters FAB and sort menu. Wide layouts retain the shell's
 shared New post action.
-Reselecting Home scrolls and refreshes the active tab. Returning from another
-section or a post retains the selected tab and its loaded content.
+In Flutter, reselecting Home returns to the first tab, scrolls it to the top,
+and refreshes it. The first tab is Following for signed-in users and All crafts
+for guests. Returning from another section or a post retains the selected tab
+and its loaded content. On the web, reselecting Home scrolls and refreshes the
+active tab.
 
 ## Data boundaries
 
@@ -72,7 +75,10 @@ The result-page limit does not cap network membership or truncate post history.
 Craft feeds continue to use `projectFeedProvider(ProjectBrowseQuery)` and
 `GET /v1/projects`, with separate filters and sort choices per craft. Each source
 retains its existing pagination, language filtering, visibility policy and
-optimistic interaction handling. Craft-feed APIs and record schemas are unchanged.
+optimistic interaction handling. A craft tab offers the current shared and
+craft-specific filters, including its reviewed project types and subtypes.
+The browse API applies them to the primary craft and existing project data.
+[Project browse filters](search-fields.md#filtering-and-visibility)
 
 ## Future custom feeds
 

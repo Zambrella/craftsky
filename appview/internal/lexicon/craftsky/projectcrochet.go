@@ -9,16 +9,30 @@ package craftsky
 // Crochet-specific fields attached to a project post when craftType is crochet.
 type ProjectCrochet_Details struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.project.crochet#details"`
-	// finishedSize: Free-text finished size or dimensions, e.g. '38in bust', 'baby blanket 36in x 42in', 'adult medium', or '12cm tall'.
+	// finishedSize: Deprecated: Free-text finished size or dimensions.
 	FinishedSize *string `json:"finishedSize,omitempty" cborgen:"finishedSize,omitempty"`
-	// gauge: Structured stitch gauge measured over a stated distance.
+	// gauge: Deprecated: Structured stitch gauge measured over a stated distance.
 	Gauge *ProjectDefs_Gauge `json:"gauge,omitempty" cborgen:"gauge,omitempty"`
-	// hookSizeMm: Metric hook size used. Clients may display US letter-size aliases, but records store the metric mm value.
+	// hookSizeMm: Deprecated: Legacy metric hook size in millimetres. When present, hookSizesMm takes precedence.
 	HookSizeMm *string `json:"hookSizeMm,omitempty" cborgen:"hookSizeMm,omitempty"`
-	// projectSubtype: More specific crochet project category. Clients choose valid subtypes based on projectType; the lexicon keeps this open for forward compatibility.
+	// hookSizesMm: Deprecated: Metric hook sizes used in the project. Each entry uses the same millimetre format as the legacy scalar. A present list, including an empty list, takes precedence over the scalar.
+	HookSizesMm []string `json:"hookSizesMm,omitempty" cborgen:"hookSizesMm,omitempty"`
+	// methods: Crochet methods used. Select Standard crochet and Tunisian crochet independently. An absent or empty list leaves the method unspecified.
+	Methods []string `json:"methods,omitempty" cborgen:"methods,omitempty"`
+	// projectSubtype: Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.
 	ProjectSubtype *string `json:"projectSubtype,omitempty" cborgen:"projectSubtype,omitempty"`
-	// projectType: The kind of crochet project. Amigurumi is first-class because it is common enough to deserve its own token.
+	// projectType: Optional category for the item made. Choose Other when no listed category fits.
 	ProjectType *string `json:"projectType,omitempty" cborgen:"projectType,omitempty"`
-	// yarnWeight: Yarn weight category. Uses the shared Craftsky project yarn-weight vocabulary.
+	// techniques: Deprecated: Crochet techniques used in this project. Describe techniques or use hashtags for new projects.
+	Techniques []*ProjectCrochet_TechniqueSelection `json:"techniques,omitempty" cborgen:"techniques,omitempty"`
+	// yarnWeight: Deprecated: Yarn weight category. Uses the shared CraftSky project yarn-weight vocabulary.
 	YarnWeight *string `json:"yarnWeight,omitempty" cborgen:"yarnWeight,omitempty"`
+}
+
+// ProjectCrochet_TechniqueSelection is a "techniqueSelection" in the social.craftsky.project.crochet schema.
+//
+// One crochet technique selected for the project.
+type ProjectCrochet_TechniqueSelection struct {
+	// technique: The crochet technique used.
+	Technique string `json:"technique" cborgen:"technique"`
 }

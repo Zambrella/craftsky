@@ -73,6 +73,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
     required this.options,
     super.key,
     this.initialValue,
+    this.selectedLabels = const {},
     this.helperText,
     this.enabled = true,
     this.validator,
@@ -88,6 +89,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
   final String label;
   final List<CraftskySelectOption<T>> options;
   final List<T>? initialValue;
+  final Map<T, String> selectedLabels;
   final String? helperText;
   final bool enabled;
   final FormFieldValidator<List<T>>? validator;
@@ -110,6 +112,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
         return CraftskySearchableMultiSelectInput<T>(
           label: label,
           options: options,
+          selectedLabels: selectedLabels,
           values: List<T>.from(field.value ?? const []),
           helperText: helperText,
           errorText: field.errorText,

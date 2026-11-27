@@ -23,9 +23,15 @@ preferredCraftLinksProvider = Provider.autoDispose
       }
       if (profileState.isLoading) return const AsyncLoading();
       return profileState.whenData((profile) {
-        final selected = profile.crafts.toSet();
+        final selected = profile.crafts
+            .map(ProjectOptionCatalogs.profileIdForCraftToken)
+            .toSet();
         return ProjectOptionCatalogs.craftTypesForPreferences(profile.crafts)
-            .where((option) => selected.contains(option.value.split('#').last))
+            .where(
+              (option) => selected.contains(
+                ProjectOptionCatalogs.profileIdForCraftToken(option.value),
+              ),
+            )
             .toList(growable: false);
       });
     });

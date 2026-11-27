@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/federatedhttp"
@@ -84,7 +86,7 @@ func newFederatedClientsWithBoundary(
 		SkipDNSDomainSuffixes: []string{".bsky.social"},
 		UserAgent:             "craftsky-appview",
 	}
-	authoritativeDirectory := identity.Directory(baseDirectory)
+	authoritativeDirectory := federatedIdentityDirectory{baseDirectory}
 	directory := identity.NewCacheDirectory(
 		authoritativeDirectory,
 		250_000,
@@ -101,6 +103,48 @@ func newFederatedClientsWithBoundary(
 		pdsRepository: pdsRepository,
 		directory:     directory, authoritativeDirectory: authoritativeDirectory,
 	}, nil
+}
+
+type federatedIdentityDirectory struct{ *identity.BaseDirectory }
+
+func (directory federatedIdentityDirectory) Lookup(ctx context.Context, identifier syntax.AtIdentifier) (*identity.Identity, error) {
+	if handle, err := identifier.AsHandle(); err == nil {
+		return directory.LookupHandle(ctx, handle)
+	}
+	return directory.BaseDirectory.Lookup(ctx, identifier)
+}
+
+func (directory federatedIdentityDirectory) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
+	handle = handle.Normalize()
+	for _, suffix := range directory.SkipDNSDomainSuffixes {
+		if strings.HasSuffix(handle.String(), suffix) {
+			return directory.lookupHTTPSHandle(ctx, handle)
+		}
+	}
+	return directory.BaseDirectory.LookupHandle(ctx, handle)
+}
+
+// The pinned Indigo resolver can drop the well-known error and proceed with an
+// empty DID when DNS is skipped. Keep its HTTPS lookup and DID-document checks.
+func (directory federatedIdentityDirectory) lookupHTTPSHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
+	did, err := directory.ResolveHandleWellKnown(ctx, handle)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := directory.ResolveDID(ctx, did)
+	if err != nil {
+		return nil, err
+	}
+	resolved := identity.ParseIdentity(doc)
+	declared, err := resolved.DeclaredHandle()
+	if err != nil {
+		return nil, fmt.Errorf("could not verify handle/DID match: %w", err)
+	}
+	if declared != handle {
+		return nil, identity.ErrHandleMismatch
+	}
+	resolved.Handle = declared
+	return &resolved, nil
 }
 
 func (clients *federatedClients) validateSessionDestinations(

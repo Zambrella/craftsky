@@ -22,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/subscriptions"
+	"social.craftsky/appview/internal/video"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
@@ -154,6 +155,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	}
 	if strings.HasPrefix(policy.PathPattern, "/v1/chat/") && (bodyLimit.DefaultJSONBytes == 0 || bodyLimit.DefaultJSONBytes > 64<<10) {
 		bodyLimit.DefaultJSONBytes = 64 << 10
+	}
+	if policy.PathPattern == "/v1/blobs/videos/authorization" && (bodyLimit.UploadBytes == 0 || bodyLimit.UploadBytes > video.MaxThumbnailBytes) {
+		bodyLimit.UploadBytes = video.MaxThumbnailBytes
 	}
 	wrapped = middleware.BodyLimit(bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
 	if policy.BodyKind == BodyUpload {

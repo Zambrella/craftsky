@@ -168,7 +168,10 @@ describe('confirmed publications', () => {
 					colors: ['defs#blue'],
 					pattern: { difficulty: 'defs#easy', selfDrafted: true }
 				},
-				details: { projectType: 'defs#sweater', yarnWeight: 'defs#dk' }
+				details: {
+					projectType: 'social.craftsky.project.defs#garment',
+					yarnWeight: 'defs#dk'
+				}
 			}
 		});
 		expect(
@@ -177,13 +180,179 @@ describe('confirmed publications', () => {
 				color: ['defs#blue'],
 				patternDifficulty: ['defs#easy'],
 				selfDrafted: true,
-				projectType: ['defs#sweater']
+				projectType: ['social.craftsky.project.defs#garment']
 			})
 		).toBe(true);
 		expect(matchesProject(project, 'crochet', {})).toBe(false);
 		expect(
 			matchesProject(project, 'knitting', { yarnWeight: ['defs#aran'] })
 		).toBe(false);
+	});
+	it('requires one current pattern to satisfy both filters and includes mixed-method Knitting', () => {
+		const project = post('project', {
+			project: {
+				common: {
+					craftType: 'social.craftsky.feed.defs#knitting',
+					pattern: { difficulty: 'defs#advanced', selfDrafted: true },
+					patterns: [
+						{ difficulty: 'defs#beginner', selfDrafted: true },
+						{ difficulty: 'defs#advanced' }
+					]
+				},
+				details: {
+					$type: 'social.craftsky.project.knitting#details',
+					methods: [
+						'social.craftsky.project.knitting.defs#hand',
+						'social.craftsky.project.knitting.defs#machine'
+					]
+				}
+			}
+		});
+		expect(
+			matchesProject(project, 'knitting', {
+				patternDifficulty: ['defs#advanced']
+			})
+		).toBe(true);
+		expect(
+			matchesProject(project, 'knitting', {
+				patternDifficulty: ['defs#advanced'],
+				selfDrafted: true
+			})
+		).toBe(false);
+		expect(
+			matchesProject(project, 'knitting', {
+				patternDifficulty: ['defs#beginner'],
+				selfDrafted: true,
+				knittingMethod: ['machine']
+			})
+		).toBe(true);
+	});
+	it('includes a narrower named item in a broad filter and leaves custom names to search', () => {
+		const prefix = 'social.craftsky.project.sewing.defs#';
+		const project = post('tote', {
+			project: {
+				common: { craftType: 'social.craftsky.feed.defs#sewing' },
+				details: {
+					$type: 'social.craftsky.project.sewing#details',
+					projectType: 'social.craftsky.project.defs#accessory',
+					projectSubtype: prefix + 'tote'
+				}
+			}
+		});
+		expect(
+			matchesProject(project, 'sewing', { projectSubtype: [prefix + 'bag'] })
+		).toBe(true);
+		project.project!.details!.projectSubtype = 'my #bag';
+		expect(matchesProject(project, 'sewing', { projectSubtype: ['bag'] })).toBe(
+			false
+		);
+		expect(
+			matchesProject(project, 'sewing', { projectType: ['accessory'] })
+		).toBe(true);
+	});
+	it('matches a reclassified Felting subtype under its new type and the previously saved type', () => {
+		const prefix = 'social.craftsky.project.defs#';
+		const project = post('felting', {
+			project: {
+				common: { craftType: 'social.craftsky.feed.defs#felting' },
+				details: {
+					$type: 'social.craftsky.project.felting#details',
+					projectType: prefix + 'artDecoration',
+					projectSubtype: 'social.craftsky.project.felting#figurine'
+				}
+			}
+		});
+		const art = { projectType: ['artDecoration'] };
+		const toys = { projectType: ['toyHobby'] };
+		expect(matchesProject(project, 'felting', art)).toBe(true);
+		expect(matchesProject(project, 'felting', toys)).toBe(false);
+		project.project!.details!.projectType = prefix + 'toyHobby';
+		expect(matchesProject(project, 'felting', art)).toBe(true);
+		expect(matchesProject(project, 'felting', toys)).toBe(true);
+	});
+	it('keeps locally published posts in a mixed type and subtype filter when either choice matches', () => {
+		const garment = 'social.craftsky.project.defs#garment';
+		const accessory = 'social.craftsky.project.defs#accessory';
+		const prefix = 'social.craftsky.project.sewing.defs#';
+		const filters = { projectItem: [garment, prefix + 'tote'] };
+		const sewing = (projectType: string, projectSubtype?: string) =>
+			post('sewing', {
+				project: {
+					common: { craftType: 'social.craftsky.feed.defs#sewing' },
+					details: {
+						$type: 'social.craftsky.project.sewing#details',
+						projectType,
+						projectSubtype
+					}
+				}
+			});
+		expect(matchesProject(sewing(garment), 'sewing', filters)).toBe(true);
+		expect(
+			matchesProject(sewing(accessory, prefix + 'tote'), 'sewing', filters)
+		).toBe(true);
+		expect(
+			matchesProject(sewing(accessory, prefix + 'backpack'), 'sewing', filters)
+		).toBe(false);
+	});
+	it('uses a legacy Dyeing material only when the current project type is absent', () => {
+		const details = {
+			$type: 'social.craftsky.project.dyeing#details',
+			materialForm: 'spunYarn'
+		};
+		const project = post('dyeing', {
+			project: {
+				common: { craftType: 'social.craftsky.feed.defs#dyeing' },
+				details
+			}
+		});
+		const filters = {
+			projectItem: ['social.craftsky.project.dyeing#yarnThread']
+		};
+		expect(matchesProject(project, 'dyeing', filters)).toBe(true);
+		project.project!.details = { ...details, projectType: null };
+		expect(matchesProject(project, 'dyeing', filters)).toBe(false);
+	});
+	it('matches grouped technique selections and the effective needle size list', () => {
+		const prefix = 'social.craftsky.project.knitting.defs#';
+		const project = post('project', {
+			project: {
+				common: { craftType: 'social.craftsky.feed.defs#knitting' },
+				details: {
+					$type: 'social.craftsky.project.knitting#details',
+					techniques: [
+						{
+							technique: prefix + 'colourwork',
+							subtypes: [{ subtype: prefix + 'fairIsle' }]
+						},
+						{ technique: prefix + 'cables' }
+					],
+					needleSizesMm: [],
+					needleSizeMm: '4.5mm'
+				}
+			}
+		});
+		expect(
+			matchesProject(project, 'knitting', { techniqueSubtype: ['fairisle'] })
+		).toBe(true);
+		expect(
+			matchesProject(project, 'knitting', {
+				technique: ['cables'],
+				techniqueSubtype: ['fairIsle']
+			})
+		).toBe(false);
+		expect(
+			matchesProject(project, 'knitting', {
+				technique: ['colourwork'],
+				techniqueSubtype: ['fairIsle']
+			})
+		).toBe(true);
+		expect(
+			matchesProject(project, 'knitting', { needleSizeMm: ['4.5mm'] })
+		).toBe(false);
+		delete project.project!.details!.needleSizesMm;
+		expect(
+			matchesProject(project, 'knitting', { needleSizeMm: ['4.5mm'] })
+		).toBe(true);
 	});
 });
 

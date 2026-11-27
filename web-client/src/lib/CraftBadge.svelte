@@ -1,12 +1,8 @@
 <script lang="ts">
 	import { label } from './public';
+	import { craftIconMask } from './features/social/craft-icons';
 	let { craft }: { craft: string } = $props();
-	let key = $derived(craft.split('#').at(-1)?.toLowerCase() || '');
-	let icon = $derived(
-		['sewing', 'knitting', 'crochet', 'quilting', 'embroidery'].includes(key)
-			? `url('/crafts/${key}.svg')`
-			: undefined
-	);
+	const icon = $derived(craftIconMask(craft));
 </script>
 
 <span class="craft-badge"

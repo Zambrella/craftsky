@@ -935,7 +935,7 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 					"designerFacets":[{"index":{"byteStart":0,"byteEnd":22},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:alice"}]}]
 				}
 			},
-			"details":{"$type":"social.craftsky.project.knitting#details","projectType":"shawl"}
+			"details":{"$type":"social.craftsky.project.knitting#details","projectType":"shawl","needleSizeMm":"4.5mm"}
 		}
 	}`
 	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
@@ -950,8 +950,11 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if project == nil || project.Common.CraftType != "social.craftsky.feed.defs#knitting" || project.Common.Title == nil || *project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("PDS project = %#v", rec["project"])
 	}
-	if project.Common.Pattern == nil || project.Common.Pattern.Name == nil || *project.Common.Pattern.Name != "#hitchhiker" {
-		t.Fatalf("PDS project pattern = %#v", project.Common.Pattern)
+	if project.Common.Pattern != nil || len(project.Common.Patterns) != 1 || project.Common.Patterns[0].Name == nil || *project.Common.Patterns[0].Name != "#hitchhiker" {
+		t.Fatalf("PDS project patterns = %#v", project.Common)
+	}
+	if !strings.Contains(string(project.Details), `"needleSizesMm":["4.5mm"]`) || strings.Contains(string(project.Details), `"needleSizeMm"`) {
+		t.Fatalf("PDS project sizes = %s", project.Details)
 	}
 	if len(project.Common.Materials) != 1 || project.Common.Materials[0].Text != "3m of @alice.craftsky.social #viscose fabric" {
 		t.Fatalf("PDS project materials = %#v", project.Common.Materials)
@@ -959,10 +962,10 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	if got := facetArrayLength(t, project.Common.Materials[0].Facets); got != 2 {
 		t.Fatalf("PDS material facets len = %d, want 2", got)
 	}
-	if got := facetArrayLength(t, project.Common.Pattern.NameFacets); got != 1 {
+	if got := facetArrayLength(t, project.Common.Patterns[0].NameFacets); got != 1 {
 		t.Fatalf("PDS pattern name facets len = %d, want 1", got)
 	}
-	if got := facetArrayLength(t, project.Common.Pattern.DesignerFacets); got != 1 {
+	if got := facetArrayLength(t, project.Common.Patterns[0].DesignerFacets); got != 1 {
 		t.Fatalf("PDS pattern designer facets len = %d, want 1", got)
 	}
 	if _, ok := rec["createdAt"].(string); !ok {
@@ -975,6 +978,9 @@ func TestCreatePost_WithProject_WritesProjectToPDSAndResponse(t *testing.T) {
 	}
 	if resp.Project == nil || resp.Project.Common.Title == nil || *resp.Project.Common.Title != "Hitchhiker Shawl" {
 		t.Fatalf("response project = %+v", resp.Project)
+	}
+	if resp.Project.Common.Pattern == nil || !strings.Contains(string(resp.Project.Details), `"needleSizeMm":"4.5mm"`) {
+		t.Fatalf("legacy compatibility projection missing: %+v", resp.Project)
 	}
 	wantTags := []string{"fairisle", "wip", "hitchhiker", "viscose"}
 	if !reflect.DeepEqual(resp.Tags, wantTags) {

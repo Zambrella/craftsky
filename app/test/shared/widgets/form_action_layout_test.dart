@@ -28,7 +28,7 @@ void main() {
               label: 'Submit',
               onPressed: null,
               actionKey: const Key('submit'),
-              child: TextField(focusNode: focus),
+              contentBuilder: (_, _) => TextField(focusNode: focus),
             ),
           ),
         ),
@@ -42,6 +42,82 @@ void main() {
       expect(find.byKey(const Key('submit')), findsNothing);
     },
   );
+
+  testWidgets('Done requests a keyboard hide without a focused input', (
+    tester,
+  ) async {
+    var submitted = false;
+    await tester.pumpWidget(
+      harness(
+        Scaffold(
+          body: FormActionLayout(
+            keyboardVisible: true,
+            label: 'Save',
+            onPressed: () => submitted = true,
+            actionKey: const Key('save'),
+            contentBuilder: (_, _) => const Text('No focused input'),
+          ),
+        ),
+      ),
+    );
+    tester.testTextInput.log.clear();
+    await tester.tap(find.byKey(const Key('form-keyboard-done')));
+    await tester.pump();
+
+    expect(
+      tester.testTextInput.log.map((call) => call.method),
+      contains('TextInput.hide'),
+    );
+    expect(submitted, isFalse);
+  });
+
+  testWidgets('the form scrolls behind Done and clears it at the end', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.reset);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    const fieldKey = Key('last-field');
+    await tester.pumpWidget(
+      harness(
+        Scaffold(
+          body: FormActionLayout(
+            keyboardVisible: true,
+            label: 'Save',
+            onPressed: () {},
+            actionKey: const Key('save'),
+            contentBuilder: (_, clearance) => SingleChildScrollView(
+              controller: controller,
+              padding: EdgeInsets.only(bottom: clearance),
+              child: const Column(
+                children: [
+                  SizedBox(height: 600),
+                  TextField(key: fieldKey),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final done = find.byKey(const Key('form-keyboard-done'));
+    final viewport = find.byType(SingleChildScrollView);
+    expect(tester.getRect(viewport).bottom, 400);
+    expect(tester.getRect(done).bottom, lessThan(400));
+    final buttonPosition = tester.getRect(done);
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(done), buttonPosition);
+    expect(
+      tester.getRect(find.byKey(fieldKey)).bottom,
+      lessThanOrEqualTo(buttonPosition.top),
+    );
+  });
 
   for (final canPop in [true, false]) {
     testWidgets(

@@ -209,3 +209,95 @@ func TestConsoleEvidenceHoldReleaseAndRetentionReadback(t *testing.T) {
 		}
 	}
 }
+
+func TestConsolePreservesEvidenceDirectlyFromUserReportCase(t *testing.T) {
+	ctx := t.Context()
+	pool := testdb.WithMigratedSchema(t)
+	caseID := uuid.New()
+	const owner = "did:example:case-evidence-owner"
+	const subject = "at://" + owner + "/social.craftsky.feed.post/test"
+	if _, err := pool.Exec(ctx, `INSERT INTO moderation_cases(
+		id,subject_key,subject_type,subject_did,subject_collection,subject_rkey,
+		subject_uri,subject_cid_snapshot,owner_did,safe_snapshot
+	) VALUES($1,$2,'post',$3,'social.craftsky.feed.post','test',$2,'test-cid',$3,'{}')`, caseID, subject, owner); err != nil {
+		t.Fatal(err)
+	}
+	objects := safetyincident.NewMemoryEvidenceStore()
+	deps := testDeps()
+	deps.DB = pool
+	deps.Config.ModerationAdminEnabled = true
+	deps.OperatorAuthentication = consoleTestAuthentication(safetyincident.RoleSafetyAdministrator)
+	deps.SafetyEvidence = safetyincident.NewEvidenceService(pool, objects, time.Now)
+	deps.SafetyIncidents = safetyincident.NewStore(pool, time.Now)
+	admin := evidenceMux(t, deps)
+	deps.OperatorAuthentication = consoleTestAuthentication(safetyincident.RoleModerator)
+	moderator := evidenceMux(t, deps)
+
+	path := "/v1/admin/moderation/cases/MOD-" + caseID.String() + "/evidence"
+	data := benignEvidencePNG(t)
+	expiresAt := time.Now().Add(time.Hour)
+	body := map[string]any{"bytes": data, "contentType": "image/png", "reason": "synthetic report evidence", "expiresAt": expiresAt}
+	if denied := evidencePost(moderator, path, "manual-evidence-denied", body); denied.Code != 403 {
+		t.Fatalf("moderator preserve=%d", denied.Code)
+	}
+	expired := map[string]any{"bytes": data, "contentType": "image/png", "reason": "expired synthetic retention", "expiresAt": time.Now().Add(-time.Hour)}
+	if rejected := evidencePost(admin, path, "manual-evidence-expired", expired); rejected.Code != 400 {
+		t.Fatalf("invalid deadline status=%d", rejected.Code)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM safety_incidents WHERE source_case_id=$1`, caseID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("invalid write left incident count=%d err=%v", count, err)
+	}
+
+	first := evidencePost(admin, path, "manual-evidence-initial", body)
+	if first.Code != 201 {
+		t.Fatalf("case evidence preserve=%d %s", first.Code, first.Body)
+	}
+	replay := evidencePost(admin, path, "manual-evidence-initial", body)
+	if replay.Code != 201 || replay.Header().Get("Idempotent-Replayed") != "true" || replay.Body.String() != first.Body.String() {
+		t.Fatalf("case evidence replay did not return the committed receipt")
+	}
+	var receipt struct {
+		ID                string `json:"id"`
+		IncidentReference string `json:"incidentReference"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &receipt); err != nil || receipt.ID == "" || receipt.IncidentReference == "" || objects.ObjectCount() != 1 {
+		t.Fatalf("invalid preservation receipt or object count: %s", first.Body)
+	}
+
+	var incidentKind, linkedOwner, linkedURI, linkedCID, caseState string
+	var scanResult *uuid.UUID
+	var caseRevision int64
+	err := pool.QueryRow(ctx, `SELECT i.incident_kind,i.scan_result_id,s.owner_did,s.subject_uri,s.source_cid,c.state,c.revision
+		FROM safety_incidents i JOIN safety_incident_subjects s ON s.incident_id=i.id
+		JOIN moderation_cases c ON c.id=i.source_case_id WHERE i.id=$1`, receipt.IncidentReference).
+		Scan(&incidentKind, &scanResult, &linkedOwner, &linkedURI, &linkedCID, &caseState, &caseRevision)
+	if err != nil || incidentKind != "manualEvidence" || scanResult != nil || linkedOwner != owner ||
+		linkedURI != subject || linkedCID != "test-cid" || caseState != "open" || caseRevision != 0 {
+		t.Fatalf("manual origin or moderation state incorrect: kind=%s case=%s/%d err=%v", incidentKind, caseState, caseRevision, err)
+	}
+	detail := httptest.NewRecorder()
+	admin.ServeHTTP(detail, httptest.NewRequest("GET", "/v1/admin/moderation/cases/MOD-"+caseID.String(), nil))
+	if detail.Code != 200 || !strings.Contains(detail.Body.String(), receipt.IncidentReference) {
+		t.Fatalf("linked incident missing from case detail: status=%d %s", detail.Code, detail.Body)
+	}
+	accessed := evidencePost(admin, "/v1/admin/safety/evidence/"+receipt.ID+"/access", "", map[string]any{
+		"incidentReference": receipt.IncidentReference, "reason": "verify synthetic case image",
+	})
+	if accessed.Code != 200 || !bytes.Equal(accessed.Body.Bytes(), data) {
+		t.Fatalf("case image readback status=%d", accessed.Code)
+	}
+
+	body["expiresAt"] = expiresAt.Add(time.Hour)
+	second := evidencePost(admin, path, "manual-evidence-second", body)
+	if second.Code != 201 || !strings.Contains(second.Body.String(), receipt.IncidentReference) || objects.ObjectCount() != 2 {
+		t.Fatalf("second image did not reuse case incident: %d %s", second.Code, second.Body)
+	}
+	worker := retention.NewWorker(pool, objects, func() time.Time { return expiresAt.Add(time.Minute) }, nil)
+	if deleted, err := worker.RunOnce(ctx, 10); err != nil || deleted != 1 || objects.ObjectCount() != 1 {
+		t.Fatalf("first expiry deleted=%d err=%v", deleted, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT owner_did FROM safety_incident_subjects WHERE incident_id=$1`, receipt.IncidentReference).Scan(&linkedOwner); err != nil || linkedOwner != owner {
+		t.Fatalf("retained evidence lost its owner link: err=%v", err)
+	}
+}

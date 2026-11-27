@@ -2,6 +2,12 @@
 	import { clearFieldError } from './field-validation';
 	import { tick } from 'svelte';
 	import Icon from './features/shell/Icon.svelte';
+	import {
+		matchingSelectOptions,
+		selectedOptionLabel,
+		selectOptionMatches,
+		type SelectOption
+	} from './select-options';
 	let {
 		label,
 		helperText,
@@ -10,6 +16,7 @@
 		disabled = false,
 		required = false,
 		clearable = true,
+		alwaysSearchable = false,
 		placeholder = '',
 		showRequired = required,
 		onchange
@@ -17,10 +24,11 @@
 		label: string;
 		helperText?: string;
 		value?: string;
-		options: { id: string; label: string; description?: string }[];
+		options: SelectOption[];
 		disabled?: boolean;
 		required?: boolean;
 		clearable?: boolean;
+		alwaysSearchable?: boolean;
 		placeholder?: string;
 		showRequired?: boolean;
 		onchange: (value: string) => void;
@@ -30,20 +38,25 @@
 	let open = $state(false),
 		query = $state(''),
 		highlighted = $state(0);
-	const searchable = $derived(options.length > 5);
+	const searchable = $derived(alwaysSearchable || options.length > 5);
 	const choices = $derived(
-		options.filter(
-			(option) =>
-				!searchable ||
-				[option.label, option.description || '']
-					.join(' ')
-					.toLocaleLowerCase()
-					.includes(query.trim().toLocaleLowerCase())
-		)
+		searchable ? matchingSelectOptions(options, query) : options
+	);
+	const parentIds = $derived(new Set(choices.map(({ parentId }) => parentId)));
+	const hasHierarchy = $derived(options.some(({ parentId }) => parentId));
+	const selectedOption = $derived(
+		options.find((option) => option.id === value)
 	);
 	const selected = $derived(
-		options.find((option) => option.id === value)?.label || value
+		selectedOption ? selectedOptionLabel(selectedOption) : value
 	);
+	function search(value: string) {
+		query = value;
+		highlighted = Math.max(
+			0,
+			choices.findIndex((option) => selectOptionMatches(option, query))
+		);
+	}
 	function close() {
 		open = false;
 		query = '';
@@ -166,16 +179,13 @@
 			value={open && searchable ? query : selected}
 			placeholder={placeholder || (open && selected) || `Select ${label}`}
 			onclick={() => void show()}
+			ontransitionend={position}
 			onkeydown={key}
 			oninput={(event) => {
-				query = event.currentTarget.value;
-				highlighted = 0;
+				const entered = event.currentTarget.value;
 				if (!open) {
-					const entered = query;
-					void show().then(() => {
-						query = entered;
-					});
-				}
+					void show().then(() => search(entered));
+				} else search(entered);
 			}}
 		/>
 		<div class="single-adornments">
@@ -199,6 +209,8 @@
 		class="single-choices"
 	>
 		{#if open}{#each choices as option, index (option.id)}
+				{@const contextId = uid + '-context-' + index}
+				{@const descriptionId = uid + '-description-' + index}
 				<button
 					type="button"
 					role="option"
@@ -207,10 +219,22 @@
 					tabindex="-1"
 					aria-selected={option.id === value}
 					aria-label={option.label}
+					aria-describedby={[
+						option.selectionLabel && contextId,
+						option.description && descriptionId
+					]
+						.filter(Boolean)
+						.join(' ') || undefined}
 					class:highlighted={highlighted === index}
+					class:select-option-top-level={hasHierarchy && !option.parentId}
+					class:select-option-parent={parentIds.has(option.id)}
+					class:select-option-child={Boolean(option.parentId)}
 					onpointerdown={(event) => event.preventDefault()}
 					onclick={() => choose(option.id)}
-					>{option.label}{#if option.description}<small
+					>{option.label}{#if option.selectionLabel}<span id={contextId} hidden
+							>{option.selectionLabel}</span
+						>{/if}{#if option.description}<small
+							id={descriptionId}
 							class="option-description">{option.description}</small
 						>{/if}</button
 				>
@@ -236,6 +260,7 @@
 	.option-description {
 		display: block;
 		font-size: 14px;
+		font-weight: 400;
 		line-height: 1.5;
 		color: var(--ink-2);
 	}
@@ -243,7 +268,8 @@
 	.native-single-select {
 		min-width: 0;
 		display: grid;
-		gap: 8px;
+		align-content: start;
+		gap: var(--field-label-gap);
 	}
 	label {
 		margin: 0;
@@ -258,30 +284,31 @@
 	.native-single-select .single-field input[type='text'][role='combobox'] {
 		width: 100%;
 		margin: 0;
-		min-height: 50px;
+		min-height: var(--field-min-height);
 		border-radius: 14px;
-		padding: 12px 56px 12px 16px;
+		padding: var(--field-padding-block) 52px var(--field-padding-block)
+			var(--field-padding-inline);
 		background: var(--surface);
 		transform: translate(3px, 3px);
 		transition: transform 120ms ease-out;
 	}
-	.single-field input::placeholder {
-		color: var(--ink);
-		opacity: 1;
-	}
 	.single-field input:read-only {
 		cursor: pointer;
 	}
-	.single-field input:focus {
+	.native-single-select
+		.single-field:focus-within
+		input[type='text'][role='combobox'] {
 		transform: translate(0, 0);
+	}
+	.single-field input:focus:not([aria-invalid='true']) {
 		border-color: var(--ink);
 		outline: 2px solid var(--ink);
 		outline-offset: -2px;
-		box-shadow: 3px 3px 0 var(--ink);
+		box-shadow: 3px 3px 0 var(--shadow);
 	}
 	.single-adornments {
 		position: absolute;
-		right: 15px;
+		right: calc(var(--field-padding-inline) + 4px);
 		top: 0;
 		height: calc(100% - 3px);
 		transform: translate(3px, 3px);
@@ -302,7 +329,7 @@
 	.single-adornments span {
 		display: grid;
 		place-items: center;
-		width: 28px;
+		width: 24px;
 	}
 	.single-adornments span.expanded {
 		transform: rotate(180deg);
@@ -312,6 +339,7 @@
 		display: grid;
 		place-items: center;
 		width: 40px;
+		margin-right: -8px;
 		min-height: 44px;
 		padding: 0;
 		border: 0;
@@ -345,11 +373,14 @@
 		background: transparent;
 		box-shadow: none;
 		font-size: 16px;
-		font-weight: 400;
+		font-weight: var(--select-option-weight, 400);
 	}
 	.single-choices button.highlighted {
 		background: color-mix(in srgb, var(--primary-soft) 42%, var(--surface));
 		color: var(--primary);
+	}
+	.single-choices button.select-option-child {
+		padding-inline-start: 42px;
 	}
 	.single-choices button:hover {
 		background: color-mix(in srgb, var(--primary) 8%, var(--surface));

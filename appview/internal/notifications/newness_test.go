@@ -20,6 +20,7 @@ func TestNotificationNewnessRevisionTracksGenuineActivations(t *testing.T) {
 	for _, path := range []string{
 		"000021_appview_notifications.up.sql",
 		"000022_notification_newness.up.sql",
+		"000131_push_subscription_activation.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
@@ -151,11 +152,7 @@ func TestNotificationPeopleIFollowReadsLogicalFollowAggregate(t *testing.T) {
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
 	ctx := context.Background()
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+	if err := testdb.ApplyMigrations(ctx, pool, "000021_appview_notifications.up.sql", "000131_push_subscription_activation.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

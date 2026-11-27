@@ -10,7 +10,7 @@ const account = {
 };
 test.beforeEach(async ({ page, context }) => {
 	await fetch(fixture + '/__test/reset');
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await context.addCookies([
@@ -31,7 +31,7 @@ test.beforeEach(async ({ page, context }) => {
 	]);
 });
 for (const failed of [false, true, 'timeout'] as const) {
-	test(`MOV uploads through Bunny and ${failed === 'timeout' ? 'explains the PDS upload timeout and keeps the draft' : failed ? 'keeps the draft on processing failure' : 'publishes the processed MP4 proof'}`, async ({
+	test(`MOV uploads through Bunny and ${failed === 'timeout' ? 'explains the PDS upload timeout and keeps the draft' : failed ? 'keeps the draft on processing failure' : 'publishes the processed MP4 proof with a custom thumbnail'}`, async ({
 		page
 	}) => {
 		if (failed)
@@ -76,7 +76,21 @@ for (const failed of [false, true, 'timeout'] as const) {
 				});
 			}
 		});
-		await page.goto('/compose');
+		if (failed) await page.goto('/compose');
+		else {
+			await page.route('**/api/appview/v1/blobs/videos/limits', (route) =>
+				route.fulfill({ json: { canUpload: true, customThumbnail: true } })
+			);
+			await page.goto('/feed');
+			await page
+				.getByRole('button', { name: 'Create post', exact: true })
+				.filter({ visible: true })
+				.click();
+			await page
+				.getByRole('link', { name: /^Regular post/ })
+				.filter({ visible: true })
+				.click();
+		}
 		await page
 			.getByRole('textbox', {
 				name: 'What would you like to share?',
@@ -107,6 +121,22 @@ for (const failed of [false, true, 'timeout'] as const) {
 				'Preview unavailable in this browser. You can still upload this video.'
 			)
 		).toBeVisible();
+		if (!failed) {
+			const thumbnail = await page.evaluate(() => {
+				const canvas = document.createElement('canvas');
+				canvas.width = canvas.height = 20;
+				canvas.getContext('2d')!.fillRect(0, 0, 20, 20);
+				return canvas.toDataURL('image/png').split(',')[1];
+			});
+			await page.locator('.thumbnail-controls input[type=file]').setInputFiles({
+				name: 'thumbnail.png',
+				mimeType: 'image/png',
+				buffer: Buffer.from(thumbnail, 'base64')
+			});
+			await expect(
+				page.getByRole('img', { name: 'Video thumbnail preview' })
+			).toBeVisible();
+		}
 		await page
 			.getByLabel('Video description', { exact: true })
 			.fill('A knitting demonstration');
@@ -116,7 +146,25 @@ for (const failed of [false, true, 'timeout'] as const) {
 		await expect(
 			page.getByRole('button', { name: 'Inspect selected video', exact: true })
 		).toBeVisible();
+		if (!failed)
+			await page.evaluate(() => {
+				const back = history.back.bind(history);
+				history.back = () => {
+					document.body.dataset.returnPending = 'true';
+					addEventListener('resume-composer-return', back, { once: true });
+				};
+			});
+		const authorization = page.waitForRequest(
+			(request) =>
+				request.url().endsWith('/v1/blobs/videos/authorization') &&
+				request.method() === 'POST'
+		);
 		await page.getByRole('button', { name: 'Post', exact: true }).click();
+		if (!failed)
+			expect((await authorization).headers()['content-type']).toBe(
+				'image/jpeg'
+			);
+		else await authorization;
 		if (failed) {
 			await expect(
 				page.getByText(
@@ -131,7 +179,17 @@ for (const failed of [false, true, 'timeout'] as const) {
 					exact: true
 				})
 			).toHaveValue('Bunny MOV browser publication');
-		} else await expect(page).toHaveURL(/\/feed$/);
+		} else {
+			await expect(page.locator('body')).toHaveAttribute(
+				'data-return-pending',
+				'true'
+			);
+			await expect(page.locator('dialog.publishing-overlay')).toBeHidden();
+			await page.evaluate(() =>
+				dispatchEvent(new Event('resume-composer-return'))
+			);
+			await expect(page).toHaveURL(/\/feed$/);
+		}
 		expect(Buffer.concat(uploaded)).toEqual(source);
 		const calls = await (await fetch(fixture + '/__test/requests')).json();
 		const status = calls.find(
@@ -346,6 +404,43 @@ test('PDS caption tracks retain the standard player', async ({ page }) => {
 	await expect(page.locator('.video-player video')).toHaveCount(1);
 });
 
+test('a custom cover stays visible until the Bunny player is ready', async ({
+	page
+}) => {
+	const asset = 'https://test.b-cdn.net/aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+	const thumbnail = asset + '/thumbnail_9021d138.jpg';
+	await hostedVideo(page, { playlist: asset + '/playlist.m3u8', thumbnail });
+	let releasePlayer!: () => void;
+	const playerHeld = new Promise<void>((resolve) => (releasePlayer = resolve));
+	await page.route('https://player.mediadelivery.net/**', async (route) => {
+		await playerHeld;
+		await route.fulfill({ contentType: 'text/html', body: playerFixture });
+	});
+	await page.route(thumbnail, (route) =>
+		route.fulfill({
+			contentType: 'image/svg+xml',
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="blue"/></svg>'
+		})
+	);
+	const coverResponse = page.waitForResponse(thumbnail);
+	await page.goto('/feed', { waitUntil: 'domcontentloaded' });
+	try {
+		await expect(page.locator('.bunny-video img')).toHaveAttribute(
+			'src',
+			thumbnail
+		);
+		expect((await coverResponse).ok()).toBe(true);
+	} finally {
+		releasePlayer();
+	}
+	const frame = page.locator('.bunny-video iframe');
+	await expect(
+		frame.contentFrame().getByRole('button', { name: 'Play video' })
+	).toBeVisible();
+	await expect(page.locator('.bunny-video img')).toHaveCount(0);
+	await expect(page.locator('.video-player video')).toHaveCount(0);
+});
+
 test('real development Bunny player initializes and plays the synthetic fixture', async ({
 	page
 }) => {
@@ -404,7 +499,10 @@ test('real development Bunny player initializes and plays the synthetic fixture'
 test('reported Bunny errors switch to the standard player', async ({
 	page
 }) => {
-	await hostedVideo(page);
+	const asset = 'https://test.b-cdn.net/aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+	const thumbnail = asset + '/thumbnail_custom.jpg';
+	await hostedVideo(page, { playlist: asset + '/playlist.m3u8', thumbnail });
+	await page.route(thumbnail, (route) => route.fulfill({ status: 404 }));
 	await page.route('https://player.mediadelivery.net/**', (route) =>
 		route.fulfill({
 			contentType: 'text/html',
@@ -415,7 +513,10 @@ test('reported Bunny errors switch to the standard player', async ({
 		})
 	);
 	await page.goto('/feed');
-	await expect(page.locator('.video-player video')).toHaveCount(1);
+	await expect(page.locator('.video-player video')).toHaveAttribute(
+		'poster',
+		thumbnail
+	);
 	await expect(page.locator('.bunny-video iframe')).toHaveCount(0);
 });
 
@@ -643,6 +744,9 @@ for (const width of [1280, 820]) {
 test('media drop zone validates selections and opens photo and video details', async ({
 	page
 }) => {
+	await page.route('**/api/appview/v1/blobs/videos/limits', (route) =>
+		route.fulfill({ json: { canUpload: true, customThumbnail: true } })
+	);
 	await page.goto('/compose');
 	const png = await page.evaluate(() => {
 		const canvas = document.createElement('canvas');
@@ -699,7 +803,8 @@ test('media drop zone validates selections and opens photo and video details', a
 	await expect(page.locator('.photo-row')).toHaveCount(2);
 	await drop([photo]);
 	await expect(page.locator('.photo-row')).toHaveCount(3);
-	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
+	const photoDetails = page.getByRole('region', { name: 'Photo details' });
+	await photoDetails.getByRole('button', { name: 'Done', exact: true }).click();
 	await page.getByRole('button', { name: 'Clear photos', exact: true }).click();
 	await drop([videoData]);
 	await expect(
@@ -708,4 +813,128 @@ test('media drop zone validates selections and opens photo and video details', a
 	await expect(
 		page.getByLabel('Local video preview', { exact: true })
 	).toHaveAttribute('src', /^blob:/);
+	const details = page.getByRole('region', { name: 'Video details' });
+	const frames = details.getByRole('group', {
+		name: 'Automatic thumbnail frames'
+	});
+	const choices = frames.getByRole('button');
+	await expect(choices).toHaveText(['', '', '', '']);
+	await expect(choices.nth(2)).toHaveAttribute('aria-pressed', 'true');
+	for (const choice of await choices.all()) {
+		const image = choice.locator('img');
+		await expect(image).toHaveAttribute('src', /^blob:/);
+		await expect
+			.poll(() =>
+				image.evaluate((node) => (node as HTMLImageElement).naturalWidth)
+			)
+			.toBeGreaterThan(0);
+	}
+	const chosen = frames.getByRole('button', {
+		name: 'Frame at 75%',
+		exact: true
+	});
+	await chosen.click();
+	await expect(chosen).toHaveAttribute('aria-pressed', 'true');
+	await expect(choices.nth(2)).toHaveAttribute('aria-pressed', 'false');
+	expect(
+		await chosen.evaluate(
+			(button) => getComputedStyle(button, '::after').borderTopWidth
+		)
+	).toBe('4px');
+	const automaticSource = await chosen.locator('img').getAttribute('src');
+	const addThumbnail = details.getByRole('button', {
+		name: 'Add custom thumbnail'
+	});
+	const addAction = await addThumbnail.boundingBox();
+	const thumbnailSection = await details
+		.locator('.thumbnail-controls')
+		.boundingBox();
+	const frameGrid = (await frames.boundingBox())!;
+	expect(frameGrid.width).toBeLessThan(thumbnailSection!.width);
+	expect(frameGrid.x + frameGrid.width / 2).toBeCloseTo(
+		thumbnailSection!.x + thumbnailSection!.width / 2
+	);
+	expect(addAction!.width).toBeCloseTo(thumbnailSection!.width);
+	await details.locator('input[type=file]').setInputFiles({
+		name: photo.name,
+		mimeType: photo.type,
+		buffer: Buffer.from(photo.data, 'base64')
+	});
+	await expect(
+		details.getByRole('img', { name: 'Video thumbnail preview' })
+	).toBeVisible();
+	const removeThumbnail = details
+		.locator('.thumbnail-controls')
+		.getByRole('button');
+	await expect(removeThumbnail).toHaveCount(1);
+	await expect(removeThumbnail).toHaveText('Remove custom thumbnail');
+	await expect(removeThumbnail).toHaveCSS('border-top-width', '0px');
+	await removeThumbnail.click();
+	await expect(chosen.locator('img')).toHaveAttribute('src', automaticSource!);
+	await expect(chosen).toHaveAttribute('aria-pressed', 'true');
+	const description = details.getByRole('textbox', {
+		name: 'Video description'
+	});
+	const done = details.getByRole('button', { name: 'Done', exact: true });
+	const preview = await details.locator('video').elementHandle();
+	await preview.evaluate(async (video: HTMLVideoElement) => {
+		video.muted = true;
+		await video.play();
+	});
+	await description.fill('A video of knitting.');
+	await page.evaluate(() => {
+		const viewport = window.visualViewport!;
+		Object.defineProperty(viewport, 'height', {
+			configurable: true,
+			value: 480
+		});
+		viewport.dispatchEvent(new Event('resize'));
+	});
+	await expect(done).toHaveClass(/compact/);
+	const action = await done.boundingBox();
+	const scroll = await details.locator('.video-details-scroll').boundingBox();
+	expect(action!.y + action!.height).toBeLessThanOrEqual(480);
+	expect(scroll!.y + scroll!.height).toBeGreaterThan(
+		action!.y + action!.height
+	);
+	await done.click();
+	await expect(description).not.toBeFocused();
+	await expect(details).toBeVisible();
+	await page.evaluate(() => {
+		if (document.activeElement instanceof HTMLElement)
+			document.activeElement.blur();
+		Object.defineProperty(navigator, 'virtualKeyboard', {
+			configurable: true,
+			value: {
+				hide() {
+					if (document.activeElement instanceof HTMLElement)
+						document.body.dataset.keyboardHide =
+							document.activeElement.inputMode;
+				}
+			}
+		});
+	});
+	await done.click();
+	await expect(done).toBeFocused();
+	await expect(page.locator('body')).toHaveAttribute(
+		'data-keyboard-hide',
+		'none'
+	);
+	await expect(details).toBeVisible();
+	await page.evaluate(() => {
+		const viewport = window.visualViewport!;
+		Reflect.deleteProperty(viewport, 'height');
+		viewport.dispatchEvent(new Event('resize'));
+	});
+	await expect(done).not.toHaveClass(/compact/);
+	expect(
+		await preview.evaluate(
+			(video: HTMLVideoElement) => video.isConnected && !video.paused
+		)
+	).toBe(true);
+	await done.click();
+	await expect(details).not.toBeVisible();
+	await page.getByRole('button', { name: 'Inspect selected video' }).click();
+	await expect(description).toHaveValue('A video of knitting.');
+	await expect(chosen).toHaveAttribute('aria-pressed', 'true');
 });

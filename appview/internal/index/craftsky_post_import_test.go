@@ -104,13 +104,7 @@ func TestCraftskyPostImportProvenanceFollowsAuthoritativeReplacement(t *testing.
 // like/repost/quote/reply activity retains the ordinary notification path.
 func TestCraftskyPostImportSuppressesOnlySourceNotifications(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatalf("apply notification migration: %v", err)
-	}
+	applyNotificationMigration(t, pool)
 
 	for _, did := range []string{"did:plc:author", "did:plc:recipient", "did:plc:actor"} {
 		seedCraftskyMember(t, pool, did)

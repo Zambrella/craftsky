@@ -1,0 +1,151 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.embroidery.defs",
+  "description": "Open vocabulary for project embroidery methods and styles.",
+  "defs": {
+    "hand": {
+      "type": "token",
+      "description": "Embroidery worked by hand."
+    },
+    "machine": {
+      "type": "token",
+      "description": "Embroidery worked on a machine."
+    },
+    "bargello": {
+      "type": "token",
+      "description": "Bargello hand embroidery."
+    },
+    "blackwork": {
+      "type": "token",
+      "description": "Blackwork hand embroidery."
+    },
+    "crewelwork": {
+      "type": "token",
+      "description": "Crewelwork hand embroidery."
+    },
+    "crossStitch": {
+      "type": "token",
+      "description": "Embroidery worked in cross-stitch."
+    },
+    "needlepoint": {
+      "type": "token",
+      "description": "Needlepoint worked on canvas."
+    },
+    "goldwork": {
+      "type": "token",
+      "description": "Goldwork hand embroidery."
+    },
+    "sashiko": {
+      "type": "token",
+      "description": "Sashiko hand embroidery."
+    },
+    "silkShading": {
+      "type": "token",
+      "description": "Silk shading worked by hand."
+    },
+    "stumpwork": {
+      "type": "token",
+      "description": "Stumpwork hand embroidery."
+    },
+    "whitework": {
+      "type": "token",
+      "description": "Whitework hand embroidery."
+    },
+    "threeDimensionalPuff": {
+      "type": "token",
+      "description": "3D puff machine embroidery."
+    },
+    "computerised": {
+      "type": "token",
+      "description": "Computerised machine embroidery."
+    },
+    "freeMotion": {
+      "type": "token",
+      "description": "Free-motion machine embroidery."
+    },
+    "trapunto": {
+      "type": "token",
+      "description": "Trapunto worked by machine."
+    },
+    "hoopedFramedPicture": {
+      "type": "token",
+      "description": "Hooped or framed picture."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "Wall hanging or banner."
+    },
+    "sampler": {
+      "type": "token",
+      "description": "Sampler."
+    },
+    "ornament": {
+      "type": "token",
+      "description": "Ornament."
+    },
+    "freestandingPiece": {
+      "type": "token",
+      "description": "Freestanding piece."
+    },
+    "cushion": {
+      "type": "token",
+      "description": "Cushion or cover."
+    },
+    "tableLinen": {
+      "type": "token",
+      "description": "Table linen."
+    },
+    "towel": {
+      "type": "token",
+      "description": "Towel or tea towel."
+    },
+    "pincushion": {
+      "type": "token",
+      "description": "Pincushion."
+    },
+    "top": {
+      "type": "token",
+      "description": "Top or shirt."
+    },
+    "coatJacket": {
+      "type": "token",
+      "description": "Jacket or coat."
+    },
+    "dressSkirt": {
+      "type": "token",
+      "description": "Dress or skirt."
+    },
+    "patchBadge": {
+      "type": "token",
+      "description": "Patch or badge."
+    },
+    "bagPouch": {
+      "type": "token",
+      "description": "Bag or pouch."
+    },
+    "jewelry": {
+      "type": "token",
+      "description": "Brooch or jewellery."
+    },
+    "bookmark": {
+      "type": "token",
+      "description": "Bookmark."
+    },
+    "needleCase": {
+      "type": "token",
+      "description": "Needle case or scissor keep."
+    },
+    "softToy": {
+      "type": "token",
+      "description": "Soft toy."
+    },
+    "puppet": {
+      "type": "token",
+      "description": "Puppet."
+    },
+    "repair": {
+      "type": "token",
+      "description": "Repair or mending."
+    }
+  }
+}

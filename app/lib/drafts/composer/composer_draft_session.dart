@@ -9,6 +9,7 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/composer/composer_ownership.dart';
 import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:crypto/crypto.dart';
 
 /// Shared draft revision, recovery snapshot and media persistence rules.
 /// Widgets supply account-scoped dependencies and retain presentation.
@@ -16,6 +17,7 @@ final class ComposerDraftSession {
   new(LocalPostDraft? draft) : _origin = DraftSubmissionOrigin(draft);
 
   final DraftSubmissionOrigin _origin;
+  final _thumbnailDigests = Expando<String>();
 
   LocalPostDraft? get draft => _origin.draft;
 
@@ -77,7 +79,15 @@ final class ComposerDraftSession {
     final stored = draft?.video;
     if (stored == null) return selection != null;
     if (selection == null || !useStoredVideo) return true;
-    return selection.altText != stored.altText;
+    if (selection.altText != stored.altText ||
+        selection.thumbnailFrame != stored.thumbnailFrame) {
+      return true;
+    }
+    final thumbnail = selection.thumbnail;
+    final thumbnailDigest = thumbnail == null
+        ? null
+        : _thumbnailDigests[thumbnail] ??= sha256.convert(thumbnail).toString();
+    return thumbnailDigest != stored.thumbnailSha256;
   }
 
   DraftVideoWrite? videoWrite({
@@ -91,6 +101,8 @@ final class ComposerDraftSession {
         storageRevision: stored.storageRevision,
         expectedSourceSha256: stored.sourceSha256,
         expectedPosterSha256: stored.posterSha256,
+        thumbnail: selection.thumbnail,
+        thumbnailFrame: selection.thumbnailFrame,
         altText: selection.altText,
       );
     }
@@ -111,6 +123,8 @@ final class ComposerDraftSession {
       altText: selection.altText,
       posterMimeType: 'image/jpeg',
       posterBytes: poster,
+      thumbnail: selection.thumbnail,
+      thumbnailFrame: selection.thumbnailFrame,
     );
   }
 
@@ -134,6 +148,8 @@ final class ComposerDraftSession {
       headerBytes: Uint8List(0),
       openRead: () => videoRepository.openVideoSource(seed.draft.id),
       posterBytes: poster,
+      thumbnail: await videoRepository.readVideoThumbnail(seed.draft.id),
+      thumbnailFrame: descriptor.thumbnailFrame,
       altText: descriptor.altText,
     );
   }

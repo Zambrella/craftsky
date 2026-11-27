@@ -1,0 +1,231 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.project.weaving",
+  "description": "Weaving-specific details for a project post.",
+  "defs": {
+    "details": {
+      "type": "object",
+      "description": "Type of loom used for a weaving project.",
+      "properties": {
+        "projectType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional category for the item made. Choose Other when no listed category fits.",
+          "knownValues": [
+            "social.craftsky.project.defs#garment",
+            "social.craftsky.project.defs#accessory",
+            "social.craftsky.project.defs#homeGoods",
+            "social.craftsky.project.defs#artDecoration",
+            "social.craftsky.project.defs#fabricComponents",
+            "social.craftsky.project.defs#other"
+          ]
+        },
+        "projectSubtype": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Optional item name within the selected project type. Store a known subtype identifier or a short author-supplied name. Custom names may be used with Other or any listed type.",
+          "knownValues": [
+            "social.craftsky.project.weaving#top",
+            "social.craftsky.project.weaving#coatJacket",
+            "social.craftsky.project.weaving#bag",
+            "social.craftsky.project.weaving#scarf",
+            "social.craftsky.project.weaving#shawlWrap",
+            "social.craftsky.project.weaving#towel",
+            "social.craftsky.project.weaving#tableLinen",
+            "social.craftsky.project.weaving#rug",
+            "social.craftsky.project.weaving#blanket",
+            "social.craftsky.project.weaving#cushionCover",
+            "social.craftsky.project.weaving#wallHanging",
+            "social.craftsky.project.weaving#fabricYardage",
+            "social.craftsky.project.weaving#bandTrim",
+            "social.craftsky.project.weaving#swatchSampler"
+          ]
+        },
+        "loomType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Type of loom used.",
+          "knownValues": [
+            "social.craftsky.project.weaving#rigidHeddle",
+            "social.craftsky.project.weaving#shaftLoom",
+            "social.craftsky.project.weaving#frameLoom"
+          ]
+        },
+        "structure": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Deprecated: weave structure used in the project. Use the project description or hashtags for new posts.",
+          "knownValues": [
+            "social.craftsky.project.weaving#plainWeave",
+            "social.craftsky.project.weaving#twill",
+            "social.craftsky.project.weaving#doubleweave"
+          ]
+        },
+        "materials": {
+          "type": "array",
+          "maxLength": 10,
+          "description": "Deprecated: materials recorded with a specific warp or weft role. Use the project description for new posts.",
+          "items": {
+            "type": "ref",
+            "ref": "#material"
+          }
+        },
+        "sett": {
+          "type": "ref",
+          "ref": "#sett",
+          "description": "Deprecated: density of warp ends with a stated unit. Use the project description for new posts."
+        },
+        "finishedSize": {
+          "type": "string",
+          "maxLength": 500,
+          "maxGraphemes": 100,
+          "description": "Deprecated: finished dimensions, for example 30 cm × 150 cm. Use the project description for new posts."
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "description": "A material paired with its role in the weave.",
+      "required": [
+        "role",
+        "text"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "Whether this material was used for warp or weft.",
+          "knownValues": [
+            "social.craftsky.project.weaving#warp",
+            "social.craftsky.project.weaving#weft"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 100,
+          "description": "Description of the material, for example linen yarn."
+        }
+      }
+    },
+    "sett": {
+      "type": "object",
+      "description": "Warp density as a decimal amount with an explicit unit.",
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "properties": {
+        "amount": {
+          "type": "string",
+          "maxLength": 20,
+          "maxGraphemes": 20,
+          "description": "Number of warp ends per stated unit as a decimal string, for example 12.5."
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 64,
+          "maxGraphemes": 64,
+          "description": "Unit used to record the warp density.",
+          "knownValues": [
+            "ends-per-inch",
+            "ends-per-centimetre"
+          ]
+        }
+      }
+    },
+    "rigidHeddle": {
+      "type": "token",
+      "description": "Rigid-heddle loom."
+    },
+    "shaftLoom": {
+      "type": "token",
+      "description": "Multi-shaft loom, such as a table or floor loom."
+    },
+    "frameLoom": {
+      "type": "token",
+      "description": "Frame loom."
+    },
+    "plainWeave": {
+      "type": "token",
+      "description": "Plain weave."
+    },
+    "twill": {
+      "type": "token",
+      "description": "Twill."
+    },
+    "doubleweave": {
+      "type": "token",
+      "description": "Doubleweave."
+    },
+    "warp": {
+      "type": "token",
+      "description": "Material used lengthwise as warp."
+    },
+    "weft": {
+      "type": "token",
+      "description": "Material woven across the warp."
+    },
+    "top": {
+      "type": "token",
+      "description": "Top."
+    },
+    "coatJacket": {
+      "type": "token",
+      "description": "Jacket or coat."
+    },
+    "bag": {
+      "type": "token",
+      "description": "Bag."
+    },
+    "scarf": {
+      "type": "token",
+      "description": "Scarf."
+    },
+    "shawlWrap": {
+      "type": "token",
+      "description": "Shawl or wrap."
+    },
+    "towel": {
+      "type": "token",
+      "description": "Towel."
+    },
+    "tableLinen": {
+      "type": "token",
+      "description": "Table linen."
+    },
+    "rug": {
+      "type": "token",
+      "description": "Rug."
+    },
+    "blanket": {
+      "type": "token",
+      "description": "Blanket or throw."
+    },
+    "cushionCover": {
+      "type": "token",
+      "description": "Cushion cover."
+    },
+    "wallHanging": {
+      "type": "token",
+      "description": "Wall hanging."
+    },
+    "fabricYardage": {
+      "type": "token",
+      "description": "Fabric yardage."
+    },
+    "bandTrim": {
+      "type": "token",
+      "description": "Band or trim."
+    },
+    "swatchSampler": {
+      "type": "token",
+      "description": "Swatch or sampler."
+    }
+  }
+}

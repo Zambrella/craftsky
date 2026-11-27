@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
@@ -70,30 +71,12 @@ class DesktopDiscoverySidebar extends ConsumerWidget {
                             child: Text(l10n.discoveryChooseCrafts),
                           ),
                         for (final option in options)
-                          TextButton(
-                            key: ValueKey(
-                              'discovery-craft-${option.value.split('#').last}',
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: spacing.sp4,
-                                vertical: spacing.sp3,
-                              ),
-                            ),
-                            onPressed: () => FeedRoute(
-                              craft: option.value.split('#').last,
-                            ).go(context),
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: CraftIconLabel(
-                                craft: option.value,
-                                label: craftLabel(
-                                  Craft.fromId(option.value.split('#').last)!,
-                                  l10n,
-                                ),
-                                flexibleLabel: true,
-                              ),
-                            ),
+                          _craftShortcut(
+                            context,
+                            option.value,
+                            option.label,
+                            spacing,
+                            l10n,
                           ),
                       ],
                     ),
@@ -138,6 +121,35 @@ class DesktopDiscoverySidebar extends ConsumerWidget {
                   const SizedBox.shrink(),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _craftShortcut(
+    BuildContext context,
+    String value,
+    String label,
+    SpacingTheme spacing,
+    AppLocalizations l10n,
+  ) {
+    final craftId = ProjectOptionCatalogs.profileIdForCraftToken(value);
+    final craft = Craft.fromId(craftId);
+    return TextButton(
+      key: ValueKey('discovery-craft-$craftId'),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.symmetric(
+          horizontal: spacing.sp4,
+          vertical: spacing.sp3,
+        ),
+      ),
+      onPressed: () => FeedRoute(craft: craftId).go(context),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: CraftIconLabel(
+          craft: value,
+          label: craft == null ? label : craftLabel(craft, l10n),
+          flexibleLabel: true,
         ),
       ),
     );

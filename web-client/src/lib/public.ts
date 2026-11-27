@@ -1,4 +1,5 @@
-import type { Facet } from './api/types';
+import type { Facet, ProjectPattern } from './api/types';
+import { craftChoice } from './features/composer/project-options';
 export const origin = 'https://app.craftsky.social';
 export type Author = {
 	did: string;
@@ -32,17 +33,8 @@ export type Project = {
 		status?: string;
 		duration?: string;
 		additionalCrafts?: { craftType: string }[];
-		pattern?: {
-			name?: string;
-			url?: string;
-			designer?: string;
-			publisher?: string;
-			difficulty?: string;
-			selfDrafted?: boolean;
-			nameFacets?: Facet[];
-			designerFacets?: Facet[];
-			publisherFacets?: Facet[];
-		};
+		pattern?: ProjectPattern;
+		patterns?: ProjectPattern[];
 		materials?: { text: string; facets?: Facet[] }[];
 		colors?: string[];
 		designTags?: string[];
@@ -88,6 +80,7 @@ export function label(value: string): string {
 		selfDrafted: 'Self drafted'
 	};
 	return (
+		craftChoice(value)?.label ||
 		names[token] ||
 		token
 			.replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -109,19 +102,6 @@ export function postTitle(post: Post): string {
 		post.project?.common.title ||
 		`${post.project ? 'Project' : 'Post'} by ${authorName(post.author)}`
 	);
-}
-
-/** Known structured gauge fields only; unknown union fields remain unrendered. */
-export function gaugeText(value: unknown): string | undefined {
-	if (!value || typeof value !== 'object') return;
-	const gauge = value as Record<string, unknown>;
-	if (
-		typeof gauge.stitches !== 'number' ||
-		typeof gauge.measurement !== 'number' ||
-		!['cm', 'in'].includes(String(gauge.unit))
-	)
-		return;
-	return `${gauge.stitches} stitches${typeof gauge.rows === 'number' ? ` × ${gauge.rows} rows` : ''} over ${gauge.measurement} ${gauge.unit}`;
 }
 
 const compactDateFormatter = new Intl.DateTimeFormat('en-GB', {

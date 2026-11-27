@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/projectcatalog"
 )
 
 func TestParseSearchSuggestionsRequest(t *testing.T) {
@@ -304,14 +307,38 @@ func TestParseExactHashtagPostsRequestSortLimitAndCursor(t *testing.T) {
 	}
 }
 
+func expectedDiscoveryCrafts() []string {
+	crafts := []string{
+		"social.craftsky.feed.defs#knitting",
+		"social.craftsky.feed.defs#crochet",
+		"social.craftsky.feed.defs#sewing",
+		"social.craftsky.feed.defs#embroidery",
+		"social.craftsky.feed.defs#quilting",
+	}
+	if projectcatalog.Current.ReleasePhase >= 2 {
+		crafts = append(crafts,
+			"social.craftsky.feed.defs#spinning",
+			"social.craftsky.feed.defs#dyeing",
+			"social.craftsky.feed.defs#punchNeedle",
+			"social.craftsky.feed.defs#macrame",
+			"social.craftsky.feed.defs#weaving",
+			"social.craftsky.feed.defs#felting",
+		)
+	}
+	return crafts
+}
+
 func TestCanonicalCraftTypes(t *testing.T) {
 	const (
-		knitting   = "social.craftsky.feed.defs#knitting"
-		crochet    = "social.craftsky.feed.defs#crochet"
-		sewing     = "social.craftsky.feed.defs#sewing"
-		embroidery = "social.craftsky.feed.defs#embroidery"
-		quilting   = "social.craftsky.feed.defs#quilting"
+		knitting    = "social.craftsky.feed.defs#knitting"
+		crochet     = "social.craftsky.feed.defs#crochet"
+		sewing      = "social.craftsky.feed.defs#sewing"
+		embroidery  = "social.craftsky.feed.defs#embroidery"
+		quilting    = "social.craftsky.feed.defs#quilting"
+		spinning    = "social.craftsky.feed.defs#spinning"
+		punchNeedle = "social.craftsky.feed.defs#punchNeedle"
 	)
+	wantCrafts := expectedDiscoveryCrafts()
 
 	for _, tc := range []struct {
 		raw  string
@@ -324,9 +351,18 @@ func TestCanonicalCraftTypes(t *testing.T) {
 		{raw: "sewing", want: sewing},
 		{raw: "embroidery", want: embroidery},
 		{raw: "quilting", want: quilting},
+		{raw: "punch-needle", want: punchNeedle},
+		{raw: punchNeedle, want: punchNeedle},
+		{raw: "spinning", want: spinning},
 	} {
 		t.Run(tc.raw, func(t *testing.T) {
 			got, err := api.CanonicalCraftType(tc.raw)
+			if !slices.Contains(wantCrafts, tc.want) {
+				if err != api.ErrSearchValidation {
+					t.Fatalf("CanonicalCraftType(%q)=%q, err=%v, want unavailable", tc.raw, got, err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("CanonicalCraftType(%q): %v", tc.raw, err)
 			}
@@ -348,11 +384,11 @@ func TestCanonicalCraftTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CanonicalCraftTypes defaults: %v", err)
 	}
-	if want := []string{knitting, crochet, sewing, embroidery, quilting}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("CanonicalCraftTypes defaults = %#v, want %#v", got, want)
+	if !slices.Equal(got, wantCrafts) {
+		t.Fatalf("CanonicalCraftTypes defaults = %#v, want %#v", got, wantCrafts)
 	}
 
-	for _, raw := range []string{"", "spinning", "social.craftsky.feed.defs#spinning"} {
+	for _, raw := range []string{"", "pottery", "social.craftsky.feed.defs#pottery", "needle-felting"} {
 		t.Run("invalid "+raw, func(t *testing.T) {
 			if _, err := api.CanonicalCraftType(raw); err == nil {
 				t.Fatalf("CanonicalCraftType(%q) error = nil, want validation", raw)
@@ -363,11 +399,9 @@ func TestCanonicalCraftTypes(t *testing.T) {
 
 func TestCraftTypeRequestParsersUseCanonicalFullTokens(t *testing.T) {
 	const (
-		knitting   = "social.craftsky.feed.defs#knitting"
-		crochet    = "social.craftsky.feed.defs#crochet"
-		sewing     = "social.craftsky.feed.defs#sewing"
-		embroidery = "social.craftsky.feed.defs#embroidery"
-		quilting   = "social.craftsky.feed.defs#quilting"
+		knitting = "social.craftsky.feed.defs#knitting"
+		crochet  = "social.craftsky.feed.defs#crochet"
+		quilting = "social.craftsky.feed.defs#quilting"
 	)
 
 	projectReq := httptest.NewRequest("GET", "/v1/projects?craftType=knitting&craftType="+knitting+"&craftType=Crochet", nil)
@@ -384,7 +418,7 @@ func TestCraftTypeRequestParsersUseCanonicalFullTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseTopHashtagsRequest defaults: %v", err)
 	}
-	if want := []string{knitting, crochet, sewing, embroidery, quilting}; !reflect.DeepEqual(topParsed.CraftTypes, want) {
+	if want := expectedDiscoveryCrafts(); !slices.Equal(topParsed.CraftTypes, want) {
 		t.Fatalf("top hashtag default craft types = %#v, want %#v", topParsed.CraftTypes, want)
 	}
 
@@ -398,8 +432,8 @@ func TestCraftTypeRequestParsersUseCanonicalFullTokens(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"/v1/projects?craftType=spinning",
-		"/v1/search/hashtags/top?craftTypes=social.craftsky.feed.defs%23spinning",
+		"/v1/projects?craftType=pottery",
+		"/v1/search/hashtags/top?craftTypes=social.craftsky.feed.defs%23pottery",
 	} {
 		t.Run("invalid "+path, func(t *testing.T) {
 			req := httptest.NewRequest("GET", path, nil)
@@ -419,7 +453,8 @@ func TestCraftTypeRequestParsersUseCanonicalFullTokens(t *testing.T) {
 func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 	const knitting = "social.craftsky.feed.defs#knitting"
 
-	browseReq := httptest.NewRequest("GET", "/v1/projects?craftType=knitting&status=Finished&projectType=Garment&projectSubtype=Socks&patternDifficulty=Intermediate&color=Blue&designTag=Cables&yarnWeight=DK&piecingTechnique=Improv&quiltingMethod=HandQuilted&selfDrafted=true&sort=popular&limit=10", nil)
+	browseReq := httptest.NewRequest("GET", "/v1/projects?craftType=knitting&status=Finished&projectType=Garment&projectSubtype=Socks&patternDifficulty=Intermediate&color=Blue&designTag=Cables&yarnWeight=DK&piecingTechnique=Improv&quiltingMethod=HandQuilted&knittingMethod=Machine&selfDrafted=true&sort=popular&limit=10&"+
+		url.Values{"projectItem": {" social.craftsky.project.defs#homeGoods ", "social.craftsky.project.sewing.defs#tote", "social.craftsky.project.defs#HOMEGOODS"}}.Encode(), nil)
 	browseParsed, err := api.ParseProjectListRequest(browseReq)
 	if err != nil {
 		t.Fatalf("ParseProjectListRequest browse filters: %v", err)
@@ -435,11 +470,13 @@ func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 		"designTag":         {"cables"},
 		"status":            {"finished"},
 		"patternDifficulty": {"intermediate"},
+		"projectItem":       {"social.craftsky.project.defs#homegoods", "social.craftsky.project.sewing.defs#tote"},
 		"projectType":       {"garment"},
 		"projectSubtype":    {"socks"},
 		"yarnWeight":        {"dk"},
 		"piecingTechnique":  {"improv"},
 		"quiltingMethod":    {"handquilted"},
+		"knittingMethod":    {"machine"},
 	} {
 		if got := browseParsed.Filters[key]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("browse %s filter = %#v, want %#v", key, got, want)
@@ -464,7 +501,10 @@ func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 		"/v1/search/projects?q=sock&sort=popular",
 		"/v1/search/projects?q=sock&craftType=knitting",
 		"/v1/search/projects?q=sock&material=alpaca",
+		"/v1/search/projects?q=sock&projectItem=socks",
 		"/v1/projects?q=sock",
+		"/v1/projects?projectItem=",
+		"/v1/projects?" + strings.Repeat("projectItem=socks&", api.ProjectFilterMaxPerFamily+1),
 		"/v1/projects?material=alpaca",
 		"/v1/projects?projectTag=gift",
 		"/v1/projects?selfDrafted=false",
@@ -484,6 +524,19 @@ func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 				t.Fatalf("%s error = nil, want validation", path)
 			}
 		})
+	}
+}
+
+func TestParseFeltingMethodFilterRespectsReleasePhase(t *testing.T) {
+	for _, path := range []string{"/v1/projects?feltingMethod=Needle", "/v1/projects?craftType=felting&feltingMethod=Needle"} {
+		parsed, err := api.ParseProjectListRequest(httptest.NewRequest("GET", path, nil))
+		if projectcatalog.Current.ReleasePhase < 2 {
+			if err != api.ErrSearchValidation {
+				t.Errorf("Phase 1 request %q err=%v, want validation error", path, err)
+			}
+		} else if err != nil || !slices.Equal(parsed.Filters["feltingMethod"], []string{"needle"}) {
+			t.Errorf("Phase 2 request %q filters=%v, err=%v", path, parsed.Filters, err)
+		}
 	}
 }
 
@@ -526,6 +579,12 @@ func TestParseProjectListRequest(t *testing.T) {
 	if got := parsed.CraftTypes; len(got) != 2 || got[0] != "social.craftsky.feed.defs#knitting" || got[1] != "social.craftsky.feed.defs#crochet" {
 		t.Fatalf("craft types = %#v", got)
 	}
+	wantCrafts := expectedDiscoveryCrafts()
+	allCrafts := "/v1/projects?" + (url.Values{"craftType": wantCrafts}).Encode()
+	parsed, err = api.ParseProjectListRequest(httptest.NewRequest("GET", allCrafts, nil))
+	if err != nil || !slices.Equal(parsed.CraftTypes, wantCrafts) {
+		t.Fatalf("all craft choices: %+v err=%v", parsed.CraftTypes, err)
+	}
 
 	for _, path := range []string{
 		"/v1/projects?q=sock",
@@ -533,7 +592,8 @@ func TestParseProjectListRequest(t *testing.T) {
 		"/v1/projects?craftType=" + strings.Repeat("a", 257),
 		"/v1/projects?sort=newest",
 		"/v1/projects?limit=101",
-		"/v1/projects?" + strings.Repeat("craftType=knitting&", 11),
+		"/v1/projects?" + strings.Repeat("craftType=knitting&", len(wantCrafts)+1),
+		"/v1/projects?" + strings.Repeat("designTag=floral&", 11),
 	} {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest("GET", path, nil)

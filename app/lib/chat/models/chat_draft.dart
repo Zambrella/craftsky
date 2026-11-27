@@ -30,7 +30,7 @@ final class ChatDraftAttempt {
   String toString() => 'ChatDraftAttempt(<redacted>)';
 }
 
-/// Device-local composition state. This reducer never dispatches network work.
+/// In-memory composition state. This reducer never dispatches network work.
 @immutable
 final class ChatDraft {
   const new _({required this.text, required this.revision, this.pending});
@@ -38,52 +38,53 @@ final class ChatDraft {
 
   /// Private local-storage representation, never an AppView request body.
   factory fromStorage(Map<String, dynamic> map) {
-    final text = map['text'];
-    final revision = map['revision'];
     final rawAttempt = map['attempt'];
-    if (text is! String ||
+    if (rawAttempt == null) return const ChatDraft.empty();
+    if (rawAttempt is! Map<String, dynamic>) {
+      throw const FormatException('Invalid local messaging attempt');
+    }
+    final id = rawAttempt['operationId'];
+    final submitted = rawAttempt['text'];
+    final revision = rawAttempt['revision'];
+    final state = rawAttempt['state'];
+    if (id is! String ||
+        submitted is! String ||
+        validateMessageText(submitted) != null ||
         revision is! int ||
         revision < 0 ||
-        (rawAttempt != null && rawAttempt is! Map<String, dynamic>)) {
-      throw const FormatException('Invalid local messaging draft');
+        !ChatDraftSendState.values.any((value) => value.name == state)) {
+      throw const FormatException('Invalid local messaging attempt');
     }
-    ChatDraftAttempt? attempt;
-    if (rawAttempt is Map<String, dynamic>) {
-      final id = rawAttempt['operationId'];
-      final submitted = rawAttempt['text'];
-      final submittedRevision = rawAttempt['revision'];
-      final state = rawAttempt['state'];
-      if (id is! String ||
-          submitted is! String ||
-          submittedRevision is! int ||
-          submittedRevision < 0 ||
-          submittedRevision > revision ||
-          !ChatDraftSendState.values.any((value) => value.name == state)) {
-        throw const FormatException('Invalid local messaging attempt');
-      }
-      attempt = ChatDraftAttempt(
+    // Older records may also contain unsent edits.
+    // Restore only the submitted message.
+    return ChatDraft._(
+      text: submitted,
+      revision: revision,
+      pending: ChatDraftAttempt(
         operationId: ChatOperationId.parse(id),
         text: submitted,
-        revision: submittedRevision,
+        revision: revision,
         state: state == 'failed'
             ? ChatDraftSendState.failed
             : ChatDraftSendState.uncertain,
-      );
-    }
-    return ChatDraft._(text: text, revision: revision, pending: attempt);
+      ),
+    );
   }
 
-  Map<String, Object?> toStorage() => {
-    'text': text,
-    'revision': revision,
-    if (pending case final attempt?)
+  Map<String, Object?> toStorage() {
+    final attempt = pending;
+    if (attempt == null) return {};
+    return {
+      'text': attempt.text,
+      'revision': attempt.revision,
       'attempt': {
         'operationId': attempt.operationId.value,
         'text': attempt.text,
         'revision': attempt.revision,
         'state': attempt.state.name,
       },
-  };
+    };
+  }
 
   final String text;
   final int revision;
@@ -178,7 +179,14 @@ final class ChatDraft {
     return ChatDraft._(text: text, revision: revision, pending: attempt);
   }
 
-  ChatDraft discard() => ChatDraft._(text: '', revision: revision + 1);
+  ChatDraft withoutUnsentText() => switch (pending) {
+    final attempt? => ChatDraft._(
+      text: attempt.text,
+      revision: attempt.revision,
+      pending: attempt,
+    ),
+    null => const ChatDraft.empty(),
+  };
 
   @override
   String toString() => 'ChatDraft(<redacted>)';

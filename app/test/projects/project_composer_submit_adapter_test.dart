@@ -1,9 +1,76 @@
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_submit_adapter.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+final class _PatternMentionResolver implements MentionResolver {
+  const new();
+
+  @override
+  Future<String?> didForHandle(String handle) async =>
+      handle == 'maker.example' ? 'did:plc:maker' : null;
+}
+
 void main() {
+  test(
+    'IT-005 a saved credit link leaves the last hashtag slot free',
+    () async {
+      const link = {
+        'index': {'byteStart': 0, 'byteEnd': 7},
+        'features': [
+          {
+            r'$type': 'app.bsky.richtext.facet#link',
+            'uri': 'https://example.com/pattern-credit',
+          },
+        ],
+      };
+      const first = ProjectPattern(
+        designer: '#credit',
+        designerFacets: [link],
+        extraFields: {'existingIndex': 0},
+      );
+      const original = Project(
+        common: ProjectCommon(
+          craftType: 'social.craftsky.feed.defs#knitting',
+          patterns: [first],
+        ),
+      );
+      final result = await buildProjectComposerSubmitArguments(
+        text: List.generate(9, (index) => '#tag$index').join(' '),
+        langs: const ['en'],
+        project: original.copyWith.common(
+          patterns: [
+            first,
+            const ProjectPattern(
+              name: 'Later #later',
+              publisher: '@maker.example',
+            ),
+          ],
+        ),
+        existingProject: original,
+        imagesState: const ComposerImagesState(images: []),
+        generateFacets: const FacetGenerator(
+          mentionResolver: _PatternMentionResolver(),
+        ).generate,
+      );
+      final patterns = result.project.common.patterns!;
+      expect(result.facets, hasLength(9));
+      expect(patterns.first.designerFacets, [link]);
+      expect(patterns.last.nameFacets, [
+        {
+          'index': {'byteStart': 6, 'byteEnd': 12},
+          'features': [
+            {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'later'},
+          ],
+        },
+      ]);
+      expect(patterns.last.publisherFacets!.single['features'], [
+        {r'$type': 'app.bsky.richtext.facet#mention', 'did': 'did:plc:maker'},
+      ]);
+    },
+  );
+
   test(
     'one budget covers every project field and refreshes unchanged facets',
     () async {

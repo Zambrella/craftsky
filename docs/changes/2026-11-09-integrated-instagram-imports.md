@@ -13,10 +13,10 @@ identity atomically with command preparation, and records confirmed publication
 history in the command acceptance transaction. Existing create-only PDS commands
 handle concurrent submissions and unknown-result recovery. Original timestamps
 and the existing public Instagram provenance preserve ADR 008 distribution.
-Migration `000128_instagram_post_imports` adds private history and lifecycle purge
-coverage. The migration was renumbered from `000122` while merging main to
-preserve main's already allocated migrations `000122`–`000127`. The original
-release-gate logs below predate that merge. The initial work covered the web
+Migration `000134_instagram_post_imports` adds private history and lifecycle purge
+coverage. It was first renumbered from `000122` to `000128` during an earlier
+merge, then moved after main's migrations through `000133`. The original
+release-gate logs below predate those merges. The initial work covered the web
 client and AppView. See [ADR 029](../adr/029-integrated-instagram-post-imports.md)
 and the [web client guide](../../web-client/README.md).
 

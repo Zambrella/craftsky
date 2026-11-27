@@ -1,6 +1,9 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Project extension fields are public authored data. Retain them losslessly;
 // typed fields always win, including when a caller clears an optional value.
@@ -56,16 +59,28 @@ func (p Project) MarshalJSON() ([]byte, error) {
 	return encodeProjectObject(plain(p), p.ExtraFields, projectKeys)
 }
 
-var projectCommonKeys = []string{"craftType", "additionalCrafts", "status", "title", "duration", "pattern", "materials", "colors", "designTags", "tags"}
+var projectCommonKeys = []string{"craftType", "additionalCrafts", "status", "title", "duration", "pattern", "patterns", "materials", "colors", "designTags", "tags"}
 
 func (p *ProjectCommon) UnmarshalJSON(raw []byte) error {
 	type plain ProjectCommon
-	var decoded plain
+	var decoded struct {
+		plain
+		Patterns json.RawMessage `json:"patterns"`
+	}
 	extra, err := decodeProjectObject(raw, &decoded, projectCommonKeys)
 	if err != nil {
 		return err
 	}
-	*p = ProjectCommon(decoded)
+	// A nil slice represents omission and would enable the legacy pattern fallback.
+	if string(decoded.Patterns) == "null" {
+		return errors.New("project.common.patterns must be an array")
+	}
+	if len(decoded.Patterns) != 0 {
+		if err := json.Unmarshal(decoded.Patterns, &decoded.plain.Patterns); err != nil {
+			return err
+		}
+	}
+	*p = ProjectCommon(decoded.plain)
 	p.ExtraFields = extra
 	return nil
 }

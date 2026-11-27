@@ -337,17 +337,40 @@ void main() {
   });
 
   testWidgets(
-    'IT-007 root host presents and refreshes every foreground event',
+    'IT-007 root host presents only current foreground events',
     (tester) async {
       final service = _FakeNotificationService();
       final messenger = RecordingMessenger();
       final effects = StreamController<NotificationEffect>.broadcast();
       var listInvalidations = 0;
       var countRefreshes = 0;
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:viewer',
+        handle: 'viewer.test',
+      );
+      var bound = SessionRegistry(
+        nextSessionGeneration: registry.nextSessionGeneration,
+        nextUseOrdinal: registry.nextUseOrdinal,
+        activationGeneration: registry.activationGeneration,
+        activeDid: registry.activeDid!.value,
+        sessions: {
+          for (final entry in registry.sessions.entries)
+            entry.key.value: entry.value,
+        },
+        routingBindings: {registry.activeDid!.value: 'binding'},
+      );
+      var removeBeforeDisplay = false;
       final runtime = _runtime(
         service,
         effects,
-        invalidateList: () => listInvalidations++,
+        readRegistry: () => bound,
+        invalidateList: () {
+          listInvalidations++;
+          if (removeBeforeDisplay) {
+            bound = bound.removeRoutingBinding(registry.activeLease!.session);
+          }
+        },
         refreshCount: () => countRefreshes++,
       );
       await runtime.start();
@@ -396,7 +419,19 @@ void main() {
 
       service
         ..emitForeground(event)
-        ..emitForeground(event);
+        ..emitForeground(event)
+        ..emitForeground(
+          ForegroundNotificationEvent(
+            title: 'Private activity',
+            body: 'Activity for a removed account',
+            openAttempt: NotificationOpenAttempt.fromProviderData({
+              'payloadVersion': '1',
+              'type': 'follow',
+              'actorDid': 'did:plc:actor',
+              'accountSubscriptionId': 'removed-binding',
+            }),
+          ),
+        );
       await tester.pumpAndSettle();
 
       expect(
@@ -407,6 +442,14 @@ void main() {
       expect(messenger.calls[0].$3?.label, 'Open');
       expect(listInvalidations, 2);
       expect(countRefreshes, 2);
+
+      removeBeforeDisplay = true;
+      service.emitForeground(event);
+      await tester.pumpAndSettle();
+
+      expect(listInvalidations, 3);
+      expect(countRefreshes, 2);
+      expect(messenger.calls.where((call) => call.$1 == 'info'), hasLength(2));
     },
   );
 }
@@ -414,6 +457,7 @@ void main() {
 NotificationRuntime _runtime(
   NotificationService service,
   StreamController<NotificationEffect> effects, {
+  SessionRegistry Function()? readRegistry,
   void Function()? invalidateList,
   void Function()? refreshCount,
 }) {
@@ -430,7 +474,9 @@ NotificationRuntime _runtime(
   return NotificationRuntime(
     service: service,
     registration: registration,
-    routingStorage: const NotificationRoutingStorage(SessionRegistry.empty),
+    routingStorage: NotificationRoutingStorage(
+      readRegistry ?? SessionRegistry.empty,
+    ),
     invalidateList: invalidateList ?? () {},
     refreshCount: refreshCount ?? () {},
     effects: effects,

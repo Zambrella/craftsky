@@ -177,7 +177,7 @@ async function verifyInstagram(page: Page) {
 	await expect(exportHelp).toBeVisible();
 }
 test.beforeEach(async ({ context, page }) => {
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await fetch('http://127.0.0.1:19847/__test/reset');
@@ -939,17 +939,36 @@ test('customisation changes preview choices and saves the exact native colour an
 		'Crosshatch'
 	])
 		await expect(page.getByRole('radio', { name, exact: true })).toHaveCount(0);
+	for (const name of [
+		'Spinning',
+		'Dyeing',
+		'Punch Needle',
+		'Macramé',
+		'Weaving',
+		'Felting'
+	])
+		await expect(page.getByRole('radio', { name, exact: true })).toBeVisible();
 	await page.getByText('Green', { exact: true }).click();
-	await page.getByText('Embroidery', { exact: true }).click();
+	const tileResponse = page.waitForResponse(
+		'**/profile_backgrounds/craft-punch-needle.svg'
+	);
+	await page.getByText('Punch Needle', { exact: true }).click();
+	const tile = await tileResponse;
+	expect(tile.ok()).toBe(true);
+	expect(tile.headers()['content-type']).toContain('image/svg+xml');
 	await expect(
 		page.getByRole('radio', { name: 'Green', exact: true })
 	).toBeChecked();
 	await expect(
-		page.getByRole('radio', { name: 'Embroidery', exact: true })
+		page.getByRole('radio', { name: 'Punch Needle', exact: true })
 	).toBeChecked();
 	await expect(
 		page.getByLabel('Profile customisation preview')
 	).toHaveAttribute('style', /--chosen-colour:\s*#23770f/i);
+	await expect(page.locator('.preview-pattern')).toHaveCSS(
+		'mask-image',
+		/\/profile_backgrounds\/craft-punch-needle\.svg/
+	);
 	await expect(save).toBeEnabled();
 	expect(
 		(await calls()).filter(
@@ -966,18 +985,23 @@ test('customisation changes preview choices and saves the exact native colour an
 	expect(request?.owner).toBe(alice.did);
 	expect(request?.body).toEqual({
 		colour: 'lime',
-		profileBackground: 'craft-embroidery'
+		profileBackground: 'craft-punch-needle'
 	});
 	await page.reload();
 	await expect(
 		page.getByRole('radio', { name: 'Green', exact: true })
 	).toBeChecked();
 	await expect(
-		page.getByRole('radio', { name: 'Embroidery', exact: true })
+		page.getByRole('radio', { name: 'Punch Needle', exact: true })
 	).toBeChecked();
 	await expect(
 		page.getByRole('button', { name: 'Save', exact: true })
 	).toBeDisabled();
+	await page.goto('/profiles/alice.test');
+	await expect(page.locator('.profile-texture')).toHaveCSS(
+		'mask-image',
+		/\/profile_backgrounds\/craft-punch-needle\.svg/
+	);
 });
 
 for (const viewport of [
@@ -1626,7 +1650,7 @@ test('event owner can postpone from management and cancel from detail without lo
 	);
 	await expect(
 		page.getByText(
-			'Choose someone to send this link to. It will be added to your draft for review.'
+			'Choose someone to send this link to. You can review the link before sending.'
 		)
 	).toBeVisible();
 	await fetch('http://127.0.0.1:19847/__test/control', {

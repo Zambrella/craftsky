@@ -1,11 +1,14 @@
 package video
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"os"
@@ -73,6 +76,11 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 	const mp4 = "\x00\x00\x00\x18ftypisomsynthetic-video"
 	const collection = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 	var title, metadataJob, metadataCID string
+	var coverUploads int
+	var cover bytes.Buffer
+	if err := jpeg.Encode(&cover, image.NewRGBA(image.Rect(0, 0, 90, 90)), nil); err != nil {
+		t.Fatal(err)
+	}
 	b.client.Transport = bunnyRoundTrip(func(r *http.Request) (*http.Response, error) {
 		data := ""
 		switch {
@@ -96,6 +104,16 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 			}
 			title = input["title"]
 			data = `{"guid":"` + video + `"}`
+		case r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/"+video+"/thumbnail"):
+			if r.Header.Get("AccessKey") != "private-key-canary" || r.Header.Get("Content-Type") != "application/octet-stream" {
+				t.Fatal("invalid Bunny thumbnail request headers")
+			}
+			config, err := jpeg.DecodeConfig(r.Body)
+			if err != nil || config.Width != 90 || config.Height != 51 {
+				t.Fatalf("thumbnail does not match the video ratio: %+v %v", config, err)
+			}
+			coverUploads++
+			data = `{"success":true}`
 		case r.Method == "POST":
 			var input struct {
 				Tags []struct{ Property, Value string } `json:"metaTags"`
@@ -119,11 +137,15 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 			}
 			data = `{}`
 		default:
-			data = `{"guid":"` + video + `","videoLibraryId":123,"status":4,"length":3,"encodeProgress":100,"hasMP4Fallback":true,"availableResolutions":"360p,720p"}`
+			filename := "thumbnail.jpg"
+			if coverUploads > 0 {
+				filename = "custom-cover.jpg"
+			}
+			data = `{"guid":"` + video + `","videoLibraryId":123,"status":4,"length":3,"width":1920,"height":1080,"encodeProgress":100,"hasMP4Fallback":true,"availableResolutions":"360p,720p","thumbnailFileName":"` + filename + `"}`
 		}
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(data)), ContentLength: int64(len(data))}, nil
 	})
-	authorization, err := b.IssueUpload(ctx, owner, "session")
+	authorization, err := b.IssueUploadWithThumbnail(ctx, owner, "session", cover.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,8 +174,12 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 	}
 	// A restarted service can recover the exact proof without another PDS upload.
 	again, err := b.Status(ctx, owner, "session", authorization.JobID)
-	if err != nil || again.State != "JOB_STATE_COMPLETED" || effects.calls != 1 {
+	if err != nil || again.State != "JOB_STATE_COMPLETED" || effects.calls != 1 || coverUploads != 1 {
 		t.Fatal("completion was not durable", err)
+	}
+	var cleared bool
+	if err = pool.QueryRow(ctx, "SELECT pending_thumbnail IS NULL FROM bunny_video_jobs WHERE id=$1", authorization.JobID).Scan(&cleared); err != nil || !cleared {
+		t.Fatal("completed job retained its staged thumbnail", err)
 	}
 	contentCID, _, _ := pdseffects.PredictBlobCID([]byte(mp4))
 	if metadataCID != contentCID.String() {
@@ -168,7 +194,7 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 		t.Fatal("forged proof accepted")
 	}
 	playlist, poster := b.URLs(owner, contentCID)
-	if playlist != "https://test.b-cdn.net/"+video+"/playlist.m3u8" || poster != "https://test.b-cdn.net/"+video+"/thumbnail.jpg" {
+	if playlist != "https://test.b-cdn.net/"+video+"/playlist.m3u8" || poster != "https://test.b-cdn.net/"+video+"/custom-cover.jpg" {
 		t.Fatal("incorrect playback mapping")
 	}
 	_, _, embedURL := b.URLsWithEmbed(owner, contentCID)

@@ -15,7 +15,7 @@ test.beforeEach(async ({ page, context }) => {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ visual: true })
 	});
-	await page.route('https://status.craftsky.social/app.json', (route) =>
+	await page.route('**/api/service-status', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
 	);
 	await page.route('https://fixture.craftsky.test/app-icon.png', (route) =>
@@ -277,8 +277,6 @@ test('wide page columns keep their width between scrolling feeds and messages', 
 test('inbox navigation icons appear before status resolves when navigating from Home', async ({
 	page
 }) => {
-	await page.goto('/feed');
-	await expect(page.locator('.member-post').first()).toBeVisible();
 	let release!: () => void;
 	const pending = new Promise<void>((resolve) => {
 		release = resolve;
@@ -288,6 +286,8 @@ test('inbox navigation icons appear before status resolves when navigating from 
 		await route.continue();
 	});
 	try {
+		await page.goto('/feed');
+		await expect(page.locator('.member-post').first()).toBeVisible();
 		await page
 			.getByRole('navigation', { name: 'App navigation' })
 			.getByRole('link', { name: /^Messages/ })
@@ -314,10 +314,14 @@ test('inbox navigation icons appear before status resolves when navigating from 
 	).toBeVisible();
 });
 
-test('message input keeps text without a clear button', async ({ page }) => {
+test('message input keeps text without a clear button or focus outline', async ({
+	page
+}) => {
 	await page.goto('/messages/conversations/visual-accepted');
 	const input = page.getByRole('textbox', { name: 'Message', exact: true });
 	await input.fill('A draft to keep');
+	await expect(input).toBeFocused();
+	await expect(input).toHaveCSS('outline-style', 'none');
 	await expect(input).toHaveValue('A draft to keep');
 	await expect(
 		page.getByRole('button', { name: 'Discard draft', exact: true })
@@ -327,11 +331,74 @@ test('message input keeps text without a clear button', async ({ page }) => {
 	).toBeEnabled();
 });
 
+test('inbox preloads from Home and restores its scroll position while counts are pending', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 720 });
+	let release!: () => void;
+	const waiting = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route('**/api/appview/v1/chat/unread-counts', async (route) => {
+		await waiting;
+		await route.continue();
+	});
+	await page.route('**/api/appview/v1/chat/conversations?*', async (route) => {
+		const response = await route.fetch();
+		const { items } = await response.json();
+		const conversation = items[0];
+		const more = Array.from({ length: 32 }, (_, index) =>
+			index === 16
+				? conversation
+				: { ...conversation, id: `scroll-fixture-${index}`, unreadCount: 0 }
+		);
+		await route.fulfill({ json: { items: more } });
+	});
+	try {
+		const preload = page.waitForResponse((response) =>
+			response.url().includes('/chat/conversations?')
+		);
+		await page.goto('/feed');
+		await expect(page.locator('.member-post').first()).toBeVisible();
+		await preload;
+		await page
+			.getByRole('navigation', { name: 'Main tabs', exact: true })
+			.getByRole('link', { name: 'Messages', exact: true })
+			.click();
+		const row = page.locator(
+			'a[href="/messages/conversations/visual-accepted"]'
+		);
+		await expect(row).toBeVisible();
+		await row.scrollIntoViewIfNeeded();
+		const scroll = await page.evaluate(() => window.scrollY);
+		expect(scroll).toBeGreaterThan(500);
+		await row.click();
+		await expect(
+			page.getByRole('textbox', { name: 'Message', exact: true })
+		).toBeVisible();
+		await page
+			.getByRole('link', { name: 'Back to messages', exact: true })
+			.click();
+		await expect(row).toBeVisible();
+		await expect
+			.poll(() =>
+				page.evaluate((previous) => Math.abs(window.scrollY - previous), scroll)
+			)
+			.toBeLessThan(20);
+	} finally {
+		release();
+	}
+});
+
 for (const route of ['/messages', '/messages/conversations/visual-accepted']) {
 	test(`craft icons stay loaded during typing and polling: ${route}`, async ({
 		page
 	}) => {
 		await page.clock.install();
+		let revision = 1;
+		await page.route('**/api/appview/v1/chat/sync', (request) =>
+			request.fulfill({ json: { revision, state: 'ready' } })
+		);
 		const profileRequests: string[] = [];
 		page.on('request', (request) => {
 			if (
@@ -341,7 +408,11 @@ for (const route of ['/messages', '/messages/conversations/visual-accepted']) {
 			)
 				profileRequests.push(request.url());
 		});
+		const firstHeartbeat = page.waitForResponse((response) =>
+			response.url().endsWith('/chat/sync')
+		);
 		await page.goto(route);
+		await firstHeartbeat;
 		const icons = page.locator('.messages-workspace .inline-crafts').first();
 		await expect(icons).toBeVisible();
 		const original = await icons.elementHandle();
@@ -365,6 +436,7 @@ for (const route of ['/messages', '/messages/conversations/visual-accepted']) {
 						: '/chat/conversations/visual-accepted/details'
 				)
 		);
+		revision++;
 		await page.clock.fastForward(10_000);
 		await refreshed;
 		await page.evaluate(() => new Promise(requestAnimationFrame));

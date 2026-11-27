@@ -2,7 +2,6 @@ const { test, expect } = require('@playwright/test');
 
 const publicRoutes = [
   '/',
-  '/waitlist',
   '/privacy',
   '/terms',
   '/community-guidelines',
@@ -15,7 +14,7 @@ const publicRoutes = [
 const postHogHost = 'https://t.craftsky.social';
 const consentKey = 'craftsky.analytics-consent';
 
-// Exercise local scripts without depending on fonts, Brevo or Turnstile.
+// Exercise local scripts without depending on external assets.
 // Individual tests install a more specific PostHog stub after this route.
 test.beforeEach(async ({ context }) => {
   await context.route('**/*', route => {

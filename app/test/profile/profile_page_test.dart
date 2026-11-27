@@ -71,7 +71,7 @@ final _emptyPostRepository = FakePostRepository(
 void main() {
   group('ProfilePage', () {
     testWidgets(
-      'guest profile uses Projects, all summary stats and account prompts',
+      'guest profile opens Posts and shows summary stats and account prompts',
       (tester) async {
         var follows = 0;
         final profile = Profile(
@@ -97,12 +97,7 @@ void main() {
                   },
                 ),
               ),
-              postRepositoryProvider.overrideWithValue(
-                FakePostRepository(
-                  onListProjectsByAuthor: (_, {cursor, limit}) async =>
-                      const PostPage(items: []),
-                ),
-              ),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
               activeLanguagePreferencesProvider.overrideWithValue(
                 const LanguagePreferences(
                   primaryLanguage: 'en',
@@ -124,7 +119,12 @@ void main() {
           description: 'guest profile tabs',
         );
         await tester.pumpAndSettle();
-        expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+        final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+        expect(tabBar.controller!.index, 0);
+        expect(
+          tester.widget<ProfileTabBar>(find.byType(ProfileTabBar)).tabs.first,
+          ProfileTab.posts,
+        );
         expect(find.text('Joined'), findsOneWidget);
         expect(find.text('Last 7 days'), findsOneWidget);
         await tester.ensureVisible(find.text('Follow').last);

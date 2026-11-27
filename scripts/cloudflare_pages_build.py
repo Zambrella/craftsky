@@ -6,21 +6,27 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_SCHEMA_PAGE = "project-schema.html"
+ROUTING_FILES = ("_redirects",)
 ROUTES = {
-    "/": "index.html", "/waitlist": "waitlist.html",
+    "/": "index.html",
     "/privacy": "privacy.html", "/terms": "terms.html",
     "/community-guidelines": "community-guidelines.html",
     "/reporting": "reporting.html", "/copyright": "copyright.html",
     "/safety": "safety.html",
     "/instagram-import": "instagram-import.html",
     "/why-instagram-sucks-for-crafters": "why-instagram-sucks-for-crafters.html",
+    f"/{PROJECT_SCHEMA_PAGE}": PROJECT_SCHEMA_PAGE,
 }
-PUBLIC_FILES = (*ROUTES.values(), "styles.css", "why-instagram.css", "main.js", "waitlist.js", "robots.txt")
+PUBLIC_FILES = (*(name for name in ROUTES.values() if name != PROJECT_SCHEMA_PAGE),
+                "styles.css", "why-instagram.css", "main.js", "robots.txt")
 ASSET_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"}
+MAX_ASSET_SIZE = 25 * 1024 * 1024
 
 
 def git(*args: str) -> str:
@@ -33,7 +39,7 @@ def build_site(web: Path, commit: str, dirty: bool) -> Path:
     with tempfile.TemporaryDirectory(prefix=".site-build-", dir=web) as temporary:
         staging = Path(temporary) / "dist"
         staging.mkdir()
-        sources = [web / name for name in PUBLIC_FILES]
+        sources = [web / name for name in (*PUBLIC_FILES, *ROUTING_FILES)]
         sources += sorted(path for path in (web / "assets").rglob("*")
                           if path.suffix.lower() in ASSET_EXTENSIONS)
         for source in sources:
@@ -44,11 +50,16 @@ def build_site(web: Path, commit: str, dirty: bool) -> Path:
                 raise ValueError(f"public file must not be a symlink: {relative}")
             if not source.is_file():
                 raise ValueError(f"missing public file: {relative}")
-            if source.stat().st_size > 25 * 1024 * 1024:
+            if source.stat().st_size > MAX_ASSET_SIZE:
                 raise ValueError(f"public file exceeds Cloudflare's 25 MiB limit: {relative}")
             target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
+        schema_page = staging / PROJECT_SCHEMA_PAGE
+        subprocess.run([sys.executable, str(ROOT / "scripts/project-schema-diagram.py"), str(schema_page)],
+                       check=True)
+        if schema_page.stat().st_size > MAX_ASSET_SIZE:
+            raise ValueError(f"public file exceeds Cloudflare's 25 MiB limit: {PROJECT_SCHEMA_PAGE}")
         manifest = {
             "commit": commit, "dirty": dirty,
             "files": {path.relative_to(staging).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -66,7 +77,6 @@ def build_site(web: Path, commit: str, dirty: bool) -> Path:
 def main() -> int:
     output = build_site(ROOT / "web", git("rev-parse", "HEAD"), bool(git("status", "--porcelain")))
     print(f"Built public website in {output}")
-    print("Beta publication does not approve policy drafts; run just online-safety-readiness before full launch.")
     return 0
 
 

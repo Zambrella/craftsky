@@ -6,12 +6,15 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
 import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -19,6 +22,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +30,43 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  test('editing only a stored video thumbnail marks the draft dirty', () {
+    final thumbnail = Uint8List.fromList([1, 2]);
+    final draft = _videoDraft(
+      AccountKey('did:plc:alice'),
+      LocalPostDraftKind.standard,
+      thumbnail: thumbnail,
+    );
+    final session = ComposerDraftSession(draft);
+    final stored = draft.video!;
+    final selection = LocalVideoSelection(
+      displayName: stored.displayFileName,
+      mimeType: stored.mimeType,
+      byteLength: stored.sourceByteLength,
+      duration: stored.duration,
+      headerBytes: Uint8List(0),
+      openRead: () => const Stream.empty(),
+      thumbnail: Uint8List.fromList(thumbnail),
+      altText: stored.altText,
+    );
+    bool changed(LocalVideoSelection value) => session.videoChanged(
+      selection: value,
+      useStoredVideo: true,
+      restoring: false,
+    );
+
+    expect(changed(selection), isFalse);
+    expect(
+      changed(selection.withThumbnailFrame(VideoThumbnailFrame.start)),
+      isTrue,
+    );
+    expect(
+      changed(selection.withThumbnail(Uint8List.fromList([1, 3]))),
+      isTrue,
+    );
+    expect(changed(selection.withThumbnail(null)), isTrue);
+  });
+
   for (final kind in LocalPostDraftKind.values) {
     testWidgets(
       '${kind.name} import waits for video restore and can save removal alone',
@@ -168,6 +209,9 @@ final class _GatedVideoDraftRepository
   }
 
   @override
+  Future<Uint8List?> readVideoThumbnail(String draftId) async => null;
+
+  @override
   Stream<List<int>> openVideoSource(String draftId) => const Stream.empty();
 
   @override
@@ -188,46 +232,54 @@ final class _RegistryStorage implements SessionRegistryStorage {
   }
 }
 
-LocalPostDraft _videoDraft(AccountKey owner, LocalPostDraftKind kind) =>
-    LocalPostDraft(
-      id: '00000000-0000-4000-8000-000000000010',
-      owner: owner,
-      kind: kind,
-      createdAt: DateTime.utc(2026, 8, 4, 10),
-      updatedAt: DateTime.utc(2026, 8, 4, 11),
-      content: switch (kind) {
-        LocalPostDraftKind.standard => const StandardDraftContent(
-          text: 'Saved caption',
-          languages: ['en'],
-        ),
-        LocalPostDraftKind.project => const ProjectDraftContent(
-          body: 'Saved caption',
-          languages: ['en'],
-          knownProjectFieldValues: {},
-        ),
-      },
-      schedule: const DraftScheduleIntent.now(),
-      media: const [],
-      video: const VideoDraftDescriptor(
-        storageRevision: '00000000-0000-4000-8000-000000000011',
-        sourceStorageFileName: 'video.mp4',
-        posterStorageFileName: 'video-poster.jpg',
-        displayFileName: 'video.mp4',
-        mimeType: 'video/mp4',
-        sourceByteLength: 12,
-        sourceSha256:
-            'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-        posterByteLength: 1,
-        posterSha256:
-            'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-        posterMimeType: 'image/jpeg',
-        width: 1080,
-        height: 1920,
-        duration: Duration(seconds: 2),
-        altText: 'Video of the finished project',
-      ),
-      instagramImport: InstagramPostImportSource(
-        sourceKey: 'abcdef0123456789abcdef0123456789',
-        createdAt: DateTime.utc(2021, 8, 4, 12),
-      ),
-    );
+LocalPostDraft _videoDraft(
+  AccountKey owner,
+  LocalPostDraftKind kind, {
+  Uint8List? thumbnail,
+}) => LocalPostDraft(
+  id: '00000000-0000-4000-8000-000000000010',
+  owner: owner,
+  kind: kind,
+  createdAt: DateTime.utc(2026, 8, 4, 10),
+  updatedAt: DateTime.utc(2026, 8, 4, 11),
+  content: switch (kind) {
+    LocalPostDraftKind.standard => const StandardDraftContent(
+      text: 'Saved caption',
+      languages: ['en'],
+    ),
+    LocalPostDraftKind.project => const ProjectDraftContent(
+      body: 'Saved caption',
+      languages: ['en'],
+      knownProjectFieldValues: {},
+    ),
+  },
+  schedule: const DraftScheduleIntent.now(),
+  media: const [],
+  video: VideoDraftDescriptor(
+    storageRevision: '00000000-0000-4000-8000-000000000011',
+    sourceStorageFileName: 'video.mp4',
+    posterStorageFileName: 'video-poster.jpg',
+    displayFileName: 'video.mp4',
+    mimeType: 'video/mp4',
+    sourceByteLength: 12,
+    sourceSha256:
+        'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    posterByteLength: 1,
+    posterSha256:
+        'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    posterMimeType: 'image/jpeg',
+    width: 1080,
+    height: 1920,
+    duration: const Duration(seconds: 2),
+    altText: 'Video of the finished project',
+    thumbnailStorageFileName: thumbnail == null ? null : 'video-thumbnail.jpg',
+    thumbnailByteLength: thumbnail?.length,
+    thumbnailSha256: thumbnail == null
+        ? null
+        : sha256.convert(thumbnail).toString(),
+  ),
+  instagramImport: InstagramPostImportSource(
+    sourceKey: 'abcdef0123456789abcdef0123456789',
+    createdAt: DateTime.utc(2021, 8, 4, 12),
+  ),
+);

@@ -70,6 +70,10 @@ void main() {
   for (final status in [
     for (final option in ProjectOptionCatalogs.statuses)
       CraftskySelectOption<String?>(value: option.value, label: option.label),
+    const CraftskySelectOption<String?>(
+      value: 'social.craftsky.feed.defs#planned',
+      label: 'Planned',
+    ),
     const CraftskySelectOption<String?>(value: null, label: 'Select Status'),
   ]) {
     testWidgets('restored drafts retain saved status (${status.value})', (
@@ -106,21 +110,27 @@ void main() {
       final form = tester.state<FormBuilderState>(find.byType(FormBuilder))
         ..save();
       expect(form.value['status'], status.value);
+      expect(form.fields['status']!.validate(), status.value != null);
     });
   }
 
-  testWidgets('optional project status can be cleared in the form', (
+  testWidgets('project status can be changed but cannot be cleared', (
     tester,
   ) async {
-    await _pumpComposer(tester, 'clear-status-composer');
-    final clear = find.byKey(const Key('status-clear'));
-    await tester.ensureVisible(clear);
-    await tester.tap(clear);
+    await _pumpComposer(tester, 'edit-status-composer');
+    final status = find.byKey(const Key('status-select-button'));
+    final clearStatus = find.byKey(const Key('status-clear'));
+    expect(clearStatus, findsNothing);
+    await tester.ensureVisible(status);
+    await tester.pumpAndSettle();
+    await tester.tap(status);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Work in progress'));
     await tester.pumpAndSettle();
     final form = tester.state<FormBuilderState>(find.byType(FormBuilder))
       ..save();
-    expect(form.value['status'], isNull);
-    expect(find.byKey(const Key('status-clear')), findsNothing);
+    expect(form.value['status'], ProjectOptionCatalogs.wipStatusToken);
+    expect(clearStatus, findsNothing);
     expect(find.byKey(const Key('craftType-clear')), findsNothing);
   });
 
@@ -171,6 +181,39 @@ void main() {
       );
     });
   }
+
+  testWidgets('a restored Dyeing draft can edit a saved pattern credit', (
+    tester,
+  ) async {
+    final seed = LocalPostDraftSeed(
+      draft: LocalPostDraft(
+        id: 'dyeing-draft',
+        owner: AccountKey('did:plc:test'),
+        kind: LocalPostDraftKind.project,
+        createdAt: DateTime.utc(2026, 10, 22),
+        updatedAt: DateTime.utc(2026, 10, 22),
+        content: const ProjectDraftContent(
+          body: '',
+          languages: ['en'],
+          knownProjectFieldValues: {
+            'craftType': ProjectOptionCatalogs.dyeingCraftToken,
+            'patternDesigner': 'A. Maker',
+          },
+        ),
+        schedule: const DraftScheduleIntent.now(),
+        media: const [],
+      ),
+      media: const [],
+    );
+    await _pumpComposer(tester, 'restored-dyeing-composer', draftSeed: seed);
+    final pattern = find.byKey(
+      const Key('project-composer-pattern-details-action'),
+    );
+    await tester.ensureVisible(pattern);
+    await tester.tap(pattern);
+    await tester.pumpAndSettle();
+    expect(find.text('A. Maker'), findsOneWidget);
+  });
 
   testWidgets('new projects preselect the default craft', (tester) async {
     await _pumpComposer(
@@ -245,10 +288,10 @@ void main() {
     );
   });
 
-  testWidgets('sewing fit notes stop at the lexicon character boundary', (
+  testWidgets('custom project subtype respects the UTF-8 byte limit', (
     tester,
   ) async {
-    await _pumpComposer(tester, 'fit-notes-composer');
+    await _pumpComposer(tester, 'custom-subtype-composer');
     await _selectCraft(tester, 'Sewing');
     final action = find.byKey(
       const Key('project-composer-craft-details-action'),
@@ -256,12 +299,19 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    final field = find.widgetWithText(TextField, 'Add fit notes');
-    await tester.ensureVisible(field);
-    await tester.enterText(field, 'é' * 601);
+    await tester.tap(find.byKey(const Key('sewingProjectType-select-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('sewingProjectType-search-input')),
+      'other',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Other'));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const Key('project-custom-subtype'));
+    await tester.enterText(field, 'é' * 60);
     await tester.pump();
-    expect(tester.widget<TextField>(field).controller!.text, 'é' * 600);
-    expect(find.text('600/600'), findsOneWidget);
+    expect(find.text('é' * 50), findsOneWidget);
   });
 
   testWidgets('AT-003 project composer primary fields render on one page', (
@@ -282,47 +332,13 @@ void main() {
           .label,
       'Primary craft',
     );
-    expect(
-      tester
-          .widget<CraftskyFormBuilderMultiSelectField<String>>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is CraftskyFormBuilderMultiSelectField<String> &&
-                  widget.name == 'additionalCrafts',
-            ),
-          )
-          .label,
-      'Additional crafts',
-    );
+    expect(find.text('Additional crafts'), findsNothing);
     expect(find.text('Project title'), findsOneWidget);
-    expect(find.text('Pattern tag or name'), findsOneWidget);
-    expect(find.text('Duration'), findsOneWidget);
-    expect(find.text('e.g. 2 days or 4 weeks'), findsOneWidget);
-    final duration = find.byKey(const Key('project-duration-input'));
-    expect(
-      tester.getTopLeft(duration).dy,
-      greaterThan(
-        tester
-            .getBottomLeft(
-              find.byKey(const Key('project-composer-pattern-name-field')),
-            )
-            .dy,
-      ),
-    );
-    expect(
-      tester.getBottomLeft(duration).dy,
-      lessThan(
-        tester
-            .getTopLeft(find.byKey(const Key('project-composer-body-editor')))
-            .dy,
-      ),
-    );
+    expect(find.text('Pattern name'), findsNothing);
+    expect(find.text('Duration'), findsNothing);
+    expect(find.text('Materials and style'), findsNothing);
     expect(
       find.byKey(const Key('project-composer-body-editor')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('project-composer-common-details-action')),
       findsOneWidget,
     );
     expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
@@ -372,7 +388,7 @@ void main() {
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
   });
 
-  testWidgets('craft selector shows branded icons in options and selection', (
+  testWidgets('primary craft follows the Home tab order with branded icons', (
     tester,
   ) async {
     await _pumpComposer(
@@ -387,12 +403,25 @@ void main() {
     await tester.tap(craft);
     await tester.pumpAndSettle();
 
-    expect(find.byType(CraftIcon), findsNWidgets(5));
+    final picker = tester.widget<CraftskyFormBuilderDropdownField<String>>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CraftskyFormBuilderDropdownField<String> &&
+            widget.name == 'craftType',
+      ),
+    );
+    expect(
+      picker.options.map((option) => option.value),
+      ProjectOptionCatalogs.craftTypesForPreferences([
+        'quilting',
+        'sewing',
+      ]).map((option) => option.value),
+    );
     final labels = tester
         .widgetList<CraftIcon>(find.byType(CraftIcon))
         .map((widget) => widget.craft.split('#').last)
         .toList();
-    expect(labels, ['quilting', 'sewing', 'knitting', 'crochet', 'embroidery']);
+    expect(labels.take(3), ['quilting', 'sewing', 'knitting']);
 
     await tester.tap(find.text('Knitting').last);
     await tester.pumpAndSettle();
@@ -493,7 +522,12 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
   await tester.pumpAndSettle();
   await tester.tap(craft);
   await tester.pumpAndSettle();
-  await tester.tap(find.text(craftLabel).last);
+  final search = find.byKey(const Key('craftType-search-input'));
+  if (search.evaluate().isNotEmpty) {
+    await tester.enterText(search, craftLabel);
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.widgetWithText(ListTile, craftLabel));
   await tester.pumpAndSettle();
 }
 

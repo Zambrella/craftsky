@@ -13,13 +13,28 @@ describe('native compact craft identity', () => {
 				'social.craftsky.feed.defs#Knitting',
 				' knitting ',
 				'',
-				'weaving',
+				'social.craftsky.feed.defs#punchNeedle',
+				'punch-needle',
+				'pottery',
 				'sewing'
 			])
 		).toEqual([
-			{ id: 'knitting', name: 'Knitting', icon: true },
-			{ id: 'weaving', name: 'Weaving', icon: false },
-			{ id: 'sewing', name: 'Sewing', icon: true }
+			{
+				id: 'knitting',
+				name: 'Knitting',
+				icon: "url('/craft_icons/knitting.svg')"
+			},
+			{
+				id: 'punch-needle',
+				name: 'Punch Needle',
+				icon: "url('/craft_icons/punch-needle.svg')"
+			},
+			{ id: 'pottery', name: 'Pottery', icon: undefined },
+			{
+				id: 'sewing',
+				name: 'Sewing',
+				icon: "url('/craft_icons/sewing.svg')"
+			}
 		]);
 	});
 	it('fits all known crafts when there is space', () => {
@@ -47,7 +62,7 @@ describe('native compact craft identity', () => {
 			fittingIdentityCrafts(
 				130,
 				80,
-				identityCrafts(['knitting', 'sewing', 'weaving']),
+				identityCrafts(['knitting', 'sewing', 'pottery']),
 				() => 14
 			)
 		).toBe(1);

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
+import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
@@ -19,9 +20,13 @@ final class VideoUploadSource {
     required this.length,
     required this.openRead,
     this.mimeType = 'video/mp4',
+    this.duration,
+    this.thumbnailFrame = VideoThumbnailFrame.midpoint,
   });
 
   final int length;
+  final Duration? duration;
+  final VideoThumbnailFrame thumbnailFrame;
   final String mimeType;
   final Stream<List<int>> Function() openRead;
 
@@ -244,6 +249,20 @@ final class VideoServiceClient {
     final fileType = base64Encode(utf8.encode(source.mimeType));
     final title = base64Encode(utf8.encode(capability.title));
     final collection = base64Encode(utf8.encode(capability.collectionId));
+    final duration = source.duration;
+    final thumbnailTime =
+        duration != null &&
+            duration > Duration.zero &&
+            duration <= const Duration(minutes: 10)
+        ? source.thumbnailFrame.timestampMilliseconds(duration).toString()
+        : null;
+    final metadata = [
+      'filetype $fileType',
+      'title $title',
+      'collection $collection',
+      if (thumbnailTime != null)
+        'thumbnailTime ${base64Encode(utf8.encode(thumbnailTime))}',
+    ];
     // This isolated client carries only the upload capability, never CraftSky
     // sessions or the library key. Redirects are rejected on every request.
     try {
@@ -253,8 +272,7 @@ final class VideoServiceClient {
           headers: {
             ...headers,
             'Upload-Length': '${source.length}',
-            'Upload-Metadata':
-                'filetype $fileType,title $title,collection $collection',
+            'Upload-Metadata': metadata.join(','),
           },
           followRedirects: false,
           maxRedirects: 0,

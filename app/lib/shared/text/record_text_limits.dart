@@ -26,6 +26,7 @@ abstract final class RecordTextLimits {
   static const projectTitle = RecordTextLimit(200, 500);
   static const patternText = RecordTextLimit(200, 500);
   static const projectSize = RecordTextLimit(100, 500);
+  static const projectSubtype = RecordTextLimit(100, 100);
   static const fitNotes = RecordTextLimit(600, 6000);
   static const material = RecordTextLimit(100, 1000);
   static const hashtag = RecordTextLimit(64, 640);

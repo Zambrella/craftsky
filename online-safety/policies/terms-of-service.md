@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | Policy owner | Douglas Todd, Founder |
-| Approved by | Pending approval of version 1.1; version 1.0 was approved for private beta on 10 November 2026 |
+| Approved by | Douglas Todd, 19 November 2026 (private beta publication) |
 | Version | 1.1 |
-| Status | Draft |
-| Proposed effective date | To be set before publication |
+| Status | Approved |
+| Effective date | 19 November 2026 |
 | Last reviewed | 17 November 2026 |
 | Next review | Before full public launch, then at least annually |
-| Publication | Public-policy draft; version 1.0 remains the published terms |
+| Publication | Public; approved for private beta |
 
 ## 1. About These Terms
 
@@ -470,3 +470,4 @@ Postal address: **Shms House, 20 Little Park Farm Road, Fareham, Hampshire, Unit
 | 1.0 | 10 November 2026 | Approved for private beta publication with an effective date of 10 November 2026. Full public launch readiness remains tracked separately. | Douglas Todd |
 | 1.1 | 12 November 2026 | Draft: explains Plus and Business billing ownership, independent licences, assignment, seven-day reassignment restriction, cancellation and restoration; corrects the former Pro name, obsolete benefit list, 30-day restriction and unsupported ownership-transfer wording. | Prepared at Douglas Todd’s request; publication approval pending |
 | 1.1 | 17 November 2026 | Revises the draft Paid Services section for account-owned Plus/Business subscriptions, native and Stripe web billing, complimentary access, plan management, restoration and provider-specific refunds; aligns account-deletion wording with subscription ownership. | Prepared at Douglas Todd’s request; publication approval pending |
+| 1.1 | 19 November 2026 | Approved for private beta publication with an effective date of 19 November 2026. | Douglas Todd |

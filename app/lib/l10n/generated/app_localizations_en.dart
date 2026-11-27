@@ -1106,10 +1106,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerRequiredLabel => 'required';
 
   @override
-  String get projectComposerDetailsPrompt =>
-      'Fill in the details about your project';
-
-  @override
   String get projectComposerOptionalDetailsPrompt =>
       'This information is optional but will help others find your project';
 
@@ -1130,7 +1126,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectComposerDescriptionHint =>
-      'Tell everyone about your project';
+      'Tell everyone about your project.';
 
   @override
   String get projectComposerCraftTypeLabel => 'Primary craft';
@@ -1200,18 +1196,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMoreDetailsLabel => 'More project details';
 
   @override
-  String get projectComposerMoreDetailsHeading => 'Add more details';
-
-  @override
-  String get projectComposerMoreDetailsPrompt =>
-      'Optional details help other crafters discover and understand your project.';
-
-  @override
   String get projectComposerPatternDetailsTitle => 'Pattern details';
 
   @override
   String get projectComposerPatternDetailsDescription =>
-      'Add designer, publisher, link and difficulty';
+      'Add patterns and their details';
+
+  @override
+  String get projectComposerPatternOrDraftTitle => 'Pattern or draft';
+
+  @override
+  String get projectComposerPatternOrDraftDescription =>
+      'Add patterns or weaving drafts';
+
+  @override
+  String get projectComposerPatternOrDraftName => 'Pattern or draft name';
+
+  @override
+  String get projectComposerPatternOrTemplateTitle => 'Pattern or template';
+
+  @override
+  String get projectComposerPatternOrTemplateDescription =>
+      'Add patterns or felting templates';
+
+  @override
+  String get projectComposerPatternOrTemplateName => 'Pattern or template name';
 
   @override
   String get projectComposerCommonDetailsTitle => 'Materials and style';
@@ -1226,8 +1235,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get projectComposerGenericCraftDetailsTitle => 'Craft details';
+
+  @override
   String get projectComposerCraftDetailsDescription =>
-      'Add project type and craft-specific details';
+      'Add other crafts and details about what you made';
+
+  @override
+  String get projectComposerAdditionalCraftsDescription =>
+      'Add other crafts used in this project';
 
   @override
   String projectComposerDetailsAdded(int count) {
@@ -1281,7 +1297,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerYarnWeightLabel => 'Yarn weight';
 
   @override
+  String get projectComposerNeedleSizesLabel => 'Needle sizes';
+
+  @override
   String get projectComposerNeedleSizeLabel => 'Needle size';
+
+  @override
+  String get projectComposerHookSizesLabel => 'Hook sizes';
 
   @override
   String get projectComposerHookSizeLabel => 'Hook size';
@@ -1335,6 +1357,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerCraftRequiredError => 'Choose a craft type.';
 
   @override
+  String get projectComposerStatusRequiredError => 'Choose a status.';
+
+  @override
   String get projectComposerPhotoRequiredError => 'Add at least one photo.';
 
   @override
@@ -1342,10 +1367,37 @@ class AppLocalizationsEn extends AppLocalizations {
       'Complete the gauge or clear it.';
 
   @override
-  String get projectComposerPatternNameLabel => 'Pattern tag or name';
+  String get projectComposerAddDetailEntry => 'Add entry';
 
   @override
-  String get projectComposerPatternNameHint => 'Add pattern name';
+  String get projectComposerRemoveDetailEntry => 'Remove entry';
+
+  @override
+  String get projectComposerInvalidCraftDetails =>
+      'Check the measurements and complete any added entries.';
+
+  @override
+  String get projectComposerAddPattern => 'Add another pattern';
+
+  @override
+  String get projectComposerRemovePattern => 'Remove pattern';
+
+  @override
+  String projectComposerPatternNumber(int number) {
+    return 'Pattern $number';
+  }
+
+  @override
+  String get projectComposerDyedItemLabel => 'What did you dye?';
+
+  @override
+  String get projectComposerCustomSubtypeLabel => 'What did you make?';
+
+  @override
+  String get projectComposerPatternNameLabel => 'Pattern name';
+
+  @override
+  String get projectComposerPatternNameHint => '#PatternName';
 
   @override
   String get projectComposerPatternUrlLabel => 'Link';
@@ -1370,13 +1422,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
-  String get projectComposerPatternDesignerHint => 'Add pattern designer';
+  String get projectComposerPatternDesignerHint =>
+      'Add or @mention pattern designer';
 
   @override
   String get projectComposerPatternPublisherLabel => 'Publisher';
 
   @override
-  String get projectComposerPatternPublisherHint => 'Add pattern publisher';
+  String get projectComposerPatternPublisherHint =>
+      'Add or @mention pattern publisher';
 
   @override
   String get postComposeQuoteLabel => 'Your thoughts';
@@ -1393,6 +1447,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get postComposeBodyHint =>
       'Share what you\'re making, learning, or thinking...';
+
+  @override
+  String get composerBodyInputHelp =>
+      'You can @mention people, use #hashtags or add https://links.com.';
 
   @override
   String get postComposeRequiredLabel => 'required';
@@ -2449,6 +2507,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get craftWeaving => 'Weaving';
 
   @override
+  String get craftDyeing => 'Dyeing';
+
+  @override
+  String get craftPunchNeedle => 'Punch Needle';
+
+  @override
+  String get projectsFilterKnittingMethod => 'Knitting method';
+
+  @override
+  String get projectsFilterFeltingMethod => 'Felting method';
+
+  @override
   String get craftSpinning => 'Spinning';
 
   @override
@@ -2513,6 +2583,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchTrendingHashtagsHeading => 'Trending hashtags';
+
+  @override
+  String get searchNewMakersHeading => 'New makers';
 
   @override
   String get searchProfilesHeading => 'Profiles';
@@ -5294,7 +5367,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
 
   @override
+  String get postVideoThumbnailUpload => 'Add custom thumbnail';
+
+  @override
+  String postVideoThumbnailFrame(int percent) {
+    return 'Frame at $percent%';
+  }
+
+  @override
+  String get postVideoThumbnailRemove => 'Remove custom thumbnail';
+
+  @override
+  String get postVideoThumbnailPreview => 'Video thumbnail preview';
+
+  @override
+  String get postVideoThumbnailInvalid =>
+      'Could not prepare the thumbnail. Choose another image.';
+
+  @override
+  String get postVideoThumbnailUploadFailed =>
+      'Could not upload the thumbnail. Try again or remove it to use the automatic cover.';
+
+  @override
   String get postComposeVideoDetailsTitle => 'Video details';
+
+  @override
+  String get postComposeVideoPreviewHeading => 'Video';
+
+  @override
+  String get postComposeVideoThumbnailHeading => 'Thumbnail';
+
+  @override
+  String get postComposeVideoAltTextHeading => 'Alt text';
 
   @override
   String get postVideoLocalPreviewUnavailable =>
@@ -5466,7 +5570,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSending => 'Sending…';
 
   @override
-  String get chatSendFailed => 'This message was not sent. Your draft is kept.';
+  String get chatSendFailed => 'This message was not sent.';
 
   @override
   String get chatSendUncertain =>
@@ -5476,14 +5580,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatCheckStatus => 'Check status';
 
   @override
-  String get chatDiscardDraft => 'Discard draft';
+  String get chatDiscardMessage => 'Discard message';
 
   @override
-  String get chatDraftSaveFailed =>
-      'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.';
-
-  @override
-  String get chatSaveDraft => 'Save draft';
+  String get chatRecoverySaveFailed =>
+      'Could not save delivery recovery on this device.';
 
   @override
   String get chatMessageInvalid =>
@@ -5498,7 +5599,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSendAgainWarning =>
-      'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.';
+      'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer text in the message field will be kept.';
 
   @override
   String get chatIncomingTitle => 'Who can message me';
@@ -5569,7 +5670,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSyncStale =>
-      'Messages may be out of date. Your loaded messages and draft are kept.';
+      'Messages may be out of date. Your loaded messages and current text are kept.';
 
   @override
   String get chatSyncUpdating => 'Updating your shared inbox…';

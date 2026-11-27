@@ -240,6 +240,7 @@ func AtomicSafetyCommandHandler(pool *pgxpool.Pool, services SafetyCommandServic
 		var evidence *safetyincident.EvidenceService
 		handler := ConsoleCommandHandler(pool, table, param, column, func(tx pgx.Tx) http.Handler {
 			copy := services
+			copy.tx = tx
 			copy.Workflows = services.Workflows.InTransaction(tx)
 			copy.CSEA = services.CSEA.InTransaction(tx)
 			copy.Holds = services.Holds.InTransaction(tx)

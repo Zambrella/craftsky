@@ -440,7 +440,8 @@ func acceptedPostCreateResult(
 	record pdscommands.AuthoritativeRecord,
 ) (pdscommands.TerminalResult, error) {
 	var stamped struct {
-		CreatedAt string `json:"createdAt"`
+		CreatedAt string   `json:"createdAt"`
+		Project   *Project `json:"project"`
 	}
 	if json.Unmarshal(record.Record, &stamped) != nil {
 		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
@@ -449,6 +450,7 @@ func acceptedPostCreateResult(
 	if err != nil {
 		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
 	}
+	req.Project = stamped.Project
 	row, err := syntheticPostRow(r, store, did, record.URI, record.CID, req, verifiedVideo, createdAt)
 	if err != nil {
 		return pdscommands.TerminalResult{}, err
@@ -564,6 +566,11 @@ func subjectDIDFromATURI(uri string) (syntax.DID, error) {
 }
 
 func mentionedDIDs(req PostCreateRequest) ([]syntax.DID, error) {
+	if req.Project != nil && req.Project.Common.Patterns != nil && req.Project.Common.Pattern != nil {
+		project := *req.Project
+		project.Common.Pattern = nil
+		req.Project = &project
+	}
 	raw, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -694,7 +701,11 @@ func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, creat
 		body["images"] = images
 	}
 	if req.Project != nil {
-		body["project"] = req.Project
+		project, err := projectForPublication(req.Project)
+		if err != nil {
+			return nil, err
+		}
+		body["project"] = project
 	}
 	return body, nil
 }
@@ -835,9 +846,13 @@ func requestProjectTags(project *Project) []string {
 	if project == nil {
 		return nil
 	}
+	var patterns []postutil.FacetedText
+	for _, pattern := range project.Common.effectivePatterns() {
+		patterns = append(patterns, requestPatternFacetedTexts(pattern)...)
+	}
 	return postutil.ExtractProjectTags(
 		project.Common.Tags,
-		requestPatternFacetedTexts(project.Common.Pattern),
+		patterns,
 		requestMaterialFacetedTexts(project.Common.Materials),
 	)
 }

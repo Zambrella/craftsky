@@ -16,10 +16,12 @@ import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
+import 'package:craftsky_app/projects/options/project_detail_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
+import 'package:craftsky_app/projects/widgets/project_item_select_options.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -128,7 +130,10 @@ class _HomePageState extends ConsumerState<HomePage>
       return index < 0 ? null : index;
     }
     final index = _feeds.indexWhere(
-      (option) => option.craftType?.split('#').last == craft,
+      (option) =>
+          option.craftType != null &&
+          ProjectOptionCatalogs.profileIdForCraftToken(option.craftType!) ==
+              craft,
     );
     return index < 0 ? null : index;
   }
@@ -197,13 +202,7 @@ class _HomePageState extends ConsumerState<HomePage>
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final activeFeed = _feeds[_selectedFeedIndex];
     final activeCraft = activeFeed.craftType;
-    final activeQuery = activeCraft == null
-        ? null
-        : ProjectBrowseQuery(
-            craftTypes: activeCraft.isEmpty ? [] : [activeCraft],
-            filters: _filtersFor(activeCraft),
-            sort: _sortFor(activeFeed.id),
-          );
+    final activeQuery = activeCraft == null ? null : _projectQuery(activeFeed);
     final hasActiveProjects =
         activeQuery != null &&
         (ref
@@ -217,16 +216,7 @@ class _HomePageState extends ConsumerState<HomePage>
                 ?.items
                 .isNotEmpty ??
             false);
-    ref.listen(feedReselectProvider, (_, _) {
-      if (activeQuery == null) return;
-      _scrollToTop();
-      ref.invalidate(
-        projectFeedProvider(
-          activeQuery,
-          audience: ref.read(browsingContextProvider),
-        ),
-      );
-    });
+    ref.listen(feedReselectProvider, (_, _) => unawaited(_reselectHome()));
     return Scaffold(
       floatingActionButton: activeFeed.supportsFilters
           ? CraftskyFloatingActionButton.extended(
@@ -299,8 +289,12 @@ class _HomePageState extends ConsumerState<HomePage>
                           sort: _sortFor(option.id),
                           onRemoveFilter: (family, value) => _setFilters(
                             option.craftType!,
-                            _filtersFor(option.craftType!)
-                                .withoutValue(family, value),
+                            ProjectDetailFilters.retainCompatibleSelections(
+                              option.craftType!,
+                              _filtersFor(option.craftType!),
+                              _filtersFor(option.craftType!)
+                                  .withoutValue(family, value),
+                            ),
                           ),
                           onClearFilters: () => _setFilters(
                             option.craftType!,
@@ -326,6 +320,32 @@ class _HomePageState extends ConsumerState<HomePage>
     );
   }
 
+  ProjectBrowseQuery _projectQuery(HomeFeedDefinition feed) {
+    final craft = feed.craftType!;
+    return ProjectBrowseQuery(
+      craftTypes: craft.isEmpty ? [] : [craft],
+      filters: _filtersFor(craft),
+      sort: _sortFor(feed.id),
+    );
+  }
+
+  Future<void> _reselectHome() async {
+    final switchedTab = _tabController.index != 0;
+    _tabController.index = 0;
+    final firstFeed = _feeds.first;
+    // The embedded Following page handles its own scroll and refresh.
+    if (firstFeed.source != HomeFeedSource.projects) return;
+    if (switchedTab) await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _selectedFeedIndex != 0) return;
+    _scrollToTop();
+    ref.invalidate(
+      projectFeedProvider(
+        _projectQuery(firstFeed),
+        audience: ref.read(browsingContextProvider),
+      ),
+    );
+  }
+
   void _handleTabChanged() {
     if (_reorderingCrafts || _selectedFeedIndex == _tabController.index) {
       return;
@@ -337,7 +357,11 @@ class _HomePageState extends ConsumerState<HomePage>
     });
     if (GoRouter.maybeOf(context) != null) {
       FeedRoute(
-        craft: _feeds[_selectedFeedIndex].craftType?.split('#').last,
+        craft: _feeds[_selectedFeedIndex].craftType == null
+            ? null
+            : ProjectOptionCatalogs.profileIdForCraftToken(
+                _feeds[_selectedFeedIndex].craftType!,
+              ),
         source:
             _feeds[_selectedFeedIndex].source == HomeFeedSource.extendedNetwork
             ? 'extended-network'
@@ -796,32 +820,23 @@ List<_FilterChipData> _activeFilters(
   String craftType,
   String selfDraftedLabel,
 ) => [
-  for (final value in filters.projectType)
-    _FilterChipData(
-      family: ProjectBrowseFilterFamily.projectType,
-      value: value,
-      label: _optionLabel(ProjectOptionCatalogs.projectTypes, value),
-    ),
   for (final value in filters.status)
     _FilterChipData(
       family: ProjectBrowseFilterFamily.status,
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.statuses, value),
     ),
-  for (final value in filters.projectSubtype)
-    _FilterChipData(
-      family: ProjectBrowseFilterFamily.projectSubtype,
-      value: value,
-      label: _optionLabel(
-        ProjectOptionCatalogs.projectSubtypesForCraft(craftType),
-        value,
-      ),
-    ),
   for (final value in filters.patternDifficulty)
     _FilterChipData(
       family: ProjectBrowseFilterFamily.patternDifficulty,
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.patternDifficulties, value),
+    ),
+  if (filters.selfDrafted)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.selfDrafted,
+      value: 'true',
+      label: selfDraftedLabel,
     ),
   for (final value in filters.color)
     _FilterChipData(
@@ -834,6 +849,15 @@ List<_FilterChipData> _activeFilters(
       family: ProjectBrowseFilterFamily.designTag,
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.designTags, value),
+    ),
+  for (final value in filters.selectedProjectItems)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.projectItem,
+      value: value,
+      label: projectItemFilterLabel(
+        projectItemSelectOptions(craftType),
+        value,
+      ),
     ),
   for (final value in filters.yarnWeight)
     _FilterChipData(
@@ -856,12 +880,13 @@ List<_FilterChipData> _activeFilters(
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.quiltingMethods, value),
     ),
-  if (filters.selfDrafted)
-    _FilterChipData(
-      family: ProjectBrowseFilterFamily.selfDrafted,
-      value: 'true',
-      label: selfDraftedLabel,
-    ),
+  for (final filter in ProjectDetailFilters.forCraft(craftType))
+    for (final value in filters.valuesFor(filter.family))
+      _FilterChipData(
+        family: filter.family,
+        value: value,
+        label: _optionLabel(filter.allOptionsFor(craftType), value),
+      ),
 ];
 
 String _optionLabel(Iterable<ProjectOption> options, String value) {
