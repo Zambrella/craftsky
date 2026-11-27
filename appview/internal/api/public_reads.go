@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"social.craftsky/appview/internal/observability"
 )
 
 // PublicProjects reuses project browsing's primary-craft/filter/sort semantics,
@@ -31,7 +32,7 @@ func (s *PublicPageStore) PublicProjects(ctx context.Context, request ProjectLis
 	request.Cursor = inner
 	rows, cursor, err := NewSearchStore(s.pool, nil).SearchProjectsWithLanguages(ctx, "", []string{}, ProjectSearchRequest{Sort: request.Sort, Limit: request.Limit, Cursor: request.Cursor, Filters: request.Filters, SelfDrafted: request.SelfDrafted}, time.Now().UTC())
 	if err != nil {
-		return nil, err
+		return nil, observability.WrapError("load public project candidates", err)
 	}
 	page, err := s.publicSearchPosts(ctx, rows, cursor)
 	if err != nil {
@@ -60,7 +61,7 @@ func (s *PublicPageStore) publicPostRows(ctx context.Context, rows []*PostRow, c
 		if !ok {
 			profile, err := s.PublicProfile(ctx, did)
 			if err != nil {
-				return nil, err
+				return nil, observability.WrapError("load public post author", err)
 			}
 			author = profile.PublicAuthor
 			authors[did] = author
@@ -122,7 +123,7 @@ func (s *PublicPageStore) publicSearch(ctx context.Context, category, query stri
 	case "projects":
 		rows, next, err := store.SearchProjectsWithLanguages(ctx, "", []string{}, ProjectSearchRequest{Query: query, Limit: limit, Cursor: cursor}, time.Now().UTC())
 		if err != nil {
-			return nil, err
+			return nil, observability.WrapError("load public project search candidates", err)
 		}
 		return s.publicSearchPosts(ctx, rows, next)
 	case "profiles":
@@ -164,23 +165,23 @@ func (s *PublicPageStore) enrichPublicPosts(ctx context.Context, posts []*Public
 	}
 	likes, err := s.posts.CountActiveLikes(ctx, uris)
 	if err != nil {
-		return err
+		return observability.WrapError("count public post likes", err)
 	}
 	reposts, err := s.posts.CountActiveReposts(ctx, uris)
 	if err != nil {
-		return err
+		return observability.WrapError("count public post reposts", err)
 	}
 	quotes, err := s.posts.CountVisibleQuotes(ctx, uris)
 	if err != nil {
-		return err
+		return observability.WrapError("count public post quotes", err)
 	}
 	replies, err := s.posts.CountDescendantReplies(ctx, uris)
 	if err != nil {
-		return err
+		return observability.WrapError("count public post replies", err)
 	}
 	nested, err := s.posts.QuoteViewRows(ctx, refs)
 	if err != nil {
-		return err
+		return observability.WrapError("load public post quote previews", err)
 	}
 	authors := map[syntax.DID]PublicAuthor{}
 	for i, row := range rows {
@@ -205,7 +206,7 @@ func (s *PublicPageStore) enrichPublicPosts(ctx context.Context, posts []*Public
 				continue
 			}
 			if err != nil {
-				return err
+				return observability.WrapError("load public post quote author", err)
 			}
 			author = profile.PublicAuthor
 			authors[did] = author

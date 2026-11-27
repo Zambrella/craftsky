@@ -91,3 +91,17 @@ enum RegistrationFailure implements AuthError {
     _ => null,
   };
 }
+
+/// A registration-start outcome with the underlying request or launcher cause.
+final class RegistrationStartFailure extends AuthError
+    implements DiagnosticFailureCause {
+  const new(this.outcome, this.diagnosticCause, this.diagnosticStack);
+
+  final RegistrationFailure outcome;
+
+  @override
+  final Object diagnosticCause;
+
+  @override
+  final StackTrace diagnosticStack;
+}

@@ -178,6 +178,7 @@ void configureDiagnosticOptions(
   <ExceptionCauseExtractor<dynamic>>[
     // The SDK looks up extractors by exact runtime type, not by interface.
     _DiagnosticCauseExtractor<ServerUnavailable>(),
+    _DiagnosticCauseExtractor<RegistrationStartFailure>(),
     _DiagnosticCauseExtractor<StorageFailure>(),
     _DiagnosticCauseExtractor<SessionRegistryStorageException>(),
     _DiagnosticCauseExtractor<ChatDraftStorageException>(),

@@ -14,6 +14,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,7 +101,8 @@ class AuthController extends _$AuthController {
 
   Future<void> startRegistration() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    var stage = 'registration_request';
+    final result = await AsyncValue.guard(() async {
       final registry = await ref.read(sessionRegistryProvider.future);
       if (registry.sessions.length >= SessionRegistry.maxRetainedAccounts) {
         throw const AccountLimitReached();
@@ -111,21 +113,46 @@ class AuthController extends _$AuthController {
         response = await ref.read(authApiClientProvider).register();
       } on Object catch (error, stackTrace) {
         final failure = RegistrationFailure.fromStartError(error);
-        if (failure != null) throw failure;
+        if (failure != null) {
+          throw RegistrationStartFailure(failure, error, stackTrace);
+        }
         Error.throwWithStackTrace(error, stackTrace);
       }
       if (!ref.mounted) return;
 
+      stage = 'registration_browser_launch';
       final launcher = ref.read(authUrlLauncherProvider);
       ref.read(pendingAuthProvider.notifier).startRegistration();
       try {
         final launched = await launcher(Uri.parse(response.authUrl));
         if (!launched) throw const BrowserLaunchFailed();
-      } on Object {
+      } on Object catch (error, stackTrace) {
         if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
-        throw RegistrationFailure.registrationIncomplete;
+        throw RegistrationStartFailure(
+          RegistrationFailure.registrationIncomplete,
+          error,
+          stackTrace,
+        );
       }
     });
+    if (result case AsyncError(:final error)
+        when error is RegistrationStartFailure) {
+      withFailureDiagnosticContext(
+        error,
+        ReportContext(
+          feature: 'Auth',
+          operation: 'auth.register',
+          classification: 'auth.registration.failed',
+          safeDiagnostics: {
+            ...AppErrorMapper.map(error).safeDiagnostics,
+            'failureStage': stage,
+          },
+        ),
+        () => state = result,
+      );
+    } else {
+      state = result;
+    }
   }
 
   Future<void> completeFromDeepLink(String code) async {

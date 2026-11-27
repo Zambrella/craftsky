@@ -54,7 +54,15 @@ void main() {
       );
       final local = <String>[];
       final emitter = DiagnosticEmitter(platformSink: local.add);
-      for (final failure in [error, unknown]) {
+      for (final failure in [
+        error,
+        unknown,
+        HttpException('Read failed', uri: cause.uri),
+        HttpException('Write failed', uri: cause.uri),
+        HttpException('Operation timed out', uri: cause.uri),
+        HttpException('No route to host', uri: cause.uri),
+        HttpException('Connection refused', uri: cause.uri),
+      ]) {
         final stack = StackTrace.current;
         emitter.emitLocal(
           LogRecord(Level.SEVERE, 'Request failed', 'Test', failure, stack),
@@ -69,6 +77,11 @@ void main() {
           contains('HTTP connection closed during response headers'),
         );
         expect(output, contains('HTTP transport failed'));
+        expect(output, contains('HTTP socket read failed'));
+        expect(output, contains('HTTP socket write failed'));
+        expect(output, contains('HTTP connection timed out'));
+        expect(output, contains('HTTP network route unavailable'));
+        expect(output, contains('HTTP connection refused'));
         expect(output, contains('HttpException'));
         expect(output, isNot(contains('private.example')));
         expect(output, isNot(contains('PRIVATE_')));

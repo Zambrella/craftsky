@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -25,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
@@ -870,6 +872,9 @@ func TestRecurrenceCauseFactsRemainPrivateAcrossSinks(t *testing.T) {
 		{&net.DNSError{Err: "private-provider-canary", Name: "private-host-canary", IsNotFound: true}, "not_found=true"},
 		{&net.OpError{Op: "private-operation-canary", Err: context.DeadlineExceeded}, "network request timed out"},
 		{&net.OpError{Op: "dial", Err: context.DeadlineExceeded}, "network operation=dial"},
+		{&net.OpError{Op: "read", Err: syscall.ECONNRESET}, syscall.ECONNRESET.Error()},
+		{&federatedhttp.Error{Purpose: federatedhttp.PurposeOAuthMetadata, Kind: federatedhttp.KindTimeout, Cause: errors.New("private-provider-canary")}, "federated HTTP oauth_metadata: timeout"},
+		{&federatedhttp.Error{Purpose: "private-purpose-canary", Kind: "private-kind-canary", Cause: errors.New("private-provider-canary")}, "appview unexpected error"},
 		{fmt.Errorf("%w: HTTP well-known status 503 for private-handle-canary.bsky.social", identity.ErrHandleResolutionFailed), "Handle well-known request failed (HTTP 503)"},
 		{fmt.Errorf("%w: PLC directory status 502", identity.ErrDIDResolutionFailed), "PLC directory request failed (HTTP 502)"},
 		{fmt.Errorf("%w: did:web HTTP status 500", identity.ErrDIDResolutionFailed), "DID well-known request failed (HTTP 500)"},

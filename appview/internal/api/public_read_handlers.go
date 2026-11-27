@@ -96,6 +96,7 @@ func PublicBrowsingHandler(store PublicBrowsingReader, resolver HandleResolver, 
 					if errors.Is(resolveErr, errInvalidIdentifier) {
 						fail(400, "invalid_identifier", "invalid profile identifier")
 					} else {
+						observability.ReportRequestFailure(ctx, resolveErr, "api.PublicBrowsingHandler", "identity")
 						fail(503, "identity_unavailable", "identity temporarily unavailable")
 					}
 					return

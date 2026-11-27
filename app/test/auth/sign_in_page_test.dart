@@ -184,7 +184,11 @@ void main() {
 
       expect(
         tester.container().read(authControllerProvider).error,
-        RegistrationFailure.providerUnavailable,
+        isA<RegistrationStartFailure>().having(
+          (failure) => failure.outcome,
+          'outcome',
+          RegistrationFailure.providerUnavailable,
+        ),
       );
       expect(messenger.calls, [
         (
