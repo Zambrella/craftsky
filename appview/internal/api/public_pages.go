@@ -129,6 +129,7 @@ func PublicPagesHandler(store PublicPageReader, resolver HandleResolver, resourc
 			if errors.Is(err, errInvalidIdentifier) {
 				fail(400, "invalid_identifier", "invalid profile identifier")
 			} else {
+				observability.ReportRequestFailure(ctx, err, "api.PublicPagesHandler", "identity")
 				fail(503, "identity_unavailable", "identity temporarily unavailable")
 			}
 			return

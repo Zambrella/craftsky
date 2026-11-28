@@ -688,3 +688,79 @@ race suite after repository-provided MinIO initialization both passed.
 Device recurrence, native release symbolication and hosted delivery of the
 new fields remain unverified. The worktree contains the changes and live
 Sentry was accessed read-only.
+
+## Sentry issue triage (27 November 2026)
+
+The Sentry CLI returned 92 unresolved groups, with no further issue pages.
+Event pagination yielded 707 occurrences across 40 AppView groups, 51 Flutter
+groups and one web group. The inventory included three dev-only AppView groups
+and three groups containing both production and development events.
+
+### AppView
+
+| APP-VIEW suffixes | Disposition |
+| --- | --- |
+| 1Y | Post-report constraint failures ended before AppView 1.3.0, which shipped migration 000120. |
+| P, 1Z | The current identity resolver propagates a failed HTTPS well-known lookup and records its source boundary. The original upstream response in the follow failures is unknown. |
+| 2C, 29 | AppView 1.5.0 and later identify chat OAuth refresh and metadata discovery stages and retain reviewed provider status and codes. |
+| 8 | The generic 5xx group contains several routes and environments. The current link-preview handler retains the fetch cause. Public profile reads now preserve the resolver cause and classify its stage, covering the latest production occurrence. |
+| 30 | Five PostgreSQL deadlines affected public browsing. All four occurrences with route classification were on guest project search. Diagnostics now identify candidate lookup, author hydration and post enrichment steps. The reason PostgreSQL exceeded the deadline remains unknown. |
+| 25, 26, 32, 37, 38 | Protected causes now include reviewed socket errors and the federated HTTP purpose and failure kind. |
+| 21, 28, 2F, 2W, N, Q | The current events identify upstream PDS failures. All 61 occurrences in 2F were HTTP 502 during chat status fetch, including four on AppView 1.6.1. |
+| 13, 16, 1A, 1B, 1C, 20, 22, 24, 27, 2A, 2B, 2D, 2E, 2X, 2Y, 2Z, 31, 33, 34, 35, 36 | Network, TLS or deadline events. Existing operation, stage and transport diagnostics cover these paths. The three oldest dev-only groups are 1A, 1B and 1C. |
+| 2V | Link-preview diagnostics already identify the DNS name-not-found result. |
+
+### Flutter
+
+| FLUTTER-APP suffixes | Disposition |
+| --- | --- |
+| 5G | Project-feed decoding rejected a DID returned as the author's handle after AppView identity lookup failed. The shared AppView search response now uses the standard `handle.invalid` sentinel and keeps the author DID. |
+| K | Registration previously replaced the underlying failure with a generic outcome. The existing provider owner now receives the original cause, caught stack and a bounded request or browser-launch stage. The UI still uses the existing localized recovery copy. |
+| 5E | The native video player now records whether the source was local or published, the known playback backend and fullscreen state when available. Native error text and source URLs stay out of the reports. |
+| 4G, 4H | The reported HTTP 500s correlate with APP-VIEW-1Y. AppView migration 000120 fixed the underlying constraint. |
+| 4K, 4R, 4X | The playback assertions all came from builds before the native player lifecycle guard in 1.12.0+18. The November 26 occurrence in 4R was from 1.10.0+15. |
+| 4Y | The shared composer language provider now handles the expected account cancellation during composer teardown. |
+| 5Q | Android local video preview moved to native playback in 1.14.1+22. The previously failing H.264 clip passed the local emulator check. |
+| 56 | The Android ANR already includes lifecycle breadcrumbs and native stacks showing a Vulkan wait during surface teardown. The pinned Flutter engine owns that path. |
+| 4J, 4S, 4T, 4V, 4W, 5S, 4Q | The recorded 502 payloads were non-JSON and the like timeout had no response. The existing response-kind and correlation diagnostics cover these cases. |
+| 4M, 4N, 4P, 4Z, 50, 52, 53, 54, 55, 5A, 5F, 5H, 5J, 5K, 5N, 5P, 60, 61 | AppView returned a 502 or 503 with a request UUID. Correlation linked 60 to a PDS 502 on chat read, 5F and 61 to mention identity lookup failures, and eight events in 5H, 5J, 5K and 5N to timeline author-handle resolution failures. The server already records their operation and cause. |
+| 51, 57, 58, 59, 5B, 5C, 5D, 5M, 5R, 5T, 5V, 5W, 5X, 5Y, 5Z | The transport failed before an AppView response was available. The current client records reviewed connection-close phases. Additional reviewed socket messages now distinguish refusal, route failure, read/write failure and timeout where the native cause exposes them. |
+
+### Web
+
+WEB-CLIENT-2 occurred once on 1.11.4. The current settings sign-out flow already
+reports the operation, HTTP status, stable code and validated AppView request
+UUID when available. The exact failure response from November 9 is unknown.
+Sentry has the web 1.15.1 debug-ID artifact bundle. Its newest web Release record
+is still 1.11.4. The pipeline uploads source maps independently of Release record
+creation, and Sentry can create the record on ingest.
+
+### Sentry status
+
+All 92 groups were marked resolved in the next release. A separate read of
+each issue verified the release-scoped activity, and a fresh unresolved search
+returned zero groups across all three projects. Sentry recorded AppView 1.6.1,
+Flutter 1.15.1+24 and web 1.11.4 as the current release anchors. A matching
+event from the already deployed web 1.15.1 can therefore qualify as a
+regression once Sentry sees that release.
+
+### Local validation
+
+AppView's full `just test` race and integration suite passed with the
+worktree's PostgreSQL and MinIO. Focused tests cover a failed author lookup,
+the typed public-profile resolver cause and a real PostgreSQL candidate-query
+deadline. The serialized diagnostics retain the selected stage and correlation
+with private-value canaries excluded.
+
+Flutter static analysis passed. The full Flutter suite passed 4,432 tests
+with 51 skips. Focused tests verify the original registration cause and stack,
+playback context and selected socket failures in serialized Sentry and local
+diagnostics with private-value canaries.
+
+Web type checking and all 657 unit tests passed. The settings sign-out
+regression passed in both Vite preview and the local Cloudflare Worker.
+The test verifies the serialized failure context, recovery message and
+exclusion of account identifiers and upstream text.
+
+No Flutter debug process was available for hot reload. The new changes are
+local, and hosted diagnostic delivery remains unverified.

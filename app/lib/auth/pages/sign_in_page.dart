@@ -166,6 +166,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   String _messageFor(AppLocalizations l10n, Object? error) => switch (error) {
+    RegistrationStartFailure(:final outcome) => _messageFor(l10n, outcome),
     HandleRequired() => l10n.signInHandleRequiredError,
     InvalidHandle() => l10n.signInInvalidHandleError,
     ServerUnavailable() => l10n.signInServerUnavailableError,

@@ -115,12 +115,10 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
       playbackCoordinator: widget.playbackCoordinator,
     );
     _errorSubscription = adapter.playbackErrors.listen((error) {
-      final context = ReportContext(
-        feature: 'Video',
-        operation: 'playback',
-        classification: 'video.playback.failed',
+      final context = _playbackContext(
+        adapter,
+        stage: 'playback_stream',
         outcome: _ready ? DiagnosticOutcome.terminal : DiagnosticOutcome.retry,
-        safeDiagnostics: const {'failureStage': 'playback_stream'},
       );
       final message = DiagnosticMessage(
         'video playback failed',
@@ -177,17 +175,13 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     try {
       await _lifecycle!.open(playlist, play: true);
     } on Object catch (error, stack) {
+      final context = _playbackContext(
+        _adapter,
+        stage: 'playback_open',
+        outcome: DiagnosticOutcome.terminal,
+      );
       Logger('NativeVideoPlayer').severe(
-        const DiagnosticMessage(
-          'video playback failed',
-          context: ReportContext(
-            feature: 'Video',
-            operation: 'playback',
-            classification: 'video.playback.failed',
-            outcome: DiagnosticOutcome.terminal,
-            safeDiagnostics: {'failureStage': 'playback_open'},
-          ),
-        ),
+        DiagnosticMessage('video playback failed', context: context),
         error,
         stack,
       );
@@ -195,18 +189,32 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
         GuardedErrorReporter(widget.reporter).captureException(
           error,
           stackTrace: stack,
-          context: const ReportContext(
-            feature: 'Video',
-            operation: 'playback',
-            classification: 'video.playback.failed',
-            outcome: DiagnosticOutcome.terminal,
-            safeDiagnostics: {'failureStage': 'playback_open'},
-          ),
+          context: context,
         ),
       );
       _fail();
     }
   }
+
+  ReportContext _playbackContext(
+    NativeVideoViewAdapter? adapter, {
+    required String stage,
+    required DiagnosticOutcome outcome,
+  }) => ReportContext(
+    feature: 'Video',
+    operation: 'playback',
+    classification: 'video.playback.failed',
+    outcome: outcome,
+    safeDiagnostics: {
+      'failureStage': stage,
+      'playbackSource': widget.localSelection == null ? 'published' : 'local',
+      if (adapter is MediaKitNativeVideoAdapter) 'playbackBackend': 'media_kit',
+      if (adapter is AndroidLocalVideoAdapter)
+        'playbackBackend': 'android_video_player',
+      if (adapter case NativeVideoFullscreenAdapter(:final isFullscreen))
+        'playbackFullscreen': isFullscreen,
+    },
+  );
 
   Future<void> _loadCaptions() async {
     final load = widget.loadCaption;

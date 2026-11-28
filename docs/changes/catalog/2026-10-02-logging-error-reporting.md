@@ -31,7 +31,7 @@
     "rate limits",
     "request correlation"
   ],
-  "summary": "This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage.",
+  "summary": "This package records the protected diagnostic pipeline, cross-client error handling and the November 2026 Sentry triage.",
   "currentDocs": [
     "docs/development/logging-error-reporting.md",
     "docs/architecture.md"
@@ -42,6 +42,7 @@
     "web-client/src/lib"
   ],
   "evidence": [
+    "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#sentry-issue-triage-27-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-composer-playback-24-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-native-video-probe-24-november-2026",
     "docs/changes/2026-10-02-logging-error-reporting/06-validation-evidence.md#android-video-poster-diagnostics-24-november-2026",
@@ -62,7 +63,7 @@
 
 ## Outcome and decisions
 
-This package records the protected diagnostic pipeline, cross-client error handling and the 20 November 2026 Sentry triage. Preserve native typed causes and stacks, select public versus private context at the operation boundary and keep one issue owner per occurrence. Supporting logs never implicitly create issues. Worker attempts isolate sibling ownership, and expected retries remain logs. Diagnostic escalation is independent of durable retry behavior. Raw credentials, private payloads, recipient routing and capabilities remain excluded.
+This package records the protected diagnostic pipeline, cross-client error handling and the November 2026 Sentry triage. Preserve native typed causes and stacks, select public versus private context at the operation boundary and keep one issue owner per occurrence. Supporting logs never implicitly create issues. Worker attempts isolate sibling ownership, and expected retries remain logs. Diagnostic escalation is independent of durable retry behavior. Raw credentials, private payloads, recipient routing and capabilities remain excluded.
 
 ## Evidence and limits
 

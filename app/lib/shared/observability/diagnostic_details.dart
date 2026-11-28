@@ -62,6 +62,14 @@ List<Map<String, Object?>> selectedCauses(Object error) {
             'HTTP connection closed during response body',
           'Software caused connection abort' => 'HTTP connection aborted',
           'Connection reset by peer' => 'HTTP connection reset by peer',
+          'Connection timed out' ||
+          'Operation timed out' => 'HTTP connection timed out',
+          'Network is down' ||
+          'Network is unreachable' ||
+          'No route to host' => 'HTTP network route unavailable',
+          'Connection refused' => 'HTTP connection refused',
+          'Read failed' => 'HTTP socket read failed',
+          'Write failed' || 'Broken pipe' => 'HTTP socket write failed',
           'Request has been aborted' => 'HTTP request was aborted',
           _ => 'HTTP transport failed',
         },

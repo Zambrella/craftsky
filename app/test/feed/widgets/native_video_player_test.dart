@@ -9,16 +9,19 @@ import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../fakes/image_cache_fakes.dart';
 import '../../test_support/recording_error_reporter.dart';
+import '../../test_support/serialized_sentry_transport.dart';
 
 void main() {
   testWidgets('rebuilding a video view keeps the same texture controller', (
@@ -321,7 +324,8 @@ void main() {
       final logs = Logger.root.onRecord.listen(records.add);
       addTearDown(logs.cancel);
       final adapter = _FakeViewAdapter();
-      final failure = StateError('private playback payload canary');
+      final reporter = RecordingErrorReporter();
+      const failure = 'private playback payload canary';
 
       await tester.pumpWidget(
         MaterialApp(
@@ -333,8 +337,9 @@ void main() {
                 cid: 'bafyvideo',
                 mime: 'video/mp4',
                 size: 10,
-                playlist: 'https://video.example/playlist.m3u8',
+                playlist: 'https://video.example/private-playlist-canary.m3u8',
               ),
+              reporter: reporter,
               createAdapter: () => adapter,
             ),
           ),
@@ -344,6 +349,7 @@ void main() {
       await tester.pump();
       adapter.ready.add(true);
       await tester.pump();
+      adapter.isFullscreen = true;
       adapter.errors.add(failure);
       await tester.pump();
       expect(
@@ -355,10 +361,37 @@ void main() {
         records.singleWhere((record) => record.error == failure),
       );
       expect(diagnostic['failureStage'], 'playback_stream');
-      expect(diagnostic['cause'].toString(), contains('StateError'));
+      expect(diagnostic['playbackSource'], 'published');
+      expect(diagnostic['playbackFullscreen'], isTrue);
+      expect(diagnostic['cause'].toString(), contains('String'));
       expect(diagnostic.containsKey('stack'), isFalse);
       expect(diagnostic.toString(), isNot(contains('private playback')));
-      expect(diagnostic.toString(), isNot(contains('private label')));
+      expect(diagnostic.toString(), isNot(contains('private-playlist-canary')));
+
+      final transport = SerializedTransport();
+      await tester.runAsync(() async {
+        await Sentry.init((options) {
+          options
+            ..dsn = 'https://public@example.invalid/1'
+            ..transport = transport;
+          configureDiagnosticOptions(options);
+        });
+        try {
+          await const SentryErrorReporter().captureException(
+            reporter.errors.single,
+            context: reporter.contexts.single,
+          );
+        } finally {
+          await Sentry.close();
+        }
+      });
+      final payload = transport.payloads.join();
+      expect(payload, contains('"playbackSource":"published"'));
+      expect(payload, contains('"playbackFullscreen":true'));
+      expect(payload, contains('playback_stream'));
+      expect(payload, isNot(contains('private playback')));
+      expect(payload, isNot(contains('private-playlist-canary')));
+
       await tester.pumpWidget(const SizedBox());
       await adapter.close();
     },
@@ -409,7 +442,8 @@ void main() {
   });
 }
 
-final class _FakeViewAdapter implements NativeVideoViewAdapter {
+final class _FakeViewAdapter
+    implements NativeVideoViewAdapter, NativeVideoFullscreenAdapter {
   final errors = StreamController<Object>.broadcast(sync: true);
   final ready = StreamController<bool>.broadcast(sync: true);
   Object? openFailure;
@@ -418,6 +452,8 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
   NativeVideoCaptionTrack? selectedCaption;
   int pauseCount = 0;
   bool disposed = false;
+  @override
+  bool isFullscreen = false;
   bool mutedBeforeOpen = false;
   double? viewAspectRatio;
   bool _muted = true;
