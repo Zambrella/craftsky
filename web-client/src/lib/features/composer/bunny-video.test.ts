@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CraftskyAPI, JsonObject } from '#lib/api/client.ts';
 import type { DraftMedia } from '../drafts/store.ts';
 import { uploadBunnyVideo } from './bunny-video.ts';
-import { uploadVideo, videoSourceMime } from './media.ts';
+import { uploadVideo } from './media.ts';
+import { videoSourceMime } from './limits';
 
 const jobId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const token = 'c'.repeat(64);

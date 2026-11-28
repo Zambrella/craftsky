@@ -2,6 +2,7 @@ package instagram
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -30,6 +31,19 @@ func TestPostgresInstagramSuggestionEligibilityPolicyFailsClosedWithoutRelations
 	}
 	if decision.Eligible || decision.Reason != EligibilitySafetyUnavailable {
 		t.Fatalf("closed decision=%+v", decision)
+	}
+
+	transient := errors.New("relationship store temporarily unavailable")
+	unavailable := NewPostgresInstagramSuggestionEligibilityPolicy(pool, staticRelationshipSafety{err: transient}, func() time.Time { return now })
+	for _, stage := range []EligibilityStage{EligibilityAtMatch, EligibilityAtPersist} {
+		decision, err := unavailable.Evaluate(ctx, stage, request)
+		if decision.Eligible || !errors.Is(err, transient) {
+			t.Fatalf("stage %s decision=%+v err=%v, want retryable safety failure", stage, decision, err)
+		}
+	}
+	decision, err = unavailable.Evaluate(ctx, EligibilityAtList, request)
+	if decision.Eligible || decision.Reason != EligibilitySafetyUnavailable || err != nil {
+		t.Fatalf("list should fail closed: decision=%+v err=%v", decision, err)
 	}
 
 	open := NewPostgresInstagramSuggestionEligibilityPolicy(pool, staticRelationshipSafety{facts: RelationshipSafetyFacts{Available: true}}, func() time.Time { return now })
@@ -81,10 +95,11 @@ func TestPostgresInstagramSuggestionEligibilityPolicyAppliesSafetyAndCurrentFact
 
 type staticRelationshipSafety struct {
 	facts RelationshipSafetyFacts
+	err   error
 }
 
 func (s staticRelationshipSafety) RelationshipSafety(context.Context, syntax.DID, syntax.DID) (RelationshipSafetyFacts, error) {
-	return s.facts, nil
+	return s.facts, s.err
 }
 
 const eligibilityPolicySchema = `

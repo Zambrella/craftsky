@@ -1,6 +1,8 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 
 enum LocalPostDraftKind { standard, project }
 
@@ -75,6 +77,8 @@ final class LocalPostDraft {
     required this.schedule,
     required List<DraftMediaDescriptor> media,
     this.video,
+    this.instagramImport,
+    this.instagramPublication,
     this.availability = LocalPostDraftAvailability.available,
     this.revision = 1,
   }) : media = List.unmodifiable(media);
@@ -104,6 +108,8 @@ final class LocalPostDraft {
   final DraftScheduleIntent schedule;
   final List<DraftMediaDescriptor> media;
   final VideoDraftDescriptor? video;
+  final InstagramPostImportSource? instagramImport;
+  final InstagramImportPublication? instagramPublication;
   final LocalPostDraftAvailability availability;
   final int revision;
 
@@ -125,8 +131,29 @@ final class LocalPostDraft {
     schedule: schedule,
     media: media,
     video: video ?? this.video,
+    instagramImport: instagramImport,
+    instagramPublication: instagramPublication,
     availability: availability,
     revision: revision,
+  );
+
+  LocalPostDraft withInstagramPublication(
+    InstagramImportPublication? publication, {
+    required DateTime updatedAt,
+  }) => LocalPostDraft(
+    id: id,
+    owner: owner,
+    kind: kind,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    content: content,
+    schedule: schedule,
+    media: media,
+    video: video,
+    instagramImport: instagramImport,
+    instagramPublication: publication,
+    availability: availability,
+    revision: revision + 1,
   );
 
   @override

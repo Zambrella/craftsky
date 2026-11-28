@@ -26,6 +26,99 @@ import 'package:material_ui/material_ui.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
+  test('a stale refresh does not bring back a dismissed suggestion', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final page = InstagramSuggestionPage(items: [_suggestion()], cursor: null);
+    final refreshStarted = Completer<void>();
+    final refresh = Completer<InstagramSuggestionPage>();
+    var listCalls = 0;
+    final repository = _SuggestionRepository(
+      suggestions: page,
+      onList: (_) async {
+        if (++listCalls == 1) return page;
+        refreshStarted.complete();
+        return await refresh.future;
+      },
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final provider = instagramSuggestionsProvider(lease);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+
+    final notifier = container.read(provider.notifier);
+    final pending = notifier.refresh();
+    await refreshStarted.future;
+    expect(await notifier.dismiss('suggestion-a'), isTrue);
+    refresh.complete(page);
+    await pending;
+
+    final current = container.read(provider).requireValue;
+    expect(current.items, isEmpty);
+    expect(current.busyIds, isEmpty);
+  });
+
+  test('a suggestion preserves a pending follow from the profile', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final controller = PdsRecordOperationController();
+    final scope = PdsMutationScope(
+      lease: lease.session,
+      identity: 'follow:did:plc:maker',
+    );
+    final original = controller.begin(
+      scope: scope,
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      endpoint: '/v1/profiles/@did:plc:maker/follows',
+      immutableBody: 'POST\n',
+    );
+    controller.markAmbiguous(original, retryAfterSeconds: 1);
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: null,
+      ),
+      onAccept: (_, _) async => fail('Must preserve the original follow'),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        pdsRecordOperationControllerProvider.overrideWithValue(controller),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final provider = instagramSuggestionsProvider(lease);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+
+    expect(
+      await container.read(provider.notifier).accept('suggestion-a'),
+      isFalse,
+    );
+    expect(controller.operationFor(scope)?.token, same(original));
+    final current = container.read(provider).requireValue;
+    expect(current.items.single.suggestionId, 'suggestion-a');
+    expect(current.busyIds, isEmpty);
+  });
+
   testWidgets(
     'IT-029 lists private suggestions and requires explicit Follow or Dismiss',
     (tester) async {
@@ -98,7 +191,9 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
+            home: const InstagramMigrationPage(
+              view: InstagramMigrationView.suggestions,
+            ),
           ),
         ),
       );
@@ -146,6 +241,12 @@ void main() {
 
       expect(dismissed, [dismissible.suggestionId]);
       expect(find.text('Dismissible Maker'), findsNothing);
+      expect(
+        find.text(
+          'Import the accounts you follow on Instagram to look for matches.',
+        ),
+        findsOneWidget,
+      );
     },
   );
 

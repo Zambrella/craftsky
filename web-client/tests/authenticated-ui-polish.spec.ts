@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { nativeIconPaths } from '../src/lib/features/shell/native-icons';
+
 const account = {
 	id: '0c10030a-6208-43c2-8048-d3edcc609271',
 	did: 'did:plc:alice',
@@ -287,7 +289,51 @@ test('followed profile uses muted Unfollow and opens paginated mutual followers 
 	await expect(unfollow).toBeVisible();
 });
 
-test('verified Instagram account has no verify-another action', async ({
+test('unverified Instagram shows the mobile verification card and one import note', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/migrations/instagram/account', (r) =>
+		r.fulfill({ json: { integrationAvailable: true, account: null } })
+	);
+	await page.goto('/settings/instagram');
+	const card = page.locator('section').filter({
+		has: page.getByRole('heading', { name: 'Verify your Instagram account' })
+	});
+	const action = card.getByRole('button', {
+		name: 'Create verification challenge'
+	});
+	await expect(action).toBeVisible();
+	await expect(card.getByRole('heading').locator('svg')).toBeVisible();
+	await expect(action.locator('svg')).toBeVisible();
+	await expect(action).toHaveCSS('box-shadow', 'none');
+	await expect(
+		page.getByText('Complete verification to import the accounts you follow.', {
+			exact: true
+		})
+	).toBeVisible();
+	await expect(
+		page.getByText(
+			/Complete Instagram verification and resolve any account conflict/
+		)
+	).toHaveCount(0);
+});
+
+test('unverified users are sent back to verification from Instagram child pages', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/migrations/instagram/account', (route) =>
+		route.fulfill({ json: { integrationAvailable: true, account: null } })
+	);
+	for (const view of ['posts', 'following', 'suggestions', 'account']) {
+		await page.goto(`/settings/instagram/${view}`);
+		await expect(page).toHaveURL(/\/settings\/instagram$/);
+		await expect(
+			page.getByRole('heading', { name: 'Verify your Instagram account' })
+		).toBeVisible();
+	}
+});
+
+test('verified Instagram landing keeps task forms and account controls on their own pages', async ({
 	page
 }) => {
 	await page.route('**/api/appview/v1/migrations/instagram/account', (r) =>
@@ -307,12 +353,66 @@ test('verified Instagram account has no verify-another action', async ({
 	await expect(
 		page.getByText('@maker_verified', { exact: true })
 	).toBeVisible();
+	const toolLinks = page
+		.getByRole('navigation', { name: 'Instagram tools' })
+		.getByRole('link');
+	await expect(toolLinks).toHaveText([
+		'Import accounts you follow',
+		'Import posts',
+		/^\s*Suggested accounts\b/
+	]);
+	await expect(toolLinks.first().locator('svg path').first()).toHaveAttribute(
+		'd',
+		nativeIconPaths.userPlus.regular
+	);
+	for (const [name, route] of [
+		['Import accounts you follow', 'following'],
+		['Import posts', 'posts'],
+		['Suggested accounts', 'suggestions'],
+		['Manage account', 'account']
+	]) {
+		await expect(page.getByRole('link', { name })).toHaveAttribute(
+			'href',
+			`/settings/instagram/${route}`
+		);
+	}
+	await expect(page.locator('input[type="file"]')).toHaveCount(0);
+	await expect(page.getByRole('switch')).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'Your imports' })).toHaveCount(
+		0
+	);
+	await expect(
+		page.getByRole('button', { name: 'Revoke Instagram verification' })
+	).toHaveCount(0);
 	await expect(
 		page.getByRole('button', { name: 'Verify another username' })
 	).toHaveCount(0);
 	await expect(
 		page.getByRole('button', { name: 'Create verification challenge' })
 	).toHaveCount(0);
+});
+
+test('Instagram landing shows a conflict that blocks post imports', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/migrations/instagram/account', (route) =>
+		route.fulfill({
+			json: {
+				integrationAvailable: true,
+				account: {
+					state: 'active',
+					username: 'maker_verified',
+					discoverable: false,
+					conflictPending: true
+				}
+			}
+		})
+	);
+	await page.goto('/settings/instagram');
+	await expect(page.getByText(/pending ownership conflict/)).toBeVisible();
+	await page.getByRole('link', { name: 'Import posts', exact: true }).click();
+	await expect(page.getByText(/before importing posts/)).toBeVisible();
+	await expect(page.locator('input[type="file"]')).toHaveCount(0);
 });
 
 test('profile picture opens fullscreen and follow progress stays in its button', async ({

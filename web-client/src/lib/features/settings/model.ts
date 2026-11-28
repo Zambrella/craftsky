@@ -155,52 +155,59 @@ export interface ParsedFollowing {
 	ignored: number;
 	duplicates: number;
 }
-export function parseFollowing(source: string, json = false): ParsedFollowing {
+function instagramUsername(value: unknown): string | undefined {
+	if (typeof value !== 'string') return;
+	const username = value.trim().replace(/^@/, '');
+	if (/^[A-Za-z0-9._]{1,30}$/.test(username)) return username.toLowerCase();
+}
+function* followingValues(rows: unknown[]): Iterable<unknown> {
+	for (const row of rows) {
+		const { string_list_data: data, title } = record(row);
+		if (!Array.isArray(data)) {
+			yield null;
+			continue;
+		}
+		let legacy = false;
+		for (const entry of data) {
+			const item = record(entry);
+			if (!Object.hasOwn(item, 'value')) continue;
+			legacy = true;
+			yield item.value;
+		}
+		if (legacy) continue;
+		const href = data.length === 1 ? text(record(data[0]).href) : '';
+		const match =
+			/^https:\/\/www\.instagram\.com\/_u\/([A-Za-z0-9._]{1,30})$/.exec(href);
+		const username = instagramUsername(title);
+		yield match && match[0] === href && match[1].toLowerCase() === username
+			? username
+			: null;
+	}
+}
+export function parseFollowing(source: string): ParsedFollowing {
 	if (new TextEncoder().encode(source).byteLength > 20 * 1024 * 1024)
 		throw new InputError('Choose a file smaller than 20 MB.');
-	let values: unknown[];
-	if (!json) values = source.split(/\r?\n/);
-	else {
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(source);
-		} catch (cause) {
-			throw new InputError(
-				'This file is not valid JSON. Choose Instagram’s following.json file.',
-				{ cause }
-			);
-		}
-		const rows = record(parsed).relationships_following;
-		if (!Array.isArray(rows))
-			throw new InputError(
-				'Choose Instagram’s following.json file containing relationships_following.'
-			);
-		values = rows.flatMap((row) => {
-			const r = record(row),
-				data = r.string_list_data;
-			if (!Array.isArray(data)) return [null];
-			const legacy = data.filter((d) => Object.hasOwn(record(d), 'value'));
-			if (legacy.length) return legacy.map((d) => record(d).value);
-			const name = text(r.title).replace(/^@/, '').toLowerCase();
-			const href = data.length === 1 ? text(record(data[0]).href) : '';
-			return [
-				href ===
-					`https://www.instagram.com/_u/${text(r.title).replace(/^@/, '')}` &&
-				/^[a-z0-9._]{1,30}$/i.test(name)
-					? name
-					: null
-			];
-		});
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(source);
+	} catch (cause) {
+		throw new InputError(
+			'This file is not valid JSON. Choose Instagram’s following.json file.',
+			{ cause }
+		);
 	}
+	const rows = record(parsed).relationships_following;
+	if (!Array.isArray(rows))
+		throw new InputError(
+			'Choose Instagram’s following.json file containing relationships_following.'
+		);
 	const seen = new Set<string>();
+	const entries: ParsedFollowing['entries'] = [];
 	let ignored = 0,
 		duplicates = 0;
-	for (const value of values) {
-		const username =
-			typeof value === 'string'
-				? value.trim().replace(/^@/, '').toLowerCase()
-				: '';
-		if (!/^[a-z0-9._]{1,30}$/.test(username)) {
+	for (const value of followingValues(rows)) {
+		const username = instagramUsername(value);
+		if (!username) {
 			ignored++;
 			continue;
 		}
@@ -213,12 +220,9 @@ export function parseFollowing(source: string, json = false): ParsedFollowing {
 			throw new InputError(
 				'Import at most 10,000 Instagram usernames at a time.'
 			);
+		entries.push({ username });
 	}
-	return {
-		entries: [...seen].map((username) => ({ username })),
-		ignored,
-		duplicates
-	};
+	return { entries, ignored, duplicates };
 }
 
 export interface GrowthPoint {

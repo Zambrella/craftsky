@@ -185,6 +185,25 @@ test('onboarding keeps one editor across steps, uses fixed actions and retains u
 	await page.screenshot({
 		path: test.info().outputPath('onboarding-profile.png')
 	});
+	// The gap below the progress bar belongs to the fixed area, outside the
+	// scrollport where the form could otherwise show above its sticky title.
+	const progress = page.getByRole('progressbar', {
+		name: 'Profile setup progress'
+	});
+	const scroller = page.locator('.onboarding-scroll');
+	await scroller.evaluate((element) => {
+		element.scrollTop = 150;
+	});
+	const bar = (await progress.boundingBox())!;
+	const viewport = (await scroller.boundingBox())!;
+	expect(viewport.y).toBeGreaterThan(bar.y + bar.height);
+	await expect(
+		page.getByRole('heading', { name: 'Make it yours' })
+	).toBeInViewport();
+	await scroller.evaluate((element) => {
+		element.scrollTop = 0;
+	});
+
 	const next = page.getByRole('button', { name: 'Next', exact: true });
 	await expect(next).toBeInViewport();
 	await next.click();

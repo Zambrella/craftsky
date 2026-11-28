@@ -53,6 +53,29 @@ func (s *AccountStore) GetAccount(ctx context.Context, owner syntax.DID) (*Accou
 	return &account, nil
 }
 
+func (account *AccountView) AllowsImport() bool {
+	return account != nil && account.State == LinkActive && !account.ConflictPending &&
+		!account.ReactivationRequired && !account.VerifiedAt.IsZero()
+}
+
+// RequireVerifiedImportAccount checks the same eligibility as AllowsImport
+// inside an import transaction. The link cannot be changed until it commits.
+func RequireVerifiedImportAccount(ctx context.Context, tx pgx.Tx, owner syntax.DID) error {
+	var verified bool
+	err := tx.QueryRow(ctx, `
+		SELECT true FROM instagram_account_links
+		WHERE owner_did = $1 AND state = 'active' AND NOT conflict_pending AND verified_at IS NOT NULL
+		FOR SHARE
+	`, owner).Scan(&verified)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrInstagramVerificationRequired
+	}
+	if err != nil {
+		return fmt.Errorf("check Instagram import verification: %w", err)
+	}
+	return nil
+}
+
 func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, patch AccountSettingsPatch) (*AccountView, error) {
 	if s == nil || s.pool == nil {
 		return nil, errors.New("instagram account store is unavailable")

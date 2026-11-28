@@ -65,12 +65,17 @@ func TestInitialImportMatchingCreatesOnlyGenerationBoundPrivateSuggestion(t *tes
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000000911")
 	seedPrivateSuggestionLifecycle(t, pool, importer, 4, now)
 	seedPrivateSuggestionLifecycle(t, pool, target, 9, now)
-	seedSuggestionImport(t, pool, importID, importer, "synthetic.initial", now)
+	insertVerifiedImportOwner(t, pool, importer, "synthetic.importer", now)
 	seedSuggestionLink(t, pool, target, "synthetic.initial", now)
-	store := newPrivateSuggestionStoreForReconciliationTest(t, pool, func() time.Time { return now })
-	matcher := NewPrivateSuggestionMatcher(pool, store, newReconciliationPolicy(), func() time.Time { return now })
-	if created, err := matcher.MatchImport(ctx, importer, importID); err != nil || created != 1 {
-		t.Fatalf("initial match created=%d err=%v", created, err)
+	if _, err := NewImportStore(pool).CreateImport(ctx, CreateImportParams{
+		ID: importID, OwnerDID: importer, SourceType: ImportSourceInstagramJSON,
+		Entries: []ImportEntry{{Username: "synthetic.initial"}}, Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	worker := newReconciliationWorkerForTest(t, pool, newReconciliationPolicy(), func() time.Time { return now })
+	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
+		t.Fatalf("initial match jobs=%d err=%v", claimed, err)
 	}
 	var suggestions, operations, events int
 	var importerGeneration, targetGeneration int64
@@ -94,6 +99,45 @@ func TestInitialImportMatchingCreatesOnlyGenerationBoundPrivateSuggestion(t *tes
 			importerGeneration,
 			targetGeneration,
 		)
+	}
+}
+
+func TestFollowingImportContinuesAfterOneMatchLeavesCraftSky(t *testing.T) {
+	pool := newReconciliationTestPool(t)
+	ctx := t.Context()
+	now := time.Date(2026, 7, 27, 13, 30, 0, 0, time.UTC)
+	importer := syntax.DID("did:plc:current-importer")
+	departed := syntax.DID("did:plc:departed-target")
+	current := syntax.DID("did:plc:current-target")
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did) VALUES ($1), ($2)`, importer, current); err != nil {
+		t.Fatal(err)
+	}
+	seedPrivateSuggestionLifecycle(t, pool, importer, 1, now)
+	seedPrivateSuggestionLifecycle(t, pool, current, 1, now)
+	insertVerifiedImportOwner(t, pool, importer, "current.importer", now)
+	seedSuggestionLink(t, pool, departed, "a.departed", now)
+	seedSuggestionLink(t, pool, current, "b.current", now)
+	if _, err := NewImportStore(pool).CreateImport(ctx, CreateImportParams{
+		ID: uuid.New(), OwnerDID: importer, SourceType: ImportSourceInstagramJSON,
+		Entries: []ImportEntry{{Username: "a.departed"}, {Username: "b.current"}}, Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	clock := func() time.Time { return now }
+	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
+		Pool: pool, PrivateSuggestions: newPrivateSuggestionStoreForReconciliationTest(t, pool, clock),
+		Policy: newReconciliationPolicy(), Membership: NewMembershipStore(pool),
+		MembershipInactivator: NewPrivateDataService(pool, nil, clock), Now: clock,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed, err := worker.ProcessBatch(ctx, 1); err != nil || claimed != 1 {
+		t.Fatalf("initial match jobs=%d err=%v", claimed, err)
+	}
+	var target syntax.DID
+	if err := pool.QueryRow(ctx, `SELECT target_did FROM instagram_private_suggestions WHERE importer_did = $1`, importer).Scan(&target); err != nil || target != current {
+		t.Fatalf("suggested target=%s err=%v", target, err)
 	}
 }
 

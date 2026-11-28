@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { QuotePreviewPost, Post } from '#lib/api/types.ts';
 	import Avatar from '#lib/Avatar.svelte';
+	import ImportedPostLabel from '#lib/ImportedPostLabel.svelte';
 	import SponsoredLabel from '#lib/SponsoredLabel.svelte';
 	import { compactDate, fullTimestamp } from '#lib/public.ts';
 	import { profileStyle, safeLink, name } from './model';
@@ -44,9 +45,7 @@
 			</a>{:else}{@render timestamp()}{/if}
 	</header>
 	<a class="summary-content" {href}>
-		{#if post.externalImport?.source === 'instagram'}<small class="import-label"
-				>Imported from Instagram</small
-			>{/if}
+		<ImportedPostLabel source={post.externalImport?.source} />
 		{#if post.sponsored}<SponsoredLabel />{/if}
 		{#if post.project?.common.title}<h3>{post.project.common.title}</h3>{/if}
 		{#if post.text}<p class="summary-text">{post.text}</p>{/if}
@@ -162,13 +161,5 @@
 	}
 	.summary-external {
 		margin-top: 8px;
-	}
-	.import-label {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		margin-top: 8px;
-		color: var(--ink-2);
-		font-size: 12px;
 	}
 </style>

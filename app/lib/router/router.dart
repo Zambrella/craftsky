@@ -24,6 +24,8 @@ import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
+import 'package:craftsky_app/instagram_migration/pages/instagram_post_import_page.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
@@ -64,6 +66,7 @@ import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -431,6 +434,24 @@ class AccountEligibilityRoute extends GoRouteData
                 TypedGoRoute<InstagramMigrationRoute>(
                   path: RouteLocations.instagramMigrationChild,
                   name: 'instagram-migration',
+                  routes: [
+                    TypedGoRoute<InstagramPostImportRoute>(
+                      path: RouteLocations.instagramPostImportChild,
+                      name: 'instagram-post-import',
+                    ),
+                    TypedGoRoute<InstagramFollowingImportRoute>(
+                      path: RouteLocations.instagramFollowingImportChild,
+                      name: 'instagram-following-import',
+                    ),
+                    TypedGoRoute<InstagramSuggestionsRoute>(
+                      path: RouteLocations.instagramSuggestionsChild,
+                      name: 'instagram-suggestions',
+                    ),
+                    TypedGoRoute<InstagramAccountRoute>(
+                      path: RouteLocations.instagramAccountChild,
+                      name: 'instagram-account',
+                    ),
+                  ],
                 ),
                 TypedGoRoute<FollowersRoute>(
                   path: RouteLocations.followersChild,
@@ -880,6 +901,62 @@ class InstagramMigrationRoute extends GoRouteData
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const InstagramMigrationPage();
+}
+
+class InstagramPostImportRoute extends GoRouteData
+    with $InstagramPostImportRoute {
+  const new();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => Consumer(
+    builder: (context, ref, _) {
+      final registry = ref.watch(sessionRegistryProvider);
+      final lease = registry.value?.activeLease;
+      if (lease != null && !registry.hasError) {
+        return InstagramPostImportPage(key: ValueKey(lease), lease: lease);
+      }
+      final l10n = AppLocalizations.of(context);
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.instagramPostImportTitle)),
+        body: Center(
+          child: registry.isLoading
+              ? const StitchProgressIndicator()
+              : Text(
+                  registry.hasError
+                      ? l10n.instagramMigrationLoadError
+                      : l10n.instagramMigrationNoActiveAccount,
+                  textAlign: TextAlign.center,
+                ),
+        ),
+      );
+    },
+  );
+}
+
+class InstagramFollowingImportRoute extends GoRouteData
+    with $InstagramFollowingImportRoute {
+  const new();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const InstagramMigrationPage(view: InstagramMigrationView.following);
+}
+
+class InstagramSuggestionsRoute extends GoRouteData
+    with $InstagramSuggestionsRoute {
+  const new();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const InstagramMigrationPage(view: InstagramMigrationView.suggestions);
+}
+
+class InstagramAccountRoute extends GoRouteData with $InstagramAccountRoute {
+  const new();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const InstagramMigrationPage(view: InstagramMigrationView.account);
 }
 
 class FollowersRoute extends GoRouteData with $FollowersRoute {

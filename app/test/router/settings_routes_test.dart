@@ -15,7 +15,12 @@ import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
+import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
+import 'package:craftsky_app/instagram_migration/pages/instagram_post_import_page.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -107,6 +112,56 @@ void main() {
     );
     expect(const AboutRoute().location, '/settings/about');
     expect(const PrivacyRoute().location, '/settings/privacy');
+  });
+
+  testWidgets('Instagram tasks keep the route that opened Instagram', (
+    tester,
+  ) async {
+    final container = _container(verified: true);
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    final router = subscription.read()..go(const ProfileRoute().location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (_, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    unawaited(router.push<void>(const InstagramMigrationRoute().location));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('instagram-post-import-open')));
+    await tester.pumpAndSettle();
+    expect(
+      router.state.matchedLocation,
+      const InstagramPostImportRoute().location,
+    );
+    expect(find.byType(InstagramPostImportPage), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(
+      router.state.matchedLocation,
+      const InstagramMigrationRoute().location,
+    );
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, const ProfileRoute().location);
   });
 
   testWidgets('Profile Settings action keeps one large navigation rail', (
@@ -520,7 +575,7 @@ void main() {
       'Muted accounts',
       'Blocked accounts',
       'Discovery',
-      'Find people from Instagram',
+      'Instagram',
       'General',
       if (subscriptionsEnabled) 'Your CraftSky subscription',
       'Account standing',
@@ -636,8 +691,12 @@ void main() {
   }, skip: subscriptionsEnabled);
 }
 
-ProviderContainer _container() => ProviderContainer.test(
+ProviderContainer _container({bool verified = false}) => ProviderContainer.test(
   overrides: [
+    if (verified)
+      instagramMigrationRepositoryProvider.overrideWith(
+        (ref, _) => _VerifiedInstagramRepository(),
+      ),
     accountChatRepositoryProvider(AccountKey('did:plc:test'))
         .overrideWith((ref) async => _ChatRepository()),
     secureSessionRegistryStorageProvider.overrideWithValue(
@@ -700,6 +759,30 @@ ProviderContainer _container() => ProviderContainer.test(
     ),
   ],
 );
+
+class _VerifiedInstagramRepository implements InstagramMigrationRepository {
+  @override
+  Future<InstagramAccountStatus> getAccount() async => InstagramAccountStatus(
+    integrationAvailable: true,
+    account: InstagramAccountLink(
+      state: InstagramAccountLinkState.active,
+      username: 'verified_maker',
+      discoverable: false,
+      conflictPending: false,
+      reactivationRequired: false,
+      verifiedAt: DateTime.utc(2026, 11),
+    ),
+  );
+
+  @override
+  Future<InstagramSuggestionPage> listSuggestions({
+    int? limit,
+    String? cursor,
+  }) async => InstagramSuggestionPage(items: const [], cursor: null);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
 
 final class _SettingsRouteRegistryStorage implements SessionRegistryStorage {
   new(this.registry);
@@ -800,7 +883,7 @@ final _routeCases = <_SettingsRouteCase>[
     matchesPage: (widget) => widget is LanguagesPage,
   ),
   _SettingsRouteCase(
-    label: 'Find people from Instagram',
+    label: 'Instagram',
     location: '/settings/instagram',
     matchesPage: (widget) => widget is InstagramMigrationPage,
   ),

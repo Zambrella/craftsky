@@ -4849,13 +4849,13 @@ abstract class AppLocalizations {
   /// No description provided for @instagramMigrationTitle.
   ///
   /// In en, this message translates to:
-  /// **'Find people from Instagram'**
+  /// **'Instagram'**
   String get instagramMigrationTitle;
 
   /// No description provided for @instagramMigrationSettingsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Verify your account or privately import handles.'**
+  /// **'Verify your account and import posts or accounts you follow.'**
   String get instagramMigrationSettingsSubtitle;
 
   /// No description provided for @instagramMigrationLoadError.
@@ -5074,6 +5074,48 @@ abstract class AppLocalizations {
   /// **'Instagram account'**
   String get instagramAccountTitle;
 
+  /// No description provided for @instagramManageAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage account'**
+  String get instagramManageAccount;
+
+  /// No description provided for @instagramVerificationUnavailableLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification is temporarily unavailable. Your saved account and imports are still available.'**
+  String get instagramVerificationUnavailableLinked;
+
+  /// No description provided for @instagramImportAccountBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve your Instagram account issue before starting a new import.'**
+  String get instagramImportAccountBlocked;
+
+  /// No description provided for @instagramPostImportAlreadyPublished.
+  ///
+  /// In en, this message translates to:
+  /// **'This Instagram post has already been imported. Return to the import list to check its status.'**
+  String get instagramPostImportAlreadyPublished;
+
+  /// No description provided for @instagramPostImportHistoricalNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This post keeps its original Instagram date and appears on your profile and in search.'**
+  String get instagramPostImportHistoricalNote;
+
+  /// No description provided for @instagramPostImportPendingPublication.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky couldn’t confirm whether this Instagram post was published. Retrying uses your original submission.'**
+  String get instagramPostImportPendingPublication;
+
+  /// No description provided for @instagramPostImportRetryPublication.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry publication'**
+  String get instagramPostImportRetryPublication;
+
   /// No description provided for @instagramLinkedAs.
   ///
   /// In en, this message translates to:
@@ -5085,6 +5127,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There is a private account conflict to resolve. No ownership was transferred.'**
   String get instagramConflictPending;
+
+  /// No description provided for @instagramAccountReactivationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate your Instagram account to start a new import.'**
+  String get instagramAccountReactivationRequired;
 
   /// No description provided for @instagramReactivateAccount.
   ///
@@ -5122,53 +5170,267 @@ abstract class AppLocalizations {
   /// **'Import accounts you follow'**
   String get instagramImportTitle;
 
-  /// No description provided for @instagramImportManual.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter handles'**
-  String get instagramImportManual;
-
-  /// No description provided for @instagramImportManualDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter the Instagram handles of accounts you follow, one per line.'**
-  String get instagramImportManualDescription;
-
-  /// No description provided for @instagramImportJson.
-  ///
-  /// In en, this message translates to:
-  /// **'Instagram export'**
-  String get instagramImportJson;
-
   /// No description provided for @instagramImportJsonDescription.
   ///
   /// In en, this message translates to:
   /// **'Choose JSON format and All time when exporting from Instagram, then select the downloaded ZIP here. CraftSky processes it on this device and uploads only the usernames of accounts you follow. Everything else stays on your device.'**
   String get instagramImportJsonDescription;
 
-  /// Link to CraftSky's website guide for exporting Instagram following data.
+  /// Accessible label for the link to CraftSky's Instagram following export guide.
   ///
   /// In en, this message translates to:
   /// **'How to export your Instagram following'**
   String get instagramImportHelp;
 
-  /// No description provided for @instagramImportHandles.
+  /// Visible label for the compact Instagram following export guide button.
   ///
   /// In en, this message translates to:
-  /// **'Instagram handles'**
-  String get instagramImportHandles;
+  /// **'How to export'**
+  String get instagramImportHelpShort;
 
-  /// No description provided for @instagramImportHandlesHint.
+  /// No description provided for @instagramPostImportTitle.
   ///
   /// In en, this message translates to:
-  /// **'One handle per line'**
-  String get instagramImportHandlesHint;
+  /// **'Import posts'**
+  String get instagramPostImportTitle;
 
-  /// No description provided for @instagramImportManualAction.
+  /// No description provided for @instagramPostImportInstructions.
   ///
   /// In en, this message translates to:
-  /// **'Import handles'**
-  String get instagramImportManualAction;
+  /// **'In your Instagram export, select Posts and Reels, JSON format, and All time. Then choose the downloaded ZIP.'**
+  String get instagramPostImportInstructions;
+
+  /// No description provided for @instagramPostImportPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Your archive stays on this device. CraftSky checks a reference for each post to identify duplicates. Only the posts you publish share their caption, selected media and original date.'**
+  String get instagramPostImportPrivacy;
+
+  /// No description provided for @instagramPostImportVerificationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify or reactivate your Instagram account to import posts and projects.'**
+  String get instagramPostImportVerificationRequired;
+
+  /// No description provided for @instagramPostImportClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear export'**
+  String get instagramPostImportClear;
+
+  /// No description provided for @instagramPostImportReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading your export…'**
+  String get instagramPostImportReading;
+
+  /// No description provided for @instagramPostImportPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing your post…'**
+  String get instagramPostImportPreparing;
+
+  /// No description provided for @instagramPostImportChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking previous imports…'**
+  String get instagramPostImportChecking;
+
+  /// No description provided for @instagramPostImportLookupError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check previous imports. Try again before opening a composer.'**
+  String get instagramPostImportLookupError;
+
+  /// No description provided for @instagramPostImportOpenError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t prepare this post. Check your export or choose different media.'**
+  String get instagramPostImportOpenError;
+
+  /// No description provided for @instagramPostImportReadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read this posts export. Choose an Instagram JSON export that includes Posts and Reels.'**
+  String get instagramPostImportReadError;
+
+  /// No description provided for @instagramPostImportEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No supported posts were found in this export.'**
+  String get instagramPostImportEmpty;
+
+  /// No description provided for @instagramPostImportNoCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'No caption'**
+  String get instagramPostImportNoCaption;
+
+  /// No description provided for @instagramPostImportCreatePost.
+  ///
+  /// In en, this message translates to:
+  /// **'Create post'**
+  String get instagramPostImportCreatePost;
+
+  /// No description provided for @instagramPostImportCreateProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Create project'**
+  String get instagramPostImportCreateProject;
+
+  /// No description provided for @instagramPostImportPosted.
+  ///
+  /// In en, this message translates to:
+  /// **'Posted'**
+  String get instagramPostImportPosted;
+
+  /// No description provided for @instagramPostImportProjectCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Project created'**
+  String get instagramPostImportProjectCreated;
+
+  /// No description provided for @instagramPostImportViewPost.
+  ///
+  /// In en, this message translates to:
+  /// **'View post'**
+  String get instagramPostImportViewPost;
+
+  /// No description provided for @instagramPostImportViewProject.
+  ///
+  /// In en, this message translates to:
+  /// **'View project'**
+  String get instagramPostImportViewProject;
+
+  /// No description provided for @instagramPostImportMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more posts'**
+  String get instagramPostImportMore;
+
+  /// No description provided for @instagramPostImportMediaTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose media'**
+  String get instagramPostImportMediaTitle;
+
+  /// No description provided for @instagramPostImportMediaHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to eight photos or one video. Only the selected media will be added.'**
+  String get instagramPostImportMediaHelp;
+
+  /// No description provided for @instagramPostImportPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos'**
+  String get instagramPostImportPhotos;
+
+  /// No description provided for @instagramPostImportVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'One video'**
+  String get instagramPostImportVideo;
+
+  /// No description provided for @instagramPostImportContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Open composer'**
+  String get instagramPostImportContinue;
+
+  /// No description provided for @instagramPostImportMediaRecoveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Some media couldn\'t be added'**
+  String get instagramPostImportMediaRecoveryTitle;
+
+  /// No description provided for @instagramPostImportMediaRecoveryMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add replacement media in the composer.'**
+  String get instagramPostImportMediaRecoveryMessage;
+
+  /// No description provided for @instagramPostImportContinueWithoutMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue without media'**
+  String get instagramPostImportContinueWithoutMedia;
+
+  /// No description provided for @instagramPostImportContinueWithPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Continue with 1 photo} other{Continue with {count} photos}}'**
+  String instagramPostImportContinueWithPhotos(int count);
+
+  /// No description provided for @instagramPostImportContinueWithVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with video'**
+  String get instagramPostImportContinueWithVideo;
+
+  /// No description provided for @instagramPostImportPhotoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo {number}'**
+  String instagramPostImportPhotoLabel(int number);
+
+  /// No description provided for @instagramPostImportVideoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Video {number}'**
+  String instagramPostImportVideoLabel(int number);
+
+  /// No description provided for @instagramPostImportCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 post} other{{count} posts}}'**
+  String instagramPostImportCount(int count);
+
+  /// No description provided for @instagramPostImportSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unsupported or invalid entry skipped} other{{count} unsupported or invalid entries skipped}}'**
+  String instagramPostImportSkipped(int count);
+
+  /// No description provided for @instagramPostImportMediaSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{photos, plural, =1{1 photo} other{{photos} photos}} · {videos, plural, =1{1 video} other{{videos} videos}} · {characters, plural, =1{1 character} other{{characters} characters}}'**
+  String instagramPostImportMediaSummary(
+    int photos,
+    int videos,
+    int characters,
+  );
+
+  /// No description provided for @instagramPostImportCaptionLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Shorten the caption to 2,000 characters or fewer before publishing.'**
+  String get instagramPostImportCaptionLimit;
+
+  /// No description provided for @instagramPostImportPhotoLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to eight photos for this post.'**
+  String get instagramPostImportPhotoLimit;
+
+  /// No description provided for @instagramPostImportMultipleVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose one video for this post.'**
+  String get instagramPostImportMultipleVideos;
+
+  /// No description provided for @instagramPostImportMixedMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'This post contains photos and videos. Choose one type to import.'**
+  String get instagramPostImportMixedMedia;
+
+  /// No description provided for @instagramPostImportUnavailableMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Some media is missing, unsupported or too large to import.'**
+  String get instagramPostImportUnavailableMedia;
 
   /// No description provided for @instagramImportSelectJson.
   ///
@@ -5323,7 +5585,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramSuggestionsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Possible CraftSky accounts'**
+  /// **'Suggested accounts'**
   String get instagramSuggestionsTitle;
 
   /// No description provided for @instagramSuggestionsDescription.
@@ -5343,6 +5605,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No possible CraftSky accounts yet.'**
   String get instagramSuggestionsEmpty;
+
+  /// No description provided for @instagramSuggestionsEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Import the accounts you follow on Instagram to look for matches.'**
+  String get instagramSuggestionsEmptyHint;
 
   /// No description provided for @instagramSuggestionFollow.
   ///

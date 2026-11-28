@@ -34,7 +34,10 @@ export class APIError extends Error {
 		super(message, options);
 	}
 	get retryable(): boolean {
-		return this.status === 0 || this.status === 429 || this.status >= 500;
+		return (
+			!isDefinitiveWriteFailure(this.code) &&
+			(this.status === 0 || this.status === 429 || this.status >= 500)
+		);
 	}
 }
 
@@ -60,6 +63,10 @@ export class MutationOutcomeUnknownError extends APIError {
 	override get retryable(): boolean {
 		return true;
 	}
+}
+/** AppView has positively rejected the exact write, including when it uses a gateway status. */
+export function isDefinitiveWriteFailure(code: unknown): boolean {
+	return code === 'video_blob_missing' || code === 'pds_write_rejected';
 }
 export function newOperationKey(): string {
 	return crypto.randomUUID();
@@ -279,7 +286,7 @@ export class APITransport {
 							object(value) &&
 							value.error === 'pds_rate_limited'))
 				) {
-					if (!object(value) || value.error !== 'video_blob_missing')
+					if (!object(value) || !isDefinitiveWriteFailure(value.error))
 						throw new MutationOutcomeUnknownError(key, retryAfter ?? 1);
 				}
 				const envelope = object(value) ? value : {};

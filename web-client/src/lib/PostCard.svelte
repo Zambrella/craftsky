@@ -3,6 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import type { Facet } from './api/types';
 	import Avatar from './Avatar.svelte';
+	import ImportedPostLabel from './ImportedPostLabel.svelte';
 	import SponsoredLabel from './SponsoredLabel.svelte';
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
@@ -240,6 +241,7 @@
 			></a
 		>
 	</div>
+	<ImportedPostLabel source={post.externalImport?.source} />
 	{#if post.sponsored}<SponsoredLabel />{/if}
 	{#if !post.project}
 		{#if detail}<h1 class="visually-hidden">{postTitle(post)}</h1>{/if}

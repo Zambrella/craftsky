@@ -109,14 +109,10 @@ func TestInitialImportMatchingPersistsOneGenerationBoundPrivateSuggestion(t *tes
 	seedSuggestionImport(t, pool, importID, importer, "synthetic.initial.auto", now)
 	seedSuggestionLink(t, pool, target, "synthetic.initial.auto", now)
 
-	matcher := NewPrivateSuggestionMatcher(
-		pool,
-		newPrivateSuggestionStoreForReconciliationTest(t, pool, func() time.Time { return now }),
-		newReconciliationPolicy(),
-		func() time.Time { return now },
-	)
+	worker := newReconciliationWorkerForTest(t, pool, newReconciliationPolicy(), func() time.Time { return now })
+	job := reconciliationJob{OwnerDID: importer, ImportID: &importID}
 	for range 2 {
-		if _, err := matcher.MatchImport(ctx, importer, importID); err != nil {
+		if _, err := worker.processJob(ctx, job, now); err != nil {
 			t.Fatal(err)
 		}
 	}

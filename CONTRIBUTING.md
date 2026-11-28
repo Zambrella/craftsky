@@ -33,7 +33,7 @@ Run commands from the repository root unless a guide says otherwise. Use only de
 | --- | --- |
 | Backend | Docker + Compose v2, `just`, and Go matching [go.mod](appview/go.mod). Run `just dev-d`. See [AppView setup](appview/README.md). |
 | Flutter | FVM with the SDK pinned in [.fvmrc](.fvmrc), plus target platform tooling. Run `fvm install`, then `(cd app && fvm flutter pub get)` and `fvm exec just app-run`. See [client setup](app/README.md). |
-| Web client | Node.js matching [package.json](web-client/package.json), npm and Playwright Chromium/WebKit. Run `just web-client-setup`, then `just dev-d` and `just web-run`. See [SvelteKit setup](web-client/README.md). |
+| Web client | Node.js matching [package.json](web-client/package.json), npm and Playwright Chromium/WebKit. Run `just web-client-setup`, then `just dev-d` and `just web-run`. Includes verified Instagram post imports. See [SvelteKit setup](web-client/README.md). |
 | Website | Python for local serving; Node.js 22+ and npm for checks. See [website setup](web/README.md). |
 | Service status | See [status setup](service-status/README.md) for local checks and preview. |
 | Statistics website | Node.js 22+, npm and Python. Run `just stats-setup`; see [stats setup](stats/README.md) for the local API proxy and fixture tests. |
@@ -76,7 +76,7 @@ Run the checks for the parts you changed, and report their actual results in the
 | --- | --- |
 | Go / AppView | `just fmt`, then `just test` with `just dev-d` running. `just appview-test-unit` is a fast, incomplete iteration path. AppView changes require `just appview-check` before merge; it uses disposable services for the full release gate. |
 | Flutter | `fvm exec just app-analyze` and `fvm exec just app-test`. For UI changes, inspect the affected screens and attach screenshots or a recording. See [device integration tests](app/integration_test/README.md) for applicable native journeys. |
-| Web client | `just web-client-check` runs static checks, unit tests, builds and local Node/Worker browser fixtures. Use the [web client guide](web-client/README.md) for separate live tests. |
+| Web client | `just web-client-check` runs static checks, unit tests, builds and local Node/Worker browser fixtures, including synthetic Instagram archives and composer flows. Use the [web client guide](web-client/README.md) for separate live tests. |
 | Lexicons / generated types | `just lexgen-check` and the relevant backend/client checks, including `just appview-check`. Commit regenerated output with the schema. |
 | Website | `just web-setup` once, then `just web-check`. This checks a local build; no login or deployment is needed. |
 | Service status | `just service-status-test`. |

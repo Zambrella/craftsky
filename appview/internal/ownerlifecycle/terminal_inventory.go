@@ -100,6 +100,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("instagram_automatic_follow_ledger", "importer_did", "actor", "id"),
 	deleteDID("instagram_automatic_follow_ledger", "target_did", "target", "id"),
 	deleteDID("instagram_graph_imports", "owner_did", "owner", "id"),
+	deleteDID("instagram_post_imports", "owner_did", "owner", "owner_did", "source_key"),
 	deleteDID("instagram_identity_claims", "owner_did", "owner", "id"),
 	deleteDID("instagram_private_suggestions", "importer_did", "actor", "id"),
 	deleteDID("instagram_private_suggestions", "target_did", "target", "id"),

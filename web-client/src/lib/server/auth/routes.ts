@@ -68,6 +68,7 @@ const routes: [string, RegExp][] = [
 	['GET', /^\/v1\/migrations\/instagram\/account$/],
 	['DELETE', /^\/v1\/migrations\/instagram\/account$/],
 	['PATCH', /^\/v1\/migrations\/instagram\/settings$/],
+	['POST', /^\/v1\/migrations\/instagram\/post-imports\/lookup$/],
 	['POST', /^\/v1\/migrations\/instagram\/imports$/],
 	['GET', /^\/v1\/migrations\/instagram\/imports$/],
 	['GET', /^\/v1\/migrations\/instagram\/imports\/[^/]+$/],

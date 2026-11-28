@@ -59,7 +59,7 @@ func CreateInstagramImportHandler(service InstagramImportService, logger *slog.L
 			SourceType instagram.ImportSourceType `json:"sourceType"`
 			Entries    []instagram.ImportEntry    `json:"entries"`
 		}
-		if err := decodeStrictJSONObject(r, &request); err != nil || !request.SourceType.Valid() || request.Entries == nil {
+		if err := decodeStrictJSONObject(r, &request); err != nil || !request.SourceType.SupportsCreation() || request.Entries == nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid request", middleware.GetRunID(r.Context()), nil)
 			return
 		}

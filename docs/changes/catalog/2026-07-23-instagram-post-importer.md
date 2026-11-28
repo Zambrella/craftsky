@@ -27,6 +27,7 @@
   "currentDocs": [
     "web-client/README.md",
     "docs/adr/008-instagram-import-provenance.md",
+    "docs/adr/029-integrated-instagram-post-imports.md",
     "docs/architecture.md"
   ],
   "code": [
@@ -37,7 +38,9 @@
     "docs/changes/2026-07-23-instagram-post-importer/05-implementation-plan.md#6-verification-evidence",
     "docs/changes/2026-07-23-instagram-post-importer/06-implementation-review.md"
   ],
-  "supersededBy": [],
+  "supersededBy": [
+    "2026-11-09-integrated-instagram-imports"
+  ],
   "followUps": []
 }
 ---
@@ -46,7 +49,7 @@
 
 ## Outcome and decisions
 
-This is the historical design and verification record for the standalone Instagram archive-import website, which was removed on 13 November 2026 after client implementation. The standalone React/Pages commands and deployment assumptions are retired. The enduring public-record provenance decision remains ADR 008; current import UI and verified ownership controls belong to the web client and AppView. Historical export contents and source identities remain private.
+This is the historical design and verification record for the standalone Instagram archive-import website, which was removed on 13 November 2026 after client implementation. The standalone React/Pages commands and deployment assumptions are retired. The [integrated replacement](2026-11-09-integrated-instagram-imports.md) records the verified web-client flow and its local validation. The enduring public-record provenance decision remains ADR 008; current import UI and verified ownership controls belong to the web client and AppView. Historical export contents and source identities remain private.
 
 ## Evidence and limits
 

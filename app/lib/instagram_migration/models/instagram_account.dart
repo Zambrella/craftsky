@@ -42,6 +42,11 @@ final class InstagramAccountLink with InstagramAccountLinkMappable {
   final bool reactivationRequired;
   final DateTime verifiedAt;
 
+  bool get allowsImport =>
+      state == InstagramAccountLinkState.active &&
+      !conflictPending &&
+      !reactivationRequired;
+
   @override
   String toString() => 'InstagramAccountLink([REDACTED])';
 }

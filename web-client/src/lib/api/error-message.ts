@@ -19,6 +19,10 @@ export function apiErrorMessage(error: APIError): string {
 	if (error.status === 0)
 		return "You're offline. Check your connection and try again.";
 	if (error.status === 401) return 'Please sign in again.';
+	if (error.code === 'instagram_verification_required')
+		return 'Verify or reactivate your Instagram account in Settings before importing.';
+	if (error.code === 'instagram_post_already_imported')
+		return 'This Instagram post has already been imported. Check its status in Instagram settings.';
 	if (error.status === 403) return "You don't have permission to do that.";
 	if (error.code === 'not_found' || error.status === 404)
 		return 'That content is no longer available.';

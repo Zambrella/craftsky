@@ -1,8 +1,81 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { assertOwner, drafts, newDraft } from './store.ts';
+import { assertOwner, decodeDraft, drafts, newDraft } from './store.ts';
 
 describe('private draft storage', () => {
+	it('recovers import source identity with its frozen request and rejects damaged import metadata', async () => {
+		const draft = newDraft(`did:plc:${crypto.randomUUID()}`);
+		draft.instagramImport = {
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		};
+		draft.pending = {
+			key: crypto.randomUUID(),
+			kind: 'create',
+			body: { instagramImport: { ...draft.instagramImport } }
+		};
+		await drafts.save(draft.owner, draft);
+		const recovered = await drafts.get(draft.owner, draft.id);
+		expect(recovered?.instagramImport).toEqual(draft.instagramImport);
+		expect(recovered?.pending).toEqual(draft.pending);
+		for (const instagramImport of [
+			null,
+			{},
+			{ sourceKey: 'bad', createdAt: draft.instagramImport.createdAt },
+			{ sourceKey: draft.instagramImport.sourceKey, createdAt: 'bad' }
+		]) {
+			expect(() =>
+				decodeDraft({ ...draft, instagramImport }, draft.owner)
+			).toThrow('saved Instagram import');
+		}
+		for (const pending of [
+			{ ...draft.pending, kind: 'schedule-create' },
+			{ ...draft.pending, body: {} },
+			{
+				...draft.pending,
+				body: {
+					instagramImport: {
+						...draft.instagramImport,
+						sourceKey: '12'.repeat(16)
+					}
+				}
+			}
+		]) {
+			expect(() => decodeDraft({ ...draft, pending }, draft.owner)).toThrow(
+				'saved Instagram import'
+			);
+		}
+		expect(() =>
+			decodeDraft({ ...draft, instagramImport: undefined }, draft.owner)
+		).toThrow('saved Instagram import');
+		expect(() =>
+			decodeDraft({ ...draft, scheduleLater: true }, draft.owner)
+		).toThrow('saved Instagram import');
+	});
+	it('resumes a pending import even when another draft was saved for that source', async () => {
+		const owner = `did:plc:${crypto.randomUUID()}`;
+		const instagramImport = {
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		};
+		const pending = {
+			...newDraft(owner),
+			instagramImport,
+			pending: {
+				key: crypto.randomUUID(),
+				kind: 'create' as const,
+				body: { instagramImport }
+			}
+		};
+		await drafts.save(owner, pending);
+		await drafts.save(owner, {
+			...newDraft(owner, 'project'),
+			instagramImport
+		});
+		await expect(
+			drafts.findInstagramImport(owner, instagramImport.sourceKey)
+		).resolves.toMatchObject({ id: pending.id });
+	});
 	it('atomically clears only the deleted account, retaining other owners and rolling back an aborted cleanup', async () => {
 		const owner = `did:plc:${crypto.randomUUID()}`,
 			other = `did:plc:${crypto.randomUUID()}`;
@@ -158,4 +231,89 @@ it('rejects malformed recovery before it can issue a fresh publication', async (
 	expect(() => decodeDraft({ ...draft, images: [null] }, draft.owner)).toThrow(
 		'saved draft'
 	);
+});
+
+it('retries unsupported native Blob writes as bytes and restores media with the same revision checks', async () => {
+	const owner = `did:plc:${crypto.randomUUID()}`;
+	const draft = newDraft(owner);
+	const imageBytes = new Uint8Array([1, 2, 3]).buffer;
+	const videoBytes = new Uint8Array([4, 5, 6]).buffer;
+	draft.images = [
+		{
+			id: 'image',
+			name: 'quilt.jpg',
+			mime: 'image/jpeg',
+			alt: 'Quilt',
+			blob: new Blob([imageBytes], { type: 'image/jpeg' })
+		}
+	];
+	draft.video = {
+		id: 'video',
+		name: 'loom.mp4',
+		mime: 'video/mp4',
+		alt: 'Loom',
+		blob: new Blob([videoBytes], { type: 'video/mp4' }),
+		thumbnail: new Blob([imageBytes], { type: 'image/webp' })
+	};
+	draft.externalImage = draft.images[0];
+	const put = IDBObjectStore.prototype.put;
+	const spy = vi
+		.spyOn(IDBObjectStore.prototype, 'put')
+		.mockImplementationOnce(function (
+			this: IDBObjectStore,
+			value: unknown,
+			key?: IDBValidKey
+		) {
+			const request = put.call(this, value, key);
+			request.addEventListener('success', () => {
+				Object.defineProperty(this.transaction, 'error', {
+					value: new DOMException(
+						'Error preparing Blob/File data to be stored in object store',
+						'UnknownError'
+					)
+				});
+				this.transaction.abort();
+			});
+			return request;
+		});
+	try {
+		const revision = await drafts.save(owner, draft);
+		expect(spy.mock.calls[0][0]).toMatchObject({
+			revision,
+			images: [{ blob: expect.any(Blob) }]
+		});
+		expect(spy.mock.calls[1][0]).toMatchObject({
+			revision,
+			images: [{ blob: { bytes: imageBytes, type: 'image/jpeg' } }],
+			video: {
+				blob: { bytes: videoBytes, type: 'video/mp4' },
+				thumbnail: { bytes: imageBytes, type: 'image/webp' }
+			},
+			externalImage: { blob: { bytes: imageBytes, type: 'image/jpeg' } }
+		});
+		const restored = (await drafts.get(owner, draft.id))!;
+		expect(restored.revision).toBe(revision);
+		expect(await restored.images[0].blob?.arrayBuffer()).toEqual(imageBytes);
+		expect(await restored.video?.blob?.arrayBuffer()).toEqual(videoBytes);
+		expect(restored.video?.thumbnail?.type).toBe('image/webp');
+		expect(await restored.video?.thumbnail?.arrayBuffer()).toEqual(imageBytes);
+		expect(await restored.externalImage?.blob?.arrayBuffer()).toEqual(
+			imageBytes
+		);
+		expect(restored.images[0].blob?.type).toBe('image/jpeg');
+
+		const updatedRevision = await drafts.save(owner, {
+			...restored,
+			text: 'Edited'
+		});
+		expect(updatedRevision).not.toBe(revision);
+		await expect(drafts.save(owner, restored)).rejects.toThrow('draft changed');
+		expect(await drafts.get(owner, draft.id)).toMatchObject({
+			text: 'Edited',
+			revision: updatedRevision
+		});
+		expect(spy).toHaveBeenCalledTimes(3);
+	} finally {
+		spy.mockRestore();
+	}
 });

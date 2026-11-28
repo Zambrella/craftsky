@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/subscriptions"
@@ -63,6 +64,8 @@ type postRouteBundle struct {
 	handleResolver     api.HandleResolver
 	pdsCommands        api.SetCommandExecutor
 	appendCommands     api.AppendCommandExecutor
+	instagramAccounts  *instagram.AccountStore
+	instagramImports   *instagram.PostImportStore
 	addressedCommands  api.AddressedCommandExecutor
 	editRecords        api.PostEditRecordReader
 	reportStore        *api.ReportStore
@@ -78,7 +81,7 @@ type postRouteBundle struct {
 }
 
 func registerPostRoutes(routes postRouteBundle) {
-	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, nil, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled, Commands: routes.appendCommands})))
+	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, nil, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled, Commands: routes.appendCommands, InstagramAccounts: routes.instagramAccounts, InstagramImports: routes.instagramImports})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/edit", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/edit"), api.GetPostEditHandler(routes.postStore, routes.handleResolver, api.NewPostEditSeedLoader(routes.postStore, routes.editRecords))))
 	routes.mux.Handle("PATCH /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("PATCH", "/v1/posts/{did}/{rkey}"), api.CommandEditPostHandler(routes.postStore, routes.addressedCommands, routes.handleResolver, routes.mediaLimits, api.EditPostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled})))

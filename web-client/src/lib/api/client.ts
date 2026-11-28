@@ -995,11 +995,32 @@ export class CraftskyAPI {
 				pageQuery(options),
 				options.signal
 			),
-		createImport: (body: T.JsonObject) =>
+		createImport: (body: {
+			sourceType: 'instagramJson';
+			entries: { username: string }[];
+		}) =>
 			this.transport.request<T.InstagramImportCreate>(
 				'POST',
 				'/v1/migrations/instagram/imports',
 				{ body }
+			),
+		lookupPostImports: (sourceKeys: string[], signal?: AbortSignal) =>
+			this.transport.request<{ items: T.InstagramPublishedImport[] }>(
+				'POST',
+				'/v1/migrations/instagram/post-imports/lookup',
+				{
+					body: { sourceKeys },
+					signal,
+					validate: ({ items }) =>
+						Array.isArray(items) &&
+						items.every(
+							(item) =>
+								item &&
+								sourceKeys.includes(item.sourceKey) &&
+								typeof item.uri === 'string' &&
+								(item.kind === 'standard' || item.kind === 'project')
+						)
+				}
 			),
 		import: (id: string) =>
 			this.transport.get<T.InstagramImport>(

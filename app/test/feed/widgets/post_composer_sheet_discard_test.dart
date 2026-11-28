@@ -9,11 +9,14 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/composer/instagram_post_composer.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
@@ -26,6 +29,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -423,6 +427,159 @@ void main() {
       expect(find.byType(PostComposerSheet), findsNothing);
     },
   );
+
+  testWidgets(
+    'Instagram handoff reuses a saved draft and returns its confirmed post',
+    (tester) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final lease = registry.activeLease!;
+      final source = InstagramPostImportSource(
+        sourceKey: 'abcdef0123456789abcdef0123456789',
+        createdAt: DateTime.utc(2021, 8, 4, 12),
+      );
+      final origin = _originDraft(
+        lease.session.account,
+        instagramImport: source,
+      );
+      final drafts = _RevisionDraftRepository(origin);
+      final accepted = _post('Retry this post').copyWith(
+        createdAt: source.createdAt,
+        externalImport: const ExternalImport(source: 'instagram'),
+      );
+      InstagramImportPublication? submitted;
+      final posts = FakePostRepository(
+        onPublishPreparedInstagramImport: (pending) async {
+          submitted = pending;
+          return accepted;
+        },
+      );
+      Post? result;
+      final messenger = RecordingMessenger();
+      await _openComposer(
+        tester,
+        registry: registry,
+        messenger: messenger,
+        openComposer: (context, ref) async {
+          result = await openInstagramPostComposer(
+            context,
+            ref,
+            owner: lease,
+            source: source,
+            caption: 'The unedited archive caption',
+            kind: LocalPostDraftKind.standard,
+            loadMedia: () async => fail('Saved draft media should be reused'),
+          );
+        },
+        overrides: [
+          accountLocalPostDraftRepositoryProvider(
+            lease.session.account,
+          ).overrideWith((ref) async => drafts),
+          postRepositoryProvider.overrideWithValue(posts),
+        ],
+      );
+      expect(find.text(accepted.text), findsOneWidget);
+      expect(
+        find.text(
+          'This post keeps its original Instagram date and appears '
+          'on your profile and in search.',
+        ),
+        findsOneWidget,
+      );
+      await _pumpUntilPostEnabled(tester);
+      tester
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
+          .onPressed!();
+      await tester.pumpAndSettle();
+
+      expect(submitted?.request['text'], accepted.text);
+      expect(submitted?.source.toMap(), source.toMap());
+      expect(messenger.calls, contains(('info', 'Posted.', null)));
+      expect(drafts.deletedIds, [origin.id]);
+      expect(result?.uri, accepted.uri);
+      expect(result?.createdAt, source.createdAt);
+      expect(find.byType(PostComposerSheet), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'an unconfirmed Instagram submission locks the editor and retries the '
+    'original publication',
+    (tester) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final lease = registry.activeLease!;
+      final source = InstagramPostImportSource(
+        sourceKey: 'abcdef0123456789abcdef0123456789',
+        createdAt: DateTime.utc(2021, 8, 4, 12),
+      );
+      final origin = _originDraft(
+        lease.session.account,
+        instagramImport: source,
+      );
+      final drafts = _RevisionDraftRepository(origin);
+      final accepted = _post(
+        (origin.content as StandardDraftContent).text,
+      ).copyWith(createdAt: source.createdAt);
+      final submissions = <InstagramImportPublication>[];
+      final posts = FakePostRepository(
+        onPublishPreparedInstagramImport: (pending) async {
+          submissions.add(pending);
+          if (submissions.length == 1) {
+            throw const PdsMutationAmbiguousException(
+              retryAfterSeconds: 120,
+              rateLimited: true,
+            );
+          }
+          return accepted;
+        },
+      );
+      await _openComposer(
+        tester,
+        registry: registry,
+        messenger: RecordingMessenger(),
+        openComposer: (context, ref) => openInstagramPostComposer(
+          context,
+          ref,
+          owner: lease,
+          source: source,
+          caption: 'Unedited archive caption',
+          kind: LocalPostDraftKind.standard,
+          loadMedia: () async => fail('Saved draft media should be reused'),
+        ),
+        overrides: [
+          accountLocalPostDraftRepositoryProvider(
+            lease.session.account,
+          ).overrideWith((ref) async => drafts),
+          postRepositoryProvider.overrideWithValue(posts),
+        ],
+      );
+      await _pumpUntilPostEnabled(tester);
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsNothing);
+      final pending = drafts.current.instagramPublication!;
+      expect(submissions.single, same(pending));
+      expect(pending.request['text'], accepted.text);
+      expect(drafts.expectedRevisions, [1]);
+      await tester.tap(
+        find.widgetWithText(ChunkyButton, 'Retry publication'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(submissions, [same(pending), same(pending)]);
+      expect(drafts.expectedRevisions, [1]);
+      expect(drafts.deletedIds, [origin.id]);
+      expect(find.byType(PostComposerSheet), findsNothing);
+    },
+  );
 }
 
 Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
@@ -474,6 +631,7 @@ Future<void> _openComposer(
   LocalPostDraftSeed? draftSeed,
   ActiveAccountLease? draftOwner,
   FakeStatusRepository? status,
+  Future<void> Function(BuildContext, WidgetRef)? openComposer,
 }) async {
   final providerOverrides = <dynamic>[
     if (status != null) ...[
@@ -509,8 +667,8 @@ Future<void> _openComposer(
               : (context, child) => ServiceStatusHost(child: child!),
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Builder(
-            builder: (context) {
+          home: Consumer(
+            builder: (context, ref, _) {
               return Scaffold(
                 body: Center(
                   child: Column(
@@ -519,6 +677,10 @@ Future<void> _openComposer(
                       const Text('Host'),
                       ElevatedButton(
                         onPressed: () {
+                          if (openComposer != null) {
+                            unawaited(openComposer(context, ref));
+                            return;
+                          }
                           Navigator.of(context).push<Post?>(
                             MaterialPageRoute<Post?>(
                               fullscreenDialog: true,
@@ -554,7 +716,8 @@ Future<void> _openComposer(
   await tester.pumpAndSettle();
 }
 
-final class _RevisionDraftRepository implements LocalPostDraftRepository {
+final class _RevisionDraftRepository
+    implements LocalPostDraftRepository, InstagramPublicationDraftRepository {
   new(this.current);
 
   LocalPostDraft current;
@@ -588,7 +751,25 @@ final class _RevisionDraftRepository implements LocalPostDraftRepository {
       content: request.content,
       schedule: request.schedule,
       media: const [],
+      instagramImport: current.instagramImport,
       revision: current.revision + 1,
+    );
+  }
+
+  @override
+  Future<LocalPostDraft> setInstagramPublication({
+    required String draftId,
+    required int expectedRevision,
+    required InstagramImportPublication? publication,
+  }) async {
+    if (expectedRevision != current.revision) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.conflict,
+      );
+    }
+    return current = current.withInstagramPublication(
+      publication,
+      updatedAt: current.updatedAt.add(const Duration(seconds: 1)),
     );
   }
 
@@ -630,7 +811,10 @@ final class _GatedDraftSaveRepository implements LocalPostDraftRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-LocalPostDraft _originDraft(AccountKey owner) => LocalPostDraft(
+LocalPostDraft _originDraft(
+  AccountKey owner, {
+  InstagramPostImportSource? instagramImport,
+}) => LocalPostDraft(
   id: '00000000-0000-4000-8000-000000000010',
   owner: owner,
   kind: LocalPostDraftKind.standard,
@@ -642,6 +826,7 @@ LocalPostDraft _originDraft(AccountKey owner) => LocalPostDraft(
   ),
   schedule: const DraftScheduleIntent.now(),
   media: const [],
+  instagramImport: instagramImport,
 );
 
 final class _RegistryStorage implements SessionRegistryStorage {

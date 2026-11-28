@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/video_thumbnail_frame.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
@@ -159,6 +161,7 @@ final class DraftWriteRequest {
     this.video,
     this.createdAt,
     this.expectedRevision,
+    this.instagramImport,
   }) : orderedMedia = List.unmodifiable(orderedMedia);
 
   final String id;
@@ -170,6 +173,7 @@ final class DraftWriteRequest {
   final DraftScheduleIntent schedule;
   final List<DraftMediaWrite> orderedMedia;
   final DraftVideoWrite? video;
+  final InstagramPostImportSource? instagramImport;
 
   @override
   String toString() => 'DraftWriteRequest(<redacted>)';
@@ -192,4 +196,12 @@ abstract interface class LocalVideoDraftRepository {
 
   Future<Uint8List> readVideoPoster(String draftId);
   Future<Uint8List?> readVideoThumbnail(String draftId);
+}
+
+abstract interface class InstagramPublicationDraftRepository {
+  Future<LocalPostDraft> setInstagramPublication({
+    required String draftId,
+    required int expectedRevision,
+    required InstagramImportPublication? publication,
+  });
 }

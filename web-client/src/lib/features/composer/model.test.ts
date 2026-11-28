@@ -20,6 +20,57 @@ import { newDraft } from '../drafts/store.ts';
 import type { JsonObject, PostEditSeed } from '#lib/api/client.ts';
 
 describe('composer data contracts', () => {
+	it('preserves historical import identity when freezing a normalized project payload', () => {
+		const draft = newDraft('did:plc:maker', 'project');
+		draft.text = 'My original caption';
+		const details = {
+			$type: 'social.craftsky.project.knitting#details',
+			projectType: 'social.craftsky.project.defs#homeGoods',
+			projectSubtype: '  Lampshade  '
+		};
+		draft.project = { ...defaultProject(['knitting']), details };
+		draft.instagramImport = {
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		};
+		const payload = postPayload(draft, []);
+		const pending = freezeWrite(payload as unknown as JsonObject, draft);
+		draft.instagramImport.createdAt = '2021-01-01T00:00:00.000Z';
+		draft.text = 'Edited later';
+		expect(pending.body.instagramImport).toEqual({
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		});
+		expect(pending.body.project).toEqual({
+			...draft.project,
+			details: { ...details, projectSubtype: 'Lampshade' }
+		});
+		expect(pending.body.text).toBe('My original caption');
+		expect(pending.body).not.toHaveProperty('createdAt');
+		expect(pending.body).not.toHaveProperty('externalImport');
+		expect(postPayload(newDraft('did:plc:maker'), [])).not.toHaveProperty(
+			'instagramImport'
+		);
+	});
+	it('requires explicit shortening of imported captions and prevents scheduled imports', () => {
+		const draft = newDraft('did:plc:maker');
+		draft.text = '🧶'.repeat(2001);
+		draft.instagramImport = {
+			sourceKey: 'ab'.repeat(16),
+			createdAt: '2020-02-03T12:34:56.000Z'
+		};
+		expect(validateDraft(draft)).toContain(
+			'Posts can contain up to 2,000 characters.'
+		);
+		expect(postPayload(draft, []).text).toBe(draft.text);
+		expect(validateDraft(draft, true)).toContain(
+			'Imported Instagram posts cannot be scheduled.'
+		);
+		draft.scheduleLater = true;
+		expect(validateDraft(draft)).toContain(
+			'Imported Instagram posts cannot be scheduled.'
+		);
+	});
 	it('writes custom item text with its selected parent type', () => {
 		const project = {
 			common: { craftType: 'social.craftsky.feed.defs#knitting' },

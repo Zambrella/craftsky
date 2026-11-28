@@ -27,6 +27,7 @@
 	import {
 		APIError,
 		MutationOutcomeUnknownError,
+		isDefinitiveWriteFailure,
 		type CraftskyAPI,
 		type JsonObject,
 		type Post,
@@ -86,6 +87,7 @@
 	import { ComposerRecovery } from './recovery';
 	import { reportFailure } from '../diagnostics/client.ts';
 	import './composer.css';
+	const instagramImportDestination = '/settings/instagram/posts';
 	const postPrompt = "Share what you're making, learning, or thinking...";
 	const postFormattingHelp =
 		'You can @mention people, use #hashtags or add https://links.com.';
@@ -253,12 +255,17 @@
 			(tier()?.givesAccess && tier()?.effectiveTier !== 'free') ||
 			!!draft.scheduleId) &&
 			!draft.edit &&
+			!draft.instagramImport &&
 			!draft.reply &&
 			!draft.quote &&
 			!draft.video
 	);
 	const canChooseSchedule = $derived(
-		!draft.edit && !draft.reply && !draft.quote && !draft.video
+		!draft.edit &&
+			!draft.instagramImport &&
+			!draft.reply &&
+			!draft.quote &&
+			!draft.video
 	);
 	const composingResponse = $derived(!!draft.reply && !draft.edit);
 	const title = $derived(
@@ -289,6 +296,7 @@
 		!!draft.edit?.post.video && draft.embedChanges !== null && !draft.video
 	);
 	const retainedExternal = $derived(externalFrozen && !!draft.external);
+	let importedInitialText = $state<string>();
 	const previewSuppressed = $derived(
 		draft.kind === 'project' ||
 			fixedEmbed ||
@@ -297,6 +305,7 @@
 			!!draft.quote ||
 			!!draft.video ||
 			draft.images.length > 0 ||
+			(!!draft.instagramImport && draft.text === importedInitialText) ||
 			(!!draft.edit && draft.text === str(draft.edit.editable.text))
 	);
 	const canAddVideo = $derived(
@@ -678,7 +687,7 @@
 				}
 			}
 			if (seq !== generation || destroyed) return;
-			if (!next.reply && !next.quote && !next.edit) {
+			if (!next.reply && !next.quote && !next.edit && !next.instagramImport) {
 				void ownedApi.schedules
 					.list()
 					.then((capacity) => {
@@ -694,6 +703,11 @@
 				notice =
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
+			if (next.instagramImport) {
+				closeDestination = instagramImportDestination;
+				closeTarget = closeDestination;
+			}
+			importedInitialText = next.instagramImport ? next.text : undefined;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
 			externalFrozen =
@@ -1271,7 +1285,10 @@
 			// without holding the publishing dialog open.
 			publishing = false;
 			notify(result.notice);
-			if (result.post) publications?.accept(result.post, context);
+			// Historical imports converge through indexed profile/search reads. The
+			// ordinary publication overlay prepends to home feeds and profile lists.
+			if (result.post && !draft.instagramImport)
+				publications?.accept(result.post, context);
 			if (result.edit)
 				publications?.watchEdit(pending.rkey!, result.edit, () =>
 					api.posts.get(pending.did!, pending.rkey!)
@@ -1279,7 +1296,9 @@
 			const destination =
 				pending.kind === 'edit'
 					? result.destination!
-					: origin || result.destination || closeDestination;
+					: draft.instagramImport
+						? instagramImportDestination
+						: origin || result.destination || closeDestination;
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
 			await (lifecycle?.complete() ?? Promise.resolve()).catch((error) => {
@@ -1299,7 +1318,7 @@
 			const uncertain =
 				e instanceof MutationOutcomeUnknownError ||
 				(e instanceof APIError &&
-					e.code !== 'video_blob_missing' &&
+					!isDefinitiveWriteFailure(e.code) &&
 					(e.status === 0 || e.status >= 500));
 			if (uncertain) {
 				error =
@@ -1318,7 +1337,14 @@
 				publishing = false;
 				await tick();
 				if (seq !== generation || destroyed) return;
-				if (e instanceof APIError && e.status === 409)
+				if (
+					e instanceof APIError &&
+					e.code === 'instagram_post_already_imported' &&
+					draft.instagramImport
+				)
+					error =
+						'This Instagram post already has an import in progress or has been posted. Return to Instagram settings to check its status before trying again.';
+				else if (e instanceof APIError && e.status === 409 && draft.edit)
 					error =
 						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
 				else if (e instanceof APIError && e.code === 'video_blob_missing')
@@ -1388,7 +1414,7 @@
 				>{existingDraft ? 'Save changes' : 'Save draft'}</button
 			>{/if}
 	</header>
-	{#if error}<Snackbar
+	{#if error && (!initialized || !draft.instagramImport)}<Snackbar
 			message={error}
 			warning
 			onDismiss={() => (error = '')}
@@ -1411,6 +1437,14 @@
 			}}
 		>
 			<div class="composer-scroll">
+				{#if draft.instagramImport}<p class="notice">
+						Imported from Instagram · {new Date(
+							draft.instagramImport.createdAt
+						).toLocaleDateString()}. This will appear on your profile and in
+						search using its original date, without adding it to the home feed.
+					</p>
+					{#if error}<p class="notice" role="alert">{error}</p>{/if}
+				{/if}
 				{#if draft.pending}<section class="composer-pending">
 						<h2>Waiting for confirmation</h2>
 						<p>

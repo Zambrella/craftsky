@@ -71,6 +71,7 @@ func TestWriteCommandErrorUsesStandardEnvelopeAndStableCodes(t *testing.T) {
 		{pdscommands.ErrRepositoryConflict, http.StatusConflict, "pds_repository_conflict"},
 		{pdscommands.ErrAtomicMutationTooLarge, http.StatusUnprocessableEntity, "pds_atomic_mutation_too_large"},
 		{pdscommands.ErrMalformedCommand, http.StatusBadRequest, "invalid_request"},
+		{pdscommands.ErrAtomicWritesUnsupported, http.StatusBadGateway, "pds_write_rejected"},
 		{pdscommands.ErrDispatchUnavailable, http.StatusServiceUnavailable, "pds_dispatch_unavailable"},
 	}
 	for _, test := range tests {

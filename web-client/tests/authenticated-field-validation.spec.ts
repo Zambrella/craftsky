@@ -275,6 +275,35 @@ test('publication field errors stay inline while uncertain writes retain recover
 	).toBeVisible();
 });
 
+test('an invalid project craft picker has only the input error border', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/profiles/me', async (route) => {
+		const response = await route.fetch();
+		await route.fulfill({
+			response,
+			json: { ...(await response.json()), crafts: [] }
+		});
+	});
+	await page.goto('/compose/project');
+	const craft = page.getByRole('combobox', { name: 'Primary craft required' });
+	await page.getByLabel('Project description').fill('A project description');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(craft).toHaveAttribute('aria-invalid', 'true');
+	await expect(craft).toBeFocused();
+	const error = page.getByText('Choose a primary craft.', { exact: true });
+	await expect(error).toBeVisible();
+	await expect(craft).toHaveCSS(
+		'outline-color',
+		await error.evaluate((node) => getComputedStyle(node).color)
+	);
+	await expect(craft).toHaveCSS('outline-offset', '-2px');
+	await expect(page.locator('.single-field').filter({ has: craft })).toHaveCSS(
+		'outline-style',
+		'none'
+	);
+});
+
 test('custom project subtype input preserves complete UTF-8 characters within the byte limit', async ({
 	page
 }) => {

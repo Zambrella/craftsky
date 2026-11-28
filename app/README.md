@@ -126,6 +126,15 @@ SENTRY_LOCAL_OPT_IN=false
 Keep Sentry upload credentials (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
 `SENTRY_PROJECT`) in CI secrets or your shell environment, not in app config.
 
+## Importing Instagram posts
+
+Open **Settings → Instagram** and verify your Instagram account. Choose a ZIP
+export with **Posts and Reels** in **JSON** format. The app reviews the archive
+on your device and opens selected posts in the regular post or project composer.
+Choose up to eight photos or one video per post. The archive stays on the
+device and confirmed import history is shared with the web client. Imported
+posts keep their original Instagram dates and appear on profiles and in search.
+
 ## Checks
 
 From the repository root:

@@ -36,19 +36,28 @@ type AppendCommandService struct {
 }
 
 type AppendCommandRequest struct {
-	Owner            syntax.DID
-	OwnerGeneration  int64
-	Targets          []syntax.DID
-	SessionID        string
-	OperationKind    string
-	OperationKey     uuid.UUID
-	Collection       syntax.NSID
-	Intent           json.RawMessage
-	Blobs            []BlobReference
-	BuildRecord      func(time.Time) (json.RawMessage, error)
-	Accepted         func(AuthoritativeRecord) (TerminalResult, error)
-	FinalizeAccepted func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
-	Rejected         func(error) TerminalResult
+	Owner           syntax.DID
+	OwnerGeneration int64
+	Targets         []syntax.DID
+	SessionID       string
+	OperationKind   string
+	OperationKey    uuid.UUID
+	Collection      syntax.NSID
+	// SelectedRkey is optional for callers with a deterministic create-only identity.
+	SelectedRkey    syntax.RecordKey
+	SelectRecordKey func(context.Context, pgx.Tx) (syntax.RecordKey, error)
+	// CheckPrepared validates a revocable reservation under the post publication
+	// fence before the command can dispatch or recover a PDS write.
+	CheckPrepared func(context.Context, pgx.Tx, PreparedCommand) (bool, error)
+	// AuthorizeDispatch runs in the transaction that records each write attempt,
+	// after potentially slow remote reads have finished.
+	AuthorizeDispatch func(context.Context, pgx.Tx) error
+	Intent            json.RawMessage
+	Blobs             []BlobReference
+	BuildRecord       func(time.Time) (json.RawMessage, error)
+	Accepted          func(AuthoritativeRecord) (TerminalResult, error)
+	FinalizeAccepted  func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
+	Rejected          func(error) TerminalResult
 }
 
 func NewAppendCommandService(config AppendCommandServiceConfig) (*AppendCommandService, error) {
@@ -67,6 +76,10 @@ func NewAppendCommandService(config AppendCommandServiceConfig) (*AppendCommandS
 	}, nil
 }
 
+func (service *AppendCommandService) LookupCommand(ctx context.Context, owner syntax.DID, kind string, key uuid.UUID) (*ReplayCommand, error) {
+	return service.store.LookupCommand(ctx, owner, kind, key)
+}
+
 func (service *AppendCommandService) Execute(ctx context.Context, request AppendCommandRequest) (CommandResult, error) {
 	if err := validateAppendCommandRequest(request); err != nil {
 		return CommandResult{}, err
@@ -79,13 +92,19 @@ func (service *AppendCommandService) Execute(ctx context.Context, request Append
 	if err != nil {
 		return CommandResult{}, err
 	}
-	prepared, err := service.store.PrepareOrReplayWithSelection(ctx, PrepareRequest{
+	prepared, err := service.store.PrepareOrReplayWithTransactionalSelection(ctx, PrepareRequest{
 		Owner: request.Owner, OwnerGeneration: request.OwnerGeneration,
 		OperationKind: request.OperationKind, OperationKey: request.OperationKey,
 		FingerprintVersion: 1, Fingerprint: fingerprint, ImmutableRequest: request.Intent,
 		ExpectedOwner: request.Owner, ExpectedOwnerGeneration: request.OwnerGeneration,
-	}, func() (syntax.ATURI, syntax.RecordKey, error) {
-		rkey, err := service.newRecordKey()
+	}, func(selectionCtx context.Context, tx pgx.Tx) (syntax.ATURI, syntax.RecordKey, error) {
+		rkey := request.SelectedRkey
+		var err error
+		if request.SelectRecordKey != nil {
+			rkey, err = request.SelectRecordKey(selectionCtx, tx)
+		} else if rkey == "" {
+			rkey, err = service.newRecordKey()
+		}
 		if err != nil {
 			return "", "", fmt.Errorf("allocate append record key: %w", err)
 		}
@@ -188,7 +207,8 @@ func appendRequestFingerprint(
 ) ([32]byte, error) {
 	conditions, err := json.Marshal(struct {
 		Owners []ownerlifecycle.ExpectedOwner `json:"owners"`
-	}{Owners: expected})
+		Rkey   syntax.RecordKey               `json:"selectedRkey,omitempty"`
+	}{Owners: expected, Rkey: request.SelectedRkey})
 	if err != nil {
 		return [32]byte{}, err
 	}
@@ -220,6 +240,11 @@ func validateAppendCommandRequest(request AppendCommandRequest) error {
 		request.BuildRecord == nil || request.Accepted == nil || request.Rejected == nil {
 		return ErrMalformedCommand
 	}
+	if request.SelectedRkey != "" {
+		if _, err := syntax.ParseRecordKey(request.SelectedRkey.String()); err != nil {
+			return ErrMalformedCommand
+		}
+	}
 	for _, blob := range request.Blobs {
 		if blob.CID == "" || blob.MIMEType == "" || blob.Size < 0 {
 			return ErrMalformedCommand
@@ -229,6 +254,38 @@ func validateAppendCommandRequest(request AppendCommandRequest) error {
 }
 
 func (service *AppendCommandService) executeFenced(
+	ctx context.Context,
+	transport *PDSTransport,
+	command PreparedCommand,
+	requestFingerprint [32]byte,
+	record json.RawMessage,
+	request AppendCommandRequest,
+) (CommandResult, error) {
+	if request.CheckPrepared == nil {
+		return service.executePrepared(ctx, transport, command, requestFingerprint, record, request)
+	}
+	var result CommandResult
+	err := service.lifecycles.WithPostPublicationFence(ctx, command.SelectedURI, func(postCtx context.Context) error {
+		var active bool
+		err := service.store.withTransaction(postCtx, func(tx pgx.Tx) error {
+			var err error
+			active, err = request.CheckPrepared(postCtx, tx, command)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if !active {
+			result, err = service.reject(postCtx, command.ID, request, ErrRecordConflict)
+		} else {
+			result, err = service.executePrepared(postCtx, transport, command, requestFingerprint, record, request)
+		}
+		return err
+	})
+	return result, err
+}
+
+func (service *AppendCommandService) executePrepared(
 	ctx context.Context,
 	transport *PDSTransport,
 	command PreparedCommand,
@@ -282,11 +339,11 @@ func (service *AppendCommandService) executeFenced(
 		if err != nil {
 			return CommandResult{}, err
 		}
-		attempt, err := service.store.BeginDispatch(ctx, command.ID, ExactPlan{
+		attempt, err := service.store.beginDispatch(ctx, command.ID, ExactPlan{
 			Version: command.ActivePlanVersion + attemptNumber, FingerprintVersion: 1,
 			Fingerprint: dispatchFingerprint, RepositoryCID: head,
 			RemoteDeadline: service.now().UTC().Add(30 * time.Second), Steps: []DispatchStep{step},
-		})
+		}, request.AuthorizeDispatch)
 		if err != nil {
 			if errors.Is(err, ErrIllegalTransition) {
 				return service.store.Result(ctx, command.ID)

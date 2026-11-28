@@ -8,6 +8,7 @@ import type {
 import { containerDurationMs } from './video-duration.ts';
 import type { DraftMedia } from '../drafts/store.ts';
 import { uploadBunnyVideo } from './bunny-video.ts';
+import { postLimits, videoSourceMime } from './limits';
 
 export interface ImageTransform {
 	rotation?: number;
@@ -35,7 +36,7 @@ export async function prepareImage(
 	limits = { maxDimension: 4000, maxBytes: 2_000_000 }
 ): Promise<DraftMedia> {
 	const { maxDimension, maxBytes } = limits;
-	if (source.size > 40_000_000)
+	if (source.size > postLimits.imageSourceBytes)
 		throw new InputError('Choose an image smaller than 40 MB.');
 	let bitmap: ImageBitmap;
 	try {
@@ -130,16 +131,6 @@ export async function prepareImage(
 		bitmap.close();
 	}
 }
-export function videoSourceMime(
-	header: Uint8Array
-): 'video/mp4' | 'video/quicktime' | undefined {
-	if (header.length < 12) return;
-	const tag = new TextDecoder('ascii').decode(header.subarray(4, 12));
-	if (tag === 'ftypqt  ') return 'video/quicktime';
-	if (['ftypisom', 'ftypmp41', 'ftypmp42', 'ftypavc1'].includes(tag))
-		return 'video/mp4';
-}
-
 async function unplayableVideo(
 	result: DraftMedia,
 	file: File
@@ -152,8 +143,12 @@ async function unplayableVideo(
 	return { ...result, previewUnavailable: true, durationMs };
 }
 
-export async function inspectVideo(file: File): Promise<DraftMedia> {
-	if (file.size > 300_000_000)
+export async function inspectVideo(
+	file: File,
+	signal?: AbortSignal
+): Promise<DraftMedia> {
+	signal?.throwIfAborted();
+	if (file.size > postLimits.videoSourceBytes)
 		throw new InputError(
 			'This video is too large. Videos must be 300 MB or smaller. Choose a smaller file or export a smaller copy.'
 		);
@@ -164,6 +159,7 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 	const mime = videoSourceMime(
 		new Uint8Array(await file.slice(0, 12).arrayBuffer())
 	);
+	signal?.throwIfAborted();
 	if (!mime)
 		throw new InputError(
 			"This video format isn't supported. Choose an MP4 or MOV file."
@@ -179,30 +175,33 @@ export async function inspectVideo(file: File): Promise<DraftMedia> {
 	const element = document.createElement('video');
 	try {
 		try {
-			await new Promise<void>((resolve, reject) => {
-				const timeout = setTimeout(
-					() => reject(new UserFacingError('Could not read this video.')),
-					15000
-				);
-				element.onloadedmetadata = () => {
-					clearTimeout(timeout);
-					resolve();
-				};
-				element.onerror = () => {
-					clearTimeout(timeout);
-					reject(
-						new UserFacingError(
-							'This video cannot be previewed in your browser.'
-						)
-					);
-				};
-				element.preload = 'metadata';
-				element.src = url;
-			});
+			await withDeadline(
+				15_000,
+				signal,
+				() =>
+					new Promise<void>((resolve, reject) => {
+						element.onloadedmetadata = () => resolve();
+						element.onerror = () =>
+							reject(
+								new UserFacingError(
+									'This video cannot be previewed in your browser.'
+								)
+							);
+						element.preload = 'metadata';
+						element.src = url;
+					})
+			);
 		} catch (error) {
+			signal?.throwIfAborted();
 			// Browsers without HEVC/QuickTime decoding can still upload a valid MOV.
 			// AppView validates duration after Bunny processing and before publication.
-			if (mime !== 'video/quicktime') throw error;
+			if (mime !== 'video/quicktime') {
+				if (error instanceof DOMException && error.name === 'TimeoutError')
+					throw new UserFacingError('Could not read this video.', {
+						cause: error
+					});
+				throw error;
+			}
 			return unplayableVideo(result, file);
 		}
 		if (!Number.isFinite(element.duration) || element.duration <= 0) {

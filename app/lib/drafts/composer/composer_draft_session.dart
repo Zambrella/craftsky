@@ -7,7 +7,9 @@ import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/composer/composer_ownership.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:crypto/crypto.dart';
 
 /// Shared draft revision, recovery snapshot and media persistence rules.
 /// Widgets supply account-scoped dependencies and retain presentation.
@@ -15,8 +17,27 @@ final class ComposerDraftSession {
   new(LocalPostDraft? draft) : _origin = DraftSubmissionOrigin(draft);
 
   final DraftSubmissionOrigin _origin;
+  final _thumbnailDigests = Expando<String>();
 
   LocalPostDraft? get draft => _origin.draft;
+
+  Future<void> setInstagramPublication({
+    required InstagramPublicationDraftRepository repository,
+    required InstagramImportPublication? publication,
+  }) async {
+    final current = draft;
+    if (current == null || current.instagramImport == null) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    final saved = await repository.setInstagramPublication(
+      draftId: current.id,
+      expectedRevision: current.revision,
+      publication: publication,
+    );
+    _origin.acceptSnapshot(saved);
+  }
 
   Future<void> saveOriginSnapshot({
     required ActiveAccountLease? expectedOwner,
@@ -47,6 +68,26 @@ final class ComposerDraftSession {
     final repository = await repositoryFor(original.owner);
     await repository.delete(original.id);
     await refresh(original.owner);
+  }
+
+  bool videoChanged({
+    required LocalVideoSelection? selection,
+    required bool useStoredVideo,
+    required bool restoring,
+  }) {
+    if (restoring) return false;
+    final stored = draft?.video;
+    if (stored == null) return selection != null;
+    if (selection == null || !useStoredVideo) return true;
+    if (selection.altText != stored.altText ||
+        selection.thumbnailFrame != stored.thumbnailFrame) {
+      return true;
+    }
+    final thumbnail = selection.thumbnail;
+    final thumbnailDigest = thumbnail == null
+        ? null
+        : _thumbnailDigests[thumbnail] ??= sha256.convert(thumbnail).toString();
+    return thumbnailDigest != stored.thumbnailSha256;
   }
 
   DraftVideoWrite? videoWrite({

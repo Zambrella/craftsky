@@ -2129,7 +2129,6 @@ label:has(input[type='file'][aria-invalid='true']) {
 	outline-offset: 2px;
 }
 
-.native-single-select:has(input[aria-invalid='true']) .single-field,
 .native-multi-select:has(input[aria-invalid='true']) .selection-field {
 	outline: 2px solid var(--red-ink);
 	outline-offset: -2px;

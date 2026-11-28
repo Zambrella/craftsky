@@ -80,7 +80,7 @@ func commandError(err error) (int, string, string) {
 		status, code, message = http.StatusUnauthorized, "pds_permissions_required", "Please sign in again to approve CraftSky permissions."
 	case errors.Is(err, auth.ErrPDSSessionExpired):
 		status, code, message = http.StatusUnauthorized, "pds_session_expired", "PDS session expired; sign in again."
-	case errors.Is(err, pdscommands.ErrDispatchRejected):
+	case errors.Is(err, pdscommands.ErrDispatchRejected), errors.Is(err, pdscommands.ErrAtomicWritesUnsupported):
 		status, code, message = http.StatusBadGateway, "pds_write_rejected", "The PDS rejected the mutation."
 	case errors.Is(err, pdscommands.ErrDispatchUnavailable):
 	}

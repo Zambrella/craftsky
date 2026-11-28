@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import bzipFixture from '../src/lib/features/settings/bzip-fixture.json' with { type: 'json' };
+import { nativeIconPaths } from '../src/lib/features/shell/native-icons.ts';
 test('business images are reviewed, cropped and stripped/recompressed before explicit upload', async ({
 	page
 }) => {
@@ -160,9 +161,22 @@ async function verifyInstagram(page: Page) {
 	await expect(
 		page.getByText('craftsky-test-challenge', { exact: true })
 	).toBeVisible();
-	await page
-		.getByRole('button', { name: 'Check verification status', exact: true })
-		.click();
+	await expect(
+		page.getByRole('button', { name: 'Copy challenge' })
+	).toBeEnabled();
+	const dmUrl = 'https://www.instagram.com/direct/t/fixture';
+	const openDm = page.getByRole('link', { name: 'Open Instagram DM' });
+	await expect(openDm).toHaveAttribute('href', dmUrl);
+	await expect(
+		page.getByRole('button', { name: 'Cancel verification' })
+	).toBeEnabled();
+	await page.context().route(dmUrl, (route) => route.fulfill({ body: 'DM' }));
+	const [dm] = await Promise.all([
+		page.waitForEvent('popup', { timeout: 5000 }),
+		openDm.click()
+	]);
+	await expect(dm).toHaveURL(dmUrl);
+	await dm.close();
 	await expect(page.getByText('@alice_makes', { exact: true })).toBeVisible();
 	await expect(exportHelp).toHaveCount(0);
 	await page
@@ -174,6 +188,9 @@ async function verifyInstagram(page: Page) {
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Instagram account verified.' })
 	).toBeVisible();
+	await expect(exportHelp).toHaveCount(0);
+	await page.getByRole('link', { name: 'Import accounts you follow' }).click();
+	await expect(page).toHaveURL(/\/settings\/instagram\/following$/);
 	await expect(exportHelp).toBeVisible();
 }
 test.beforeEach(async ({ context, page }) => {
@@ -362,46 +379,83 @@ test('subscriptions belong to the active account without assignment or duplicate
 		)
 	).toBe(false);
 });
-test('BZip2 ZIP imports use the bundled worker and require review before sending usernames', async ({
+test('BZip2 ZIP imports submit usernames on selection after an empty export is rejected', async ({
 	page
 }) => {
+	await page.setViewportSize({ width: 402, height: 900 });
 	await page.goto('/settings/instagram');
 	await verifyInstagram(page);
+	await expect(page.getByText('No Instagram imports yet.')).toBeVisible();
+	await expect(page.getByText('0 accounts imported')).toBeVisible();
+	const picker = page.getByRole('button', {
+		name: 'Select Instagram export',
+		exact: true
+	});
+	const fileInput = page.locator('input[type="file"]');
+	await fileInput.setInputFiles({
+		name: 'following.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify({ relationships_following: [] }))
+	});
 	await expect(
-		page.getByRole('button', { name: 'Instagram export', exact: true })
-	).toHaveAttribute('aria-pressed', 'true');
-	await page
-		.getByLabel('Choose your Instagram ZIP export or following.json', {
+		page.getByText('No Instagram usernames were found in this export.', {
 			exact: true
 		})
-		.setInputFiles({
-			name: 'instagram-bzip2.zip',
-			mimeType: 'application/zip',
-			buffer: Buffer.from(bzipFixture.zip, 'base64')
-		});
-	await expect(
-		page.getByRole('heading', { name: 'Review import: instagram-bzip2.zip' })
 	).toBeVisible();
-	await expect(page.getByText('@maker.one', { exact: true })).toBeVisible();
 	expect(
 		(await calls()).filter(
 			(row) => row.method === 'POST' && row.path.endsWith('/instagram/imports')
 		)
 	).toHaveLength(0);
-	await page
-		.getByRole('button', { name: 'Import 1 usernames', exact: true })
-		.click();
+
+	let finishImport!: () => void;
+	const pendingImport = new Promise<void>((resolve) => {
+		finishImport = resolve;
+	});
+	await page.route(
+		'**/api/appview/v1/migrations/instagram/imports',
+		async (route) => {
+			if (route.request().method() === 'POST') await pendingImport;
+			await route.continue();
+		}
+	);
+	try {
+		await fileInput.setInputFiles({
+			name: 'instagram-bzip2.zip',
+			mimeType: 'application/zip',
+			buffer: Buffer.from(bzipFixture.zip, 'base64')
+		});
+		await expect(picker).toHaveAttribute('aria-busy', 'true');
+		await expect(picker).toBeDisabled();
+		await expect(
+			page.getByRole('heading', { name: /^Review import:/ })
+		).toHaveCount(0);
+	} finally {
+		finishImport();
+	}
 	await expect(
-		page.getByRole('status').filter({ hasText: 'Following list imported.' })
+		page.getByRole('status').filter({ hasText: 'Instagram import created' })
+	).toBeVisible();
+	await expect(picker).toBeEnabled();
+	await expect(
+		page.getByRole('heading', { name: 'Instagram export', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('1 account imported', { exact: true })
 	).toBeVisible();
 	expect(
-		(await calls()).find(
-			(row) => row.method === 'POST' && row.path.endsWith('/instagram/imports')
-		)?.body
-	).toEqual({
-		sourceType: 'instagramJson',
-		entries: [{ username: 'maker.one' }]
-	});
+		(await calls())
+			.filter(
+				(row) =>
+					row.method === 'POST' && row.path.endsWith('/instagram/imports')
+			)
+			.map((row) => row.body)
+	).toEqual([
+		{
+			sourceType: 'instagramJson',
+			entries: [{ username: 'maker.one' }]
+		}
+	]);
 });
 test('moderation history shows the affected content reference and its reviewed post destination', async ({
 	page
@@ -420,39 +474,199 @@ test('moderation history shows the affected content reference and its reviewed p
 		page.getByRole('link', { name: 'Appeal by email', exact: true })
 	).toHaveAttribute('href', /^mailto:moderation@craftsky.social\?/);
 });
-test('Instagram verification, reviewed manual import and following a match complete through real controls', async ({
+test('Instagram verification, automatic export import and following a match complete through real controls', async ({
 	page
 }) => {
+	await page.setViewportSize({ width: 402, height: 900 });
+	await page.route(
+		'**/api/appview/v1/migrations/instagram/imports',
+		async (route) => {
+			if (route.request().method() !== 'GET') return route.continue();
+			const response = await route.fetch();
+			const history = await response.json();
+			await route.fulfill({
+				response,
+				json: {
+					...history,
+					items: [
+						...history.items,
+						{
+							importId: 'legacy-manual-import',
+							sourceType: 'manual',
+							state: 'active',
+							followingCount: 3,
+							createdAt: '2026-11-01T12:00:00Z'
+						}
+					]
+				}
+			});
+		}
+	);
 	await page.goto('/settings/instagram');
 	await verifyInstagram(page);
-	await page
-		.getByRole('button', { name: 'Enter handles', exact: true })
-		.click();
 	await expect(
 		page.getByRole('button', { name: 'Enter handles', exact: true })
-	).toHaveAttribute('aria-pressed', 'true');
-	await page
-		.getByLabel('Instagram usernames', { exact: true })
-		.fill('@maker_one\nMaker_Two\nmaker_one\ninvalid name');
-	await page.getByRole('button', { name: 'Review usernames' }).click();
-	await expect(
-		page.getByText(
-			'2 valid usernames · 1 duplicates removed · 1 invalid entries ignored',
-			{ exact: true }
-		)
-	).toBeVisible();
-	await page.getByRole('button', { name: 'Import 2 usernames' }).click();
-	const matches = page.locator('section').filter({
-		has: page.getByRole('heading', {
-			name: 'Possible CraftSky accounts',
-			exact: true
-		})
+	).toHaveCount(0);
+	const exportHelp = page.getByRole('link', {
+		name: 'How to export your Instagram following',
+		exact: true
 	});
-	await expect(matches.getByText('Bob Maker', { exact: true })).toBeVisible();
-	await matches.getByRole('button', { name: 'Follow', exact: true }).click();
+	const selectExport = page.getByRole('button', {
+		name: 'Select Instagram export',
+		exact: true
+	});
+	await expect(selectExport).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Manual handles', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('3 accounts imported', { exact: true })
+	).toBeVisible();
+	const importCard = page.getByRole('region', {
+		name: 'Instagram following export'
+	});
+	await expect(importCard.getByRole('link')).toHaveCount(0);
+	await expect(exportHelp).toHaveText('How to export');
+	await expect(exportHelp).toHaveCSS('background-color', 'rgb(201, 184, 232)');
+	const guideIcons = exportHelp.locator('svg path');
+	await expect(guideIcons).toHaveCount(2);
+	await expect(guideIcons.first()).toHaveAttribute(
+		'd',
+		nativeIconPaths.question.regular
+	);
+	await expect(guideIcons.last()).toHaveAttribute(
+		'd',
+		nativeIconPaths.arrowSquareOut.regular
+	);
+	const helpBounds = (await exportHelp.boundingBox())!;
+	const cardBounds = (await importCard.boundingBox())!;
+	expect(helpBounds.y + helpBounds.height).toBeLessThan(cardBounds.y);
+	expect(helpBounds.width).toBeLessThan(cardBounds.width);
+	expect(helpBounds.x).toBeCloseTo(cardBounds.x);
+	const [chooser] = await Promise.all([
+		page.waitForEvent('filechooser'),
+		selectExport.click()
+	]);
+	expect(await chooser.element().getAttribute('aria-label')).toBe(
+		'Select Instagram export'
+	);
+	const followingExport = {
+		relationships_following: [
+			{ string_list_data: [{ value: '@maker_one' }] },
+			{
+				title: 'Maker_Two',
+				string_list_data: [{ href: 'https://www.instagram.com/_u/Maker_Two' }]
+			},
+			{ string_list_data: [{ value: 'maker_one' }] },
+			{ string_list_data: [{ value: 'invalid name' }] }
+		]
+	};
+	await chooser.setFiles({
+		name: 'following.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify(followingExport))
+	});
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Instagram import created' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Your imports' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Instagram export', exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText('2 accounts imported', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: /^Review import:/ })
+	).toHaveCount(0);
+	await page.getByRole('link', { name: 'Back to Instagram' }).click();
+	await expect(page).toHaveURL(/\/settings\/instagram$/);
+	const suggestions = page.getByRole('link', { name: /Suggested accounts/ });
+	await expect(suggestions).toContainText('2');
+	await suggestions.click();
+	await expect(page).toHaveURL(/\/settings\/instagram\/suggestions$/);
+	await expect(
+		page.getByRole('heading', { name: 'Suggested accounts', exact: true })
+	).toBeVisible();
+	const matches = page.getByRole('region', { name: 'Suggested accounts' });
+	const bob = matches.getByRole('link', { name: 'Bob Maker @bob.test' });
+	const carol = matches.getByRole('link', { name: 'Carol Maker @carol.test' });
+	const follow = matches.getByRole('button', { name: 'Follow', exact: true });
+	const dismiss = matches.getByRole('button', { name: 'Dismiss', exact: true });
+	await expect(bob).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
+	await bob.click();
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Abob$/);
+	await page.goBack();
+	await expect(bob).toBeVisible();
+	await expect(carol).toBeVisible();
+	await expect(dismiss.first()).toHaveCSS('border-top-width', '0px');
+	const profileBounds = (await bob.boundingBox())!;
+	const followBounds = (await follow.first().boundingBox())!;
+	const dismissBounds = (await dismiss.first().boundingBox())!;
+	expect(profileBounds.y + profileBounds.height).toBeLessThanOrEqual(
+		followBounds.y
+	);
+	expect(followBounds.y).toBeCloseTo(dismissBounds.y);
+	expect(followBounds.width).toBeGreaterThan(dismissBounds.width);
+
+	let finishFollow!: () => void;
+	const pendingFollow = new Promise<void>((resolve) => {
+		finishFollow = resolve;
+	});
+	await page.route(
+		'**/migrations/instagram/suggestions/suggestion-1/accept',
+		async (route) => {
+			await pendingFollow;
+			await route.continue();
+		}
+	);
+	try {
+		await follow.first().click();
+		await expect(follow.first()).toHaveAttribute('aria-busy', 'true');
+	} finally {
+		finishFollow();
+	}
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Following this maker.' })
 	).toBeVisible();
+	await expect(bob).toHaveCount(0);
+	await expect(carol).toBeVisible();
+	await dismiss.click();
+	await expect(carol).toHaveCount(0);
+	await expect(
+		matches.getByText('No possible CraftSky accounts yet.', { exact: true })
+	).toBeVisible();
+	await expect(
+		matches.getByText(
+			'Import the accounts you follow on Instagram to look for matches.',
+			{ exact: true }
+		)
+	).toBeVisible();
+	await expect(matches.locator('svg path')).toHaveAttribute(
+		'd',
+		nativeIconPaths.userFocus.regular
+	);
+	await page.getByRole('link', { name: 'Back to Instagram' }).click();
+	await page.getByRole('link', { name: 'Import accounts you follow' }).click();
+	const importedRow = page.locator('.import-row').filter({
+		has: page.getByRole('heading', { name: 'Instagram export', exact: true })
+	});
+	const deleteImport = importedRow.getByRole('button', {
+		name: 'Delete import',
+		exact: true
+	});
+	await expect(deleteImport).toHaveText('');
+	await expect(deleteImport.locator('svg path')).toHaveAttribute(
+		'd',
+		nativeIconPaths.trash.bold!
+	);
+	await deleteImport.click();
+	await expect(importedRow).toHaveCount(0);
+	await expect(
+		page.getByRole('dialog', { name: 'Delete import?' })
+	).toHaveCount(0);
 	const requests = await calls();
 	expect(
 		requests.find((row) => row.path.endsWith('/verify-1/confirm'))?.body
@@ -462,12 +676,19 @@ test('Instagram verification, reviewed manual import and following a match compl
 			(row) => row.method === 'POST' && row.path.endsWith('/instagram/imports')
 		)?.body
 	).toEqual({
-		sourceType: 'manual',
+		sourceType: 'instagramJson',
 		entries: [{ username: 'maker_one' }, { username: 'maker_two' }]
 	});
 	expect(
 		requests.find((row) => row.path.endsWith('/suggestion-1/accept'))?.key
 	).toMatch(/^[0-9a-f-]{36}$/);
+	expect(
+		requests.find((row) => row.path.endsWith('/suggestion-2'))?.method
+	).toBe('DELETE');
+	expect(
+		requests.find((row) => row.path.endsWith('/instagram/imports/import-1'))
+			?.method
+	).toBe('DELETE');
 });
 for (const width of [402, 1280]) {
 	test(`event shared photo picker limits to one, keeps edits local and uploads once across retry (${width})`, async ({

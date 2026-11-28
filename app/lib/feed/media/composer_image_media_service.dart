@@ -155,6 +155,7 @@ class ComposerImageMediaService {
     required String fileName,
     required String mimeType,
     Map<String, String> metadata = const {},
+    bool allowWebp = false,
   }) {
     final request = ImagePreparationRequest(
       bytes: bytes,
@@ -163,6 +164,7 @@ class ComposerImageMediaService {
       metadata: metadata,
       config: config,
       allowHeic: supportsAppleHeic,
+      allowWebp: allowWebp,
     );
     return ImagePreparationJob._(
       _prepareWithPlatform(request),
@@ -313,6 +315,7 @@ class ComposerImageMediaService {
       mimeType: request.mimeType,
       headerBytes: request.bytes,
       allowHeic: request.allowHeic,
+      allowWebp: request.allowWebp,
     );
     final dimensions = _inspectDimensions(request, format);
     final sourceWidth = dimensions.orientedWidth;
@@ -486,9 +489,10 @@ class ComposerImageMediaService {
         );
       }
       final input = image_size.MemoryInput(request.bytes);
-      final image_size.BaseDecoder decoder = switch (format) {
+      final decoder = switch (format) {
         SupportedImageFormat.jpeg => const image_size.JpegDecoder(),
         SupportedImageFormat.png => const image_size.PngDecoder(),
+        SupportedImageFormat.webp => const image_size.WebpDecoder(),
         SupportedImageFormat.heic => throw const DiagnosticFormatException(
           'HEIC requires Apple decoding',
         ),
@@ -570,6 +574,7 @@ class ComposerImageMediaService {
     required String mimeType,
     Uint8List? headerBytes,
     bool allowHeic = false,
+    bool allowWebp = false,
   }) {
     if (allowHeic &&
         headerBytes != null &&
@@ -582,6 +587,9 @@ class ComposerImageMediaService {
 
     if (resolvedMime == 'image/jpeg') return SupportedImageFormat.jpeg;
     if (resolvedMime == 'image/png') return SupportedImageFormat.png;
+    if (allowWebp && resolvedMime == 'image/webp') {
+      return SupportedImageFormat.webp;
+    }
     if (allowHeic &&
         (headerBytes == null || headerBytes.isEmpty) &&
         (resolvedMime == 'image/heic' || resolvedMime == 'image/heif')) {
@@ -594,6 +602,7 @@ class ComposerImageMediaService {
   static String _mimeTypeFor(SupportedImageFormat format) => switch (format) {
     SupportedImageFormat.jpeg => 'image/jpeg',
     SupportedImageFormat.png => 'image/png',
+    SupportedImageFormat.webp => 'image/webp',
     SupportedImageFormat.heic => 'image/heic',
   };
 }
@@ -733,7 +742,7 @@ class PreparedUploadValidationResult {
 }
 
 /// Image formats accepted by the local preparation pipeline.
-enum SupportedImageFormat { jpeg, png, heic }
+enum SupportedImageFormat { jpeg, png, webp, heic }
 
 /// Sendable request object for off-main-isolate image preparation.
 class ImagePreparationRequest {
@@ -744,6 +753,7 @@ class ImagePreparationRequest {
     required this.metadata,
     required this.config,
     this.allowHeic = false,
+    this.allowWebp = false,
   });
 
   final Uint8List bytes;
@@ -752,6 +762,7 @@ class ImagePreparationRequest {
   final Map<String, String> metadata;
   final MediaConfig config;
   final bool allowHeic;
+  final bool allowWebp;
 }
 
 /// Prepared image data returned by the processing engine.

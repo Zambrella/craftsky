@@ -238,6 +238,8 @@ export interface PostPayload {
 	text: string;
 	langs: string[];
 	sponsored: boolean;
+	/** Private source identity; AppView publishes only the Instagram provenance token. */
+	instagramImport?: { sourceKey: string; createdAt: string };
 	images?: CreatePostImage[];
 	facets?: Facet[];
 	project?: Project;
@@ -743,6 +745,11 @@ export interface InstagramSuggestion {
 	target: Author;
 	createdAt: string;
 	[key: string]: unknown;
+}
+export interface InstagramPublishedImport {
+	sourceKey: string;
+	uri: string;
+	kind: 'standard' | 'project';
 }
 export interface ModerationStanding {
 	[key: string]: Json | undefined;

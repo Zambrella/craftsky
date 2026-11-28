@@ -25,7 +25,14 @@ func TestImportServiceOwnsIdentityTimeAndFixedBounds(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 	owner := syntax.DID("did:plc:synthetic-alice")
-	if _, err := service.CreateImport(context.Background(), owner, ImportSourceManual, []ImportEntry{{Username: "Synthetic.User"}}); err != nil {
+	entries := []ImportEntry{{Username: "Synthetic.User"}}
+	if _, err := service.CreateImport(context.Background(), owner, ImportSourceManual, entries); err != ErrInvalidInstagramImport {
+		t.Fatalf("manual create error = %v", err)
+	}
+	if repository.created.ID != uuid.Nil {
+		t.Fatal("manual import reached repository")
+	}
+	if _, err := service.CreateImport(context.Background(), owner, ImportSourceInstagramJSON, entries); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if repository.created.ID != id || repository.created.OwnerDID != owner || !repository.created.Now.Equal(now) {

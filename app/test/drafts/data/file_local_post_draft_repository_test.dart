@@ -12,11 +12,79 @@ import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test(
+    'preserves import identity across restart and normal draft updates',
+    () async {
+      final root = await Directory.systemTemp.createTemp('instagram-draft-');
+      addTearDown(() => root.delete(recursive: true));
+      final owner = AccountKey('did:plc:alice');
+      const id = '00000000-0000-4000-8000-000000000001';
+      final source = InstagramPostImportSource(
+        sourceKey: 'abcdef0123456789abcdef0123456789',
+        createdAt: DateTime.utc(2021, 8, 4, 12),
+      );
+      final first = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+      final saved = await first.save(
+        DraftWriteRequest(
+          id: id,
+          owner: owner,
+          kind: LocalPostDraftKind.standard,
+          content: const StandardDraftContent(text: '', languages: ['en']),
+          schedule: const DraftScheduleIntent.now(),
+          orderedMedia: const [],
+          instagramImport: source,
+        ),
+      );
+      final restarted = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+      expect(
+        (await restarted.get(id)).instagramImport?.toMap(),
+        source.toMap(),
+      );
+      DraftWriteRequest update(DraftScheduleIntent schedule) =>
+          DraftWriteRequest(
+            id: id,
+            owner: owner,
+            kind: LocalPostDraftKind.project,
+            content: const ProjectDraftContent(
+              body: 'Edited caption',
+              languages: ['en'],
+              knownProjectFieldValues: {},
+            ),
+            schedule: schedule,
+            orderedMedia: const [],
+            expectedRevision: saved.revision,
+          );
+      await expectLater(
+        restarted.save(
+          update(
+            DraftScheduleIntent.later(
+              scheduledAtUtc: DateTime.utc(2040),
+              savedOffsetMinutes: 0,
+            ),
+          ),
+        ),
+        throwsA(isA<DraftRepositoryException>()),
+      );
+      await restarted.save(update(const DraftScheduleIntent.now()));
+      final published = await restarted.get(id);
+      expect(published.kind, LocalPostDraftKind.project);
+      expect(published.instagramImport?.toMap(), source.toMap());
+      expect((published.content as ProjectDraftContent).body, 'Edited caption');
+    },
+  );
+
   for (final kind in LocalPostDraftKind.values) {
     for (final count in [5, 6, 8]) {
       test('saves, reopens and snapshots a ${kind.name} draft '

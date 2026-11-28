@@ -118,6 +118,10 @@ type ReplayCommand struct {
 	Result          CommandResult
 }
 
+func (replay ReplayCommand) MatchesIntent(intent json.RawMessage) (bool, error) {
+	return equalCanonicalJSON(replay.Intent, intent)
+}
+
 func (store *Store) LookupCommand(ctx context.Context, owner syntax.DID, kind string, key uuid.UUID) (*ReplayCommand, error) {
 	var replay ReplayCommand
 	var commandID uuid.UUID
@@ -184,13 +188,22 @@ func (store *Store) PrepareOrReplayWithSelection(
 	if selectIdentity == nil {
 		return PreparedCommand{}, errors.New("command identity selector is unavailable")
 	}
+	return store.prepareOrReplay(ctx, request, func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error) { return selectIdentity() })
+}
+
+// PrepareOrReplayWithTransactionalSelection also permits a domain-specific
+// create identity to be reserved atomically with first command preparation.
+func (store *Store) PrepareOrReplayWithTransactionalSelection(ctx context.Context, request PrepareRequest, selectIdentity func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error)) (PreparedCommand, error) {
+	if selectIdentity == nil {
+		return PreparedCommand{}, errors.New("command identity selector is unavailable")
+	}
 	return store.prepareOrReplay(ctx, request, selectIdentity)
 }
 
 func (store *Store) prepareOrReplay(
 	ctx context.Context,
 	request PrepareRequest,
-	selectIdentity func() (syntax.ATURI, syntax.RecordKey, error),
+	selectIdentity func(context.Context, pgx.Tx) (syntax.ATURI, syntax.RecordKey, error),
 ) (PreparedCommand, error) {
 	if request.Owner == "" || request.OwnerGeneration < 1 || request.OperationKind == "" ||
 		request.OperationKey == uuid.Nil || request.FingerprintVersion < 1 || !json.Valid(request.ImmutableRequest) {
@@ -231,7 +244,7 @@ func (store *Store) prepareOrReplay(
 					return fmt.Errorf("check existing PDS command: %w", err)
 				}
 				if !exists {
-					selectedURI, selectedRkey, err := selectIdentity()
+					selectedURI, selectedRkey, err := selectIdentity(operationCtx, tx)
 					if err != nil {
 						return err
 					}
@@ -416,6 +429,10 @@ func lockScopedCommandKey(ctx context.Context, tx pgx.Tx, owner syntax.DID, oper
 }
 
 func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan ExactPlan) (DispatchAttempt, error) {
+	return store.beginDispatch(ctx, commandID, plan, nil)
+}
+
+func (store *Store) beginDispatch(ctx context.Context, commandID uuid.UUID, plan ExactPlan, authorize func(context.Context, pgx.Tx) error) (DispatchAttempt, error) {
 	if commandID == uuid.Nil || plan.Version < 1 || plan.FingerprintVersion < 1 || len(plan.Steps) == 0 {
 		return DispatchAttempt{}, errors.New("invalid exact dispatch plan")
 	}
@@ -497,6 +514,9 @@ func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan
 			WHERE id=$1
 		`, commandID, plan.Version, now); err != nil {
 			return fmt.Errorf("mark PDS command dispatching: %w", err)
+		}
+		if authorize != nil {
+			return authorize(ctx, tx)
 		}
 		return nil
 	})

@@ -66,7 +66,12 @@ Future<T> unwrapPdsMutationApi<T>(Future<T> Function() request) async {
       diagnosticStack: stack,
     );
   } on ApiServerError catch (error, stack) {
-    if (error.details.appViewError == 'video_blob_missing') rethrow;
+    // These codes establish that the provider rejected the write. Other
+    // server errors may still have come from a committed command.
+    if (error.details.appViewError
+        case 'video_blob_missing' || 'pds_write_rejected') {
+      rethrow;
+    }
     throw PdsMutationAmbiguousException(
       retryAfterSeconds: 1,
       diagnosticCause: error,

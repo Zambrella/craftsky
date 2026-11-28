@@ -74,7 +74,7 @@ Read the [architecture overview](docs/architecture.md) and [architecture decisio
 | Path | Purpose |
 | --- | --- |
 | [app/](app/README.md) | Flutter client |
-| [web-client/](web-client/README.md) | SvelteKit browser client and Worker session boundary |
+| [web-client/](web-client/README.md) | SvelteKit browser client, Worker session boundary, and verified Instagram post imports |
 | [appview/](appview/README.md) | Go API, OAuth backend, and firehose indexing |
 | [lexicon/](lexicon/README.md) | `social.craftsky.*` public record schemas |
 | [web/](web/README.md) | Public website and policy pages |

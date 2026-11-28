@@ -34,15 +34,20 @@ func TestImportStoreCreatesVerifiedAdditiveSourcesRetainedUntilUnlink(t *testing
 	if err != nil {
 		t.Fatalf("create first: %v", err)
 	}
-	if first.Import.State != ImportActive || first.Counts.Following != 2 || first.InitialSuggestionCount != 0 {
+	if first.Import.State != ImportActive || first.Counts.Following != 2 {
 		t.Fatalf("first result = %+v", first)
 	}
-	second, err := store.CreateImport(ctx, CreateImportParams{
+	secondParams := CreateImportParams{
 		ID:       uuid.MustParse("00000000-0000-0000-0000-000000000202"),
 		OwnerDID: owner, SourceType: ImportSourceManual,
 		Entries: []ImportEntry{{Username: "charlie"}},
 		Now:     now.Add(time.Minute),
-	})
+	}
+	if _, err := store.CreateImport(ctx, secondParams); err == nil {
+		t.Fatal("store accepted a new manual import")
+	}
+	secondParams.SourceType = ImportSourceInstagramJSON
+	second, err := store.CreateImport(ctx, secondParams)
 	if err != nil {
 		t.Fatalf("create second: %v", err)
 	}
@@ -81,6 +86,15 @@ func TestImportStoreRequiresVerificationAndRetainsEveryHandle(t *testing.T) {
 		t.Fatalf("unverified create error = %v", err)
 	}
 	insertVerifiedImportOwner(t, pool, owner, "synthetic.alice", now)
+	if _, err := pool.Exec(ctx, `UPDATE instagram_account_links SET conflict_pending=true, discoverable=false WHERE owner_did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateImport(ctx, params); !errors.Is(err, ErrInstagramVerificationRequired) {
+		t.Fatalf("conflicting verification create error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE instagram_account_links SET conflict_pending=false WHERE owner_did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
 	created, err := store.CreateImport(ctx, params)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -94,7 +108,7 @@ func TestImportStoreRequiresVerificationAndRetainsEveryHandle(t *testing.T) {
 	}
 }
 
-func TestImportStoreMembershipReactivationAndDeleteArePrivate(t *testing.T) {
+func TestImportStoreLegacyManualHistoryReactivationAndDeleteArePrivate(t *testing.T) {
 	store, pool := newImportTestStore(t)
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:synthetic-alice")
@@ -103,26 +117,23 @@ func TestImportStoreMembershipReactivationAndDeleteArePrivate(t *testing.T) {
 	id := uuid.MustParse("00000000-0000-0000-0000-000000000204")
 	insertVerifiedImportOwner(t, pool, alice, "synthetic.alice", now)
 
-	_, err := store.CreateImport(ctx, CreateImportParams{
-		ID: id, OwnerDID: alice, SourceType: ImportSourceManual,
-		Entries: []ImportEntry{{Username: "synthetic"}},
-		Now:     now,
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
 	if _, err := pool.Exec(ctx, `
-		UPDATE instagram_graph_imports
-		SET state = 'membershipInactive', membership_inactive_at = $2
-		WHERE id = $1
-	`, id, now.Add(time.Hour)); err != nil {
-		t.Fatalf("inactivate: %v", err)
+		INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, following_count, created_at,
+			updated_at, membership_inactive_at
+		) VALUES ($1, $2, 'membershipInactive', 'manual', 1, $3, $4, $4)
+	`, id, alice, now, now.Add(time.Hour)); err != nil {
+		t.Fatalf("seed manual import: %v", err)
+	}
+	listed, _, err := store.ListImports(ctx, alice, 20, nil, now.Add(time.Hour))
+	if err != nil || len(listed) != 1 || listed[0].ID != id || listed[0].SourceType != ImportSourceManual {
+		t.Fatalf("manual import history = %+v, err = %v", listed, err)
 	}
 	updated, err := store.UpdateImport(ctx, alice, id, UpdateImportParams{Reactivate: boolPointer(true), Now: now.Add(2 * time.Hour)})
 	if err != nil {
 		t.Fatalf("reactivate: %v", err)
 	}
-	if updated.State != ImportActive {
+	if updated.State != ImportActive || updated.SourceType != ImportSourceManual {
 		t.Fatalf("reactivated import = %+v", updated)
 	}
 	var reconciliationJobs int
@@ -165,7 +176,7 @@ func TestImportStoreDeleteInvalidatesEveryUnsupportedPrivateSuggestion(t *testin
 	insertVerifiedImportOwner(t, pool, owner, "synthetic.import.delete", now)
 
 	if _, err := store.CreateImport(ctx, CreateImportParams{
-		ID: importID, OwnerDID: owner, SourceType: ImportSourceManual,
+		ID: importID, OwnerDID: owner, SourceType: ImportSourceInstagramJSON,
 		Entries: []ImportEntry{{Username: "synthetic.target"}},
 		Now:     now,
 	}); err != nil {
@@ -232,7 +243,7 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	}
 	for index, id := range ids {
 		if _, err := store.CreateImport(ctx, CreateImportParams{
-			ID: id, OwnerDID: alice, SourceType: ImportSourceManual,
+			ID: id, OwnerDID: alice, SourceType: ImportSourceInstagramJSON,
 			Entries: []ImportEntry{{Username: "synthetic"}},
 			Now:     base.Add(time.Duration(index) * time.Minute),
 		}); err != nil {
@@ -241,7 +252,7 @@ func TestImportStoreListsOwnedImportsWithStableSeekPagination(t *testing.T) {
 	}
 	if _, err := store.CreateImport(ctx, CreateImportParams{
 		ID: uuid.MustParse("00000000-0000-0000-0000-000000000214"), OwnerDID: bob,
-		SourceType: ImportSourceManual,
+		SourceType: ImportSourceInstagramJSON,
 		Entries:    []ImportEntry{{Username: "foreign"}},
 		Now:        base.Add(3 * time.Minute),
 	}); err != nil {

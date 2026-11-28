@@ -1,0 +1,97 @@
+---
+{
+  "id": "2026-11-09-integrated-instagram-imports",
+  "title": "Integrated Instagram post and project imports",
+  "source": "docs/changes/2026-11-09-integrated-instagram-imports.md",
+  "implementation": "implemented",
+  "archive": "archived",
+  "components": [
+    "web-client",
+    "app",
+    "appview"
+  ],
+  "topics": [
+    "instagram",
+    "imports",
+    "provenance"
+  ],
+  "keywords": [
+    "Instagram ZIP archive",
+    "reels",
+    "sourceKey",
+    "instagramImport",
+    "externalImport",
+    "ADR 029",
+    "duplicate posting",
+    "reimport after deletion",
+    "original dates"
+  ],
+  "summary": "Replaced the standalone importer with verified web and Flutter archive review, standard/project composer handoff, and shared private duplicate tracking.",
+  "currentDocs": [
+    "web-client/README.md",
+    "app/README.md",
+    "docs/adr/029-integrated-instagram-post-imports.md",
+    "docs/adr/008-instagram-import-provenance.md",
+    "docs/architecture.md"
+  ],
+  "code": [
+    "web-client/src/lib/features/instagram-import",
+    "web-client/src/lib/features/settings/InstagramPosts.svelte",
+    "app/lib/instagram_migration",
+    "appview/internal/instagram/post_import_store.go",
+    "appview/internal/api/instagram_post_imports.go"
+  ],
+  "evidence": [
+    "docs/changes/2026-11-09-integrated-instagram-imports.md#validation",
+    "docs/changes/2026-11-09-integrated-instagram-imports.md#flutter-extension",
+    "docs/changes/2026-11-09-integrated-instagram-imports.md#boundaries"
+  ],
+  "supersededBy": [],
+  "followUps": [
+    "Local browser and backend doubles do not establish live PDS publication or production indexing; no deployment was performed."
+  ]
+}
+---
+
+# Integrated Instagram post and project imports
+
+## Outcome and decisions
+
+Verified Instagram settings now review JSON exports locally and open the existing
+standard or project composer with full captions and selected media. Reels and
+supported videos reuse the normal video path. Users choose up to eight photos or
+one video. The web client keeps the archive in browser memory and Flutter uses a
+temporary file. Both clients retain only selected draft media in local draft
+storage.
+
+AppView checks active uncontested verification, reserves a private source identity
+with command preparation, and records only confirmed publication. Source keys stay
+private; public provenance and original dates preserve ADR 008 distribution.
+[ADR 029](../../adr/029-integrated-instagram-post-imports.md) records the replacement
+of the standalone OAuth/site publisher.
+
+Both clients make the source available again after AppView confirms deletion of
+the imported post or project. A new publication uses a fresh record URI while
+preserving the Instagram date and provenance.
+
+AppView rechecks verification when authorizing a PDS write. An exact retry of
+an already attempted video publication can recover its result after the
+provider's temporary upload proof expires. A new write still needs valid proof.
+
+## Evidence and limits
+
+The [validation note](../2026-11-09-integrated-instagram-imports.md#validation) records
+the release gates before the main merge and the focused checks run afterward.
+The [Flutter extension](../2026-11-09-integrated-instagram-imports.md#flutter-extension)
+records the native review, archive processing, and composer checks.
+The [boundaries](../2026-11-09-integrated-instagram-imports.md#boundaries) distinguish
+synthetic browser/backend coverage from live PDS publication and production
+indexing. No hosted site, DNS, OAuth grants or production resources were changed.
+
+## Current entry points
+
+Use the [web client guide](../../../web-client/README.md),
+[Flutter guide](../../../app/README.md#importing-instagram-posts), and
+[architecture overview](../../architecture.md). The source-key check covers the
+same export item, including caption edits; it does not claim similarity detection
+for manually copied posts or substantially changed exports.

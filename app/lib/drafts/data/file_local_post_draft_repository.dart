@@ -14,6 +14,7 @@ import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:crypto/crypto.dart';
@@ -21,7 +22,10 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 final class FileLocalPostDraftRepository
-    implements LocalPostDraftRepository, LocalVideoDraftRepository {
+    implements
+        LocalPostDraftRepository,
+        LocalVideoDraftRepository,
+        InstagramPublicationDraftRepository {
   new({
     required String documentsRoot,
     required AccountKey owner,
@@ -42,10 +46,11 @@ final class FileLocalPostDraftRepository
   final String Function() _nextId;
   final int videoSourceQuotaBytes;
   final Map<String, Future<void>> _draftTails = {};
+  static const _accountStorageLock = 'account-storage';
 
   @override
   Future<LocalPostDraft> save(DraftWriteRequest request) =>
-      _synchronized('account-video-quota', () => _saveLocked(request));
+      _synchronized(_accountStorageLock, () => _saveLocked(request));
 
   Future<LocalPostDraft> _saveLocked(DraftWriteRequest request) async {
     _validateRequest(request);
@@ -60,9 +65,19 @@ final class FileLocalPostDraftRepository
     ]);
     final current = await _readExisting(manifestPath);
     if (current == null && request.expectedRevision != null ||
-        current != null && request.expectedRevision != current.revision) {
+        current != null && request.expectedRevision != current.revision ||
+        current?.instagramPublication != null) {
       throw const DraftRepositoryException(
         DraftRepositoryFailureReason.conflict,
+      );
+    }
+
+    final instagramImport = current?.instagramImport ?? request.instagramImport;
+    if ((current != null && request.instagramImport != null) ||
+        (instagramImport != null &&
+            request.schedule.choice != DraftScheduleChoice.now)) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
       );
     }
 
@@ -116,6 +131,7 @@ final class FileLocalPostDraftRepository
         schedule: request.schedule,
         media: plan.nextMedia,
         video: nextVideo,
+        instagramImport: instagramImport,
         revision: (current?.revision ?? 0) + 1,
       );
       await _files.writeBytesFlushed(
@@ -189,6 +205,71 @@ final class FileLocalPostDraftRepository
   }
 
   @override
+  Future<LocalPostDraft> setInstagramPublication({
+    required String draftId,
+    required int expectedRevision,
+    required InstagramImportPublication? publication,
+  }) => _synchronized(_accountStorageLock, () async {
+    final manifestPath = _paths.manifestPath(draftId);
+    final pendingPath = _paths.pendingManifestPath(draftId, _nextId());
+    await _rejectSymbolicLinks([
+      _paths.accountRoot,
+      _paths.draftDirectory(draftId),
+      manifestPath,
+      pendingPath,
+    ]);
+    final current = await _readExisting(manifestPath);
+    if (current == null ||
+        current.owner != _owner ||
+        current.revision != expectedRevision ||
+        (current.instagramPublication == null) == (publication == null)) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.conflict,
+      );
+    }
+    if (publication != null &&
+        !publication.matchesSource(current.instagramImport)) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    final next = current.withInstagramPublication(
+      publication,
+      updatedAt: _clock().toUtc(),
+    );
+    try {
+      await _files.writeBytesFlushed(
+        pendingPath,
+        Uint8List.fromList(utf8.encode(DraftManifestCodec.encode(next))),
+      );
+      await _rejectSymbolicLinks([pendingPath, manifestPath]);
+      await _files.atomicReplace(
+        sourcePath: pendingPath,
+        targetPath: manifestPath,
+      );
+      return next;
+    } on DraftRepositoryException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        DraftRepositoryException(
+          DraftRepositoryFailureReason.storageUnavailable,
+          diagnosticCause: error,
+          diagnosticStack: stackTrace,
+        ),
+        stackTrace,
+      );
+    } finally {
+      try {
+        await _rejectSymbolicLinks([pendingPath]);
+        await _files.deleteFile(pendingPath);
+      } on Object {
+        // Startup reconciliation removes incomplete pending manifests.
+      }
+    }
+  });
+
+  @override
   Future<LocalPostDraft> get(String draftId) async {
     try {
       final manifestPath = _paths.manifestPath(draftId);
@@ -219,7 +300,10 @@ final class FileLocalPostDraftRepository
   }
 
   @override
-  Future<List<LocalPostDraft>> list() async {
+  Future<List<LocalPostDraft>> list() =>
+      _synchronized(_accountStorageLock, _listLocked);
+
+  Future<List<LocalPostDraft>> _listLocked() async {
     try {
       await _rejectSymbolicLinks([_paths.accountRoot]);
       if (!await _files.directoryExists(_paths.accountRoot)) return const [];
@@ -355,23 +439,24 @@ final class FileLocalPostDraftRepository
   }
 
   @override
-  Future<void> delete(String draftId) => _synchronized(draftId, () async {
-    try {
-      final directory = _paths.draftDirectory(draftId);
-      await _rejectSymbolicLinks([_paths.accountRoot, directory]);
-      if (!await _files.directoryExists(directory)) return;
-      await _files.deleteDirectory(directory);
-    } on Object catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        DraftRepositoryException(
-          DraftRepositoryFailureReason.storageUnavailable,
-          diagnosticCause: error,
-          diagnosticStack: stackTrace,
-        ),
-        stackTrace,
-      );
-    }
-  });
+  Future<void> delete(String draftId) =>
+      _synchronized(_accountStorageLock, () async {
+        try {
+          final directory = _paths.draftDirectory(draftId);
+          await _rejectSymbolicLinks([_paths.accountRoot, directory]);
+          if (!await _files.directoryExists(directory)) return;
+          await _files.deleteDirectory(directory);
+        } on Object catch (error, stackTrace) {
+          Error.throwWithStackTrace(
+            DraftRepositoryException(
+              DraftRepositoryFailureReason.storageUnavailable,
+              diagnosticCause: error,
+              diagnosticStack: stackTrace,
+            ),
+            stackTrace,
+          );
+        }
+      });
 
   Future<LocalPostDraft?> _readExisting(String manifestPath) async {
     if (!await _files.fileExists(manifestPath)) return null;

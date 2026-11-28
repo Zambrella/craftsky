@@ -15,7 +15,7 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestPrivateSuggestionMatcherStopsAtPrivatePersistence(t *testing.T) {
+func TestPrivateSuggestionReconciliationStopsAtPrivatePersistence(t *testing.T) {
 	pool := newPrivateSuggestionTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 8, 14, 13, 30, 0, 0, time.UTC)
@@ -36,32 +36,17 @@ func TestPrivateSuggestionMatcherStopsAtPrivatePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	matcher := NewPrivateSuggestionMatcher(
-		pool,
-		store,
-		privateSuggestionAllowPolicy{},
-		func() time.Time { return now },
-	)
-	ids := []uuid.UUID{
-		uuid.MustParse("02000000-0000-4000-8000-000000000001"),
-		uuid.MustParse("02000000-0000-4000-8000-000000000002"),
-	}
-	matcher.newID = func() uuid.UUID {
-		id := ids[0]
-		ids = ids[1:]
-		return id
-	}
-
-	first, err := matcher.MatchImport(ctx, importer, importID)
+	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
+		Pool: pool, PrivateSuggestions: store, Policy: privateSuggestionAllowPolicy{}, Now: func() time.Time { return now },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := matcher.MatchImport(ctx, importer, importID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != 1 || second != 0 {
-		t.Fatalf("created suggestions = %d/%d, want 1/0", first, second)
+	job := reconciliationJob{OwnerDID: importer, ImportID: &importID}
+	for range 2 {
+		if matched, err := worker.processJob(ctx, job, now); err != nil || !matched {
+			t.Fatalf("reconcile import matched=%t err=%v", matched, err)
+		}
 	}
 	for _, table := range []string{"pds_follow_operations"} {
 		var count int

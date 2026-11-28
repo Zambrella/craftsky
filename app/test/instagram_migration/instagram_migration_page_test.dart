@@ -1,28 +1,46 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
+import 'package:craftsky_app/instagram_migration/widgets/instagram_post_import_row.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as image;
 import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
@@ -69,7 +87,8 @@ void main() {
       description: 'the unavailable verification state',
     );
 
-    expect(find.text('Find people from Instagram'), findsOneWidget);
+    expect(find.text('Instagram'), findsOneWidget);
+    expect(find.byKey(const Key('instagram-post-import-open')), findsNothing);
     expect(find.byType(Card), findsNothing);
     expect(find.byType(CraftskyCard), findsWidgets);
     expect(
@@ -101,7 +120,562 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('IT-023 manual and Instagram export imports stay normalized', (
+  testWidgets('unverified Instagram deep links return to verification', (
+    tester,
+  ) async {
+    final router = _instagramRouter();
+    addTearDown(router.dispose);
+    final repository = _Repository(
+      status: const InstagramAccountStatus(
+        integrationAvailable: true,
+        account: null,
+      ),
+      imports: InstagramImportPage(items: const [], cursor: null),
+    );
+    await _pumpMigrationRouter(tester, router, repository);
+
+    for (final location in [
+      const InstagramPostImportRoute().location,
+      const InstagramFollowingImportRoute().location,
+      const InstagramSuggestionsRoute().location,
+      const InstagramAccountRoute().location,
+    ]) {
+      router.go(location);
+      await tester.pumpAndSettle();
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        const InstagramMigrationRoute().location,
+      );
+      expect(find.text('Create verification challenge'), findsOneWidget);
+      expect(
+        find.byKey(const Key('instagram-post-import-select-zip')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('instagram-import-composer-card')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+      expect(
+        find.byKey(const Key('instagram-discoverable-switch')),
+        findsNothing,
+      );
+    }
+  });
+
+  testWidgets(
+    'an ownership conflict blocks both post and following imports',
+    (
+      tester,
+    ) async {
+      final router = _instagramRouter();
+      addTearDown(router.dispose);
+      final repository = _Repository(
+        status: InstagramAccountStatus(
+          integrationAvailable: true,
+          account: InstagramAccountLink(
+            state: InstagramAccountLinkState.active,
+            username: 'actual_maker',
+            discoverable: false,
+            conflictPending: true,
+            reactivationRequired: false,
+            verifiedAt: DateTime.utc(2026, 7, 22),
+          ),
+        ),
+        imports: InstagramImportPage(items: const [], cursor: null),
+      );
+      await _pumpMigrationRouter(tester, router, repository);
+
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(InstagramMigrationPage)),
+      );
+      expect(find.text(l10n.instagramConflictPending), findsOneWidget);
+      await tester.tap(find.byKey(const Key('instagram-post-import-open')));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(AppBar, 'Import posts'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('instagram-post-import-select-zip')),
+        findsNothing,
+      );
+
+      router.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('instagram-following-import-open')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.instagramImportAccountBlocked), findsOneWidget);
+      expect(
+        find.byKey(const Key('instagram-import-composer-card')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'review checks new rows once and rechecks published rows after viewing',
+    (
+      tester,
+    ) async {
+      final initial = registry.SessionRegistry.empty().upsertAndActivate(
+        token: 'token-a',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final directory = Directory.systemTemp.createTempSync(
+        'instagram-review-',
+      );
+      final selected = InstagramPostExportFile(
+        directory: directory,
+        name: 'example.zip',
+      );
+      addTearDown(selected.dispose);
+      final json = utf8.encode(
+        jsonEncode([
+          for (var index = 0; index < 21; index++)
+            {
+              'title': index == 20 ? 'Latest finished quilt' : 'Post $index',
+              'creation_timestamp': 1660000000 + index,
+              'media': [
+                {'uri': 'media/posts/photo-$index.jpg'},
+              ],
+            },
+        ]),
+      );
+      final zip = Archive()
+        ..addFile(
+          ArchiveFile(
+            'your_instagram_activity/media/posts_1.json',
+            json.length,
+            json,
+          ),
+        );
+      File(selected.archivePath)
+          .writeAsBytesSync(ZipEncoder().encodeBytes(zip));
+      final lookups = <List<String>>[];
+      final repository = _Repository(
+        status: InstagramAccountStatus(
+          integrationAvailable: true,
+          account: InstagramAccountLink(
+            state: InstagramAccountLinkState.active,
+            username: 'alice_instagram',
+            discoverable: false,
+            conflictPending: false,
+            reactivationRequired: false,
+            verifiedAt: DateTime.utc(2026, 7, 19),
+          ),
+        ),
+        imports: InstagramImportPage(items: const [], cursor: null),
+        onLookupPostImports: (keys) async {
+          lookups.add(keys);
+          if (lookups.length == 2 || lookups.length == 4) {
+            throw const ApiNetworkError('offline');
+          }
+          if (lookups.length > 1) return [];
+          return [
+            InstagramPublishedImport(
+              sourceKey: keys.first,
+              uri: AtUri.parse(
+                'at://did:plc:alice/social.craftsky.feed.post/3key',
+              ),
+              isProject: true,
+            ),
+          ];
+        },
+      );
+      final router = _instagramRouter(withPostThread: true);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(initial),
+            ),
+            instagramMigrationRepositoryProvider.overrideWith(
+              (ref, _) async => repository,
+            ),
+            instagramVerificationStorageProvider.overrideWithValue(
+              _EmptyVerificationStorage(),
+            ),
+            instagramPostExportFilePickerProvider.overrideWithValue(
+              () async => selected,
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      final open = find.byKey(const Key('instagram-post-import-open'));
+      await pumpUntilFound(
+        tester,
+        open,
+        description: 'the post importer entry',
+      );
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Import posts'), findsOneWidget);
+      final card = find.byKey(const Key('instagram-post-import-card'));
+      final choose = find.byKey(const Key('instagram-post-import-select-zip'));
+      expect(tester.widget(choose), isA<FilledButton>());
+      expect(find.descendant(of: card, matching: choose), findsOneWidget);
+      expect(
+        find.descendant(
+          of: choose,
+          matching: find.text('Select Instagram export'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: choose,
+          matching: find.byIcon(CraftskyIconsBold.openFile),
+        ),
+        findsOneWidget,
+      );
+      final l10n = AppLocalizations.of(tester.element(card));
+      final instructions = find.text(l10n.instagramPostImportInstructions);
+      final privacy = find.text(l10n.instagramPostImportPrivacy);
+      expect(
+        tester.getBottomLeft(instructions).dy,
+        lessThan(tester.getTopLeft(choose).dy),
+      );
+      expect(
+        tester.getBottomLeft(choose).dy,
+        lessThan(tester.getTopLeft(privacy).dy),
+      );
+      await tester.tap(choose);
+      // The archive isolate and file operations run outside the fake clock.
+      final projectCreated = find.text('Project created');
+      for (var i = 0; i < 100 && projectCreated.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(lookups.single, hasLength(20));
+      expect(lookups.single, everyElement(matches(RegExp(r'^[0-9a-f]{32}$'))));
+      await tester.pumpAndSettle();
+      expect(projectCreated, findsOneWidget);
+      expect(find.text('View project'), findsOneWidget);
+      final publishedRow = find.ancestor(
+        of: projectCreated,
+        matching: find.byType(InstagramPostImportRow),
+      );
+      final rowCard = tester.widget<CraftskyCard>(
+        find.descendant(of: publishedRow, matching: find.byType(CraftskyCard)),
+      );
+      expect(rowCard.clipBehavior, Clip.none);
+      expect(
+        find.descendant(
+          of: publishedRow,
+          matching: find.text('Latest finished quilt'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: publishedRow, matching: find.text('Create post')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: publishedRow,
+          matching: find.text('Create project'),
+        ),
+        findsNothing,
+      );
+
+      final more = find.byKey(const Key('instagram-post-import-more'));
+      await tester.scrollUntilVisible(more, 500);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(lookups.map((keys) => keys.length), [20, 1]);
+      expect(lookups.first, isNot(contains(lookups.last.single)));
+
+      final clear = find.byKey(const Key('instagram-post-import-clear'));
+      await tester.scrollUntilVisible(clear, -500);
+      final retry = find.text('Try again');
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(lookups.map((keys) => keys.length), [20, 1, 1]);
+      expect(lookups[1], lookups[2]);
+      expect(retry, findsNothing);
+
+      final viewProject = find.text('View project');
+      await tester.ensureVisible(viewProject);
+      await tester.tap(viewProject);
+      await tester.pumpAndSettle();
+      expect(find.text('Imported project thread'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(lookups.map((keys) => keys.length), [20, 1, 1, 21]);
+      expect(viewProject, findsOneWidget);
+
+      await tester.scrollUntilVisible(retry, -200);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(lookups[4], lookups[3]);
+      expect(lookups[4].first, lookups[0].first);
+      expect(viewProject, findsNothing);
+      final availableRow = find.ancestor(
+        of: find.text('Latest finished quilt'),
+        matching: find.byType(InstagramPostImportRow),
+      );
+      expect(
+        find.descendant(of: availableRow, matching: find.text('Create post')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: availableRow,
+          matching: find.text('Create project'),
+        ),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(clear, -400);
+      await tester.tap(clear);
+      await tester.runAsync(() async {
+        for (var i = 0; i < 100 && directory.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(directory.existsSync(), isFalse);
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Latest finished quilt'), findsNothing);
+      expect(choose, findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(open, findsOneWidget);
+      expect(choose, findsNothing);
+    },
+  );
+
+  for (final hasVideo in [false, true]) {
+    testWidgets(
+      hasVideo
+          ? 'an overlong import video can be replaced in the composer'
+          : 'selected import photos survive other attachment failures',
+      (tester) async {
+        final initial = registry.SessionRegistry.empty().upsertAndActivate(
+          token: 'token-a',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+        final account = initial.activeLease!.session.account;
+        final directory = Directory.systemTemp.createTempSync(
+          'instagram-review-media-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final selected = InstagramPostExportFile(
+          directory: directory.createTempSync(),
+          name: 'example.zip',
+        );
+        final drafts = FileLocalPostDraftRepository(
+          documentsRoot: directory.path,
+          owner: account,
+        );
+        final png = image.encodePng(image.Image(width: 12, height: 12));
+        final files = hasVideo
+            ? {
+                'media/posts/long.mp4': [0, 0, 0, 20, ...'ftypisom'.codeUnits],
+              }
+            : {
+                'media/posts/valid.png': png,
+                'media/posts/corrupt.png': [1, 2, 3],
+                'media/posts/too-wide.png': image.encodePng(
+                  image.Image(width: 128, height: 1),
+                ),
+              };
+        final frames = <MethodCall>[];
+        if (hasVideo) {
+          const channel = MethodChannel('social.craftsky/local_video');
+          final messenger =
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+                ..setMockMethodCallHandler(
+                  channel,
+                  (call) async {
+                    if (call.method == 'midpointFrame') {
+                      frames.add(call);
+                      return png;
+                    }
+                    expect(call.method, 'probe');
+                    return {
+                      'width': 1080,
+                      'height': 1920,
+                      'durationMs': 601000,
+                      'posterBytes': png,
+                    };
+                  },
+                );
+          addTearDown(() {
+            messenger.setMockMethodCallHandler(channel, null);
+          });
+        }
+
+        const caption = 'Keep my original caption';
+        final json = utf8.encode(
+          jsonEncode([
+            {
+              'title': caption,
+              'creation_timestamp': 1660000000,
+              'media': [
+                for (final path in files.keys) {'uri': path},
+              ],
+            },
+          ]),
+        );
+        final zip = Archive()
+          ..addFile(
+            ArchiveFile.bytes(
+              'your_instagram_activity/media/posts_1.json',
+              json,
+            ),
+          );
+        for (final entry in files.entries) {
+          zip.addFile(ArchiveFile.bytes(entry.key, entry.value));
+        }
+        File(selected.archivePath)
+            .writeAsBytesSync(ZipEncoder().encodeBytes(zip));
+
+        final repository = _verifiedImportRepository([]);
+        final router = _instagramRouter();
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(initial),
+              ),
+              instagramMigrationRepositoryProvider.overrideWith(
+                (ref, _) async => repository,
+              ),
+              instagramVerificationStorageProvider.overrideWithValue(
+                _EmptyVerificationStorage(),
+              ),
+              instagramPostExportFilePickerProvider.overrideWithValue(
+                () async => selected,
+              ),
+              accountLocalPostDraftRepositoryProvider(
+                account,
+              ).overrideWith((ref) async => drafts),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp.router(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                routerConfig: router,
+              ),
+            ),
+          ),
+        );
+
+        Future<void> waitForNativeWork(Finder finder) async {
+          for (
+            var attempt = 0;
+            attempt < 200 && finder.evaluate().isEmpty;
+            attempt++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump(const Duration(milliseconds: 10));
+          }
+          expect(finder, findsOneWidget);
+        }
+
+        final open = find.byKey(const Key('instagram-post-import-open'));
+        await pumpUntilFound(tester, open, description: 'post importer');
+        await tester.tap(open);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('instagram-post-import-select-zip')),
+        );
+        if (hasVideo) {
+          await waitForNativeWork(
+            find.descendant(
+              of: find.byType(InstagramPostImportRow),
+              matching: find.byType(Image),
+            ),
+          );
+          expect(frames.single.arguments, containsPair('timeUs', 0));
+        }
+        final create = find.text('Create post');
+        final enabledCreate = find.ancestor(
+          of: create,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is TextButton && widget.onPressed != null,
+          ),
+        );
+        await waitForNativeWork(enabledCreate);
+        expect(
+          find.descendant(
+            of: enabledCreate,
+            matching: find.byIcon(CraftskyIconsBold.textPost),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.widgetWithText(TextButton, 'Create project'),
+            matching: find.byIcon(CraftskyIconsBold.projectPost),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.ensureVisible(create);
+        await tester.tap(create);
+
+        final confirm = find.text(
+          hasVideo ? 'Continue without media' : 'Continue with 1 photo',
+        );
+        await waitForNativeWork(confirm);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(await tester.runAsync(drafts.list), isEmpty);
+        expect(find.byType(PostComposerSheet), findsNothing);
+        if (hasVideo) {
+          expect(find.textContaining('ten minutes or shorter'), findsOneWidget);
+        } else {
+          await tester.tap(find.text('Cancel'));
+          await waitForNativeWork(enabledCreate);
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(await tester.runAsync(drafts.list), isEmpty);
+          await tester.tap(create);
+          await waitForNativeWork(confirm);
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+
+        await tester.tap(confirm);
+        await waitForNativeWork(find.byType(PostComposerSheet));
+        await tester.pump(const Duration(milliseconds: 400));
+        final saved = (await tester.runAsync(drafts.list))!.single;
+        expect((saved.content as StandardDraftContent).text, caption);
+        expect(saved.media, hasLength(hasVideo ? 0 : 1));
+        expect(saved.video, isNull);
+        expect(saved.instagramImport, isNotNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+      variant: hasVideo
+          ? const TargetPlatformVariant({TargetPlatform.iOS})
+          : const DefaultTestVariant(),
+    );
+  }
+
+  testWidgets('IT-023 following imports use the export picker only', (
     tester,
   ) async {
     final initial = registry.SessionRegistry.empty().upsertAndActivate(
@@ -124,7 +698,18 @@ void main() {
           verifiedAt: DateTime.utc(2026, 7, 19),
         ),
       ),
-      imports: InstagramImportPage(items: const [], cursor: null),
+      imports: InstagramImportPage(
+        items: [
+          InstagramImportSummary(
+            importId: 'legacy-manual-import',
+            state: InstagramImportState.active,
+            sourceType: InstagramImportSourceType.manual,
+            followingCount: 1,
+            createdAt: DateTime.utc(2026, 7, 18),
+          ),
+        ],
+        cursor: null,
+      ),
       onCreateImport: (request) async {
         sentRequests.add(request);
         return InstagramImportCreateResult(
@@ -168,15 +753,57 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
+            home: const InstagramMigrationPage(
+              view: InstagramMigrationView.following,
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const Key('instagram-import-help')));
-    await tester.tap(find.byKey(const Key('instagram-import-help')));
+    final exportHelp = find.byKey(const Key('instagram-import-help'));
+    final importCard = find.byKey(const Key('instagram-import-composer-card'));
+    final helpTheme = Theme.of(tester.element(exportHelp));
+    final helpButton = tester.widget<ChunkyButton>(exportHelp);
+    expect(
+      helpButton.backgroundColor,
+      helpTheme.extension<BrandSwatchTheme>()!.lilac,
+    );
+    expect(helpButton.foregroundColor, helpTheme.colorScheme.onSurface);
+    expect(
+      find.descendant(
+        of: exportHelp,
+        matching: find.byIcon(CraftskyIcons.help),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: exportHelp,
+        matching: find.byIcon(CraftskyIcons.externalLink),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('How to export'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel('How to export your Instagram following'),
+      findsOneWidget,
+    );
+    semantics.dispose();
+    expect(find.ancestor(of: exportHelp, matching: importCard), findsNothing);
+    expect(tester.getTopLeft(exportHelp).dx, tester.getTopLeft(importCard).dx);
+    expect(
+      tester.getSize(exportHelp).width,
+      lessThan(tester.getSize(importCard).width),
+    );
+    expect(
+      tester.getBottomLeft(exportHelp).dy,
+      lessThan(tester.getTopLeft(importCard).dy),
+    );
+    await tester.ensureVisible(exportHelp);
+    await tester.tap(exportHelp);
     await tester.pump();
     expect(helpUri, Uri.https('craftsky.social', '/instagram-import'));
 
@@ -184,77 +811,20 @@ void main() {
     expect(cards, isNotEmpty);
     expect(cards.every((card) => card.clipBehavior == Clip.none), isTrue);
     expect(find.text('Accounts that follow me'), findsNothing);
-    final manualDescription = find.text(
-      'Enter the Instagram handles of accounts you follow, one per line.',
-    );
     final jsonDescription = find.text(
       'Choose JSON format and All time when exporting from Instagram, then '
       'select the downloaded ZIP here. CraftSky processes it on this device '
       'and uploads only the usernames of accounts you follow. Everything '
       'else stays on your device.',
     );
-    expect(manualDescription, findsNothing);
+    expect(find.byType(SegmentedButton<dynamic>), findsNothing);
+    expect(find.text('Enter handles'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
     expect(jsonDescription, findsOneWidget);
-    expect(
-      tester.getCenter(find.text('Instagram export')).dx,
-      lessThan(tester.getCenter(find.text('Enter handles')).dx),
+    final selectExport = find.widgetWithText(
+      FilledButton,
+      'Select Instagram export',
     );
-    final importSelector = tester.widget<SegmentedButton<dynamic>>(
-      find.byKey(const Key('instagram-import-kind-selector')),
-    );
-    final theme = Theme.of(tester.element(find.byType(InstagramMigrationPage)));
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-    final segmentedStyle = theme.segmentedButtonTheme.style!;
-    expect(importSelector.style, isNull);
-    expect(
-      segmentedStyle.backgroundColor?.resolve({WidgetState.selected}),
-      swatches.moss,
-    );
-    expect(
-      segmentedStyle.foregroundColor?.resolve({WidgetState.selected}),
-      swatches.onMoss,
-    );
-    expect(
-      segmentedStyle.foregroundColor?.resolve({}),
-      theme.colorScheme.onSurface,
-    );
-    expect(
-      segmentedStyle.overlayColor?.resolve({WidgetState.pressed}),
-      swatches.moss.withValues(alpha: 0.12),
-    );
-    expect(
-      segmentedStyle.overlayColor?.resolve({
-        WidgetState.selected,
-        WidgetState.pressed,
-      }),
-      swatches.onMoss.withValues(alpha: 0.12),
-    );
-    expect(
-      tester
-          .getBottomLeft(
-            find.byKey(const Key('instagram-import-kind-selector')),
-          )
-          .dy,
-      lessThan(tester.getTopLeft(jsonDescription).dy),
-    );
-    expect(
-      tester.getBottomLeft(jsonDescription).dy,
-      lessThan(tester.getTopLeft(find.text('Select Instagram export')).dy),
-    );
-    expect(
-      find.widgetWithText(FilledButton, 'Select Instagram export'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Enter handles'));
-    await tester.pumpAndSettle();
-    expect(manualDescription, findsOneWidget);
-    expect(jsonDescription, findsNothing);
-    expect(find.byKey(const Key('instagram-manual-import')), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Import handles'), findsNothing);
-    await tester.enterText(find.byType(TextField), '@Alice\nALICE\nbad name');
-    expect(find.text('Preview normalized handles'), findsNothing);
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
-    await tester.pumpAndSettle();
     expect(
       find.text(
         'Importing creates private suggestions only. You choose whether to '
@@ -262,46 +832,18 @@ void main() {
       ),
       findsOneWidget,
     );
-    final importButton = find.text('Import handles');
-    await tester.ensureVisible(importButton);
+    expect(find.text('Manual handles'), findsOneWidget);
+    await tester.ensureVisible(selectExport);
     await tester.pumpAndSettle();
-    await tester.tap(importButton);
-    await tester.pumpAndSettle();
-
-    expect(sentRequests.single.entries, hasLength(1));
-    expect(sentRequests.single.entries.single.username, 'alice');
-    expect(sentRequests.single.sourceType, InstagramImportSourceType.manual);
-    expect(messenger.calls, [('info', 'Instagram import created', null)]);
-
-    await tester.ensureVisible(find.text('Instagram export'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Instagram export'));
-    await tester.pumpAndSettle();
-    expect(manualDescription, findsNothing);
-    expect(jsonDescription, findsOneWidget);
-    expect(
-      tester
-          .getBottomLeft(
-            find.byKey(const Key('instagram-import-kind-selector')),
-          )
-          .dy,
-      lessThan(tester.getTopLeft(jsonDescription).dy),
-    );
-    expect(
-      tester.getBottomLeft(jsonDescription).dy,
-      lessThan(tester.getTopLeft(find.text('Select Instagram export')).dy),
-    );
-    await tester.ensureVisible(find.text('Select Instagram export'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Select Instagram export'));
+    await tester.tap(selectExport);
     await tester.pumpAndSettle();
 
-    expect(sentRequests, hasLength(2));
     expect(
-      sentRequests.last.sourceType,
+      sentRequests.single.sourceType,
       InstagramImportSourceType.instagramJson,
     );
-    expect(sentRequests.last.entries.single.username, 'bobmaker');
+    expect(sentRequests.single.entries.single.username, 'bobmaker');
+    expect(messenger.calls, [('info', 'Instagram import created', null)]);
   });
 
   testWidgets(
@@ -368,13 +910,12 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
+            home: const InstagramMigrationPage(
+              view: InstagramMigrationView.following,
+            ),
           ),
         ),
       );
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Instagram export'));
-      await tester.tap(find.text('Instagram export'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Select Instagram export'));
       await tester.tap(find.text('Select Instagram export'));
@@ -913,13 +1454,15 @@ void main() {
   );
 
   testWidgets(
-    'IT-016 verified account controls use shared switch and error styling',
+    'IT-016 verified landing links to separate tasks and keeps native controls',
     (tester) async {
-      final initial = registry.SessionRegistry.empty().upsertAndActivate(
-        token: 'token-a',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final router = _instagramRouter();
+      addTearDown(router.dispose);
+      final date = DateTime.utc(2026, 7, 22);
       final repository = _Repository(
         status: InstagramAccountStatus(
           integrationAvailable: true,
@@ -929,7 +1472,7 @@ void main() {
             discoverable: true,
             conflictPending: false,
             reactivationRequired: false,
-            verifiedAt: DateTime.utc(2026, 7, 22),
+            verifiedAt: date,
           ),
         ),
         imports: InstagramImportPage(
@@ -939,32 +1482,28 @@ void main() {
               state: InstagramImportState.active,
               sourceType: InstagramImportSourceType.instagramJson,
               followingCount: 1,
-              createdAt: DateTime.utc(2026, 7, 22),
+              createdAt: date,
             ),
           ],
           cursor: null,
         ),
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            secureSessionRegistryStorageProvider.overrideWithValue(
-              _RegistryStorage(initial),
-            ),
-            instagramMigrationRepositoryProvider.overrideWith(
-              (ref, _) async => repository,
+        suggestions: InstagramSuggestionPage(
+          items: [
+            InstagramSuggestion(
+              suggestionId: 'suggestion-a',
+              target: const InstagramSuggestionTarget(
+                did: 'did:plc:synthetic',
+                handle: 'synthetic.test',
+                displayName: 'Suggested Maker',
+              ),
+              createdAt: date,
             ),
           ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
-          ),
+          cursor: 'next-suggestions',
         ),
       );
-      await tester.pumpAndSettle();
+
+      await _pumpMigrationRouter(tester, router, repository);
 
       final linkedFinder = find.byWidgetPredicate(
         (widget) =>
@@ -977,10 +1516,48 @@ void main() {
         linkedText.text as TextSpan,
       ).singleWhere((span) => span.text == '@actual_maker');
       expect(handleSpan.style?.fontWeight, FontWeight.w600);
-
-      final theme = Theme.of(
-        tester.element(find.byType(InstagramMigrationPage)),
+      final manage = find.byKey(const Key('instagram-account-manage'));
+      final following = find.byKey(
+        const Key('instagram-following-import-open'),
       );
+      final posts = find.byKey(const Key('instagram-post-import-open'));
+      final suggestions = find.byKey(const Key('instagram-suggestions-open'));
+      expect(manage, findsOneWidget);
+      expect(following, findsOneWidget);
+      expect(posts, findsOneWidget);
+      expect(suggestions, findsOneWidget);
+      expect(
+        tester.getTopLeft(following).dy,
+        lessThan(tester.getTopLeft(posts).dy),
+      );
+      expect(
+        find.descendant(
+          of: following,
+          matching: find.byIcon(CraftskyIcons.addPeople),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: suggestions, matching: find.text('1+')),
+        findsOneWidget,
+      );
+      expect(find.byType(Switch), findsNothing);
+      expect(find.byKey(const Key('instagram-import-help')), findsNothing);
+      expect(find.text('Your imports'), findsNothing);
+      expect(find.text('Suggested Maker'), findsNothing);
+      expect(find.text('Revoke Instagram verification'), findsNothing);
+      await tester.tap(manage);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Manage account'), findsOneWidget);
+      expect(linkedFinder, findsOneWidget);
+      final manageContext = tester.element(find.byType(InstagramMigrationPage));
+      final verifiedDate = MaterialLocalizations.of(
+        manageContext,
+      ).formatShortDate(date.toLocal());
+      expect(find.text('Verified $verifiedDate'), findsNothing);
+      expect(find.text('Your imports'), findsNothing);
+
+      final theme = Theme.of(manageContext);
       final errorColor = theme.colorScheme.error;
       expect(find.byType(SwitchListTile), findsNothing);
       final discoverySwitch = tester.widget<Switch>(
@@ -993,16 +1570,19 @@ void main() {
       );
       expect(revokeButton.style?.foregroundColor?.resolve({}), errorColor);
       expect(revokeButton.style?.iconColor?.resolve({}), errorColor);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(following);
+      await tester.pumpAndSettle();
       expect(
-        tester
-            .getTopLeft(find.byKey(const Key('instagram-revoke-verification')))
-            .dy,
-        greaterThan(
-          tester
-              .getBottomLeft(find.byKey(const Key('instagram-imports-card')))
-              .dy,
-        ),
+        find.widgetWithText(AppBar, 'Import accounts you follow'),
+        findsOneWidget,
       );
+      expect(find.byKey(const Key('instagram-import-help')), findsOneWidget);
+      expect(find.text('Your imports'), findsOneWidget);
+      expect(find.text('Suggested Maker'), findsNothing);
+      expect(find.byType(Switch), findsNothing);
 
       final deleteButtonFinder = find.widgetWithIcon(
         IconButton,
@@ -1018,17 +1598,23 @@ void main() {
         find.ancestor(of: deleteButtonFinder, matching: find.byType(Row)),
       );
       expect(importRow.children.last, isA<IconButton>());
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(suggestions);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Suggested accounts'), findsOneWidget);
+      expect(find.text('Suggested Maker'), findsOneWidget);
+      expect(find.text('Your imports'), findsNothing);
+      expect(find.byType(Switch), findsNothing);
     },
   );
 
   testWidgets('IT-016 revoking Instagram verification requires confirmation', (
     tester,
   ) async {
-    final initial = registry.SessionRegistry.empty().upsertAndActivate(
-      token: 'token-a',
-      did: 'did:plc:alice',
-      handle: 'alice.test',
-    );
+    final router = _instagramRouter();
+    addTearDown(router.dispose);
     var revokeCalls = 0;
     final repository = _Repository(
       status: InstagramAccountStatus(
@@ -1046,24 +1632,8 @@ void main() {
       onRevokeAccount: () async => revokeCalls += 1,
     );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _RegistryStorage(initial),
-          ),
-          instagramMigrationRepositoryProvider.overrideWith(
-            (ref, _) async => repository,
-          ),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const InstagramMigrationPage(),
-        ),
-      ),
-    );
+    await _pumpMigrationRouter(tester, router, repository);
+    await tester.tap(find.byKey(const Key('instagram-account-manage')));
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('Revoke Instagram verification'));
@@ -1096,7 +1666,76 @@ void main() {
 
     expect(revokeCalls, 1);
     expect(find.text('Verified as @actual_maker'), findsNothing);
+    expect(find.text('Create verification challenge'), findsOneWidget);
   });
+}
+
+GoRouter _instagramRouter({bool withPostThread = false}) => GoRouter(
+  initialLocation: const InstagramMigrationRoute().location,
+  routes: [
+    if (withPostThread)
+      GoRoute(
+        path: RouteLocations.postThread,
+        builder: (_, _) =>
+            const Scaffold(body: Text('Imported project thread')),
+      ),
+    GoRoute(
+      path: const InstagramMigrationRoute().location,
+      builder: const InstagramMigrationRoute().build,
+      routes: [
+        GoRoute(
+          path: RouteLocations.instagramPostImportChild,
+          builder: const InstagramPostImportRoute().build,
+        ),
+        GoRoute(
+          path: RouteLocations.instagramFollowingImportChild,
+          builder: const InstagramFollowingImportRoute().build,
+        ),
+        GoRoute(
+          path: RouteLocations.instagramSuggestionsChild,
+          builder: const InstagramSuggestionsRoute().build,
+        ),
+        GoRoute(
+          path: RouteLocations.instagramAccountChild,
+          builder: const InstagramAccountRoute().build,
+        ),
+      ],
+    ),
+  ],
+);
+
+Future<void> _pumpMigrationRouter(
+  WidgetTester tester,
+  GoRouter router,
+  _Repository repository,
+) async {
+  final initial = registry.SessionRegistry.empty().upsertAndActivate(
+    token: 'token-a',
+    did: 'did:plc:alice',
+    handle: 'alice.test',
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramVerificationStorageProvider.overrideWithValue(
+          _EmptyVerificationStorage(),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+      ],
+      child: MaterialApp.router(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpVerifiedExportPage(
@@ -1123,13 +1762,12 @@ Future<void> _pumpVerifiedExportPage(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const InstagramMigrationPage(),
+        home: const InstagramMigrationPage(
+          view: InstagramMigrationView.following,
+        ),
       ),
     ),
   );
-  await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('Instagram export'));
-  await tester.tap(find.text('Instagram export'));
   await tester.pumpAndSettle();
   await tester.ensureVisible(find.text('Select Instagram export'));
   await tester.pumpAndSettle();
@@ -1202,11 +1840,13 @@ final class _RegistryStorage implements SessionRegistryStorage {
 final class _Repository implements InstagramMigrationRepository {
   const new({
     required this.imports,
+    this.suggestions,
     this.status = const InstagramAccountStatus(
       integrationAvailable: false,
       account: null,
     ),
     this.onCreateImport,
+    this.onLookupPostImports,
     this.onCreateVerification,
     this.onCancelVerification,
     this.onConfirmVerification,
@@ -1215,11 +1855,14 @@ final class _Repository implements InstagramMigrationRepository {
   });
 
   final InstagramImportPage imports;
+  final InstagramSuggestionPage? suggestions;
   final InstagramAccountStatus status;
   final Future<InstagramImportCreateResult> Function(
     InstagramImportRequest request,
   )?
   onCreateImport;
+  final Future<List<InstagramPublishedImport>> Function(List<String> keys)?
+  onLookupPostImports;
   final Future<InstagramVerificationAttempt> Function()? onCreateVerification;
   final Future<void> Function(String verificationId)? onCancelVerification;
   final Future<InstagramVerificationConfirmation> Function(
@@ -1237,6 +1880,11 @@ final class _Repository implements InstagramMigrationRepository {
   Future<InstagramImportCreateResult> createImport(
     InstagramImportRequest request,
   ) => onCreateImport!.call(request);
+
+  @override
+  Future<List<InstagramPublishedImport>> lookupPostImports(
+    List<String> keys,
+  ) => onLookupPostImports?.call(keys) ?? Future.value(const []);
 
   @override
   Future<InstagramVerificationAttempt> createVerification() =>
@@ -1264,7 +1912,8 @@ final class _Repository implements InstagramMigrationRepository {
   Future<InstagramSuggestionPage> listSuggestions({
     int? limit,
     String? cursor,
-  }) async => InstagramSuggestionPage(items: const [], cursor: null);
+  }) async =>
+      suggestions ?? InstagramSuggestionPage(items: const [], cursor: null);
 
   @override
   Future<void> revokeAccount() => onRevokeAccount!.call();

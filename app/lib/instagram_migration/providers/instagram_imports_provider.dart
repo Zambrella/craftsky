@@ -10,6 +10,9 @@ part 'instagram_imports_provider.g.dart';
 
 @riverpod
 class InstagramImports extends _$InstagramImports {
+  int _refreshSequence = 0;
+  int _mutationRevision = 0;
+
   @override
   Future<InstagramImportPage> build(ActiveAccountLease lease) async {
     final repository = await ref.watch(
@@ -25,33 +28,48 @@ class InstagramImports extends _$InstagramImports {
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading<InstagramImportPage>();
+    final sequence = ++_refreshSequence;
+    final revision = _mutationRevision;
+    // Keep the current page available to mutations while the read is pending.
+    if (!state.hasValue) state = const AsyncLoading();
+    bool isLatest() =>
+        _isCurrent &&
+        sequence == _refreshSequence &&
+        revision == _mutationRevision;
     try {
       final repository = await _repository();
       final page = await _operation.step(
         repository.listImports,
         discarded: const InstagramOperationDiscarded(),
       );
-      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+      if (!isLatest()) return;
       state = AsyncData(page);
     } on InstagramOperationDiscarded {
       return;
     } on Object catch (error, stackTrace) {
-      if (!_isCurrent) return;
+      if (!isLatest()) return;
       state = AsyncError<InstagramImportPage>(error, stackTrace);
     }
   }
 
   Future<bool> loadMore() async {
-    final current = state.value;
-    if (current == null || current.cursor == null) return false;
+    final cursor = state.asData?.value.cursor;
+    if (cursor == null) return false;
+    final sequence = _refreshSequence;
     try {
       final repository = await _repository();
       final next = await _operation.step(
-        () => repository.listImports(cursor: current.cursor),
+        () => repository.listImports(cursor: cursor),
         discarded: const InstagramOperationDiscarded(),
       );
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+      final current = state.asData?.value;
+      if (sequence != _refreshSequence ||
+          current == null ||
+          current.cursor != cursor) {
+        return false;
+      }
+      // A create, reactivation or deletion may have changed the current page.
       final seen = current.items.map((item) => item.importId).toSet();
       state = AsyncData(
         InstagramImportPage(
@@ -81,9 +99,15 @@ class InstagramImports extends _$InstagramImports {
       );
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final current = state.value;
+      _mutationRevision++;
       state = AsyncData(
         InstagramImportPage(
-          items: [result.import, ...?current?.items],
+          items: [
+            result.import,
+            ...?current?.items.where(
+              (item) => item.importId != result.import.importId,
+            ),
+          ],
           cursor: current?.cursor,
         ),
       );
@@ -111,6 +135,7 @@ class InstagramImports extends _$InstagramImports {
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final current = state.value;
       if (current != null) {
+        _mutationRevision++;
         state = AsyncData(
           InstagramImportPage(
             items: [
@@ -140,6 +165,7 @@ class InstagramImports extends _$InstagramImports {
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final current = state.value;
       if (current != null) {
+        _mutationRevision++;
         state = AsyncData(
           InstagramImportPage(
             items: current.items

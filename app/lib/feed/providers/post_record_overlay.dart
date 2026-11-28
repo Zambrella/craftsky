@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -155,15 +156,18 @@ PdsMutationScope postRecordMutationScopeForUri(
 }
 
 PdsMutationScope postCreateOperationScope(
-  ActiveAccountLease? ownership,
-) => PdsMutationScope(
+  ActiveAccountLease? ownership, {
+  InstagramPostImportSource? instagramImport,
+}) => PdsMutationScope(
   lease:
       ownership?.session ??
       AccountSessionLease(
         account: AccountKey('did:plc:local-test'),
         sessionGeneration: 0,
       ),
-  identity: 'post-create',
+  identity: instagramImport == null
+      ? 'post-create'
+      : 'post-create:instagram:${instagramImport.sourceKey}',
 );
 
 PdsRecordProjection postRecordProjection(Post? post) => PdsRecordProjection(

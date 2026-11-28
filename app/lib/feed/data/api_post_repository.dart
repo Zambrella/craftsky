@@ -3,6 +3,8 @@ import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
+import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -55,6 +57,7 @@ class ApiPostRepository implements PostRepository {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
+    InstagramPostImportSource? instagramImport,
   }) {
     assert(
       project == null || reply == null,
@@ -81,8 +84,14 @@ class ApiPostRepository implements PostRepository {
       external: external,
       video: video,
       facets: facets,
+      instagramImport: instagramImport,
     );
   }
+
+  @override
+  Future<Post> publishPreparedInstagramImport(
+    InstagramImportPublication pending,
+  ) => _api.publishPreparedInstagramImport(pending);
 
   @override
   Future<Post> fetch(Did did, RecordKey rkey) => _api.getPost(did, rkey);

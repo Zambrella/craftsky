@@ -12,7 +12,7 @@ import (
 	"social.craftsky/appview/internal/pdscommands"
 )
 
-type setCommandReplayLookup interface {
+type commandReplayLookup interface {
 	LookupCommand(context.Context, syntax.DID, string, uuid.UUID) (*pdscommands.ReplayCommand, error)
 }
 
@@ -23,7 +23,7 @@ func existingSetCommand(
 	owner syntax.DID, generation int64, kind string, key uuid.UUID,
 	requestTarget string, runID string,
 ) (*pdscommands.ReplayCommand, bool) {
-	lookup, ok := commands.(setCommandReplayLookup)
+	lookup, ok := commands.(commandReplayLookup)
 	if !ok {
 		return nil, false
 	}

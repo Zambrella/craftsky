@@ -321,7 +321,7 @@ void main() {
           .read(instagramImportsProvider(aliceLease).notifier)
           .create(
             InstagramImportRequest(
-              sourceType: InstagramImportSourceType.manual,
+              sourceType: InstagramImportSourceType.instagramJson,
               entries: const [
                 InstagramImportEntry(username: 'private_a'),
               ],
@@ -345,7 +345,7 @@ void main() {
           import: InstagramImportSummary(
             importId: 'import-a',
             state: InstagramImportState.active,
-            sourceType: InstagramImportSourceType.manual,
+            sourceType: InstagramImportSourceType.instagramJson,
             followingCount: 1,
             createdAt: DateTime.utc(2026, 7, 19),
           ),
@@ -360,6 +360,100 @@ void main() {
       );
     },
   );
+
+  test('late history reads preserve successful import changes', () async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = initial.activeLease!;
+    InstagramImportSummary row(String id) => InstagramImportSummary(
+      importId: id,
+      state: InstagramImportState.active,
+      sourceType: InstagramImportSourceType.instagramJson,
+      followingCount: 1,
+      createdAt: DateTime.utc(2026, 7),
+    );
+    final first = InstagramImportPage(items: [row('first')], cursor: 'older');
+    final paginationStarted = Completer<void>();
+    final pagination = Completer<InstagramImportPage>();
+    final refreshStarted = Completer<void>();
+    final refresh = Completer<InstagramImportPage>();
+    var listCalls = 0;
+    final repository = _Repository(
+      onGetAccount: Future.value(
+        const InstagramAccountStatus(
+          integrationAvailable: true,
+          account: null,
+        ),
+      ),
+      onListImports: () async {
+        switch (++listCalls) {
+          case 1:
+            return first;
+          case 2:
+            paginationStarted.complete();
+            return await pagination.future;
+          default:
+            refreshStarted.complete();
+            return await refresh.future;
+        }
+      },
+      onDeleteImport: (id) async => expect(id, 'first'),
+      onCreateImport: (_) async => InstagramImportCreateResult(
+        import: row('new'),
+        followingCount: 1,
+      ),
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final provider = instagramImportsProvider(lease);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+    final notifier = container.read(provider.notifier);
+
+    final loadingMore = notifier.loadMore();
+    await paginationStarted.future;
+    expect(await notifier.delete('first'), isTrue);
+    pagination.complete(
+      InstagramImportPage(items: [row('older')], cursor: null),
+    );
+    expect(await loadingMore, isTrue);
+    expect(
+      container.read(provider).requireValue.items.map((item) => item.importId),
+      ['older'],
+    );
+
+    final refreshing = notifier.refresh();
+    await refreshStarted.future;
+    expect(
+      await notifier.create(
+        InstagramImportRequest(
+          sourceType: InstagramImportSourceType.instagramJson,
+          entries: const [InstagramImportEntry(username: 'synthetic')],
+        ),
+      ),
+      isNotNull,
+    );
+    refresh.complete(first);
+    await refreshing;
+    expect(
+      container.read(provider).requireValue.items.map((item) => item.importId),
+      ['new', 'older'],
+    );
+  });
 
   test(
     'IT-015 verification polling timer stops when provider disposes',
@@ -697,6 +791,7 @@ final class _Repository implements InstagramMigrationRepository {
     required this.onGetAccount,
     this.onCreateVerification,
     this.onListImports,
+    this.onDeleteImport,
     this.onUpdateImport,
     this.onCreateImport,
     this.onGetVerification,
@@ -706,6 +801,7 @@ final class _Repository implements InstagramMigrationRepository {
   final Future<InstagramAccountStatus> onGetAccount;
   final Future<InstagramVerificationAttempt> Function()? onCreateVerification;
   final Future<InstagramImportPage> Function()? onListImports;
+  final Future<void> Function(String importId)? onDeleteImport;
   final Future<InstagramImportSummary> Function(
     String id,
     InstagramImportPatch patch,
@@ -741,6 +837,9 @@ final class _Repository implements InstagramMigrationRepository {
   @override
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) =>
       onListImports!.call();
+
+  @override
+  Future<void> deleteImport(String importId) => onDeleteImport!.call(importId);
 
   @override
   Future<InstagramImportSummary> updateImport(

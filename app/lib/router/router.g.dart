@@ -344,6 +344,32 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   name: 'instagram-migration',
                   hasOverriddenOnExit: false,
                   factory: $InstagramMigrationRoute._fromState,
+                  routes: [
+                    GoRouteData.$route(
+                      path: 'posts',
+                      name: 'instagram-post-import',
+                      hasOverriddenOnExit: false,
+                      factory: $InstagramPostImportRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'following',
+                      name: 'instagram-following-import',
+                      hasOverriddenOnExit: false,
+                      factory: $InstagramFollowingImportRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'suggestions',
+                      name: 'instagram-suggestions',
+                      hasOverriddenOnExit: false,
+                      factory: $InstagramSuggestionsRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'account',
+                      name: 'instagram-account',
+                      hasOverriddenOnExit: false,
+                      factory: $InstagramAccountRoute._fromState,
+                    ),
+                  ],
                 ),
                 GoRouteData.$route(
                   path: 'followers',
@@ -1140,6 +1166,91 @@ mixin $InstagramMigrationRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/settings/instagram');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramPostImportRoute on GoRouteData {
+  static InstagramPostImportRoute _fromState(GoRouterState state) =>
+      const InstagramPostImportRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/instagram/posts');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramFollowingImportRoute on GoRouteData {
+  static InstagramFollowingImportRoute _fromState(GoRouterState state) =>
+      const InstagramFollowingImportRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/instagram/following');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramSuggestionsRoute on GoRouteData {
+  static InstagramSuggestionsRoute _fromState(GoRouterState state) =>
+      const InstagramSuggestionsRoute();
+
+  @override
+  String get location =>
+      GoRouteData.$location('/settings/instagram/suggestions');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramAccountRoute on GoRouteData {
+  static InstagramAccountRoute _fromState(GoRouterState state) =>
+      const InstagramAccountRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/instagram/account');
 
   @override
   void go(BuildContext context) => context.go(location);

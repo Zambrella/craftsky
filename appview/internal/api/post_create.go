@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
@@ -45,10 +46,55 @@ type VideoCompletionVerifier interface {
 	Verify(context.Context, syntax.DID, string, video.Blob) (video.Blob, error)
 }
 
+type postVideoVerificationFailure struct {
+	status  int
+	code    string
+	message string
+	cause   error
+}
+
+func (err *postVideoVerificationFailure) Error() string { return err.message }
+func (err *postVideoVerificationFailure) Unwrap() error { return err.cause }
+
+func (err *postVideoVerificationFailure) write(w http.ResponseWriter, r *http.Request) {
+	if err.cause != nil && err.status >= 500 {
+		observability.ReportRequestFailure(r.Context(), err.cause, "api.CreatePostHandler", "handler")
+	}
+	envelope.WriteError(w, err.status, err.code, err.message, middleware.GetRunID(r.Context()), nil)
+}
+
+func verifyPostVideo(ctx context.Context, owner syntax.DID, jobID string, submitted video.Blob, verifier VideoCompletionVerifier, disabled bool) (video.Blob, *postVideoVerificationFailure) {
+	if disabled {
+		return video.Blob{}, &postVideoVerificationFailure{
+			status: http.StatusServiceUnavailable, code: "video_disabled", message: "video publishing is unavailable",
+		}
+	}
+	if verifier == nil {
+		return video.Blob{}, &postVideoVerificationFailure{
+			status: http.StatusBadGateway, code: "video_service_unavailable", message: "could not verify video",
+		}
+	}
+	verified, err := verifier.Verify(ctx, owner, jobID, submitted)
+	if err == nil {
+		return verified, nil
+	}
+	var verificationError *video.VerificationError
+	if errors.As(err, &verificationError) && verificationError.Kind == video.VerificationRejected {
+		return video.Blob{}, &postVideoVerificationFailure{
+			status: http.StatusUnprocessableEntity, code: "video_verification_failed", message: "video could not be verified", cause: err,
+		}
+	}
+	return video.Blob{}, &postVideoVerificationFailure{
+		status: http.StatusBadGateway, code: "video_service_unavailable", message: "could not verify video", cause: err,
+	}
+}
+
 type CreatePostHandlerOptions struct {
 	VideoCompletionVerifier VideoCompletionVerifier
 	DisableVideo            bool
 	Commands                AppendCommandExecutor
+	InstagramAccounts       InstagramPostImportAccounts
+	InstagramImports        InstagramPostImportLookup
 }
 
 type AppendCommandExecutor interface {
@@ -68,10 +114,14 @@ func CreatePostHandler(
 	var videoVerifier VideoCompletionVerifier
 	disableVideo := false
 	var commands AppendCommandExecutor
+	var instagramAccounts InstagramPostImportAccounts
+	var instagramImports InstagramPostImportLookup
 	if len(options) > 0 {
 		videoVerifier = options[0].VideoCompletionVerifier
 		disableVideo = options[0].DisableVideo
 		commands = options[0].Commands
+		instagramAccounts = options[0].InstagramAccounts
+		instagramImports = options[0].InstagramImports
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -127,35 +177,74 @@ func CreatePostHandler(
 				"validation_failed", "validation failed", runID, nil)
 			return
 		}
-		var verifiedVideo *video.Blob
-		if req.Embed != nil && req.Embed.Video != nil {
-			if disableVideo {
-				envelope.WriteError(w, http.StatusServiceUnavailable,
-					"video_disabled", "video publishing is unavailable", runID, nil)
+		var selectedRkey syntax.RecordKey
+		var selectImportRecordKey func(context.Context, pgx.Tx) (syntax.RecordKey, error)
+		var checkImportReservation func(context.Context, pgx.Tx, pdscommands.PreparedCommand) (bool, error)
+		var authorizeImportDispatch func(context.Context, pgx.Tx) error
+		var videoFailure *postVideoVerificationFailure
+		if req.InstagramImport != nil {
+			if !requireInstagramPostImportAccount(w, r, instagramAccounts, did) {
 				return
 			}
-			if videoVerifier == nil {
-				envelope.WriteError(w, http.StatusBadGateway,
-					"video_service_unavailable", "could not verify video", runID, nil)
+			if commands == nil {
+				envelope.WriteError(w, http.StatusServiceUnavailable, "instagram_unavailable", "Instagram import publishing unavailable", runID, nil)
 				return
+			}
+			original, _ := time.Parse(time.RFC3339Nano, req.InstagramImport.CreatedAt)
+			selectedRkey, _ = instagram.PostImportRecordKey(req.InstagramImport.SourceKey, original)
+			selectImportRecordKey = func(ctx context.Context, tx pgx.Tx) (syntax.RecordKey, error) {
+				return instagram.ReservePostImport(ctx, tx, did, req.InstagramImport.SourceKey, selectedRkey, newImmediateRecordKey)
+			}
+			checkImportReservation = func(ctx context.Context, tx pgx.Tx, command pdscommands.PreparedCommand) (bool, error) {
+				return instagram.PostImportReservationActive(ctx, tx, did, req.InstagramImport.SourceKey, command.SelectedURI)
+			}
+			authorizeImportDispatch = func(ctx context.Context, tx pgx.Tx) error {
+				if videoFailure != nil {
+					return videoFailure
+				}
+				return instagram.RequireVerifiedImportAccount(ctx, tx, did)
+			}
+			if instagramImports != nil {
+				history, err := instagramImports.Lookup(r.Context(), did, []string{req.InstagramImport.SourceKey})
+				if err != nil {
+					observability.ReportRequestFailure(r.Context(), err, "instagram.post_import", "lookup")
+					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Could not read Instagram import history", runID, nil)
+					return
+				}
+				for _, previous := range history {
+					if previous.OperationKey != operationKey {
+						envelope.WriteError(w, http.StatusConflict, "instagram_post_already_imported", "This Instagram post has already been imported", runID, nil)
+						return
+					}
+				}
+			}
+		}
+		var verifiedVideo *video.Blob
+		if req.Embed != nil && req.Embed.Video != nil {
+			allowReadRecovery := false
+			if req.InstagramImport != nil {
+				var handled bool
+				allowReadRecovery, handled = existingInstagramVideoImport(w, r, commands, did, ownerGeneration, operationKey, req)
+				if handled {
+					return
+				}
 			}
 			submitted := video.Blob{
 				CID:      syntax.CID(req.Embed.Video.Blob.Ref.Link),
 				MIMEType: req.Embed.Video.Blob.MIMEType,
 				Size:     req.Embed.Video.Blob.Size,
 			}
-			verified, err := videoVerifier.Verify(r.Context(), did, req.Embed.Video.JobID, submitted)
-			if err != nil {
-				var verificationError *video.VerificationError
-				if errors.As(err, &verificationError) && verificationError.Kind == video.VerificationRejected {
-					envelope.WriteError(w, http.StatusUnprocessableEntity,
-						"video_verification_failed", "video could not be verified", runID, nil)
+			verified, failure := verifyPostVideo(r.Context(), did, req.Embed.Video.JobID, submitted, videoVerifier, disableVideo)
+			if failure != nil {
+				if !allowReadRecovery {
+					failure.write(w, r)
 					return
 				}
-				observability.ReportRequestFailure(r.Context(), err, "api.CreatePostHandler", "handler")
-				envelope.WriteError(w, http.StatusBadGateway,
-					"video_service_unavailable", "could not verify video", runID, nil)
-				return
+				// Use the original blob only for matching the prepared command's
+				// fingerprint and reading its PDS record. The write guard checks
+				// the missing proof if this command needs a fresh dispatch.
+				verified = submitted
+				videoFailure = failure
 			}
 			verifiedVideo = &verified
 		}
@@ -231,8 +320,9 @@ func CreatePostHandler(
 			result, err := commands.Execute(r.Context(), pdscommands.AppendCommandRequest{
 				Owner: did, OwnerGeneration: ownerGeneration, Targets: effectTargets,
 				SessionID: sessionID, OperationKind: "post.create", OperationKey: operationKey,
-				Collection: syntax.NSID(craftskyPostNSID), Intent: intent,
-				Blobs: postCreateBlobReferences(req, verifiedVideo),
+				Collection: syntax.NSID(craftskyPostNSID), SelectedRkey: selectedRkey, SelectRecordKey: selectImportRecordKey,
+				CheckPrepared: checkImportReservation, AuthorizeDispatch: authorizeImportDispatch,
+				Intent: intent, Blobs: postCreateBlobReferences(req, verifiedVideo),
 				BuildRecord: func(createdAt time.Time) (json.RawMessage, error) {
 					body, err := lexiconRecordBodyAt(req, verifiedVideo, createdAt)
 					if err != nil {
@@ -244,7 +334,17 @@ func CreatePostHandler(
 					return acceptedPostCreateResult(r, store, resolver, did, req, verifiedVideo, record)
 				},
 				FinalizeAccepted: func(ctx context.Context, tx pgx.Tx, _ pdscommands.PreparedCommand, record pdscommands.AuthoritativeRecord) error {
-					return postpublication.SeedAcceptedCreate(ctx, tx, record.URI, record.Record)
+					if err := postpublication.SeedAcceptedCreate(ctx, tx, record.URI, record.Record); err != nil {
+						return err
+					}
+					if req.InstagramImport != nil {
+						kind := "standard"
+						if req.Project != nil {
+							kind = "project"
+						}
+						return instagram.FinalizePostImport(ctx, tx, did, instagram.PostImport{SourceKey: req.InstagramImport.SourceKey, URI: record.URI, Kind: kind, OperationKey: operationKey})
+					}
+					return nil
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
 					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
@@ -257,6 +357,19 @@ func CreatePostHandler(
 					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
+			if errors.Is(err, instagram.ErrPostAlreadyImported) {
+				envelope.WriteError(w, http.StatusConflict, "instagram_post_already_imported", "This Instagram post has already been imported", runID, nil)
+				return
+			}
+			if errors.Is(err, instagram.ErrInstagramVerificationRequired) {
+				writeInstagramPostImportVerificationRequired(w, r)
+				return
+			}
+			var proofFailure *postVideoVerificationFailure
+			if errors.As(err, &proofFailure) {
+				proofFailure.write(w, r)
+				return
+			}
 			if err != nil {
 				logger.Warn("post append command failed", slog.Any("error", err))
 				WriteCommandError(w, runID, err, r.Context())
@@ -574,11 +687,21 @@ func lexiconRecordBody(req PostCreateRequest, verifiedVideo *video.Blob) (map[st
 }
 
 func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, createdAt time.Time) (map[string]any, error) {
+	if req.InstagramImport != nil {
+		original, err := time.Parse(time.RFC3339Nano, req.InstagramImport.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		createdAt = original
+	}
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
 		"sponsored": req.Sponsored,
 		"createdAt": createdAt.UTC().Format(time.RFC3339Nano),
+	}
+	if req.InstagramImport != nil {
+		body["externalImport"] = map[string]any{"source": "instagram"}
 	}
 	if len(req.Facets) > 0 {
 		body["facets"] = req.Facets
@@ -710,6 +833,9 @@ func syntheticPostRow(
 		CreatedAt: now,
 		IndexedAt: now,
 		Project:   req.Project,
+	}
+	if req.InstagramImport != nil {
+		row.ExternalImportSource = strPtr("instagram")
 	}
 	if len(req.Crafts) > 0 {
 		crafts, err := json.Marshal(req.Crafts)

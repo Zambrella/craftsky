@@ -77,8 +77,9 @@ type VideoBlobRef struct {
 // PostCreateRequest is the decoded body of POST /v1/posts.
 // createdAt is server-stamped.
 type PostCreateRequest struct {
-	Text      string `json:"text"`
-	Sponsored bool   `json:"sponsored"`
+	InstagramImport *InstagramPostImportRequest `json:"instagramImport,omitempty"`
+	Text            string                      `json:"text"`
+	Sponsored       bool                        `json:"sponsored"`
 	// Facets is opaque raw JSON deliberately. The lexicon's
 	// app.bsky.richtext.facet shape (including a possibly-present "$type"
 	// discriminator on the outer object and the inner union variants) is
@@ -176,6 +177,7 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 func validatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits, requireVideoJob bool) error {
 	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
+	validateInstagramPostImport(req, fields)
 	if !utf8.ValidString(req.Text) {
 		fields["text"] = "must be valid UTF-8"
 	} else if req.Text == "" {

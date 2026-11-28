@@ -42,19 +42,6 @@
       }
     },
     {
-      "id": "import.create.manual",
-      "method": "POST",
-      "path": "/v1/migrations/instagram/imports",
-      "body": {
-        "sourceType": "manual",
-        "entries": [
-          {
-            "username": "synthetic_manual_01"
-          }
-        ]
-      }
-    },
-    {
       "id": "import.create.instagramJson",
       "method": "POST",
       "path": "/v1/migrations/instagram/imports",
