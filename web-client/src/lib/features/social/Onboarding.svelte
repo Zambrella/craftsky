@@ -167,7 +167,8 @@
 		margin: 0;
 	}
 	.progress-area {
-		padding: 12px 24px 0;
+		padding: 12px 24px 24px;
+		background: var(--paper);
 	}
 	.progress-area p {
 		font-size: 14px;
@@ -187,7 +188,7 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
-		padding: 24px 24px 110px;
+		padding: 0 24px 110px;
 	}
 	.guidelines {
 		gap: 0;

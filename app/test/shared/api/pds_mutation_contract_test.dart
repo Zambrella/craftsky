@@ -33,16 +33,18 @@ void main() {
     );
   });
 
-  test('preserves a definitive missing-video-blob response', () async {
-    const failure = ApiServerError(
-      'http_502',
-      details: ApiFailureDetails(appViewError: 'video_blob_missing'),
-    );
-    await expectLater(
-      unwrapPdsMutationApi<void>(() async => throw failure),
-      throwsA(same(failure)),
-    );
-  });
+  for (final code in ['video_blob_missing', 'pds_write_rejected']) {
+    test('preserves a definitive $code response', () async {
+      final failure = ApiServerError(
+        'http_502',
+        details: ApiFailureDetails(appViewError: code),
+      );
+      await expectLater(
+        unwrapPdsMutationApi<void>(() async => throw failure),
+        throwsA(same(failure)),
+      );
+    });
+  }
   test('generates canonical UUID operation keys', () {
     final key = newPdsMutationOperationKey();
     expect(isCanonicalPdsMutationOperationKey(key), isTrue);

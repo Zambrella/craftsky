@@ -240,8 +240,11 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 		if err != nil {
 			return matched, err
 		}
-		if departed {
+		if departed == job.OwnerDID {
 			return matched, nil
+		}
+		if departed != "" {
+			continue
 		}
 		request := SuggestionEligibilityRequest{
 			ImporterDID:      candidate.ImporterDID,
@@ -257,8 +260,11 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 			if err != nil {
 				return matched, err
 			}
-			if departed {
+			if departed == job.OwnerDID {
 				return matched, nil
+			}
+			if departed != "" {
+				continue
 			}
 			return matched, errors.New("instagram reconciliation membership unavailable")
 		}
@@ -278,20 +284,17 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 func (w *ReconciliationWorker) inactivateDepartedCandidate(
 	ctx context.Context,
 	candidate reconciliationCandidate,
-) (bool, error) {
-	if w.membership == nil {
-		return false, nil
-	}
+) (syntax.DID, error) {
 	for _, did := range []syntax.DID{candidate.ImporterDID, candidate.TargetDID} {
 		departed, err := w.inactivateDepartedMember(ctx, did)
 		if err != nil {
-			return false, err
+			return "", err
 		}
 		if departed {
-			return true, nil
+			return did, nil
 		}
 	}
-	return false, nil
+	return "", nil
 }
 
 func (w *ReconciliationWorker) inactivateDepartedMember(ctx context.Context, did syntax.DID) (bool, error) {

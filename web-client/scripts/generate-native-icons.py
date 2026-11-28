@@ -23,23 +23,24 @@ aliases = {
     "activity": "bell", "profile": "user", "saved": "bookmarks", "scheduled": "clock",
     "drafts": "notePencil", "settings": "gear", "menu": "list", "plus": "plus",
     "close": "x", "clear": "xCircle", "instagramMatch": "userFocus", "back": "arrowLeft", "chevron": "caretRight", "down": "caretDown",
-    "mute": "speakerSlash", "block": "prohibit", "report": "flag", "copy": "link",
+    "mute": "speakerSlash", "block": "prohibit", "report": "flag", "copy": "link", "copyChallenge": "copy",
     "heart": "heart", "comment": "chatCircle", "share": "shareNetwork", "shareCard": "qrCode", "repost": "repeat",
     "more": "dotsThree", "refresh": "arrowsClockwise", "filter": "funnelSimple",
     "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "newFolder": "folderPlus", "moveToFolder": "folderOpen", "check": "check", "edit": "pencilSimple",
-    "external": "arrowSquareOut", "link": "link", "pin": "pushPin", "shield": "shieldCheck",
+    "external": "arrowSquareOut", "link": "link", "unlink": "linkBreak", "pin": "pushPin", "shield": "shieldCheck",
     "eventAvailable": "calendarCheck", "upcoming": "calendar", "history": "clockCounterClockwise",
+    "openFile": "fileArrowUp", "projectCount": "stack",
     "people": "users", "businessIdentity": "identificationBadge", "publish": "uploadSimple",
     "calendar": "calendarBlank", "image": "imageSquare", "mail": "envelope",
     "location": "mapPin", "logout": "signOut", "moon": "moon", "globe": "globe",
-    "info": "info", "lock": "lockKey", "business": "storefront", "star": "sparkle",
+    "info": "info", "help": "question", "lock": "lockKey", "business": "storefront", "star": "sparkle",
     "clock": "clock", "video": "videoCamera", "camera": "camera", "send": "paperPlaneRight", "trash": "trash",
     "download": "downloadSimple", "warning": "warning", "appearance": "circleHalf",
     "customisation": "palette", "languages": "globe", "translate": "translate",
     "notifications": "bell", "messaging": "chatCircle", "privacy": "lockKey",
     "errorReporting": "bug", "growth": "trendUp", "followers": "users",
     "following": "userPlus", "extendedNetwork": "graph", "muted": "bellSlash", "blocked": "prohibit",
-    "instagram": "instagramLogo", "products": "storefront", "events": "calendar",
+    "instagram": "instagramLogo", "verifiedAccount": "sealCheck", "products": "storefront", "events": "calendar",
     "moderation": "shieldCheck", "account": "userCircle", "about": "info",
     "feedback": "chatTeardropText", "switch": "userSwitch", "subscription": "sparkle",
     "system": "sunDim", "light": "sun", "dark": "moon", "delete": "trash",
@@ -50,7 +51,7 @@ aliases = {
     "textPost": "textAlignLeft", "projectPost": "cards", "moveUp": "arrowUp",
 }
 filled = {aliases[name] for name in ("home", "search", "messages", "activity", "profile", "saved", "scheduled", "drafts", "settings", "heart", "like", "subscription", "follow", "quote", "mention", "instagramMatch", "repost", "comment", "shield")}
-bold = {"userPlus", "textAlignLeft", "cards", "arrowUp", "trash", "broom", "x", "shareNetwork", "speakerSlash", "prohibit", "flag", "chatCircle", "pushPin"}
+bold = {"userPlus", "textAlignLeft", "cards", "arrowUp", "trash", "broom", "x", "shareNetwork", "speakerSlash", "prohibit", "flag", "chatCircle", "pushPin", "sealCheck", "copy", "arrowSquareOut", "linkBreak", "fileArrowUp"}
 paths = {}
 for weight, filename in [("regular", "Phosphor.ttf"), ("fill", "Phosphor-Fill.ttf"), ("bold", "Phosphor-Bold.ttf")]:
     font = TTFont(source / "lib/fonts" / filename)

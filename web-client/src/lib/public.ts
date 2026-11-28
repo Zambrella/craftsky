@@ -1,4 +1,4 @@
-import type { Facet, ProjectPattern } from './api/types';
+import type { Facet, Post as APIPost, ProjectPattern } from './api/types';
 import { craftChoice } from './features/composer/project-options';
 export const origin = 'https://app.craftsky.social';
 export type Author = {
@@ -50,6 +50,7 @@ export type Post = {
 	editedAt?: string;
 	images: Image[];
 	sponsored: boolean;
+	externalImport?: APIPost['externalImport'];
 	project?: Project;
 	video?: { playlist: string; thumbnail?: string; alt: string };
 };

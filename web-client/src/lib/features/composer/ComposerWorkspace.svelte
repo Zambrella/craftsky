@@ -27,6 +27,7 @@
 	import {
 		APIError,
 		MutationOutcomeUnknownError,
+		isDefinitiveWriteFailure,
 		type CraftskyAPI,
 		type JsonObject,
 		type Post,
@@ -86,6 +87,7 @@
 	import { ComposerRecovery } from './recovery';
 	import { reportFailure } from '../diagnostics/client.ts';
 	import './composer.css';
+	const instagramImportDestination = '/settings/instagram/posts';
 	const postPrompt = "Share what you're making, learning, or thinking...";
 	const postFormattingHelp =
 		'You can @mention people, use #hashtags or add https://links.com.';
@@ -294,6 +296,7 @@
 		!!draft.edit?.post.video && draft.embedChanges !== null && !draft.video
 	);
 	const retainedExternal = $derived(externalFrozen && !!draft.external);
+	let importedInitialText = $state<string>();
 	const previewSuppressed = $derived(
 		draft.kind === 'project' ||
 			fixedEmbed ||
@@ -302,6 +305,7 @@
 			!!draft.quote ||
 			!!draft.video ||
 			draft.images.length > 0 ||
+			(!!draft.instagramImport && draft.text === importedInitialText) ||
 			(!!draft.edit && draft.text === str(draft.edit.editable.text))
 	);
 	const canAddVideo = $derived(
@@ -700,9 +704,10 @@
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
 			if (next.instagramImport) {
-				closeDestination = '/settings/instagram';
+				closeDestination = instagramImportDestination;
 				closeTarget = closeDestination;
 			}
+			importedInitialText = next.instagramImport ? next.text : undefined;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
 			externalFrozen =
@@ -1292,7 +1297,7 @@
 				pending.kind === 'edit'
 					? result.destination!
 					: draft.instagramImport
-						? '/settings/instagram'
+						? instagramImportDestination
 						: origin || result.destination || closeDestination;
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
@@ -1313,7 +1318,7 @@
 			const uncertain =
 				e instanceof MutationOutcomeUnknownError ||
 				(e instanceof APIError &&
-					e.code !== 'video_blob_missing' &&
+					!isDefinitiveWriteFailure(e.code) &&
 					(e.status === 0 || e.status >= 500));
 			if (uncertain) {
 				error =
@@ -1332,10 +1337,14 @@
 				publishing = false;
 				await tick();
 				if (seq !== generation || destroyed) return;
-				if (e instanceof APIError && e.status === 409 && draft.instagramImport)
+				if (
+					e instanceof APIError &&
+					e.code === 'instagram_post_already_imported' &&
+					draft.instagramImport
+				)
 					error =
 						'This Instagram post already has an import in progress or has been posted. Return to Instagram settings to check its status before trying again.';
-				else if (e instanceof APIError && e.status === 409)
+				else if (e instanceof APIError && e.status === 409 && draft.edit)
 					error =
 						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
 				else if (e instanceof APIError && e.code === 'video_blob_missing')
@@ -1405,7 +1414,7 @@
 				>{existingDraft ? 'Save changes' : 'Save draft'}</button
 			>{/if}
 	</header>
-	{#if error}<Snackbar
+	{#if error && (!initialized || !draft.instagramImport)}<Snackbar
 			message={error}
 			warning
 			onDismiss={() => (error = '')}
@@ -1433,7 +1442,9 @@
 							draft.instagramImport.createdAt
 						).toLocaleDateString()}. This will appear on your profile and in
 						search using its original date, without adding it to the home feed.
-					</p>{/if}
+					</p>
+					{#if error}<p class="notice" role="alert">{error}</p>{/if}
+				{/if}
 				{#if draft.pending}<section class="composer-pending">
 						<h2>Waiting for confirmation</h2>
 						<p>

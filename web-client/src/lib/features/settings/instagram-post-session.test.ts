@@ -20,6 +20,8 @@ describe('Instagram export session', () => {
 		expect(close).not.toHaveBeenCalled();
 		const next = useInstagramPostSession('session-two:did:plc:bob');
 		expect(close).toHaveBeenCalledOnce();
+		expect(session.signal.aborted).toBe(true);
+		expect(next.signal.aborted).toBe(false);
 		expect(next.archive).toBeUndefined();
 		expect(next.fileName).toBe('');
 	});

@@ -1,6 +1,6 @@
 import { acceptedHashtags, hashtagsInText } from './facet-input';
 import { UserFacingError } from '#lib/user-facing-error.ts';
-import { graphemeCount as textLength } from '#lib/text.ts';
+import { graphemeBoundary } from '#lib/text.ts';
 import {
 	newOperationKey,
 	type Facet,
@@ -12,6 +12,7 @@ import {
 } from '#lib/api/client.ts';
 import type { Draft, PendingWrite } from '../drafts/store.ts';
 import { craftChoice } from './project-options';
+import { postLimits } from './limits';
 export { label, options } from './project-options';
 export const defaultProject = (crafts: readonly string[] = []): JsonObject => {
 	const craft = crafts
@@ -169,7 +170,9 @@ export function validateText(
 	bytes = max * 10
 ): boolean {
 	return (
-		textLength(text) <= max && new TextEncoder().encode(text).length <= bytes
+		text.length <= bytes &&
+		graphemeBoundary(text, max) === text.length &&
+		new TextEncoder().encode(text).length <= bytes
 	);
 }
 export function validateDraft(draft: Draft, scheduling = false): string[] {
@@ -182,9 +185,12 @@ export function validateDraft(draft: Draft, scheduling = false): string[] {
 	if (draft.instagramImport && (draft.edit || draft.reply || draft.quote))
 		errors.push('An Instagram import must create a new post or project.');
 	if (!draft.text.trim()) errors.push('Add some text to your post.');
-	if (!validateText(draft.text, 2000, 20000))
+	if (
+		!validateText(draft.text, postLimits.text.graphemes, postLimits.text.bytes)
+	)
 		errors.push('Posts can contain up to 2,000 characters.');
-	if (draft.images.length > 8) errors.push('Choose up to eight images.');
+	if (draft.images.length > postLimits.imageCount)
+		errors.push('Choose up to eight images.');
 	if (draft.images.some((image) => !validateText(image.alt, 1000, 10000)))
 		errors.push('Image descriptions can contain up to 1,000 characters.');
 	if (draft.video && !validateText(draft.video.alt, 1000, 10000))

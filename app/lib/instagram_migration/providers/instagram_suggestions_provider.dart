@@ -48,6 +48,8 @@ final class InstagramSuggestionReviewState {
 @riverpod
 class InstagramSuggestions extends _$InstagramSuggestions {
   final Set<Did> _followedElsewhere = {};
+  int _refreshSequence = 0;
+  int _actionRevision = 0;
 
   @override
   Future<InstagramSuggestionReviewState> build(
@@ -94,35 +96,48 @@ class InstagramSuggestions extends _$InstagramSuggestions {
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading<InstagramSuggestionReviewState>();
+    final sequence = ++_refreshSequence;
+    final revision = _actionRevision;
+    if (!state.hasValue) state = const AsyncLoading();
+    bool isLatest() =>
+        _isCurrent &&
+        sequence == _refreshSequence &&
+        revision == _actionRevision;
     try {
       final repository = await _repository();
       final page = await _operation.step(
         repository.listSuggestions,
         discarded: const InstagramOperationDiscarded(),
       );
-      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
-      state = AsyncData(_fromPage(page));
+      if (!isLatest()) return;
+      state = AsyncData(
+        _fromPage(page).copyWith(busyIds: state.value?.busyIds),
+      );
     } on InstagramOperationDiscarded {
       return;
     } on Object catch (error, stackTrace) {
-      if (!_isCurrent) return;
+      if (!isLatest()) return;
       state = AsyncError(error, stackTrace);
     }
   }
 
   Future<bool> loadMore() async {
-    final current = state.value;
-    if (current == null || current.cursor == null) return false;
+    final cursor = state.value?.cursor;
+    if (cursor == null) return false;
+    final sequence = _refreshSequence;
     try {
       final repository = await _repository();
       final page = await _operation.step(
-        () => repository.listSuggestions(cursor: current.cursor),
+        () => repository.listSuggestions(cursor: cursor),
         discarded: const InstagramOperationDiscarded(),
       );
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final latest = state.value;
-      if (latest == null) return false;
+      if (latest == null ||
+          latest.cursor != cursor ||
+          sequence != _refreshSequence) {
+        return false;
+      }
       final seen = latest.items.map((item) => item.suggestionId).toSet();
       state = AsyncData(
         InstagramSuggestionReviewState(
@@ -146,25 +161,41 @@ class InstagramSuggestions extends _$InstagramSuggestions {
 
   Future<bool> accept(String suggestionId) async {
     final current = state.value;
-    if (current == null || current.busyIds.contains(suggestionId)) return false;
+    if (!_isCurrent ||
+        current == null ||
+        current.busyIds.contains(suggestionId)) {
+      return false;
+    }
     final suggestion = current.items
         .where((item) => item.suggestionId == suggestionId)
         .firstOrNull;
     if (suggestion == null) return false;
 
-    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
     final targetDid = Did.parse(suggestion.target.did);
     final endpoint =
         '/v1/migrations/instagram/suggestions/'
         '${Uri.encodeComponent(suggestionId)}/accept';
     const immutableBody = 'POST\n';
     final controller = ref.read(pdsRecordOperationControllerProvider);
-    final token = controller.beginOrRetry(
-      scope: followProfileMutationScope(ref, targetDid),
+    final scope = followProfileMutationScope(ref, targetDid);
+    final pending = controller.retryToken(
+      scope: scope,
       endpoint: endpoint,
       immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
     );
+    if (pending == null &&
+        controller.operationFor(scope)?.status == PdsMutationStatus.ambiguous) {
+      // A follow started elsewhere must be retried at its original endpoint.
+      return false;
+    }
+    final token =
+        pending ??
+        controller.begin(
+          scope: scope,
+          endpoint: endpoint,
+          immutableBody: immutableBody,
+          operationKey: newPdsMutationOperationKey(),
+        );
     final operationKey = token.operationKey;
     final retry = PdsMutationRetry(
       ref: ref,
@@ -243,18 +274,7 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     }
   }
 
-  Future<bool> dismiss(String suggestionId) => _act(
-    suggestionId,
-    (repository) async {
-      await repository.dismissSuggestion(suggestionId);
-      return true;
-    },
-  );
-
-  Future<bool> _act(
-    String suggestionId,
-    Future<bool> Function(InstagramMigrationRepository repository) action,
-  ) async {
+  Future<bool> dismiss(String suggestionId) async {
     final current = state.value;
     if (current == null || current.busyIds.contains(suggestionId)) return false;
     state = AsyncData(
@@ -265,40 +285,18 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     );
     try {
       final repository = await _repository();
-      final completed = await _operation.step(
-        () => action(repository),
+      await _operation.step(
+        () => repository.dismissSuggestion(suggestionId),
         discarded: const InstagramOperationDiscarded(),
       );
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
-      if (!completed) {
-        await refresh();
-        return _isCurrent;
-      }
-      final latest = state.value;
-      if (latest == null) return false;
-      state = AsyncData(
-        latest.copyWith(
-          items: latest.items
-              .where((item) => item.suggestionId != suggestionId)
-              .toList(growable: false),
-          busyIds: {...latest.busyIds}..remove(suggestionId),
-          hasActionError: false,
-        ),
-      );
+      _completeAction(suggestionId, accepted: true);
       return true;
     } on InstagramOperationDiscarded {
       return false;
     } on Object {
       if (!_isCurrent) return false;
-      final latest = state.value;
-      if (latest != null) {
-        state = AsyncData(
-          latest.copyWith(
-            busyIds: {...latest.busyIds}..remove(suggestionId),
-            hasActionError: true,
-          ),
-        );
-      }
+      _completeAction(suggestionId, accepted: false);
       return false;
     }
   }
@@ -311,6 +309,7 @@ class InstagramSuggestions extends _$InstagramSuggestions {
   void _completeAction(String suggestionId, {required bool accepted}) {
     final latest = state.value;
     if (latest == null) return;
+    _actionRevision++;
     state = AsyncData(
       latest.copyWith(
         items: accepted

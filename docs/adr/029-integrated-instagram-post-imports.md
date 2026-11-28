@@ -35,10 +35,16 @@ its creation date.
 
 Keep source fingerprints and account-scoped publication history private in
 AppView. The fingerprint is independent of caption edits and composer kind, so
-one source cannot accidentally create both a standard and a project post.
+one source can have only one active imported post or project at a time.
 Server publication must guard concurrent attempts as well as ordinary retries;
 browser history alone is insufficient. Only confirmed writes are marked posted.
 Similarity to manually copied posts is not asserted by this source-key check.
+
+When AppView confirms deletion of the imported record, the source becomes
+available again. Deletion is confirmed from the record's publication state.
+An unindexed post still counts as posted. Republishing uses a fresh record URI
+and preserves the original Instagram date and provenance. Earlier publish
+attempts cannot recreate the deleted record.
 
 ## Consequences
 
@@ -65,7 +71,9 @@ When any selected attachment fails, the user can continue with the caption and
 the usable selections after confirming the omission.
 
 Both clients compute the same source fingerprint and query the same AppView
-history. Flutter checks new rows as each page loads and rechecks an
+history. Both reconcile the rows they requested on a successful refresh, so
+previously imported rows become available again after a confirmed deletion.
+Flutter checks new rows as each page loads and rechecks an
 individual source before opening its composer. The normal native post and
 project composers send the private import reference when the user publishes.
 The account-scoped draft retains the exact request and idempotency key while

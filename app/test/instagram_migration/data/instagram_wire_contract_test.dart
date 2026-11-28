@@ -98,21 +98,6 @@ void main() {
   });
 
   test('IT-021 request models emit only exact bounded fields', () {
-    final manual = _fixture(corpus['requests'], 'import.create.manual');
-    final manualBody = _map(manual['body']);
-    final manualRequest = InstagramImportRequest(
-      sourceType: InstagramImportSourceType.fromWire(
-        manualBody['sourceType'] as String,
-      ),
-      entries: [
-        for (final entry in _listOfMaps(manualBody['entries']))
-          InstagramImportEntry(
-            username: entry['username'] as String,
-          ),
-      ],
-    );
-    expect(manualRequest.toMap(), manualBody);
-
     final jsonFixture = _fixture(
       corpus['requests'],
       'import.create.instagramJson',

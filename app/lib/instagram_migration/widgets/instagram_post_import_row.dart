@@ -13,6 +13,10 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+typedef LoadInstagramImportPreview = Future<Uint8List?> Function(
+  bool Function() thumbnailIsMounted,
+);
+
 class InstagramPostImportRow extends StatelessWidget {
   const new({
     required this.post,
@@ -25,7 +29,7 @@ class InstagramPostImportRow extends StatelessWidget {
 
   final InstagramArchivePost post;
   final InstagramPublishedImport? published;
-  final Future<Uint8List?> Function() loadPreview;
+  final LoadInstagramImportPreview loadPreview;
   final ValueChanged<LocalPostDraftKind>? onCreate;
   final ValueChanged<InstagramPublishedImport>? onView;
 
@@ -48,6 +52,7 @@ class InstagramPostImportRow extends StatelessWidget {
 
     return CraftskyCard(
       padding: EdgeInsets.all(spacing.sp4),
+      clipBehavior: Clip.none,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: spacing.sp3,
@@ -57,11 +62,7 @@ class InstagramPostImportRow extends StatelessWidget {
             spacing: spacing.sp3,
             children: [
               _ImportThumbnail(
-                canPreview: post.media.any(
-                  (entry) =>
-                      entry.available &&
-                      entry.kind == InstagramArchiveMediaKind.photo,
-                ),
+                canPreview: post.media.any((entry) => entry.available),
                 placeholder: photoCount == 0 && videoCount > 0
                     ? CraftskyIcons.video
                     : CraftskyIcons.image,
@@ -128,18 +129,19 @@ class InstagramPostImportRow extends StatelessWidget {
               spacing: spacing.sp3,
               runSpacing: spacing.sp2,
               children: [
-                ChunkyButton(
+                TextButton.icon(
                   onPressed: onCreate == null
                       ? null
                       : () => onCreate!(LocalPostDraftKind.standard),
-                  child: Text(l10n.instagramPostImportCreatePost),
+                  icon: const Icon(CraftskyIconsBold.textPost),
+                  label: Text(l10n.instagramPostImportCreatePost),
                 ),
-                ChunkyButton(
-                  variant: ChunkyButtonVariant.secondary,
+                TextButton.icon(
                   onPressed: onCreate == null
                       ? null
                       : () => onCreate!(LocalPostDraftKind.project),
-                  child: Text(l10n.instagramPostImportCreateProject),
+                  icon: const Icon(CraftskyIconsBold.projectPost),
+                  label: Text(l10n.instagramPostImportCreateProject),
                 ),
               ],
             ),
@@ -173,7 +175,7 @@ class _ImportThumbnail extends StatefulWidget {
 
   final bool canPreview;
   final IconData placeholder;
-  final Future<Uint8List?> Function() loadPreview;
+  final LoadInstagramImportPreview loadPreview;
 
   @override
   State<_ImportThumbnail> createState() => _ImportThumbnailState();
@@ -190,7 +192,7 @@ class _ImportThumbnailState extends State<_ImportThumbnail> {
 
   Future<void> _load() async {
     try {
-      final bytes = await widget.loadPreview();
+      final bytes = await widget.loadPreview(() => mounted);
       if (mounted && bytes != null) {
         setState(() => _image = MemoryImage(bytes));
       }

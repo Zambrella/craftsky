@@ -6,6 +6,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_verification.d
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -508,25 +509,44 @@ void main() {
       expect(thrown.toString(), isNot(contains(privateCanary)));
     });
 
-    test('IT-014 rejects a non-object response without retaining it', () async {
-      const privateCanary = 'synthetic_private_response_body_canary';
-      final dio = buildDio();
-      DioAdapter(dio: dio).onGet(
-        '/v1/migrations/instagram/account',
-        (server) => server.reply(200, privateCanary),
-      );
+    test(
+      'IT-014 preserves correlation on a malformed response safely',
+      () async {
+        const privateCanary = 'synthetic_private_response_body_canary';
+        const requestId = 'f0000000-0000-4000-8000-000000000002';
+        final dio = buildDio();
+        DioAdapter(dio: dio).onGet(
+          '/v1/migrations/instagram/account',
+          (server) => server.reply(
+            200,
+            privateCanary,
+            headers: {
+              'x-request-id': [requestId],
+            },
+          ),
+        );
 
-      Object? thrown;
-      try {
-        await InstagramMigrationApiClient(dio).getAccount();
-      } on Object catch (error) {
-        thrown = error;
-      }
+        Object? thrown;
+        try {
+          await InstagramMigrationApiClient(dio).getAccount();
+        } on Object catch (error) {
+          thrown = error;
+        }
 
-      expect(thrown, isA<ApiServerError>());
-      expect((thrown! as ApiServerError).message, 'invalid_instagram_response');
-      expect(thrown.toString(), isNot(contains(privateCanary)));
-    });
+        expect(thrown, isA<ApiServerError>());
+        final error = thrown! as ApiServerError;
+        expect(error.message, 'invalid_instagram_response');
+        expect(error.details.requestId, requestId);
+        expect(error.details.statusCode, 200);
+        expect(error.details.method, 'GET');
+        expect(error.details.cause, isA<FormatException>());
+        expect(error.details.stackTrace, isNotNull);
+        expect(
+          selectedCauses(error).toString(),
+          isNot(contains(privateCanary)),
+        );
+      },
+    );
 
     test('IT-014 maps the standard AppView error envelope safely', () async {
       const privateCanary = 'synthetic_private_server_message_canary';

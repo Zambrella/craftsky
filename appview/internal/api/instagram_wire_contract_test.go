@@ -236,13 +236,13 @@ func TestInstagramWireCorpusRequestsAreStrictAndCamelCase(t *testing.T) {
 				if !validInstagramSettingsRequest(value.Discoverable, value.Reactivate) {
 					t.Fatal("fixture is not a valid settings request")
 				}
-			case "import.create.manual", "import.create.instagramJson":
+			case "import.create.instagramJson":
 				var value struct {
 					SourceType instagram.ImportSourceType `json:"sourceType"`
 					Entries    []instagram.ImportEntry    `json:"entries"`
 				}
 				mustStrictDecodeAndRoundTrip(t, req, &value, fixture.Body)
-				if !value.SourceType.Valid() || len(value.Entries) == 0 {
+				if !value.SourceType.SupportsCreation() || len(value.Entries) == 0 {
 					t.Fatal("fixture is not a valid import request")
 				}
 			case "import.reactivate":

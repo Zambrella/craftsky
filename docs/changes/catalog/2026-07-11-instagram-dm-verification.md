@@ -7,7 +7,8 @@
   "archive": "archived",
   "components": [
     "app",
-    "appview"
+    "appview",
+    "web-client"
   ],
   "topics": [
     "instagram",
@@ -19,18 +20,21 @@
     "private suggestions",
     "AV-007",
     "automatic follow",
-    "verified ownership"
+    "verified ownership",
+    "following export"
   ],
   "summary": "Records Instagram DM ownership verification and its later replacement of background follows with private member-accepted suggestions.",
   "currentDocs": [
     "docs/adr/008-instagram-import-provenance.md",
     "docs/architecture.md",
-    "docs/development/logging-error-reporting.md"
+    "docs/development/logging-error-reporting.md",
+    "docs/development/web-client-parity.md"
   ],
   "code": [
     "appview/internal/instagram",
     "appview/internal/integrations/instagrammeta",
-    "app/lib/instagram_migration"
+    "app/lib/instagram_migration",
+    "web-client/src/lib/features/settings/Instagram.svelte"
   ],
   "evidence": [
     "docs/changes/2026-07-11-instagram-dm-verification/05-implementation-plan.md#verification-evidence",
@@ -49,6 +53,13 @@
 The original package explored official Instagram DM challenges, durable webhook work, verified mappings and automatic follow matching. Its later strict-branch correction is essential: background public follow writes were removed, and matching now produces private suggestions that a current member must explicitly accept. Historical automatic-follow requirements are retained as history, not current authority.
 
 Subsequent reconciliation fixes evaluate the job owner before loading candidates, including zero-candidate jobs, and independently verify the other party. Membership/dependency failures retain durable retries; departure inactivates mappings/import work without PDS writes. Match-notification restoration is distinct from reintroducing automatic follows.
+
+Selecting Instagram's following ZIP or `following.json` starts the import in both clients. The file is processed locally, and the create endpoint accepts `instagramJson` with normalized usernames. AppView supports viewing, reactivating, and deleting previously saved manual imports.
+
+AppView saves the following list and queues its first match in one transaction.
+The same worker handles initial and subsequent matching, and emits the existing
+private match notification when it finds an eligible account. The import history
+is available as soon as the save completes.
 
 The package contains multiple reviews and amendments. The strict-branch final re-review and notification-restoration sections supersede earlier blockers, while a terminology finding is explicitly closed as superseded. Production Meta permissions/delivery and device/provider checks remain external evidence boundaries; local tests cannot establish those integrations.
 

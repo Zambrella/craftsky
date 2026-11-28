@@ -23,6 +23,7 @@
     "externalImport",
     "ADR 029",
     "duplicate posting",
+    "reimport after deletion",
     "original dates"
   ],
   "summary": "Replaced the standalone importer with verified web and Flutter archive review, standard/project composer handoff, and shared private duplicate tracking.",
@@ -68,6 +69,14 @@ with command preparation, and records only confirmed publication. Source keys st
 private; public provenance and original dates preserve ADR 008 distribution.
 [ADR 029](../../adr/029-integrated-instagram-post-imports.md) records the replacement
 of the standalone OAuth/site publisher.
+
+Both clients make the source available again after AppView confirms deletion of
+the imported post or project. A new publication uses a fresh record URI while
+preserving the Instagram date and provenance.
+
+AppView rechecks verification when authorizing a PDS write. An exact retry of
+an already attempted video publication can recover its result after the
+provider's temporary upload proof expires. A new write still needs valid proof.
 
 ## Evidence and limits
 

@@ -155,6 +155,39 @@ void main() {
     },
   );
 
+  test(
+    'reviews newest posts first with a stable timestamp tie-break',
+    () async {
+      final archive = await reader.inspect(
+        writeZip([
+          _post(['media/posts/oldest.png'], caption: 'Oldest'),
+          _post(
+            ['media/posts/newest-b.png'],
+            caption: 'Newest B',
+            time: _timestamp + 2,
+          ),
+          _post(
+            ['media/posts/middle.png'],
+            caption: 'Middle',
+            time: _timestamp + 1,
+          ),
+          _post(
+            ['media/posts/newest-a.png'],
+            caption: 'Newest A',
+            time: _timestamp + 2,
+          ),
+        ]).path,
+      );
+
+      expect(archive.posts.map((post) => post.caption), [
+        'Newest A',
+        'Newest B',
+        'Middle',
+        'Oldest',
+      ]);
+    },
+  );
+
   for (final method in [CompressionType.none, CompressionType.bzip2]) {
     test('streams selected reel bytes from a ${method.name} ZIP', () async {
       final archive = await reader.inspect(
@@ -185,6 +218,83 @@ void main() {
     });
   }
 
+  test(
+    'extracts one video for its preview and removes the scratch copy',
+    () async {
+      const missing = 'media/reels/202311/missing.mp4';
+      const second = 'media/reels/202311/two.mp4';
+      final scratch = directory.createTempSync('preview-');
+      final archive = await reader.inspect(
+        writeZip(
+          [
+            _post([missing, _video, second]),
+          ],
+          files: {
+            _video: _mp4,
+            second: [..._mp4, 1],
+          },
+        ).path,
+      );
+      final thumbnail = Uint8List.fromList([1, 2, 3]);
+      final frame = await reader.preview(
+        archive,
+        archive.posts.single,
+        temporaryDirectory: scratch.path,
+        loadVideoFrame: (uri) async {
+          final video = File.fromUri(uri);
+          expect(video.parent.parent.path, scratch.path);
+          expect(video.parent.listSync().single.path, video.path);
+          expect(video.readAsBytesSync(), _mp4);
+          return thumbnail;
+        },
+      );
+
+      expect(frame, same(thumbnail));
+      expect(scratch.listSync(), isEmpty);
+    },
+  );
+
+  test(
+    'falls back from a damaged photo and cleans up after no video frame',
+    () async {
+      final scratch = directory.createTempSync('preview-');
+      final archive = await reader.inspect(
+        writeZip(
+          [
+            _post([_photo, _video]),
+          ],
+          files: {
+            _photo: [0],
+            _video: _mp4,
+          },
+        ).path,
+      );
+      final frame = await reader.preview(
+        archive,
+        archive.posts.single,
+        temporaryDirectory: scratch.path,
+        loadVideoFrame: (uri) async {
+          expect(File.fromUri(uri).existsSync(), isTrue);
+          return null;
+        },
+      );
+
+      expect(frame, isNull);
+      expect(scratch.listSync(), isEmpty);
+      await expectLater(
+        reader.preview(
+          archive,
+          archive.posts.single,
+          temporaryDirectory: scratch.path,
+          loadVideoFrame: (_) async =>
+              throw StateError('Unexpected decoder failure'),
+        ),
+        throwsStateError,
+      );
+      expect(scratch.listSync(), isEmpty);
+    },
+  );
+
   test('requires one media kind and extracts ordered selections', () async {
     const second = 'media/posts/two.png';
     final firstPhoto = image.encodePng(image.Image(width: 2, height: 1));
@@ -203,7 +313,12 @@ void main() {
       () => reader.extract(archive, post, [0, 2]),
       _archiveError(InstagramPostArchiveError.invalidSelection),
     );
-    final preview = await reader.preview(archive, post);
+    final preview = await reader.preview(
+      archive,
+      post,
+      loadVideoFrame: (_) async =>
+          fail('A readable photo should take priority'),
+    );
     expect(image.decodeJpg(preview!)!.width, 2);
     final extracted = await reader.extract(archive, post, [1, 0]);
     try {
@@ -313,6 +428,7 @@ void main() {
       );
       final post = archive.posts.single;
       expect(post.media.every((item) => item.available), isTrue);
+      expect(await reader.preview(archive, post), isNotNull);
 
       final media = await reader.extract(
         archive,
@@ -353,6 +469,15 @@ void main() {
         reader.extract(archive, archive.posts.single, [0], allowPartial: true),
         _archiveError(InstagramPostArchiveError.archiveChanged),
       );
+      expect(
+        await reader.preview(
+          archive,
+          archive.posts.single,
+          loadVideoFrame: (_) async =>
+              fail('A changed archive should not decode'),
+        ),
+        isNull,
+      );
 
       final corrupt = writeZip(
         [
@@ -385,10 +510,14 @@ void main() {
   );
 }
 
-Map<String, Object> _post(List<String> paths, {String caption = 'Caption'}) => {
-  'creation_timestamp': _timestamp,
+Map<String, Object> _post(
+  List<String> paths, {
+  String caption = 'Caption',
+  int time = _timestamp,
+}) => {
+  'creation_timestamp': time,
   'title': caption,
-  'media': [for (final path in paths) _media(path)],
+  'media': [for (final path in paths) _media(path, time: time)],
 };
 
 Map<String, Object> _media(String path, {int time = _timestamp}) => {

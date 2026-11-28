@@ -80,6 +80,49 @@ export interface Draft {
 	scheduledAt?: string;
 	pending?: PendingWrite;
 }
+
+type StoredBlob = Blob | { bytes: ArrayBuffer; type: string };
+type StoredMedia = Omit<DraftMedia, 'blob' | 'thumbnail'> & {
+	blob?: StoredBlob;
+	thumbnail?: StoredBlob;
+};
+type StoredDraft = Omit<Draft, 'images' | 'video' | 'externalImage'> & {
+	images: StoredMedia[];
+	video?: StoredMedia;
+	externalImage?: StoredMedia;
+};
+
+async function encodeBlob(blob?: Blob): Promise<StoredBlob | undefined> {
+	if (blob) return { bytes: await blob.arrayBuffer(), type: blob.type };
+}
+async function encodeMedia(media: DraftMedia): Promise<StoredMedia> {
+	return {
+		...media,
+		blob: await encodeBlob(media.blob),
+		thumbnail: await encodeBlob(media.thumbnail)
+	};
+}
+async function encodeDraftMedia(draft: Draft): Promise<StoredDraft> {
+	return {
+		...draft,
+		images: await Promise.all(draft.images.map(encodeMedia)),
+		video: draft.video && (await encodeMedia(draft.video)),
+		externalImage:
+			draft.externalImage && (await encodeMedia(draft.externalImage))
+	};
+}
+function restoreBlob(blob?: StoredBlob): Blob | undefined {
+	if (!blob || blob instanceof Blob) return blob;
+	return new Blob([blob.bytes], { type: blob.type });
+}
+function restoreMedia(media: StoredMedia): DraftMedia {
+	return {
+		...media,
+		blob: restoreBlob(media.blob),
+		thumbnail: restoreBlob(media.thumbnail)
+	};
+}
+
 export function newDraft(
 	owner: string,
 	kind: Draft['kind'] = 'standard'
@@ -100,6 +143,7 @@ export function assertOwner(owner: string, draft: Draft): void {
 		throw new UserFacingError('This draft belongs to another account.');
 }
 let database: Promise<IDBDatabase> | undefined;
+let storeBlobsAsBytes = false;
 function open(): Promise<IDBDatabase> {
 	if (database) return database;
 	database = new Promise<IDBDatabase>((resolve, reject) => {
@@ -161,14 +205,15 @@ async function transaction<T>(
 					{ cause: tx.error }
 				)
 			);
-		tx.onerror = () =>
-			reject(
-				new UserFacingError(
-					'Could not save local drafts. Check your browser storage.',
-					{ cause: tx.error }
-				)
-			);
 	});
+}
+type LocalDraftRow = StoredDraft & { deleted?: boolean };
+async function ownerRows(owner: string): Promise<LocalDraftRow[]> {
+	return (
+		(await transaction('readonly', (store) =>
+			store.index('owner').getAll(owner)
+		)) as LocalDraftRow[]
+	).filter((draft) => !draft.deleted && draft.owner === owner);
 }
 export const drafts = {
 	/** Account-deletion cleanup only. All owner rows and media disappear in one transaction. */
@@ -184,18 +229,23 @@ export const drafts = {
 		});
 	},
 	async list(owner: string): Promise<Draft[]> {
-		return (
-			(await transaction('readonly', (store) =>
-				store.index('owner').getAll(owner)
-			)) as Draft[]
-		)
-			.filter(
-				(draft) =>
-					!(draft as Draft & { deleted?: boolean }).deleted &&
-					draft.owner === owner
-			)
+		return (await ownerRows(owner))
 			.map((draft) => decodeDraft(draft, owner))
 			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+	},
+	async findInstagramImport(
+		owner: string,
+		sourceKey: string
+	): Promise<Draft | undefined> {
+		const matches = (await ownerRows(owner))
+			.filter((draft) => draft.instagramImport?.sourceKey === sourceKey)
+			.map((draft) => decodeDraft(draft, owner))
+			.sort(
+				(a, b) =>
+					Number(!!b.pending) - Number(!!a.pending) ||
+					b.updatedAt.localeCompare(a.updatedAt)
+			);
+		return matches[0];
 	},
 	async get(owner: string, id: string): Promise<Draft | undefined> {
 		const draft = (await transaction('readonly', (store) =>
@@ -213,7 +263,24 @@ export const drafts = {
 		const copy = structuredClone(draft);
 		copy.updatedAt = new Date().toISOString();
 		copy.revision = crypto.randomUUID();
-		await change(owner, draft.id, expected, copy);
+		if (!storeBlobsAsBytes) {
+			try {
+				await change(owner, draft.id, expected, copy);
+				return copy.revision;
+			} catch (error) {
+				const cause = error instanceof UserFacingError && error.cause;
+				if (
+					!(cause instanceof DOMException) ||
+					cause.name !== 'UnknownError' ||
+					cause.message !==
+						'Error preparing Blob/File data to be stored in object store'
+				)
+					throw error;
+				// WebKit may allow IndexedDB while disallowing native Blob writes.
+				storeBlobsAsBytes = true;
+			}
+		}
+		await change(owner, draft.id, expected, await encodeDraftMedia(copy));
 		return copy.revision;
 	},
 	async remove(
@@ -261,15 +328,20 @@ async function change(
 
 /** Validate durable recovery before it can drive a write. Never infer a missing operation key. */
 export function decodeDraft(value: unknown, owner: string): Draft {
-	const draft = value as Draft;
+	const draft = value as StoredDraft;
 	const object = (v: unknown): v is Record<string, unknown> =>
 		!!v && typeof v === 'object' && !Array.isArray(v);
+	const blob = (v: unknown) =>
+		v === undefined ||
+		v instanceof Blob ||
+		(object(v) && v.bytes instanceof ArrayBuffer && typeof v.type === 'string');
 	const media = (v: unknown) =>
 		object(v) &&
 		typeof v.id === 'string' &&
 		typeof v.mime === 'string' &&
 		typeof v.alt === 'string' &&
-		(!v.blob || v.blob instanceof Blob);
+		blob(v.blob) &&
+		blob(v.thumbnail);
 	if (
 		!object(value) ||
 		draft.owner !== owner ||
@@ -290,12 +362,15 @@ export function decodeDraft(value: unknown, owner: string): Draft {
 	if (
 		draft.instagramImport !== undefined &&
 		(!object(draft.instagramImport) ||
+			typeof draft.instagramImport.sourceKey !== 'string' ||
 			!/^[0-9a-f]{32}$/.test(draft.instagramImport.sourceKey) ||
 			typeof draft.instagramImport.createdAt !== 'string' ||
-			!Number.isFinite(Date.parse(draft.instagramImport.createdAt)))
+			!Number.isFinite(Date.parse(draft.instagramImport.createdAt)) ||
+			draft.scheduleId !== undefined ||
+			draft.scheduleLater === true)
 	)
 		throw new UserFacingError('This saved Instagram import could not be read.');
-	if (draft.pending) {
+	if (draft.pending !== undefined) {
 		const p = draft.pending;
 		if (
 			!object(p) ||
@@ -316,6 +391,24 @@ export function decodeDraft(value: unknown, owner: string): Draft {
 			throw new UserFacingError(
 				'This saved publication could not be read. Keep it until its outcome can be checked.'
 			);
+		const source = draft.instagramImport;
+		const frozenSource = p.body.instagramImport;
+		if (
+			source
+				? p.kind !== 'create' ||
+					!object(frozenSource) ||
+					frozenSource.sourceKey !== source.sourceKey ||
+					frozenSource.createdAt !== source.createdAt
+				: frozenSource !== undefined
+		)
+			throw new UserFacingError(
+				'This saved Instagram import could not be read.'
+			);
 	}
-	return draft;
+	return {
+		...draft,
+		images: draft.images.map(restoreMedia),
+		video: draft.video && restoreMedia(draft.video),
+		externalImage: draft.externalImage && restoreMedia(draft.externalImage)
+	};
 }

@@ -76,12 +76,15 @@ describe('local Instagram post archive', () => {
 			second.close();
 		}
 	});
-	it('keeps video-only posts and extracts only after review', async () => {
+	it('keeps video-only posts and extracts the local preview source', async () => {
 		const missing = await inspectInstagramArchive(
 			await archive([post(['media/posts/clip.mp4'])])
 		);
 		try {
 			expect(missing.posts[0]).toMatchObject({ videoCount: 1, imageCount: 0 });
+			await expect(
+				missing.previewSource(missing.posts[0])
+			).resolves.toBeUndefined();
 			await expect(missing.media(missing.posts[0])).rejects.toThrow(
 				'mediaMissing'
 			);
@@ -94,6 +97,9 @@ describe('local Instagram post archive', () => {
 			})
 		);
 		try {
+			const preview = await complete.previewSource(complete.posts[0]);
+			expect(preview?.type).toBe('video/mp4');
+			expect(new Uint8Array(await preview!.arrayBuffer())).toEqual(mp4);
 			const selected = await complete.media(complete.posts[0]);
 			expect(selected.images).toHaveLength(0);
 			expect(selected.videos[0].type).toBe('video/mp4');
@@ -102,6 +108,37 @@ describe('local Instagram post archive', () => {
 			);
 		} finally {
 			complete.close();
+		}
+	});
+	it('uses the first available safe photo as the preview source', async () => {
+		const result = await inspectInstagramArchive(
+			await archive(
+				[
+					post([
+						'media/posts/missing.png',
+						'media/posts/oversized.png',
+						'media/posts/safe.png',
+						'media/posts/clip.mp4'
+					])
+				],
+				{
+					'media/posts/oversized.png': png(12_000, 12_000),
+					'media/posts/safe.png': png(40, 60),
+					'media/posts/clip.mp4': mp4
+				}
+			)
+		);
+		try {
+			const preview = await result.previewSource(result.posts[0]);
+			expect(preview?.type).toBe('image/png');
+			expect(new Uint8Array(await preview!.arrayBuffer())).toEqual(png(40, 60));
+			const controller = new AbortController();
+			controller.abort();
+			await expect(
+				result.previewSource(result.posts[0], controller.signal)
+			).rejects.toMatchObject({ name: 'AbortError' });
+		} finally {
+			result.close();
 		}
 	});
 	it('reads reel JSON wrappers and keeps video paths', async () => {

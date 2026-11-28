@@ -351,18 +351,5 @@ void main() {
         ),
       );
     });
-
-    test('UT-009 parses manual lines as accounts followed', () {
-      final result = parser.parseManual(
-        ' @Synthetic.One \nsynthetic.two\nsynthetic.one\ninvalid value',
-      );
-
-      expect(result.entries, [
-        const InstagramImportEntry(username: 'synthetic.one'),
-        const InstagramImportEntry(username: 'synthetic.two'),
-      ]);
-      expect(result.duplicateEntryCount, 1);
-      expect(result.ignoredEntryCount, 1);
-    });
   });
 }

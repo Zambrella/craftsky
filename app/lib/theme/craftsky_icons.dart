@@ -54,6 +54,7 @@ abstract final class CraftskyIcons {
   static const IconData follow = PhosphorIconsRegular.userPlus;
   static const IconData fullscreen = PhosphorIconsRegular.cornersOut;
   static const IconData fullscreenExit = PhosphorIconsRegular.cornersIn;
+  static const IconData help = PhosphorIconsRegular.question;
   static const IconData history = PhosphorIconsRegular.clockCounterClockwise;
   static const IconData home = PhosphorIconsRegular.house;
   static const IconData homeSelected = PhosphorIconsFill.house;

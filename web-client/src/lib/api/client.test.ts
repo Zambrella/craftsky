@@ -170,7 +170,7 @@ describe('AppView wire contracts', () => {
 		const summary = {
 			importId: 'import-1',
 			state: 'active',
-			sourceType: 'manual',
+			sourceType: 'instagramJson',
 			followingCount: 1,
 			createdAt: '2026-11-01T12:00:00Z'
 		};
@@ -179,13 +179,13 @@ describe('AppView wire contracts', () => {
 			201
 		);
 		const result = await api.instagram.createImport({
-			sourceType: 'manual',
+			sourceType: 'instagramJson',
 			entries: [{ username: 'stitches' }]
 		});
 		expect(result.import.importId).toBe('import-1');
 		expect(result.counts.followingCount).toBe(1);
 		expect(request().json).toEqual({
-			sourceType: 'manual',
+			sourceType: 'instagramJson',
 			entries: [{ username: 'stitches' }]
 		});
 	});
@@ -455,15 +455,21 @@ describe('transport failure and mutation semantics', () => {
 			).rejects.toBeInstanceOf(MutationOutcomeUnknownError);
 		}
 	);
-	it('distinguishes a definite missing video rejection from an unknown write', async () => {
-		const { api } = setup(
-			{ error: 'video_blob_missing', message: 'Upload again' },
-			503
-		);
-		await expect(
-			api.posts.like('did:plc:a', 'post', key)
-		).rejects.toMatchObject({ name: 'APIError', code: 'video_blob_missing' });
-	});
+	it.each([
+		['video_blob_missing', 503],
+		['pds_write_rejected', 502]
+	] as const)(
+		'distinguishes definitive %s from an unknown write',
+		async (code, status) => {
+			const { api } = setup(
+				{ error: code, message: 'Publication rejected' },
+				status
+			);
+			await expect(
+				api.posts.like('did:plc:a', 'post', key)
+			).rejects.toMatchObject({ name: 'APIError', code, retryable: false });
+		}
+	);
 	it('retains the PDS key after network loss and classifies read network loss separately', async () => {
 		const fetcher = vi.fn<typeof fetch>(async () => {
 			throw new TypeError('offline');

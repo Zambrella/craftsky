@@ -33,8 +33,9 @@ describe('client-owned error presentation', () => {
 		expect(expectedFailure(failure)).toBe(false);
 	});
 	it('retains actionable import validation instead of dependency text', () => {
+		expect.assertions(2);
 		try {
-			parseFollowing('{PRIVATE_CANARY', true);
+			parseFollowing('{PRIVATE_CANARY');
 		} catch (error) {
 			expect(message(error)).toContain('not valid JSON');
 			expect(message(error)).not.toContain('PRIVATE_CANARY');

@@ -746,6 +746,11 @@ export interface InstagramSuggestion {
 	createdAt: string;
 	[key: string]: unknown;
 }
+export interface InstagramPublishedImport {
+	sourceKey: string;
+	uri: string;
+	kind: 'standard' | 'project';
+}
 export interface ModerationStanding {
 	[key: string]: Json | undefined;
 }

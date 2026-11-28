@@ -26,10 +26,6 @@ function compareStrings(left: string, right: string): number {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function canonicalGroupKey(posts: readonly AdapterPost[]): string {
-	return posts.map(canonicalPostKey).sort(compareStrings).join('\u0000');
-}
-
 export function mergeAdapterPosts(
 	input: readonly AdapterPost[]
 ): NormalizedAdapterResult {
@@ -66,19 +62,12 @@ export function mergeAdapterPosts(
 		current.push(post);
 		byIdentity.set(root, current);
 	});
-	if (input.length === 0) {
-		return { posts: [], skipped: [] };
-	}
-
 	const posts: AdapterPost[] = [];
 	const skipped: Array<{
 		code: 'ambiguousDuplicate';
 		timestamp: number;
 	}> = [];
-	const canonicalGroups = [...byIdentity.values()].sort((left, right) =>
-		compareStrings(canonicalGroupKey(left), canonicalGroupKey(right))
-	);
-	for (const candidates of canonicalGroups) {
+	for (const candidates of byIdentity.values()) {
 		const first = candidates[0];
 		if (
 			candidates.every((candidate) => materiallyEquivalent(first, candidate))
@@ -88,10 +77,19 @@ export function mergeAdapterPosts(
 			skipped.push({ code: 'ambiguousDuplicate', timestamp: first.timestamp });
 		}
 	}
+	const keys = new Map<AdapterPost, string>();
+	const sortKey = (post: AdapterPost) => {
+		let key = keys.get(post);
+		if (key === undefined) {
+			key = canonicalPostKey(post);
+			keys.set(post, key);
+		}
+		return key;
+	};
 	posts.sort(
 		(left, right) =>
-			left.timestamp - right.timestamp ||
-			compareStrings(canonicalPostKey(left), canonicalPostKey(right))
+			right.timestamp - left.timestamp ||
+			compareStrings(sortKey(left), sortKey(right))
 	);
 	skipped.sort((left, right) => left.timestamp - right.timestamp);
 	return { posts, skipped };

@@ -2862,6 +2862,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramAccountTitle => 'Instagram account';
 
   @override
+  String get instagramManageAccount => 'Manage account';
+
+  @override
+  String get instagramVerificationUnavailableLinked =>
+      'Instagram verification is temporarily unavailable. Your saved account and imports are still available.';
+
+  @override
+  String get instagramImportAccountBlocked =>
+      'Resolve your Instagram account issue before starting a new import.';
+
+  @override
   String get instagramPostImportAlreadyPublished =>
       'This Instagram post has already been imported. Return to the import list to check its status.';
 
@@ -2886,6 +2897,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'There is a private account conflict to resolve. No ownership was transferred.';
 
   @override
+  String get instagramAccountReactivationRequired =>
+      'Reactivate your Instagram account to start a new import.';
+
+  @override
   String get instagramReactivateAccount => 'Reactivate Instagram account';
 
   @override
@@ -2907,16 +2922,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportTitle => 'Import accounts you follow';
 
   @override
-  String get instagramImportManual => 'Enter handles';
-
-  @override
-  String get instagramImportManualDescription =>
-      'Enter the Instagram handles of accounts you follow, one per line.';
-
-  @override
-  String get instagramImportJson => 'Instagram export';
-
-  @override
   String get instagramImportJsonDescription =>
       'Choose JSON format and All time when exporting from Instagram, then select the downloaded ZIP here. CraftSky processes it on this device and uploads only the usernames of accounts you follow. Everything else stays on your device.';
 
@@ -2924,11 +2929,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportHelp => 'How to export your Instagram following';
 
   @override
-  String get instagramPostImportTitle => 'Import posts and projects';
+  String get instagramImportHelpShort => 'How to export';
 
   @override
-  String get instagramPostImportIntro =>
-      'Review your Instagram posts and choose which ones to publish on CraftSky.';
+  String get instagramPostImportTitle => 'Import posts';
 
   @override
   String get instagramPostImportInstructions =>
@@ -2941,9 +2945,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get instagramPostImportVerificationRequired =>
       'Verify or reactivate your Instagram account to import posts and projects.';
-
-  @override
-  String get instagramPostImportChooseZip => 'Choose Instagram ZIP';
 
   @override
   String get instagramPostImportClear => 'Clear export';
@@ -3119,15 +3120,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Some media is missing, unsupported or too large to import.';
 
   @override
-  String get instagramImportHandles => 'Instagram handles';
-
-  @override
-  String get instagramImportHandlesHint => 'One handle per line';
-
-  @override
-  String get instagramImportManualAction => 'Import handles';
-
-  @override
   String get instagramImportSelectJson => 'Select Instagram export';
 
   @override
@@ -3246,7 +3238,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Importing creates private suggestions only. You choose whether to follow each account.';
 
   @override
-  String get instagramSuggestionsTitle => 'Possible CraftSky accounts';
+  String get instagramSuggestionsTitle => 'Suggested accounts';
 
   @override
   String get instagramSuggestionsDescription =>
@@ -3258,6 +3250,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramSuggestionsEmpty => 'No possible CraftSky accounts yet.';
+
+  @override
+  String get instagramSuggestionsEmptyHint =>
+      'Import the accounts you follow on Instagram to look for matches.';
 
   @override
   String get instagramSuggestionFollow => 'Follow';

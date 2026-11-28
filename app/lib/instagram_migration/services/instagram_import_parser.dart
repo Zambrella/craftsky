@@ -48,52 +48,37 @@ final class InstagramImportParser {
         InstagramImportParseErrorCode.invalidJson,
       );
     }
-    final records = _recordsFor(decoded);
-    final values = <Object?>[];
-    var malformedRecordCount = 0;
+    return _normalizeValues(_valuesFromRecords(_recordsFor(decoded)));
+  }
+
+  Iterable<Object?> _valuesFromRecords(List<dynamic> records) sync* {
     for (final recordValue in records) {
       if (recordValue is! Map<String, dynamic>) {
-        malformedRecordCount++;
+        yield null;
         continue;
       }
       final stringListData = recordValue['string_list_data'];
       if (stringListData is! List<dynamic>) {
-        malformedRecordCount++;
+        yield null;
         continue;
       }
       var hasLegacyValue = false;
       for (final value in stringListData) {
         if (value is Map<String, dynamic> && value.containsKey('value')) {
           hasLegacyValue = true;
-          values.add(value['value']);
+          yield value['value'];
         }
       }
       if (!hasLegacyValue) {
-        values.add(_usernameFromProfileRecord(recordValue, stringListData));
+        yield _usernameFromProfileRecord(recordValue, stringListData);
       }
     }
-    return _normalizeValues(
-      values,
-      initialIgnoredCount: malformedRecordCount,
-    );
   }
 
-  InstagramImportParseResult parseManual(String source) {
-    if (utf8.encode(source).length > maxFileBytes) {
-      throw const InstagramImportParseException(
-        InstagramImportParseErrorCode.fileTooLarge,
-      );
-    }
-    return _normalizeValues(const LineSplitter().convert(source));
-  }
-
-  InstagramImportParseResult _normalizeValues(
-    Iterable<Object?> values, {
-    int initialIgnoredCount = 0,
-  }) {
+  InstagramImportParseResult _normalizeValues(Iterable<Object?> values) {
     final entries = <InstagramImportEntry>[];
     final seen = <String>{};
-    var ignoredEntryCount = initialIgnoredCount;
+    var ignoredEntryCount = 0;
     var duplicateEntryCount = 0;
     for (final value in values) {
       final username = value is String ? _normalizeUsername(value) : null;

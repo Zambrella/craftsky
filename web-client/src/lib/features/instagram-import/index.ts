@@ -1,4 +1,5 @@
 import { InputError } from '#lib/user-facing-error.ts';
+import { renderInstagramThumbnail } from './thumbnail';
 import type {
 	InstagramArchive,
 	InstagramMedia,
@@ -60,6 +61,7 @@ export async function openInstagramArchive(
 	const worker = new Worker(new URL('./archive.worker.ts', import.meta.url), {
 		type: 'module'
 	});
+	const lifetime = new AbortController();
 	let next = 0;
 	let closed = false;
 	const pending = new Map<
@@ -73,6 +75,7 @@ export async function openInstagramArchive(
 	const close = () => {
 		if (closed) return;
 		closed = true;
+		lifetime.abort();
 		worker.terminate();
 		signal?.removeEventListener('abort', close);
 		for (const operation of pending.values()) {
@@ -94,8 +97,7 @@ export async function openInstagramArchive(
 		if (data.error) operation.reject(userError(data.error));
 		else operation.resolve(data.value);
 	};
-	worker.onerror = (event) => {
-		event.preventDefault();
+	const fail = () => {
 		for (const operation of pending.values()) {
 			operation.cleanup();
 			operation.reject(userError('invalidArchive'));
@@ -103,6 +105,11 @@ export async function openInstagramArchive(
 		pending.clear();
 		close();
 	};
+	worker.onerror = (event) => {
+		event.preventDefault();
+		fail();
+	};
+	worker.onmessageerror = fail;
 	const request = <T>(
 		action: 'open' | 'media' | 'preview',
 		body: Record<string, unknown>,
@@ -113,9 +120,9 @@ export async function openInstagramArchive(
 		const id = ++next;
 		return new Promise<T>((resolve, reject) => {
 			const cancel = () => {
-				worker.postMessage({ id, action: 'cancel' });
 				pending.delete(id);
 				reject(new DOMException('Import cancelled.', 'AbortError'));
+				worker.postMessage({ id, action: 'cancel' });
 			};
 			abort?.addEventListener('abort', cancel, { once: true });
 			pending.set(id, {
@@ -123,7 +130,13 @@ export async function openInstagramArchive(
 				reject,
 				cleanup: () => abort?.removeEventListener('abort', cancel)
 			});
-			worker.postMessage({ id, action, ...body });
+			try {
+				worker.postMessage({ id, action, ...body });
+			} catch (error) {
+				pending.delete(id);
+				abort?.removeEventListener('abort', cancel);
+				reject(error);
+			}
 		});
 	};
 	try {
@@ -132,6 +145,10 @@ export async function openInstagramArchive(
 			{ file },
 			signal
 		);
+		// Opening belongs to the settings view. Once loaded, the caller owns
+		// the archive and can retain it across composer navigation.
+		signal?.throwIfAborted();
+		signal?.removeEventListener('abort', close);
 		return {
 			...manifest,
 			media: (post, abort, selection?: MediaSelection) =>
@@ -140,12 +157,17 @@ export async function openInstagramArchive(
 					{ sourceKey: post.sourceKey, selection },
 					abort
 				),
-			preview: (post, abort) =>
-				request<Blob | undefined>(
+			async preview(post, abort) {
+				const signal = abort
+					? AbortSignal.any([lifetime.signal, abort])
+					: lifetime.signal;
+				const source = await request<Blob | undefined>(
 					'preview',
 					{ sourceKey: post.sourceKey },
-					abort
-				),
+					signal
+				);
+				if (source) return renderInstagramThumbnail(source, signal);
+			},
 			close
 		};
 	} catch (error) {

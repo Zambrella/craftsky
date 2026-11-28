@@ -594,6 +594,7 @@ test('future subscription states show plans without exposing assignment or check
 test('Instagram keeps the native private confirmation choice and describes all revoke effects before deletion', async ({
 	page
 }) => {
+	await page.setViewportSize({ width: 402, height: 874 });
 	const writes: Captured[] = [];
 	let account: Record<string, unknown> | null = null;
 	let verification: Record<string, unknown> | null = {
@@ -665,10 +666,31 @@ test('Instagram keeps the native private confirmation choice and describes all r
 			exact: true
 		})
 		.click();
+	await page
+		.getByRole('status')
+		.filter({ hasText: 'Instagram account verified.' })
+		.getByRole('button', { name: 'Dismiss notification' })
+		.click();
+	await page.getByRole('link', { name: 'Manage account' }).click();
+	await expect(page).toHaveURL(/\/settings\/instagram\/account$/);
+	const accountPage = page.getByRole('main');
+	await expect(accountPage.getByText('Verified as @alice_makes')).toBeVisible();
+	await expect(accountPage.getByText(/^Verified (?!as )/)).toHaveCount(0);
 	const discoverable = page.getByRole('switch', {
 		name: 'Let others find me by my Instagram username',
 		exact: true
 	});
+	await expect(
+		accountPage.getByText('Let others find me by my Instagram username', {
+			exact: true
+		})
+	).toHaveCSS('font-weight', '600');
+	const revoke = page.getByRole('button', {
+		name: 'Revoke Instagram verification',
+		exact: true
+	});
+	await expect(revoke).toHaveCSS('border-top-width', '0px');
+	await expect(revoke).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 	await expect(discoverable).not.toBeChecked();
 	expect(writes[0].body).toEqual({ discoverable: false });
 	await discoverable.click();
@@ -685,9 +707,7 @@ test('Instagram keeps the native private confirmation choice and describes all r
 		.click();
 	await expect(page.locator('.snackbar')).toHaveCount(0);
 
-	await page
-		.getByRole('button', { name: 'Revoke Instagram verification', exact: true })
-		.click();
+	await revoke.click();
 	const dialog = page.getByRole('dialog', {
 		name: 'Revoke Instagram verification?'
 	});
@@ -697,6 +717,9 @@ test('Instagram keeps the native private confirmation choice and describes all r
 		page
 			.getByRole('status')
 			.filter({ hasText: 'Instagram verification revoked.' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Verify your Instagram account' })
 	).toBeVisible();
 	expect(confirmation).toContain('deletes your imported handles');
 	expect(confirmation).toContain(

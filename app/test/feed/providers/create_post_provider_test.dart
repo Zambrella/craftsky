@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/instagram_import_publication.dart';
 import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -237,6 +238,49 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'a definitive PDS rejection releases the import for editing',
+      () async {
+        final source = InstagramPostImportSource(
+          sourceKey: 'abcdef0123456789abcdef0123456789',
+          createdAt: DateTime.utc(2021, 8, 4, 12),
+        );
+        final checkpoints = <InstagramImportPublication?>[];
+        const rejection = ApiServerError(
+          'http_502',
+          details: ApiFailureDetails(
+            statusCode: 502,
+            appViewError: 'pds_write_rejected',
+          ),
+        );
+        final fake = FakePostRepository(
+          onPublishPreparedInstagramImport: (pending) async {
+            expect(checkpoints.single, same(pending));
+            throw rejection;
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        )..listen(createPostProvider, (_, _) {});
+
+        final result = await container
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'Imported caption',
+              langs: _langs,
+              sponsored: false,
+              instagramImport: source,
+              checkpointInstagramPublication: (pending) async {
+                checkpoints.add(pending);
+              },
+            );
+
+        expect(result, isNull);
+        expect(checkpoints, [isA<InstagramImportPublication>(), isNull]);
+        expect(container.read(createPostProvider).error, same(rejection));
+      },
+    );
 
     test('restarts and replays an imported video with its exact request and '
         'operation key', () async {

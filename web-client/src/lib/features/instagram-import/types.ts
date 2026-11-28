@@ -60,3 +60,13 @@ export interface InstagramArchive {
 	preview(post: InstagramPost, signal?: AbortSignal): Promise<Blob | undefined>;
 	close(): void;
 }
+
+export interface InstagramArchiveSource extends Omit<
+	InstagramArchive,
+	'preview'
+> {
+	previewSource(
+		post: InstagramPost,
+		signal?: AbortSignal
+	): Promise<Blob | undefined>;
+}

@@ -2,15 +2,18 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/pdscommands"
 )
 
 type InstagramPostImportRequest struct {
@@ -53,11 +56,57 @@ func requireInstagramPostImportAccount(w http.ResponseWriter, r *http.Request, a
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Instagram account operation failed", middleware.GetRunID(r.Context()), nil)
 		return false
 	}
-	if account == nil || account.State != instagram.LinkActive || account.ConflictPending || account.ReactivationRequired || account.VerifiedAt.IsZero() {
-		envelope.WriteError(w, http.StatusForbidden, "instagram_verification_required", "An active verified Instagram account is required", middleware.GetRunID(r.Context()), nil)
+	if !account.AllowsImport() {
+		writeInstagramPostImportVerificationRequired(w, r)
 		return false
 	}
 	return true
+}
+
+func writeInstagramPostImportVerificationRequired(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteError(w, http.StatusForbidden, "instagram_verification_required", "An active verified Instagram account is required", middleware.GetRunID(r.Context()), nil)
+}
+
+// An exact retry of an earlier dispatch can recover its result after the
+// provider's upload proof expires. A new dispatch still needs a valid proof.
+func existingInstagramVideoImport(w http.ResponseWriter, r *http.Request, commands AppendCommandExecutor, owner syntax.DID, generation int64, key uuid.UUID, req PostCreateRequest) (allowReadRecovery, handled bool) {
+	lookup, ok := commands.(commandReplayLookup)
+	if !ok {
+		return false, false
+	}
+	ctx := r.Context()
+	runID := middleware.GetRunID(ctx)
+	replay, err := lookup.LookupCommand(ctx, owner, "post.create", key)
+	if err != nil {
+		WriteCommandError(w, runID, err, ctx)
+		return false, true
+	}
+	if replay == nil {
+		return false, false
+	}
+	intent, err := json.Marshal(req)
+	if err != nil {
+		WriteCommandError(w, runID, err, ctx)
+		return false, true
+	}
+	matches, err := replay.MatchesIntent(intent)
+	if err != nil {
+		WriteCommandError(w, runID, err, ctx)
+		return false, true
+	}
+	if replay.OwnerGeneration != generation || !matches {
+		WriteCommandError(w, runID, pdscommands.ErrIdempotencyConflict, ctx)
+		return false, true
+	}
+	switch replay.Result.State {
+	case pdscommands.CommandAccepted, pdscommands.CommandRejected:
+		WriteCommandResponse(w, CommandResultFromStored(replay.Result))
+		return false, true
+	case pdscommands.CommandDispatching, pdscommands.CommandAmbiguous:
+		return true, false
+	default:
+		return false, false
+	}
 }
 
 func LookupInstagramPostImportsHandler(accounts InstagramPostImportAccounts, store InstagramPostImportLookup) http.Handler {

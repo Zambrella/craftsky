@@ -162,10 +162,7 @@ func newInstagramRuntimeDependencies(
 		}
 	}
 	runtime.imports, err = instagram.NewImportService(instagram.ImportServiceOptions{
-		Repository: instagram.NewImportStore(pool),
-		Matcher: instagram.NewPrivateSuggestionMatcher(
-			pool, storage.privateSuggestions, storage.suggestionPolicy, time.Now,
-		),
+		Repository:      instagram.NewImportStore(pool),
 		MaxEntries:      cfg.InstagramLimits.ImportMaxEntries,
 		DefaultPageSize: cfg.InstagramLimits.PageDefault,
 		MaxPageSize:     cfg.InstagramLimits.PageMax,

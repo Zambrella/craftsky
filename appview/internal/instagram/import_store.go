@@ -20,12 +20,16 @@ var (
 type ImportSourceType string
 
 const (
-	ImportSourceManual        ImportSourceType = "manual"
+	ImportSourceManual        ImportSourceType = "manual" // Existing imports can still have this source.
 	ImportSourceInstagramJSON ImportSourceType = "instagramJson"
 )
 
 func (s ImportSourceType) Valid() bool {
-	return s == ImportSourceManual || s == ImportSourceInstagramJSON
+	return s == ImportSourceManual || s.SupportsCreation()
+}
+
+func (s ImportSourceType) SupportsCreation() bool {
+	return s == ImportSourceInstagramJSON
 }
 
 type GraphImport struct {
@@ -48,9 +52,8 @@ type ImportCounts struct {
 }
 
 type CreateImportResult struct {
-	Import                 GraphImport
-	Counts                 ImportCounts
-	InitialSuggestionCount int
+	Import GraphImport
+	Counts ImportCounts
 }
 
 type CreateImportParams struct {
@@ -80,18 +83,10 @@ func NewImportStore(pool *pgxpool.Pool) *ImportStore {
 }
 
 func (s *ImportStore) CreateImport(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
-	return s.createImport(ctx, params)
-}
-
-func (s *ImportStore) CreateImportForMatching(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
-	return s.createImport(ctx, params)
-}
-
-func (s *ImportStore) createImport(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
 	if s == nil || s.pool == nil {
 		return CreateImportResult{}, errors.New("instagram import store is unavailable")
 	}
-	if params.ID == uuid.Nil || params.OwnerDID == "" || !params.SourceType.Valid() || params.Now.IsZero() {
+	if params.ID == uuid.Nil || params.OwnerDID == "" || !params.SourceType.SupportsCreation() || params.Now.IsZero() {
 		return CreateImportResult{}, errors.New("invalid Instagram import parameters")
 	}
 	entries, err := NormalizeImportEntries(params.Entries)
@@ -108,20 +103,11 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 		return CreateImportResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 2))`, params.OwnerDID); err != nil {
+	if err := lockInstagramOwner(ctx, tx, params.OwnerDID); err != nil {
 		return CreateImportResult{}, err
 	}
-	var verified bool
-	if err := tx.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM instagram_account_links
-			WHERE owner_did = $1 AND state = 'active' AND verified_at IS NOT NULL
-		)
-	`, params.OwnerDID).Scan(&verified); err != nil {
+	if err := RequireVerifiedImportAccount(ctx, tx, params.OwnerDID); err != nil {
 		return CreateImportResult{}, err
-	}
-	if !verified {
-		return CreateImportResult{}, ErrInstagramVerificationRequired
 	}
 	graphImport, err := scanGraphImport(tx.QueryRow(ctx, `
 		INSERT INTO instagram_graph_imports (
@@ -133,14 +119,18 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 	if err != nil {
 		return CreateImportResult{}, err
 	}
-	for _, entry := range entries {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO instagram_graph_handles (
-				import_id, username_normalized, matched, created_at
-			) VALUES ($1, $2, false, $3)
-		`, params.ID, entry.Username, params.Now); err != nil {
-			return CreateImportResult{}, err
-		}
+	usernames := make([]string, len(entries))
+	for i, entry := range entries {
+		usernames[i] = entry.Username
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO instagram_graph_handles (import_id, username_normalized, matched, created_at)
+		SELECT $1, username, false, $3 FROM unnest($2::text[]) AS username
+	`, params.ID, usernames, params.Now); err != nil {
+		return CreateImportResult{}, err
+	}
+	if err := queueImportReconciliation(ctx, tx, params.OwnerDID, params.ID, "instagramImportCreated", params.Now); err != nil {
+		return CreateImportResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return CreateImportResult{}, err
@@ -148,29 +138,16 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 	return CreateImportResult{Import: graphImport, Counts: counts}, nil
 }
 
-func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
-	if s == nil || s.pool == nil {
-		return errors.New("instagram import store is unavailable")
-	}
-	tx, err := s.pool.Begin(ctx)
+func queueImportReconciliation(ctx context.Context, tx pgx.Tx, owner syntax.DID, id uuid.UUID, reason string, now time.Time) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs (
+			id, owner_did, import_id, reason, status, next_attempt_at, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, 'queued', $5, $5, $5)
+	`, uuid.New(), owner, id, reason, now)
 	if err != nil {
-		return err
+		return fmt.Errorf("queue Instagram import reconciliation: %w", err)
 	}
-	defer tx.Rollback(ctx)
-	if err := tx.QueryRow(ctx, `
-		SELECT true
-		FROM instagram_graph_imports
-		WHERE id = $1 AND owner_did = $2
-		FOR UPDATE
-	`, id, owner).Scan(new(bool)); errors.Is(err, pgx.ErrNoRows) {
-		return ErrInstagramResourceNotFound
-	} else if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `UPDATE instagram_graph_imports SET updated_at = $2 WHERE id = $1`, id, now); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *ImportStore) GetImport(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) (GraphImport, error) {
@@ -266,6 +243,9 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 		return GraphImport{}, err
 	}
 	defer tx.Rollback(ctx)
+	if err := lockInstagramOwner(ctx, tx, owner); err != nil {
+		return GraphImport{}, err
+	}
 	graphImport, err := scanGraphImport(tx.QueryRow(ctx, `
 		SELECT `+graphImportColumns+`
 		FROM instagram_graph_imports
@@ -278,35 +258,22 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 	if err != nil {
 		return GraphImport{}, err
 	}
-	reactivated := false
-	if params.Reactivate != nil && *params.Reactivate {
-		if graphImport.State != ImportMembershipInactive {
-			return GraphImport{}, ErrInstagramImportInactive
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE instagram_graph_imports
-			SET state = 'active', membership_inactive_at = NULL, updated_at = $2
-			WHERE id = $1
-		`, id, params.Now); err != nil {
-			return GraphImport{}, err
-		}
-		graphImport.State = ImportActive
-		reactivated = true
+	if graphImport.State != ImportMembershipInactive {
+		return GraphImport{}, ErrInstagramImportInactive
 	}
-	if reactivated {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO instagram_reconciliation_jobs (
-				id, owner_did, import_id, reason, status, next_attempt_at,
-				created_at, updated_at
-			) VALUES ($1, $2, $3, 'instagramImportReactivated', 'queued', $4, $4, $4)
-		`, uuid.New(), owner, id, params.Now); err != nil {
-			return GraphImport{}, fmt.Errorf("queue reactivated Instagram import reconciliation: %w", err)
-		}
+	if err := RequireVerifiedImportAccount(ctx, tx, owner); err != nil {
+		return GraphImport{}, err
 	}
 	updated, err := scanGraphImport(tx.QueryRow(ctx, `
-		SELECT `+graphImportColumns+` FROM instagram_graph_imports WHERE id = $1
-	`, id))
+		UPDATE instagram_graph_imports
+		SET state = 'active', membership_inactive_at = NULL, updated_at = $2
+		WHERE id = $1
+		RETURNING `+graphImportColumns+`
+	`, id, params.Now))
 	if err != nil {
+		return GraphImport{}, err
+	}
+	if err := queueImportReconciliation(ctx, tx, owner, id, "instagramImportReactivated", params.Now); err != nil {
 		return GraphImport{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -23,19 +23,8 @@ type ImportRepository interface {
 	DeleteImport(context.Context, syntax.DID, uuid.UUID, time.Time) error
 }
 
-type StagedImportRepository interface {
-	ImportRepository
-	CreateImportForMatching(context.Context, CreateImportParams) (CreateImportResult, error)
-	FinalizeImportMatching(context.Context, syntax.DID, uuid.UUID, time.Time) error
-}
-
-type ImportMatcher interface {
-	MatchImport(context.Context, syntax.DID, uuid.UUID) (int, error)
-}
-
 type ImportServiceOptions struct {
 	Repository      ImportRepository
-	Matcher         ImportMatcher
 	Now             func() time.Time
 	NewID           func() uuid.UUID
 	MaxEntries      int
@@ -45,7 +34,6 @@ type ImportServiceOptions struct {
 
 type ImportService struct {
 	repository      ImportRepository
-	matcher         ImportMatcher
 	now             func() time.Time
 	newID           func() uuid.UUID
 	maxEntries      int
@@ -78,7 +66,6 @@ func NewImportService(options ImportServiceOptions) (*ImportService, error) {
 	}
 	return &ImportService{
 		repository:      options.Repository,
-		matcher:         options.Matcher,
 		now:             options.Now,
 		newID:           options.NewID,
 		maxEntries:      options.MaxEntries,
@@ -88,7 +75,7 @@ func NewImportService(options ImportServiceOptions) (*ImportService, error) {
 }
 
 func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sourceType ImportSourceType, entries []ImportEntry) (CreateImportResult, error) {
-	if s == nil || s.repository == nil || owner == "" || !sourceType.Valid() {
+	if s == nil || s.repository == nil || owner == "" || !sourceType.SupportsCreation() {
 		return CreateImportResult{}, ErrInvalidInstagramImport
 	}
 	normalized, err := NormalizeImportEntries(entries)
@@ -108,28 +95,7 @@ func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sour
 		Entries:    normalized,
 		Now:        s.now().UTC(),
 	}
-	if s.matcher == nil {
-		return s.repository.CreateImport(ctx, params)
-	}
-	staged, ok := s.repository.(StagedImportRepository)
-	if !ok {
-		return CreateImportResult{}, errors.New("instagram import repository does not support matching")
-	}
-	created, err := staged.CreateImportForMatching(ctx, params)
-	if err != nil {
-		return CreateImportResult{}, err
-	}
-	count, err := s.matcher.MatchImport(ctx, owner, params.ID)
-	if err != nil {
-		_ = s.repository.DeleteImport(context.WithoutCancel(ctx), owner, params.ID, s.now().UTC())
-		return CreateImportResult{}, err
-	}
-	if err := staged.FinalizeImportMatching(ctx, owner, params.ID, s.now().UTC()); err != nil {
-		_ = s.repository.DeleteImport(context.WithoutCancel(ctx), owner, params.ID, s.now().UTC())
-		return CreateImportResult{}, err
-	}
-	created.InitialSuggestionCount = count
-	return created, nil
+	return s.repository.CreateImport(ctx, params)
 }
 
 func (s *ImportService) ListImports(ctx context.Context, owner syntax.DID, limit int, cursor *ImportCursor) ([]GraphImport, *ImportCursor, error) {

@@ -31,7 +31,6 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 	service := &stubInstagramImportService{
 		created: instagram.CreateImportResult{
 			Import: item, Counts: instagram.ImportCounts{Following: 2},
-			InitialSuggestionCount: 0,
 		},
 		items:      []instagram.GraphImport{item},
 		nextCursor: &instagram.ImportCursor{CreatedAt: createdAt, ID: id},
@@ -129,12 +128,13 @@ func TestInstagramImportHandlersRejectRawFieldsInvalidInputsAndMapSafeErrors(t *
 		status     int
 		code       string
 	}{
-		{name: "raw archive field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[],"rawArchive":"synthetic-private-canary"}`, status: 400, code: "invalid_request"},
-		{name: "legacy retention field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","retainUnmatched":false,"entries":[{"username":"synthetic.one"}]}`, status: 400, code: "invalid_request"},
-		{name: "legacy relationship direction", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[{"username":"synthetic.one","direction":"following"}]}`, status: 400, code: "invalid_request"},
+		{name: "raw archive field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[],"rawArchive":"synthetic-private-canary"}`, status: 400, code: "invalid_request"},
+		{name: "legacy retention field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","retainUnmatched":false,"entries":[{"username":"synthetic.one"}]}`, status: 400, code: "invalid_request"},
+		{name: "legacy relationship direction", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[{"username":"synthetic.one","direction":"following"}]}`, status: 400, code: "invalid_request"},
 		{name: "follower data field", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[{"username":"synthetic.one","followerUsername":"synthetic.private"}]}`, status: 400, code: "invalid_request"},
-		{name: "invalid import", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[]}`, serviceErr: instagram.ErrInvalidInstagramImport, status: 422, code: "invalid_instagram_import"},
-		{name: "verification required", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[{"username":"synthetic.one"}]}`, serviceErr: instagram.ErrInstagramVerificationRequired, status: 409, code: "instagram_verification_required"},
+		{name: "manual source", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"manual","entries":[{"username":"synthetic.one"}]}`, status: 400, code: "invalid_request"},
+		{name: "invalid import", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[]}`, serviceErr: instagram.ErrInvalidInstagramImport, status: 422, code: "invalid_instagram_import"},
+		{name: "verification required", handler: CreateInstagramImportHandler, method: http.MethodPost, target: "/v1/migrations/instagram/imports", body: `{"sourceType":"instagramJson","entries":[{"username":"synthetic.one"}]}`, serviceErr: instagram.ErrInstagramVerificationRequired, status: 409, code: "instagram_verification_required"},
 		{name: "invalid cursor", handler: ListInstagramImportsHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports?cursor=not-valid!!!", status: 400, code: "invalid_cursor"},
 		{name: "foreign get", handler: GetInstagramImportHandler, method: http.MethodGet, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), serviceErr: instagram.ErrInstagramResourceNotFound, status: 404, code: "instagram_import_not_found"},
 		{name: "empty patch", handler: PatchInstagramImportHandler, method: http.MethodPatch, target: "/v1/migrations/instagram/imports/" + id.String(), pathID: id.String(), body: `{}`, status: 400, code: "invalid_request"},
@@ -151,6 +151,9 @@ func TestInstagramImportHandlersRejectRawFieldsInvalidInputsAndMapSafeErrors(t *
 			test.handler(service, logger).ServeHTTP(response, request)
 			if response.Code != test.status {
 				t.Fatalf("status=%d want=%d body=%s", response.Code, test.status, response.Body.String())
+			}
+			if test.method == http.MethodPost && test.status == http.StatusBadRequest && service.createEntries != nil {
+				t.Fatal("malformed create request reached service")
 			}
 			var apiError envelope.Error
 			if err := json.Unmarshal(response.Body.Bytes(), &apiError); err != nil {

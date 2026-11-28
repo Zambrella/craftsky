@@ -4,13 +4,12 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:characters/characters.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_limits.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_zip_envelope.dart';
+import 'package:craftsky_app/instagram_migration/services/instagram_zip_reader.dart';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as image;
 import 'package:image_size_getter/image_size_getter.dart' as dimensions;
@@ -19,7 +18,6 @@ import 'package:path/path.dart' as path;
 import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
 part 'instagram_post_archive_records.dart';
-part 'instagram_post_archive_zip.dart';
 
 const int _maxCandidateBytes = 32 * 1024 * 1024;
 const int _maxCombinedCandidateBytes = 128 * 1024 * 1024;
@@ -65,7 +63,7 @@ final class InstagramArchiveMedia {
   const new _(this.kind, this._entry);
 
   final InstagramArchiveMediaKind kind;
-  final _ZipEntry? _entry;
+  final InstagramZipEntry? _entry;
 
   bool get available => _entry != null;
 }
@@ -152,17 +150,42 @@ final class InstagramPostArchiveReader {
 
   Future<Uint8List?> preview(
     InstagramPostArchive archive,
-    InstagramArchivePost post,
-  ) async {
+    InstagramArchivePost post, {
+    String? temporaryDirectory,
+    Future<Uint8List?> Function(Uri)? loadVideoFrame,
+  }) async {
     if (!archive.posts.contains(post)) return null;
+    var photoAttempts = 0;
     for (final item in post.media) {
       final entry = item._entry;
       if (item.kind != InstagramArchiveMediaKind.photo || entry == null) {
         continue;
       }
-      return await _previewInIsolate(_source(archive), entry);
+      if (photoAttempts++ == defaultMaxPostImages) break;
+      final thumbnail = await _previewInIsolate(_source(archive), entry);
+      if (thumbnail != null) return thumbnail;
     }
-    return null;
+    if (loadVideoFrame == null) return null;
+    final videoIndex = post.media.indexWhere(
+      (item) => item.kind == InstagramArchiveMediaKind.video && item.available,
+    );
+    if (videoIndex < 0) return null;
+    try {
+      final extracted = await extract(
+        archive,
+        post,
+        [videoIndex],
+        temporaryDirectory: temporaryDirectory,
+      );
+      try {
+        final video = extracted.video;
+        return video == null ? null : await loadVideoFrame(Uri.file(video));
+      } finally {
+        await extracted.dispose();
+      }
+    } on InstagramPostArchiveException {
+      return null;
+    }
   }
 }
 
@@ -213,7 +236,7 @@ Future<InstagramExtractedMedia> _extractInIsolate(
 
 Future<Uint8List?> _previewInIsolate(
   _ArchiveSource source,
-  _ZipEntry entry,
+  InstagramZipEntry entry,
 ) => Isolate.run(() {
   try {
     _checkSource(source);
@@ -241,6 +264,16 @@ T _guardArchive<T>(T Function() read) {
     return read();
   } on InstagramPostArchiveException {
     rethrow;
+  } on InstagramImportParseException catch (error) {
+    throw InstagramPostArchiveException(switch (error.code) {
+      InstagramImportParseErrorCode.archiveTooLarge =>
+        InstagramPostArchiveError.archiveTooLarge,
+      InstagramImportParseErrorCode.fileTooLarge =>
+        InstagramPostArchiveError.mediaTooLarge,
+      InstagramImportParseErrorCode.unsupportedFormat =>
+        InstagramPostArchiveError.unsupportedArchive,
+      _ => InstagramPostArchiveError.invalidArchive,
+    });
   } on Object {
     throw const InstagramPostArchiveException(
       InstagramPostArchiveError.invalidArchive,
@@ -250,12 +283,23 @@ T _guardArchive<T>(T Function() read) {
 
 InstagramPostArchive _readArchive(String filePath) => _guardArchive(() {
   final stat = FileStat.statSync(filePath);
-  final entries = _readDirectory(filePath, stat.size);
-  final byName = <String, _ZipEntry>{};
+  final entries = readInstagramZipDirectory(
+    filePath,
+    stat.size,
+    instagramMaxArchiveEntries,
+    instagramMaxCentralDirectoryBytes,
+  );
+  final byName = <String, InstagramZipEntry>{};
   final ambiguousNames = <String>{};
-  final candidates = <({String wrapper, bool detailed, _ZipEntry entry})>[];
+  final candidates =
+      <({String wrapper, bool detailed, InstagramZipEntry entry})>[];
   for (final entry in entries) {
-    if (!_isSafePath(entry.name)) continue;
+    if (!entry.hasSupportedEncoding) {
+      throw const InstagramPostArchiveException(
+        InstagramPostArchiveError.unsupportedArchive,
+      );
+    }
+    if (entry.isDirectory || !_isSafePath(entry.name)) continue;
     final key = _comparisonPath(entry.name);
     final previous = byName[key];
     final metadata = _matchMetadataPath(entry.name);
@@ -302,7 +346,7 @@ InstagramPostArchive _readArchive(String filePath) => _guardArchive(() {
         InstagramPostArchiveError.archiveTooLarge,
       );
     }
-    final bytes = _readEntryBytes(filePath, candidate.entry);
+    final bytes = candidate.entry.readBytes(filePath, _maxCandidateBytes);
     final data = jsonDecode(utf8.decode(bytes));
     final result = _parseRecords(data, detailed: candidate.detailed);
     records.addAll(result.posts);
@@ -359,7 +403,7 @@ InstagramPostArchive _readArchive(String filePath) => _guardArchive(() {
       final name = '$wrapper${sourceMedia.path}';
       final canonicalName = _comparisonPath(name);
       final entry = byName[canonicalName];
-      _ZipEntry? available;
+      InstagramZipEntry? available;
       if (sourceMedia.kind == InstagramArchiveMediaKind.unsupported) {
         warnings.add(InstagramArchiveWarning.unsupportedMedia);
       } else if (entry == null ||
@@ -449,7 +493,7 @@ InstagramExtractedMedia _extract(
         // abort the extraction.
         if (!allowPartial ||
             (error is! InstagramPostArchiveException &&
-                error is! ArchiveException &&
+                error is! InstagramImportParseException &&
                 error is! FormatException)) {
           rethrow;
         }
@@ -473,17 +517,13 @@ InstagramExtractedMedia _extract(
   }
 }
 
-String _extractVideo(String archive, _ZipEntry entry, Directory directory) {
+String _extractVideo(
+  String archive,
+  InstagramZipEntry entry,
+  Directory directory,
+) {
   final temp = File(path.join(directory.path, 'video'));
-  final output = _EntryOutput(
-    entry.size,
-    file: temp.openSync(mode: FileMode.write),
-  );
-  try {
-    _readEntry(archive, entry, output);
-  } finally {
-    output.closeSync();
-  }
+  entry.writeToFile(archive, temp, maxVideoSourceBytes);
   final input = temp.openSync();
   final Uint8List header;
   try {
@@ -503,8 +543,8 @@ String _extractVideo(String archive, _ZipEntry entry, Directory directory) {
 
 typedef _Photo = ({Uint8List bytes, String extension});
 
-_Photo _readPhoto(String path, _ZipEntry entry) {
-  final bytes = _readEntryBytes(path, entry);
+_Photo _readPhoto(String path, InstagramZipEntry entry) {
+  final bytes = entry.readBytes(path, _maxPhotoBytes);
   try {
     switch (lookupMimeType('', headerBytes: bytes)) {
       case 'image/jpeg':

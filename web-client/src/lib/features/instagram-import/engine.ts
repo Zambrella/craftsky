@@ -1,6 +1,5 @@
 import {
 	BlobReader,
-	Writer,
 	ZipReader,
 	registerCodec,
 	type FileEntry
@@ -14,6 +13,9 @@ import {
 } from './paths';
 import { inspectZipEnvelope } from './zipEnvelope';
 import { inspectImageHeader } from './image-header';
+import { ExactZipEntryWriter } from './zip-entry-writer';
+import { postLimits, videoSourceMime } from '../composer/limits';
+import { graphemeBoundary } from '#lib/text.ts';
 import { Bzip2DecompressionStream } from '../settings/bzip-stream';
 import { bzipLimits } from '../settings/bzip-limits';
 registerCodec({
@@ -29,38 +31,11 @@ import {
 import { normalizeSourceTimestamp } from './timestamps';
 import type {
 	AdapterPost,
-	InstagramArchive,
+	InstagramArchiveSource,
 	InstagramPost,
 	MediaSelection
 } from './types';
 
-/** Allocate only the declared bounded entry length; reject dishonest decompressed output. */
-class BoundedWriter extends Writer<Uint8Array> {
-	private bytes: Uint8Array<ArrayBuffer> = new Uint8Array();
-	private offset = 0;
-	constructor(private maximum: number) {
-		super();
-	}
-	override async init(size = 0) {
-		if (!Number.isSafeInteger(size) || size < 0 || size > this.maximum)
-			throw new Error('entryLimit');
-		this.bytes = new Uint8Array(size);
-		await super.init?.(size);
-	}
-	override async writeUint8Array(chunk: Uint8Array) {
-		if (
-			this.offset + chunk.length > this.bytes.length ||
-			this.offset + chunk.length > this.maximum
-		)
-			throw new Error('entryLimit');
-		this.bytes.set(chunk, this.offset);
-		this.offset += chunk.length;
-	}
-	override async getData() {
-		if (this.offset !== this.bytes.length) throw new Error('invalidArchive');
-		return this.bytes;
-	}
-}
 function bounded(entry: FileEntry, maximum: number) {
 	if (
 		entry.compressionMethod === 12 &&
@@ -83,7 +58,7 @@ function bounded(entry: FileEntry, maximum: number) {
 async function read(entry: FileEntry, maximum: number, signal?: AbortSignal) {
 	signal?.throwIfAborted();
 	bounded(entry, maximum);
-	return entry.getData(new BoundedWriter(maximum), {
+	return entry.getData(new ExactZipEntryWriter(maximum), {
 		signal,
 		checkSignature: true,
 		checkOverlappingEntry: true,
@@ -95,15 +70,12 @@ function comparison(path: string) {
 	return path.normalize('NFKC').toLocaleLowerCase('en-US');
 }
 function caption(input: string): string {
-	if (
-		!/(?:Ã.|Â.|â.|ð.|�)/.test(input) ||
-		[...input].some((c) => c.charCodeAt(0) > 255)
-	)
+	if (!/(?:Ã.|Â.|â.|ð.)/.test(input) || /[\u0100-\uffff]/.test(input))
 		return input;
+	const bytes = new Uint8Array(input.length);
+	for (let i = 0; i < input.length; i++) bytes[i] = input.charCodeAt(i);
 	try {
-		return new TextDecoder('utf-8', { fatal: true }).decode(
-			Uint8Array.from([...input], (c) => c.charCodeAt(0))
-		);
+		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 	} catch {
 		return input;
 	}
@@ -126,19 +98,12 @@ export async function sourceIdentity(
 		.join('')
 		.slice(0, 32);
 }
-function videoMime(bytes: Uint8Array): string | undefined {
-	const tag = new TextDecoder('ascii').decode(bytes.subarray(4, 12));
-	if (tag === 'ftypqt  ') return 'video/quicktime';
-	if (['ftypisom', 'ftypmp41', 'ftypmp42', 'ftypavc1'].includes(tag))
-		return 'video/mp4';
-}
-
 /** Runs in a dedicated worker in production. No archive or source payload is persisted or sent. */
 export async function inspectInstagramArchive(
 	file: Blob,
 	signal?: AbortSignal,
 	now = new Date()
-): Promise<InstagramArchive> {
+): Promise<InstagramArchiveSource> {
 	const envelope = await inspectZipEnvelope(file);
 	signal?.throwIfAborted();
 	const reader = new ZipReader(new BlobReader(file), {
@@ -189,6 +154,10 @@ export async function inspectInstagramArchive(
 		if (!candidates.length) throw new Error('postsMissing');
 		if (new Set(candidates.map((c) => c.wrapper)).size !== 1)
 			throw new Error('ambiguousArchive');
+		const mediaEntry = (path: string) => {
+			const resolved = resolveArchiveMediaPath(candidates[0].wrapper, path);
+			if (!ambiguous.has(comparison(resolved))) return entries.get(resolved);
+		};
 		let total = 0;
 		let skipped = 0;
 		let recognized = 0;
@@ -208,9 +177,9 @@ export async function inspectInstagramArchive(
 					: parseDetailedExport(data);
 			recognized += result.recognizedPostRecords;
 			skipped += result.skipped.length;
-			parsed.push(...result.posts);
-			if (parsed.length + skipped > limits.maxPosts)
+			if (parsed.length + result.posts.length + skipped > limits.maxPosts)
 				throw new Error('postLimit');
+			for (const post of result.posts) parsed.push(post);
 		}
 		if (!recognized) throw new Error('unsupportedPosts');
 		const merged = mergeAdapterPosts(parsed);
@@ -231,14 +200,14 @@ export async function inspectInstagramArchive(
 			const text = caption(post.caption);
 			const warnings: string[] = [];
 			if (
-				[...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(text)]
-					.length > 2000 ||
-				new TextEncoder().encode(text).length > 20000
+				text.length > postLimits.text.bytes ||
+				graphemeBoundary(text, postLimits.text.graphemes) < text.length ||
+				new TextEncoder().encode(text).length > postLimits.text.bytes
 			)
 				warnings.push(
 					'The caption exceeds the 2,000-character limit. Edit it before posting.'
 				);
-			if (imageCount > 8)
+			if (imageCount > postLimits.imageCount)
 				warnings.push('Choose up to eight images for this post.');
 			if (videoCount > 1) warnings.push('Choose one video for this post.');
 			if (imageCount && videoCount)
@@ -248,13 +217,15 @@ export async function inspectInstagramArchive(
 			if (post.media.some((m) => m.kind === 'unsupported'))
 				warnings.push('Some media formats cannot be imported.');
 			for (const media of post.media) {
-				const path = resolveArchiveMediaPath(candidates[0].wrapper, media.path);
-				const entry = entries.get(path);
-				if (!entry || ambiguous.has(comparison(path))) {
+				const entry = mediaEntry(media.path);
+				if (!entry) {
 					warnings.push('Some media files are missing or ambiguous.');
 					break;
 				}
-				const max = media.kind === 'video' ? 300_000_000 : 40_000_000;
+				const max =
+					media.kind === 'video'
+						? postLimits.videoSourceBytes
+						: postLimits.imageSourceBytes;
 				try {
 					bounded(entry, max);
 				} catch {
@@ -275,6 +246,36 @@ export async function inspectInstagramArchive(
 			});
 		}
 		let closed = false;
+		const readMedia = async (
+			entry: FileEntry,
+			kind: 'image' | 'video',
+			index: number,
+			abort?: AbortSignal
+		) => {
+			const bytes = await read(
+				entry,
+				kind === 'video'
+					? postLimits.videoSourceBytes
+					: postLimits.imageSourceBytes,
+				abort
+			);
+			abort?.throwIfAborted();
+			const mime =
+				kind === 'video'
+					? videoSourceMime(bytes)
+					: inspectImageHeader(bytes).mime;
+			if (!mime) throw new Error('mediaFormat');
+			// Use neutral file names; the archive path is not needed outside this worker.
+			const extension =
+				mime === 'image/jpeg'
+					? 'jpg'
+					: mime === 'video/quicktime'
+						? 'mov'
+						: mime.split('/')[1];
+			return new File([bytes], `Instagram ${kind} ${index + 1}.${extension}`, {
+				type: mime
+			});
+		};
 		const media = async (
 			post: InstagramPost,
 			abort?: AbortSignal,
@@ -295,10 +296,10 @@ export async function inspectInstagramArchive(
 			const indices =
 				selection?.indices ??
 				candidatesMedia
-					.slice(0, kind === 'video' ? 1 : 8)
+					.slice(0, kind === 'video' ? 1 : postLimits.imageCount)
 					.map((_, index) => index);
 			if (
-				indices.length > (kind === 'video' ? 1 : 8) ||
+				indices.length > (kind === 'video' ? 1 : postLimits.imageCount) ||
 				new Set(indices).size !== indices.length ||
 				indices.some(
 					(index) =>
@@ -313,38 +314,13 @@ export async function inspectInstagramArchive(
 				videos: []
 			};
 			for (const index of indices) {
-				abort?.throwIfAborted();
-				const chosen = candidatesMedia[index];
-				const path = resolveArchiveMediaPath(
-					candidates[0].wrapper,
-					chosen.path
-				);
-				const entry = entries.get(path);
-				if (!entry || ambiguous.has(comparison(path)))
-					throw new Error('mediaMissing');
-				const bytes = await read(
+				const entry = mediaEntry(candidatesMedia[index].path);
+				if (!entry) throw new Error('mediaMissing');
+				const file = await readMedia(
 					entry,
-					kind === 'video' ? 300_000_000 : 40_000_000,
+					kind === 'video' ? 'video' : 'image',
+					index,
 					abort
-				);
-				const mime =
-					kind === 'video' ? videoMime(bytes) : inspectImageHeader(bytes).mime;
-				if (!mime) throw new Error('mediaFormat');
-				// Use neutral file names; the archive path is not needed outside this worker.
-				const extension =
-					mime === 'image/jpeg'
-						? 'jpg'
-						: mime === 'image/png'
-							? 'png'
-							: mime === 'image/webp'
-								? 'webp'
-								: mime === 'video/quicktime'
-									? 'mov'
-									: 'mp4';
-				const file = new File(
-					[bytes as Uint8Array<ArrayBuffer>],
-					`Instagram ${kind === 'video' ? 'video' : 'image'} ${index + 1}.${extension}`,
-					{ type: mime }
 				);
 				(kind === 'video' ? result.videos : result.images).push(file);
 			}
@@ -354,37 +330,26 @@ export async function inspectInstagramArchive(
 			posts,
 			skipped,
 			media,
-			async preview(post, abort) {
-				if (!post.imageCount) return;
-				const selected = await media(post, abort, {
-					kind: 'images',
-					indices: [0]
-				});
-				const bitmap = await createImageBitmap(selected.images[0]);
-				try {
-					if (
-						bitmap.width > limits.maxDimension ||
-						bitmap.height > limits.maxDimension ||
-						bitmap.width * bitmap.height > limits.maxDecodedPixels
-					)
-						return;
-					const scale = Math.min(
-						1,
-						160 / Math.max(bitmap.width, bitmap.height)
-					);
-					const canvas = new OffscreenCanvas(
-						Math.max(1, Math.round(bitmap.width * scale)),
-						Math.max(1, Math.round(bitmap.height * scale))
-					);
-					canvas
-						.getContext('2d')
-						?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-					return await canvas.convertToBlob({
-						type: 'image/jpeg',
-						quality: 0.75
-					});
-				} finally {
-					bitmap.close();
+			async previewSource(post, abort) {
+				if (closed) throw new Error('archiveClosed');
+				const original = source.get(post.sourceKey);
+				if (!original) throw new Error('unknownPost');
+				for (const kind of ['image', 'video'] as const) {
+					const maxAttempts = kind === 'image' ? postLimits.imageCount : 1;
+					let attempts = 0;
+					for (const [index, attachment] of original.media.entries()) {
+						abort?.throwIfAborted();
+						if (attachment.kind !== kind) continue;
+						const entry = mediaEntry(attachment.path);
+						if (!entry) continue;
+						if (attempts === maxAttempts) break;
+						attempts++;
+						try {
+							return await readMedia(entry, kind, index, abort);
+						} catch {
+							abort?.throwIfAborted();
+						}
+					}
 				}
 			},
 			close() {

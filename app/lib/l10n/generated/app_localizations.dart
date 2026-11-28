@@ -5074,6 +5074,24 @@ abstract class AppLocalizations {
   /// **'Instagram account'**
   String get instagramAccountTitle;
 
+  /// No description provided for @instagramManageAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage account'**
+  String get instagramManageAccount;
+
+  /// No description provided for @instagramVerificationUnavailableLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram verification is temporarily unavailable. Your saved account and imports are still available.'**
+  String get instagramVerificationUnavailableLinked;
+
+  /// No description provided for @instagramImportAccountBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve your Instagram account issue before starting a new import.'**
+  String get instagramImportAccountBlocked;
+
   /// No description provided for @instagramPostImportAlreadyPublished.
   ///
   /// In en, this message translates to:
@@ -5109,6 +5127,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There is a private account conflict to resolve. No ownership was transferred.'**
   String get instagramConflictPending;
+
+  /// No description provided for @instagramAccountReactivationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactivate your Instagram account to start a new import.'**
+  String get instagramAccountReactivationRequired;
 
   /// No description provided for @instagramReactivateAccount.
   ///
@@ -5146,47 +5170,29 @@ abstract class AppLocalizations {
   /// **'Import accounts you follow'**
   String get instagramImportTitle;
 
-  /// No description provided for @instagramImportManual.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter handles'**
-  String get instagramImportManual;
-
-  /// No description provided for @instagramImportManualDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter the Instagram handles of accounts you follow, one per line.'**
-  String get instagramImportManualDescription;
-
-  /// No description provided for @instagramImportJson.
-  ///
-  /// In en, this message translates to:
-  /// **'Instagram export'**
-  String get instagramImportJson;
-
   /// No description provided for @instagramImportJsonDescription.
   ///
   /// In en, this message translates to:
   /// **'Choose JSON format and All time when exporting from Instagram, then select the downloaded ZIP here. CraftSky processes it on this device and uploads only the usernames of accounts you follow. Everything else stays on your device.'**
   String get instagramImportJsonDescription;
 
-  /// Link to CraftSky's website guide for exporting Instagram following data.
+  /// Accessible label for the link to CraftSky's Instagram following export guide.
   ///
   /// In en, this message translates to:
   /// **'How to export your Instagram following'**
   String get instagramImportHelp;
 
+  /// Visible label for the compact Instagram following export guide button.
+  ///
+  /// In en, this message translates to:
+  /// **'How to export'**
+  String get instagramImportHelpShort;
+
   /// No description provided for @instagramPostImportTitle.
   ///
   /// In en, this message translates to:
-  /// **'Import posts and projects'**
+  /// **'Import posts'**
   String get instagramPostImportTitle;
-
-  /// No description provided for @instagramPostImportIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Review your Instagram posts and choose which ones to publish on CraftSky.'**
-  String get instagramPostImportIntro;
 
   /// No description provided for @instagramPostImportInstructions.
   ///
@@ -5205,12 +5211,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Verify or reactivate your Instagram account to import posts and projects.'**
   String get instagramPostImportVerificationRequired;
-
-  /// No description provided for @instagramPostImportChooseZip.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose Instagram ZIP'**
-  String get instagramPostImportChooseZip;
 
   /// No description provided for @instagramPostImportClear.
   ///
@@ -5432,24 +5432,6 @@ abstract class AppLocalizations {
   /// **'Some media is missing, unsupported or too large to import.'**
   String get instagramPostImportUnavailableMedia;
 
-  /// No description provided for @instagramImportHandles.
-  ///
-  /// In en, this message translates to:
-  /// **'Instagram handles'**
-  String get instagramImportHandles;
-
-  /// No description provided for @instagramImportHandlesHint.
-  ///
-  /// In en, this message translates to:
-  /// **'One handle per line'**
-  String get instagramImportHandlesHint;
-
-  /// No description provided for @instagramImportManualAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Import handles'**
-  String get instagramImportManualAction;
-
   /// No description provided for @instagramImportSelectJson.
   ///
   /// In en, this message translates to:
@@ -5603,7 +5585,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramSuggestionsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Possible CraftSky accounts'**
+  /// **'Suggested accounts'**
   String get instagramSuggestionsTitle;
 
   /// No description provided for @instagramSuggestionsDescription.
@@ -5623,6 +5605,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No possible CraftSky accounts yet.'**
   String get instagramSuggestionsEmpty;
+
+  /// No description provided for @instagramSuggestionsEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Import the accounts you follow on Instagram to look for matches.'**
+  String get instagramSuggestionsEmptyHint;
 
   /// No description provided for @instagramSuggestionFollow.
   ///

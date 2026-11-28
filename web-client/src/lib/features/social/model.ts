@@ -44,7 +44,8 @@ export function publicPost(post: Post): PublicPost {
 		images: post.images || [],
 		project: post.project,
 		video: post.video,
-		sponsored: post.sponsored
+		sponsored: post.sponsored,
+		externalImport: post.externalImport
 	};
 }
 export function safeLink(raw: string) {

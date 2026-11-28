@@ -51,6 +51,10 @@ class RouteLocations {
   static const productsChild = 'products';
   static const eventsChild = 'events';
   static const instagramMigrationChild = 'instagram';
+  static const instagramPostImportChild = 'posts';
+  static const instagramFollowingImportChild = 'following';
+  static const instagramSuggestionsChild = 'suggestions';
+  static const instagramAccountChild = 'account';
   static const scheduledPosts = '/scheduled';
   static const drafts = '/drafts';
   static const savedPosts = '/saved';

@@ -36,10 +36,8 @@ type RelationshipSafetyProvider interface {
 }
 
 // PostgresInstagramSuggestionEligibilityPolicy gathers every currently
-// available membership, identity, follow, and moderation fact and then calls
-// the one pure policy used at every stage. Relationship block/mute data has no
-// production source in the repository yet, so a nil or failing provider is
-// deliberately represented as unavailable and the decision fails closed.
+// available membership, identity, follow, moderation, and relationship fact
+// and calls the one pure policy used at every stage.
 type PostgresInstagramSuggestionEligibilityPolicy struct {
 	pool   *pgxpool.Pool
 	safety RelationshipSafetyProvider
@@ -88,13 +86,6 @@ func (p *PostgresInstagramSuggestionEligibilityPolicy) Evaluate(ctx context.Cont
 	if err != nil {
 		return EligibilityDecision{}, err
 	}
-	safety := RelationshipSafetyFacts{}
-	if p.safety != nil {
-		facts, err := p.safety.RelationshipSafety(ctx, request.ImporterDID, request.TargetDID)
-		if err == nil {
-			safety = facts
-		}
-	}
 	snapshot := EligibilitySnapshot{
 		ImporterCurrentMember: importerMember,
 		TargetCurrentMember:   targetMember,
@@ -108,11 +99,24 @@ func (p *PostgresInstagramSuggestionEligibilityPolicy) Evaluate(ctx context.Cont
 		AlreadyFollowing:      alreadyFollow,
 		TargetHidden:          hidden,
 		TargetTakenDown:       takenDown,
-		ImporterBlocksTarget:  safety.ImporterBlocksTarget,
-		TargetBlocksImporter:  safety.TargetBlocksImporter,
-		ImporterMutesTarget:   safety.ImporterMutesTarget,
-		SafetyDataAvailable:   safety.Available,
 	}
+	decision := EvaluateInstagramSuggestionEligibility(stage, snapshot)
+	if decision.Reason != EligibilitySafetyUnavailable || p.safety == nil {
+		return decision, nil
+	}
+	safety, err := p.safety.RelationshipSafety(ctx, request.ImporterDID, request.TargetDID)
+	if err != nil {
+		// A background matcher can retry the job when relationship data is
+		// temporarily unavailable. Foreground reads continue to fail closed.
+		if stage == EligibilityAtMatch || stage == EligibilityAtPersist {
+			return decision, err
+		}
+		return decision, nil
+	}
+	snapshot.ImporterBlocksTarget = safety.ImporterBlocksTarget
+	snapshot.TargetBlocksImporter = safety.TargetBlocksImporter
+	snapshot.ImporterMutesTarget = safety.ImporterMutesTarget
+	snapshot.SafetyDataAvailable = safety.Available
 	return EvaluateInstagramSuggestionEligibility(stage, snapshot), nil
 }
 

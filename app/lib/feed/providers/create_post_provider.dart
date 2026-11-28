@@ -251,8 +251,12 @@ class CreatePost extends _$CreatePost {
           },
           workflow: operationOwnership == null
               ? null
-              : PublicRecordContext(
+              : instagramImport == null
+              ? PublicRecordContext(
                   actorDid: operationOwnership.session.account.did.value,
+                )
+              : PrivateOperationalFailureContext(
+                  accountDid: operationOwnership.session.account.did.value,
                 ),
         );
         final message = DiagnosticMessage(
@@ -359,7 +363,9 @@ class CreatePost extends _$CreatePost {
     ApiBadRequest(details: ApiFailureDetails(statusCode: 403 || 429)) => false,
     ApiBadRequest() => true,
     ApiServerError(
-      details: ApiFailureDetails(appViewError: 'video_blob_missing'),
+      details: ApiFailureDetails(
+        appViewError: 'video_blob_missing' || 'pds_write_rejected',
+      ),
     ) =>
       true,
     _ => false,

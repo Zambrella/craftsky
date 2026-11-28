@@ -131,9 +131,9 @@ function combineMedia(values: readonly unknown[]): ParsedMedia {
 	let rejectedReferences = false;
 	for (const value of values) {
 		const parsed = parseMedia(value);
-		media.push(...parsed.media);
-		timestamps.push(...parsed.timestamps);
-		titles.push(...parsed.titles);
+		for (const attachment of parsed.media) media.push(attachment);
+		for (const timestamp of parsed.timestamps) timestamps.push(timestamp);
+		for (const title of parsed.titles) titles.push(title);
 		acceptedReferences += parsed.acceptedReferences;
 		rejectedReferences ||= parsed.rejectedReferences;
 	}
@@ -170,7 +170,10 @@ function earliestTimestamp(
 	...candidateGroups: readonly (readonly number[])[]
 ): number | undefined {
 	for (const candidates of candidateGroups) {
-		if (candidates.length > 0) return Math.min(...candidates);
+		if (candidates.length > 0)
+			return candidates.reduce((earliest, timestamp) =>
+				Math.min(earliest, timestamp)
+			);
 	}
 	return undefined;
 }
@@ -229,7 +232,7 @@ export function parseLegacyExport(value: unknown): AdapterParseResult {
 		posts.push({
 			variant: 'legacy',
 			timestamp: sourceTimestamp,
-			caption: firstString([raw.title, ...parsedMedia.titles]),
+			caption: firstString([raw.title]) || parsedMedia.titles[0] || '',
 			media: parsedMedia.media
 		});
 	}

@@ -118,6 +118,10 @@ type ReplayCommand struct {
 	Result          CommandResult
 }
 
+func (replay ReplayCommand) MatchesIntent(intent json.RawMessage) (bool, error) {
+	return equalCanonicalJSON(replay.Intent, intent)
+}
+
 func (store *Store) LookupCommand(ctx context.Context, owner syntax.DID, kind string, key uuid.UUID) (*ReplayCommand, error) {
 	var replay ReplayCommand
 	var commandID uuid.UUID
@@ -425,6 +429,10 @@ func lockScopedCommandKey(ctx context.Context, tx pgx.Tx, owner syntax.DID, oper
 }
 
 func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan ExactPlan) (DispatchAttempt, error) {
+	return store.beginDispatch(ctx, commandID, plan, nil)
+}
+
+func (store *Store) beginDispatch(ctx context.Context, commandID uuid.UUID, plan ExactPlan, authorize func(context.Context, pgx.Tx) error) (DispatchAttempt, error) {
 	if commandID == uuid.Nil || plan.Version < 1 || plan.FingerprintVersion < 1 || len(plan.Steps) == 0 {
 		return DispatchAttempt{}, errors.New("invalid exact dispatch plan")
 	}
@@ -506,6 +514,9 @@ func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan
 			WHERE id=$1
 		`, commandID, plan.Version, now); err != nil {
 			return fmt.Errorf("mark PDS command dispatching: %w", err)
+		}
+		if authorize != nil {
+			return authorize(ctx, tx)
 		}
 		return nil
 	})

@@ -10,7 +10,7 @@ import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/instagram_post_import_source.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
-import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
+import 'package:craftsky_app/feed/widgets/local_video_preview_resource.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_published_import.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_account_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -21,21 +21,20 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/consumed_failure.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
-
-bool canImportInstagramPosts(InstagramAccountLink? link) =>
-    link != null &&
-    link.state == InstagramAccountLinkState.active &&
-    !link.conflictPending &&
-    !link.reactivationRequired;
 
 enum _Work { reading, checking, preparing }
 
@@ -67,12 +66,17 @@ class _InstagramPostImportPageState
   _Failure? _failure;
   int _limit = _pageSize;
 
-  bool get _current =>
-      mounted &&
-      ActiveAccountOperation.fromWidget(ref, widget.lease).isCurrent &&
-      canImportInstagramPosts(
-        ref.read(instagramAccountProvider(widget.lease)).value?.account,
-      );
+  bool get _current {
+    if (!mounted ||
+        !ActiveAccountOperation.fromWidget(ref, widget.lease).isCurrent) {
+      return false;
+    }
+    final link = ref
+        .read(instagramAccountProvider(widget.lease))
+        .value
+        ?.account;
+    return link?.allowsImport ?? false;
+  }
 
   List<InstagramArchivePost> get _shown =>
       _archive?.posts.take(_limit).toList() ?? const [];
@@ -147,27 +151,43 @@ class _InstagramPostImportPageState
   }
 
   Future<bool> _check(List<InstagramArchivePost> posts) async {
-    if (!_current) return false;
+    final archive = _archive;
+    bool reviewIsCurrent() => _current && _archive == archive;
+    if (archive == null || !reviewIsCurrent()) return false;
     if (posts.isEmpty) return true;
     final reporter = ref.read(errorReporterProvider);
     final did = widget.lease.session.account.did;
+    final keys = posts.map((post) => post.sourceKey).toList();
+    _checkedKeys.removeAll(keys);
     setState(() => _work = _Work.checking);
     try {
       final repository = await ref.read(
         instagramMigrationRepositoryProvider(widget.lease).future,
       );
-      if (!_current) return false;
-      final keys = posts.map((post) => post.sourceKey).toList();
+      if (!reviewIsCurrent()) return false;
       // AppView accepts at most 100 fingerprints in a lookup.
       for (var offset = 0; offset < keys.length; offset += 100) {
         final batch = keys.skip(offset).take(100).toList();
-        _checkedKeys.removeAll(batch);
         final items = await repository.lookupPostImports(batch);
-        if (!_current) return false;
+        if (!reviewIsCurrent()) return false;
+        if (items.any(
+          (item) => parseCraftskyPostUri(item.uri)?.did != did,
+        )) {
+          throw const DiagnosticFormatException(
+            'Unexpected Instagram import post owner',
+          );
+        }
+        final results = {for (final item in items) item.sourceKey: item};
         setState(() {
           _checkedKeys.addAll(batch);
-          for (final item in items) {
-            _published[item.sourceKey] = item;
+          for (final key in batch) {
+            final item = results[key];
+            if (item == null) {
+              _published.remove(key);
+            } else {
+              _published[key] = item;
+            }
+            if (_accepted[key]?.uri != item?.uri) _accepted.remove(key);
           }
         });
       }
@@ -181,19 +201,26 @@ class _InstagramPostImportPageState
         operation: 'history.lookup',
         accountDid: did,
       );
-      if (_current) setState(() => _failure = _Failure.lookup);
+      if (reviewIsCurrent()) setState(() => _failure = _Failure.lookup);
       return false;
     }
   }
 
-  Future<void> _refresh({bool more = false}) async {
-    if (!_current || _work != null) return;
+  Future<void> _refresh({
+    bool more = false,
+    bool recheckVisible = false,
+  }) async {
+    if (!_current || _archive == null || _work != null) return;
     _start(_Work.checking);
     if (more) setState(() => _limit += _pageSize);
     try {
-      await _check(
-        _shown.where((post) => !_checkedKeys.contains(post.sourceKey)).toList(),
-      );
+      final shown = _shown;
+      final posts = recheckVisible
+          ? shown
+          : shown
+                .where((post) => !_checkedKeys.contains(post.sourceKey))
+                .toList();
+      await _check(posts);
     } finally {
       _finish();
     }
@@ -329,29 +356,41 @@ class _InstagramPostImportPageState
   Future<Uint8List?> _preview(
     InstagramPostArchive archive,
     InstagramArchivePost post,
+    bool Function() thumbnailIsMounted,
   ) {
-    // At most one thumbnail is decoded at a time. List rows drop their image
-    // providers when recycled, so large exports stay bounded.
+    // Prepare at most one thumbnail at a time and drop queued work when the
+    // list recycles a row before extraction has started.
+    bool needsPreview() =>
+        thumbnailIsMounted() && _current && _archive == archive;
     final next = _previewTail.then((_) async {
-      if (!_current || _archive != archive) return null;
-      final bytes = await _reader.preview(archive, post);
-      return _current && _archive == archive ? bytes : null;
+      final file = _file;
+      if (file == null || !needsPreview()) return null;
+      final bytes = await _reader.preview(
+        archive,
+        post,
+        temporaryDirectory: file.directory.path,
+        loadVideoFrame: (uri) async {
+          if (!needsPreview()) return null;
+          return await readLocalVideoFrameAt(uri, Duration.zero);
+        },
+      );
+      return needsPreview() ? bytes : null;
     });
     _previewTail = next.then((_) {}, onError: (Object _, StackTrace _) {});
     return next;
   }
 
-  void _view(InstagramPublishedImport item) {
-    if (!_current) return;
+  Future<void> _view(InstagramPublishedImport item) async {
+    final archive = _archive;
+    if (!_current || archive == null || _work != null) return;
     final parts = parseCraftskyPostUri(item.uri);
     if (parts == null || parts.did != widget.lease.session.account.did) return;
-    unawaited(
-      PostThreadRoute(
-        did: parts.did,
-        rkey: parts.rkey,
-        $extra: _accepted[item.sourceKey],
-      ).push<void>(context),
-    );
+    await PostThreadRoute(
+      did: parts.did,
+      rkey: parts.rkey,
+      $extra: _accepted[item.sourceKey],
+    ).push<void>(context);
+    if (_archive == archive) await _refresh(recheckVisible: true);
   }
 
   @override
@@ -359,6 +398,27 @@ class _InstagramPostImportPageState
     final l10n = AppLocalizations.of(context);
     final registry = ref.watch(sessionRegistryProvider);
     final account = ref.watch(instagramAccountProvider(widget.lease));
+    final current = registry.value?.isCurrent(widget.lease) ?? false;
+    if (account case AsyncData(:final value)
+        when current &&
+            value.account == null &&
+            TickerMode.valuesOf(context).enabled &&
+            ModalRoute.isCurrentOf(context) == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ModalRoute.isCurrentOf(context) != true) return;
+        if (GoRouter.maybeOf(context)?.state.matchedLocation !=
+            const InstagramPostImportRoute().location) {
+          return;
+        }
+        if (!ActiveAccountOperation.fromWidget(ref, widget.lease).isCurrent) {
+          return;
+        }
+        if (ref.read(instagramAccountProvider(widget.lease))
+            case AsyncData(:final value) when value.account == null) {
+          const InstagramMigrationRoute().go(context);
+        }
+      });
+    }
     ref
       ..listen(sessionRegistryProvider, (_, next) {
         if (next.value?.isCurrent(widget.lease) != true && _file != null) {
@@ -367,7 +427,7 @@ class _InstagramPostImportPageState
       })
       ..listen(instagramAccountProvider(widget.lease), (_, next) {
         if (next.hasValue &&
-            !canImportInstagramPosts(next.value?.account) &&
+            next.value?.account?.allowsImport != true &&
             _file != null) {
           _clearArchive();
         }
@@ -375,10 +435,30 @@ class _InstagramPostImportPageState
     return Scaffold(
       appBar: AppBar(title: Text(l10n.instagramPostImportTitle)),
       body: SafeArea(
-        child: switch ((registry.value?.isCurrent(widget.lease), account)) {
+        child: switch ((current, account)) {
           (true, AsyncData(:final value))
-              when canImportInstagramPosts(value.account) =>
+              when value.account?.allowsImport == true =>
             _buildReview(),
+          (true, AsyncData(:final value)) when value.account != null => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.instagramImportAccountBlocked,
+                    textAlign: TextAlign.center,
+                  ),
+                  TextButton(
+                    onPressed: () => unawaited(
+                      const InstagramAccountRoute().push<void>(context),
+                    ),
+                    child: Text(l10n.instagramManageAccount),
+                  ),
+                ],
+              ),
+            ),
+          ),
           (true, AsyncLoading()) => const Center(
             child: StitchProgressIndicator(),
           ),
@@ -414,38 +494,52 @@ class _InstagramPostImportPageState
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),
-        child: ListView.builder(
-          padding: EdgeInsets.all(spacing.sp4),
-          itemCount: shown.length + 2,
-          itemBuilder: (context, index) {
-            if (index == 0) return _buildHeader();
-            if (index == shown.length + 1) {
-              return archive != null && shown.length < archive.posts.length
-                  ? Center(
-                      child: ChunkyButton(
-                        key: const Key('instagram-post-import-more'),
-                        variant: ChunkyButtonVariant.secondary,
-                        onPressed: _work == null
-                            ? () => _refresh(more: true)
-                            : null,
-                        child: Text(l10n.instagramPostImportMore),
-                      ),
-                    )
-                  : const SizedBox.shrink();
-            }
-            final post = shown[index - 1];
-            return Padding(
-              key: ValueKey(post),
-              padding: EdgeInsets.only(bottom: spacing.sp4),
-              child: InstagramPostImportRow(
-                post: post,
-                published: _published[post.sourceKey],
-                loadPreview: () => _preview(archive!, post),
-                onCreate: _work == null ? (kind) => _create(post, kind) : null,
-                onView: _work == null ? _view : null,
+        child: YarnRefreshScrollView(
+          onRefresh: () => _refresh(recheckVisible: true),
+          showSuccess: false,
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.all(spacing.sp4),
+              sliver: SliverList.builder(
+                itemCount: shown.length + 2,
+                itemBuilder: (context, index) {
+                  if (index == 0) return _buildHeader();
+                  if (index == shown.length + 1) {
+                    return archive != null &&
+                            shown.length < archive.posts.length
+                        ? Center(
+                            child: ChunkyButton(
+                              key: const Key('instagram-post-import-more'),
+                              variant: ChunkyButtonVariant.secondary,
+                              onPressed: _work == null
+                                  ? () => _refresh(more: true)
+                                  : null,
+                              child: Text(l10n.instagramPostImportMore),
+                            ),
+                          )
+                        : const SizedBox.shrink();
+                  }
+                  final post = shown[index - 1];
+                  return Padding(
+                    key: ValueKey(post),
+                    padding: EdgeInsets.only(bottom: spacing.sp4),
+                    child: InstagramPostImportRow(
+                      post: post,
+                      published: _published[post.sourceKey],
+                      loadPreview: (isMounted) =>
+                          _preview(archive!, post, isMounted),
+                      onCreate: _work == null
+                          ? (kind) => _create(post, kind)
+                          : null,
+                      onView: _work == null
+                          ? (item) => unawaited(_view(item))
+                          : null,
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -465,69 +559,95 @@ class _InstagramPostImportPageState
     };
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: spacing.sp3,
-        children: [
-          if (archive == null) ...[
-            Text(l10n.instagramPostImportIntro),
-            Text(l10n.instagramPostImportInstructions),
-            Text(l10n.instagramPostImportPrivacy),
-            ChunkyButton(
-              key: const Key('instagram-post-import-select-zip'),
-              onPressed: _work == null ? _pick : null,
-              child: Text(l10n.instagramPostImportChooseZip),
-            ),
-          ] else ...[
-            Text(
-              file!.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium,
-            ),
-            Text(l10n.instagramPostImportCount(archive.posts.length)),
-            if (archive.skipped > 0)
-              Text(l10n.instagramPostImportSkipped(archive.skipped)),
-            TextButton(
-              key: const Key('instagram-post-import-clear'),
-              onPressed: _work == null ? _clearArchive : null,
-              child: Text(l10n.instagramPostImportClear),
-            ),
-            if (archive.posts.isEmpty) Text(l10n.instagramPostImportEmpty),
-          ],
-          if (message != null)
-            Semantics(
-              liveRegion: true,
-              child: Row(
+      child: CraftskyCard(
+        key: const Key('instagram-post-import-card'),
+        padding: EdgeInsets.all(spacing.sp4),
+        clipBehavior: Clip.none,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (archive == null) ...[
+              Text(
+                l10n.instagramPostImportInstructions,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              SizedBox(height: spacing.sp3),
+              FilledButton.icon(
+                key: const Key('instagram-post-import-select-zip'),
+                onPressed: _work == null ? _pick : null,
+                icon: const Icon(CraftskyIconsBold.openFile),
+                label: Text(l10n.instagramImportSelectJson),
+              ),
+              SizedBox(height: spacing.sp2),
+              Text(
+                l10n.instagramPostImportPrivacy,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ] else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: spacing.sp3,
                 children: [
-                  const StitchProgressIndicator(),
-                  Flexible(child: Text(message)),
-                ],
-              ),
-            ),
-          if (_failure case final failure?)
-            Semantics(
-              liveRegion: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
                   Text(
-                    switch (failure) {
-                      _Failure.read => l10n.instagramPostImportReadError,
-                      _Failure.lookup => l10n.instagramPostImportLookupError,
-                    },
-                    style: TextStyle(color: theme.colorScheme.error),
+                    file!.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium,
                   ),
-                  if (failure == _Failure.lookup)
-                    TextButton(
-                      onPressed: _work == null ? _refresh : null,
-                      child: Text(l10n.instagramRetry),
-                    ),
+                  Text(l10n.instagramPostImportCount(archive.posts.length)),
+                  if (archive.skipped > 0)
+                    Text(l10n.instagramPostImportSkipped(archive.skipped)),
+                  TextButton(
+                    key: const Key('instagram-post-import-clear'),
+                    onPressed: _work == null ? _clearArchive : null,
+                    child: Text(l10n.instagramPostImportClear),
+                  ),
+                  if (archive.posts.isEmpty)
+                    Text(l10n.instagramPostImportEmpty),
                 ],
               ),
-            ),
-        ],
+            if (message != null) ...[
+              SizedBox(height: spacing.sp3),
+              Semantics(
+                liveRegion: true,
+                child: Row(
+                  spacing: spacing.sp3,
+                  children: [
+                    const StitchProgressIndicator(),
+                    Flexible(child: Text(message)),
+                  ],
+                ),
+              ),
+            ],
+            if (_failure case final failure?) ...[
+              SizedBox(height: spacing.sp3),
+              Semantics(
+                liveRegion: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      switch (failure) {
+                        _Failure.read => l10n.instagramPostImportReadError,
+                        _Failure.lookup => l10n.instagramPostImportLookupError,
+                      },
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                    if (failure == _Failure.lookup)
+                      TextButton(
+                        onPressed: _work == null ? _refresh : null,
+                        child: Text(l10n.instagramRetry),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

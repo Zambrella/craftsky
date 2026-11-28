@@ -12,14 +12,26 @@ import {
 
 describe('Instagram following imports', () => {
 	it('normalizes usernames without silently treating links as accounts', () => {
+		const values = [
+			' @Maker.One',
+			'maker.one',
+			'MAKER_TWO',
+			'https://instagram.com/unsafe',
+			'invalid name',
+			'maKer'
+		];
 		expect(
 			parseFollowing(
-				' @Maker.One\nmaker.one\nMAKER_TWO\nhttps://instagram.com/unsafe\ninvalid name'
+				JSON.stringify({
+					relationships_following: values.map((value) => ({
+						string_list_data: [{ value }]
+					}))
+				})
 			)
 		).toEqual({
 			entries: [{ username: 'maker.one' }, { username: 'maker_two' }],
 			duplicates: 1,
-			ignored: 2
+			ignored: 3
 		});
 	});
 	it('supports the legacy and current Instagram following exports', () => {
@@ -27,12 +39,12 @@ describe('Instagram following imports', () => {
 			relationships_following: [
 				{ string_list_data: [{ value: 'Maker.One' }] },
 				{
-					title: 'MakerTwo',
-					string_list_data: [{ href: 'https://www.instagram.com/_u/MakerTwo' }]
+					title: ' @MakerTwo ',
+					string_list_data: [{ href: 'https://www.instagram.com/_u/makertwo' }]
 				}
 			]
 		};
-		expect(parseFollowing(JSON.stringify(data), true).entries).toEqual([
+		expect(parseFollowing(JSON.stringify(data)).entries).toEqual([
 			{ username: 'maker.one' },
 			{ username: 'makertwo' }
 		]);
@@ -42,20 +54,25 @@ describe('Instagram following imports', () => {
 			'https://www.instagram.com/_u/maker?tracking=1',
 			'https://www.instagram.com.evil.test/_u/maker',
 			'https://user@www.instagram.com/_u/maker',
-			'https://www.instagram.com/_u/other'
+			'https://www.instagram.com/_u/other',
+			'https://www.instagram.com/_u/maker\n'
 		].map((href) => ({ title: 'maker', string_list_data: [{ href }] }));
 		expect(
-			parseFollowing(JSON.stringify({ relationships_following: entries }), true)
-		).toEqual({ entries: [], ignored: 4, duplicates: 0 });
+			parseFollowing(JSON.stringify({ relationships_following: entries }))
+		).toEqual({ entries: [], ignored: 5, duplicates: 0 });
 	});
 	it('rejects unrelated exports and enforces the server entry bound', () => {
-		expect(() => parseFollowing('[{"username":"maker"}]', true)).toThrow(
+		expect(() => parseFollowing('maker_one\nmaker_two')).toThrow(
+			'not valid JSON'
+		);
+		expect(() => parseFollowing('[{"username":"maker"}]')).toThrow(
 			'following.json'
 		);
+		const rows = Array.from({ length: 10001 }, (_, i) => ({
+			string_list_data: [{ value: `maker${i}` }]
+		}));
 		expect(() =>
-			parseFollowing(
-				Array.from({ length: 10001 }, (_, i) => `maker${i}`).join('\n')
-			)
+			parseFollowing(JSON.stringify({ relationships_following: rows }))
 		).toThrow('10,000');
 	});
 });

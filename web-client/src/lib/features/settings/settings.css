@@ -67,6 +67,12 @@
 	display: grid;
 	gap: 16px;
 }
+.settings-workspace .instagram-export {
+	gap: 8px;
+}
+.settings-workspace .instagram-export > .helper {
+	margin: 0;
+}
 .settings-workspace label {
 	display: grid;
 	gap: 8px;
@@ -125,6 +131,22 @@
 	background: var(--primary);
 	color: var(--on-primary);
 	box-shadow: 3px 3px 0 var(--shadow);
+}
+.settings-workspace button.filled-pill.primary {
+	min-height: 40px;
+	padding-block: 8px;
+	border: 0;
+	border-radius: 999px;
+	box-shadow: none;
+}
+.settings-workspace button.filled-pill.primary svg {
+	flex: none;
+}
+.settings-workspace button.filled-pill.primary:not(:disabled):hover {
+	background: var(--primary-hover);
+}
+.settings-workspace button.filled-pill.primary:not(:disabled):active {
+	background: var(--primary-pressed);
 }
 .settings-workspace button.danger,
 .settings-workspace .danger {

@@ -1,25 +1,15 @@
 const MEBIBYTE = 1024 * 1024;
 
 export const IMPORT_SAFETY_POLICY = Object.freeze({
-	id: 'instagram-import-v1' as const,
 	maxEntries: 100_000,
 	maxCentralDirectoryBytes: 64 * MEBIBYTE,
 	maxCandidateJsonBytes: 32 * MEBIBYTE,
 	maxCombinedCandidateJsonBytes: 128 * MEBIBYTE,
 	maxPosts: 25_000,
-	maxSourceImageBytes: 64 * MEBIBYTE,
 	maxDecodedPixels: 25_000_000,
 	maxDimension: 12_000,
-	maxFinalImageWidth: 4_000,
-	maxFinalImageHeight: 4_000,
-	maxCompressionRatio: 200,
-	maxConcurrentImageTransforms: 1,
-	maxFinalBlobBytes: 2_000_000
+	maxCompressionRatio: 200
 });
-
-export function withinInclusiveLimit(value: number, limit: number): boolean {
-	return Number.isFinite(value) && value >= 0 && value <= limit;
-}
 
 export function withinCompressionRatio(
 	uncompressedSize: number,

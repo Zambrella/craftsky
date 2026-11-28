@@ -112,4 +112,11 @@ describe('Instagram archive import', () => {
 			parseInstagramExport(new Blob([json]), controller.signal)
 		).rejects.toMatchObject({ name: 'AbortError' });
 	});
+	it('rejects malformed UTF-8 in a standalone following export', async () => {
+		const data = new TextEncoder().encode(json);
+		data[json.indexOf('maker')] = 0xff;
+		await expect(parseInstagramExport(new Blob([data]))).rejects.toThrow(
+			'not valid UTF-8'
+		);
+	});
 });

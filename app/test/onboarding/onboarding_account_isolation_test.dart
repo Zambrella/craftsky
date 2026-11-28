@@ -206,7 +206,7 @@ void main() {
         .read(provider.notifier)
         .create(
           InstagramImportRequest(
-            sourceType: InstagramImportSourceType.manual,
+            sourceType: InstagramImportSourceType.instagramJson,
             entries: [const InstagramImportEntry(username: 'maker')],
           ),
         );
@@ -218,7 +218,7 @@ void main() {
         import: InstagramImportSummary(
           importId: 'late-import',
           state: InstagramImportState.active,
-          sourceType: InstagramImportSourceType.manual,
+          sourceType: InstagramImportSourceType.instagramJson,
           followingCount: 1,
           createdAt: DateTime.utc(2026, 8, 31),
         ),

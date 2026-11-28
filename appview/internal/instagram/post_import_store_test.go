@@ -39,6 +39,7 @@ func TestPostImportReservationsPinOneIdentityAndRejectWrongFinalization(t *testi
 	ctx := context.Background()
 	const sourceKey = "abcdef0123456789abcdef0123456789"
 	const owner syntax.DID = "did:plc:import-owner"
+	unexpectedNewKey := func() (syntax.RecordKey, error) { return "", errors.New("unexpected second record key") }
 	proposals := []syntax.RecordKey{"3firstday", "3secondday"}
 	selected := make([]syntax.RecordKey, 2)
 	errCh := make(chan error, 2)
@@ -53,7 +54,7 @@ func TestPostImportReservationsPinOneIdentityAndRejectWrongFinalization(t *testi
 				return
 			}
 			defer tx.Rollback(ctx)
-			selected[i], err = ReservePostImport(ctx, tx, owner, sourceKey, proposals[i])
+			selected[i], err = ReservePostImport(ctx, tx, owner, sourceKey, proposals[i], unexpectedNewKey)
 			if err == nil {
 				err = tx.Commit(ctx)
 			}
@@ -96,7 +97,7 @@ func TestPostImportReservationsPinOneIdentityAndRejectWrongFinalization(t *testi
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err := ReservePostImport(ctx, tx, owner, sourceKey, "3anotherkey"); !errors.Is(err, ErrPostAlreadyImported) {
+	if _, err := ReservePostImport(ctx, tx, owner, sourceKey, "3anotherkey", unexpectedNewKey); !errors.Is(err, ErrPostAlreadyImported) {
 		t.Fatalf("accepted source was reservable again: %v", err)
 	}
 	items, err = history.Lookup(ctx, owner, []string{sourceKey})

@@ -195,6 +195,80 @@ func TestInstagramPostCreateReplaysAcceptedCommandWithPinnedEarlierDayIdentity(t
 	}
 }
 
+type replayingVideoImportCommands struct {
+	recordingAppendCommands
+	replay pdscommands.ReplayCommand
+}
+
+func (s *replayingVideoImportCommands) LookupCommand(context.Context, syntax.DID, string, uuid.UUID) (*pdscommands.ReplayCommand, error) {
+	return &s.replay, nil
+}
+
+func TestInstagramVideoImportReplaysExactTerminalResultWithoutProviderProof(t *testing.T) {
+	key := uuid.New()
+	body := `{"text":"old video caption","sponsored":false,"embed":{"video":{"jobId":"expired-job","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":123}}},"instagramImport":{"sourceKey":"` + instagramSourceKey + `","createdAt":"2020-06-15T12:00:00Z"}}`
+	req, err := api.DecodePostCreate(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := &replayingVideoImportCommands{replay: pdscommands.ReplayCommand{
+		OwnerGeneration: 1, Intent: intent,
+		Result: pdscommands.CommandResult{TerminalResult: pdscommands.TerminalResult{
+			State: pdscommands.CommandAccepted, HTTPStatus: http.StatusCreated,
+			ResponseBody: json.RawMessage(`{"uri":"at://did:plc:alice/social.craftsky.feed.post/3importedvideo"}`),
+		}},
+	}}
+	handler := api.CreatePostHandler(&fakePostStore{}, nil, fakeResolver{}, api.DefaultMediaLimits(), nilLogger(), api.CreatePostHandlerOptions{
+		Commands: commands, InstagramAccounts: postImportAccounts{verifiedPostImportAccount()},
+	})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, instagramPostRequest(body, key.String()))
+	if rr.Code != http.StatusCreated || !strings.Contains(rr.Body.String(), "3importedvideo") {
+		t.Fatalf("terminal replay consulted expired proof: %d %s", rr.Code, rr.Body.String())
+	}
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, instagramPostRequest(strings.Replace(body, "old video caption", "changed caption", 1), key.String()))
+	assertAPIError(t, rr, http.StatusConflict, "idempotency_conflict")
+	commands.replay.OwnerGeneration++
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, instagramPostRequest(body, key.String()))
+	assertAPIError(t, rr, http.StatusConflict, "idempotency_conflict")
+	if commands.calls != 0 {
+		t.Fatal("terminal replay reached write commands")
+	}
+	commands.replay.OwnerGeneration = 1
+	commands.replay.Result.State = pdscommands.CommandAmbiguous
+	commands.execute = func(request pdscommands.AppendCommandRequest) (pdscommands.CommandResult, error) {
+		// The request can read the existing immutable record, but cannot start
+		// a write without the upload proof.
+		record, err := request.BuildRecord(time.Now())
+		if err != nil || !strings.Contains(string(record), "video/mp4") {
+			t.Fatalf("recovery did not reuse the original video: %s %v", record, err)
+		}
+		if err := request.AuthorizeDispatch(context.Background(), nil); err == nil {
+			t.Fatal("recovery authorized a new write without proof")
+		}
+		accepted := commands.replay.Result
+		accepted.State = pdscommands.CommandAccepted
+		return accepted, nil
+	}
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, instagramPostRequest(body, key.String()))
+	if rr.Code != http.StatusCreated || commands.calls != 1 {
+		t.Fatalf("uncertain replay did not reach read recovery: %d %s", rr.Code, rr.Body.String())
+	}
+	commands.execute = func(request pdscommands.AppendCommandRequest) (pdscommands.CommandResult, error) {
+		return pdscommands.CommandResult{}, request.AuthorizeDispatch(context.Background(), nil)
+	}
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, instagramPostRequest(body, key.String()))
+	assertAPIError(t, rr, http.StatusBadGateway, "video_service_unavailable")
+}
+
 func TestInstagramProjectVideoUsesExistingVerifiedVideoPublication(t *testing.T) {
 	commands := &recordingAppendCommands{}
 	commands.execute = func(request pdscommands.AppendCommandRequest) (pdscommands.CommandResult, error) {

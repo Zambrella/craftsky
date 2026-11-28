@@ -15,7 +15,7 @@ export function classifyPostMetadataPath(
 ): PostMetadataPath | null {
 	if (!isSafeArchivePath(path)) return null;
 	const match = POST_PATH.exec(path);
-	if (!match?.groups) return null;
+	if (!match?.groups || match[0] !== path) return null;
 	return {
 		wrapper: match.groups.wrapper ? `${match.groups.wrapper}/` : '',
 		variant:

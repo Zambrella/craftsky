@@ -69,6 +69,35 @@ void main() {
       expect(zipResult.entries, jsonResult.entries);
     });
 
+    test('does not open unrelated local ZIP headers', () async {
+      const target = InstagramExportFileParser.followingEntryPath;
+      final archive = Archive()
+        ..addFile(
+          ArchiveFile.bytes(
+            target.replaceFirst('.json', '.xson'),
+            [1, 2, 3],
+          ),
+        )
+        ..addFile(ArchiveFile.bytes(target, _followingBytes()));
+      final bytes = ZipEncoder().encodeBytes(archive);
+      final unrelatedOffset = _findSignature(bytes, ZipFile.zipSignature);
+      // The unrelated entry claims the target name in its unread local
+      // header. Only the central directory may identify following.json.
+      bytes.setRange(
+        unrelatedOffset + 30,
+        unrelatedOffset + 30 + target.length,
+        utf8.encode(target),
+      );
+      final file = File('${temporaryDirectory.path}/unrelated-local-name.zip')
+        ..writeAsBytesSync(bytes);
+
+      final result = await const InstagramExportFileParser().parsePath(
+        file.path,
+      );
+
+      expect(result.entries.single.username, 'synthetic.user');
+    });
+
     test('UT-018 requires exactly one canonical following entry', () async {
       final missingFile = _writeZip(
         temporaryDirectory,
@@ -290,6 +319,33 @@ void main() {
 
       expect(result.entries, isEmpty);
     });
+
+    test(
+      'validates decompressed length for entries with a descriptor',
+      () async {
+        final bytes = _zipBytes(targetBytes: _followingBytes());
+        final local = _findSignature(bytes, ZipFile.zipSignature);
+        final central = _findSignature(bytes, ZipFileHeader.signature);
+        final data = ByteData.sublistView(bytes);
+        // A data descriptor omits size information from the local header.
+        // The extraction must still obey the central-directory output bound.
+        _writeUint16(
+          bytes,
+          local + 6,
+          data.getUint16(local + 6, Endian.little) | 8,
+        );
+        _writeUint16(
+          bytes,
+          central + 8,
+          data.getUint16(central + 8, Endian.little) | 8,
+        );
+        _writeUint32(bytes, central + 24, 8);
+        final file = File('${temporaryDirectory.path}/short-declaration.zip')
+          ..writeAsBytesSync(bytes);
+
+        await _expectCode(file, InstagramImportParseErrorCode.invalidArchive);
+      },
+    );
 
     test('UT-018 enforces archive metadata limits before decoding', () async {
       final base = _zipBytes(

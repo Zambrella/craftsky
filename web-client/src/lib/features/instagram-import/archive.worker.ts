@@ -1,6 +1,11 @@
 import { inspectInstagramArchive } from './engine';
-import type { InstagramArchive, MediaSelection } from './types';
-let archive: InstagramArchive | undefined;
+import type {
+	InstagramArchiveSource,
+	InstagramPost,
+	MediaSelection
+} from './types';
+let archive: InstagramArchiveSource | undefined;
+let postsByKey = new Map<string, InstagramPost>();
 const operations = new Map<number, AbortController>();
 let queue = Promise.resolve();
 type Request = {
@@ -17,7 +22,7 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
 	}
 	const controller = new AbortController();
 	operations.set(data.id, controller);
-	// Serialize extraction/decoding so a page of thumbnails cannot multiply memory use.
+	// Serialize archive reads so thumbnail requests cannot multiply extraction memory.
 	queue = queue.then(async () => {
 		try {
 			controller.signal.throwIfAborted();
@@ -25,16 +30,17 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
 			if (data.action === 'open') {
 				archive?.close();
 				archive = await inspectInstagramArchive(data.file!, controller.signal);
+				postsByKey = new Map(
+					archive.posts.map((post) => [post.sourceKey, post])
+				);
 				value = { posts: archive.posts, skipped: archive.skipped };
 			} else {
-				const post = archive?.posts.find(
-					(post) => post.sourceKey === data.sourceKey
-				);
+				const post = data.sourceKey && postsByKey.get(data.sourceKey);
 				if (!post || !archive) throw new Error('archiveClosed');
 				value =
 					data.action === 'media'
 						? await archive.media(post, controller.signal, data.selection)
-						: await archive.preview(post, controller.signal);
+						: await archive.previewSource(post, controller.signal);
 			}
 			self.postMessage({ id: data.id, value });
 		} catch (error) {

@@ -304,7 +304,7 @@ String _fingerprint(DateTime date, _SourcePost post) {
     }
   }
   accepted.sort((a, b) {
-    final time = a.post.timestamp.compareTo(b.post.timestamp);
+    final time = b.post.timestamp.compareTo(a.post.timestamp);
     return time == 0 ? a.key.compareTo(b.key) : time;
   });
   return (

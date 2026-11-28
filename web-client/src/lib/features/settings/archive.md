@@ -1,21 +1,23 @@
 # Instagram archive reader
 
 Only `connections/followers_and_following/following.json` is read. Archive paths
-are never resolved as filesystem paths and no imported content is sent anywhere
-until the owner reviews the usernames and explicitly starts an import.
+are never resolved as filesystem paths. Choosing an export starts local
+processing. Only normalized usernames are sent to AppView after parsing.
 
 The ZIP reader preflights the end records before allocating a directory, then
 uses zip.js strict local/central-header, overlapping-entry, ZIP64 and CRC checks.
-Limits are 100,000 directory entries, 64 MB of directory data and 20 MB of actual
+Limits are 100,000 directory entries, 64 MiB of directory data and 20 MiB of actual
 following-list output. Directory entries cannot bypass the output limit by
-lying about uncompressed sizes. Encrypted entries and symlinks are rejected.
+lying about uncompressed sizes. The reader rejects symlinks and an encrypted
+following-list entry.
 
-Stored, Deflate and Deflate64 use zip.js. ZIP method 12 uses a registered BZip2
+Following exports are parsed in a local browser worker, released on completion,
+cancellation or error. Stored, Deflate and Deflate64 use zip.js. ZIP method 12 uses a registered BZip2
 codec with the pinned `seek-bzip` decoder. Its input/output adapters accept only
 byte arrays, throw on truncated input, require exact decoded size, and cap
 compressed input at 40 MB. The decoder verifies BZip2 block and stream CRCs;
-zip.js separately verifies the ZIP CRC. A dedicated module Worker keeps parsing
-off the main thread and is terminated after completion, cancellation, error or a
+zip.js separately verifies the ZIP CRC. The BZip2 decoder runs in its own module
+worker and is terminated after completion, cancellation, error or a
 30-second deadline. Only that Worker loads the browser `buffer` implementation
 needed by the decoder's small internal tables; no Node filesystem or network
 compatibility layer is used.

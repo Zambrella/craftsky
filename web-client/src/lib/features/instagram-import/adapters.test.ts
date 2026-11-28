@@ -40,7 +40,7 @@ describe('Instagram export adapters (UT-003)', () => {
 		});
 	});
 
-	it('accepts current date-partitioned and other post-media paths across dual representations', () => {
+	it('merges both export representations and lists the newest post first', () => {
 		const sources = [
 			media(
 				'media/posts/202603/synthetic-one.jpg',
@@ -76,7 +76,7 @@ describe('Instagram export adapters (UT-003)', () => {
 		expect(detailed.posts).toHaveLength(2);
 		const merged = mergeAdapterPosts([...legacy.posts, ...detailed.posts]);
 		expect(merged.skipped).toEqual([]);
-		expect(merged.posts).toEqual(legacy.posts);
+		expect(merged.posts).toEqual([legacy.posts[1], legacy.posts[0]]);
 	});
 
 	it('uses only the versioned detailed containers and reverses carousel media', () => {

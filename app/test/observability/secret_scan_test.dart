@@ -203,7 +203,7 @@ void main() {
       ),
       const InstagramImportEntry(username: importedHandle),
       InstagramImportRequest(
-        sourceType: InstagramImportSourceType.manual,
+        sourceType: InstagramImportSourceType.instagramJson,
         entries: const [
           InstagramImportEntry(username: importedHandle),
         ],

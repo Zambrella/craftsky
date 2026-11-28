@@ -22,7 +22,7 @@ final class InstagramMigrationApiClient {
       );
       _requireStatus(response, 201);
       return await _decodeMap(
-        response.data,
+        response,
         InstagramVerificationAttempt.fromCreationMap,
       );
     },
@@ -37,7 +37,7 @@ final class InstagramMigrationApiClient {
     );
     _requireStatus(response, 200);
     return await _decodeMap(
-      response.data,
+      response,
       InstagramVerificationAttempt.fromMap,
     );
   });
@@ -48,7 +48,7 @@ final class InstagramMigrationApiClient {
         '/v1/migrations/instagram/verifications/current',
       );
       _requireStatus(response, 200);
-      return await _decode(() {
+      return await _decode(response, () {
         final data = response.data;
         if (data is! Map<String, dynamic>) {
           throw const FormatException('invalid_instagram_current_verification');
@@ -84,7 +84,7 @@ final class InstagramMigrationApiClient {
     );
     _requireStatus(response, 200);
     return await _decodeMap(
-      response.data,
+      response,
       InstagramVerificationConfirmation.fromMap,
     );
   });
@@ -94,7 +94,7 @@ final class InstagramMigrationApiClient {
       '/v1/migrations/instagram/account',
     );
     _requireStatus(response, 200);
-    return await _decodeMap(response.data, InstagramAccountStatus.fromMap);
+    return await _decodeMap(response, InstagramAccountStatus.fromMap);
   });
 
   Future<InstagramAccountStatus> updateSettings(
@@ -105,7 +105,7 @@ final class InstagramMigrationApiClient {
       data: patch.toMap(),
     );
     _requireStatus(response, 200);
-    return await _decodeMap(response.data, InstagramAccountStatus.fromMap);
+    return await _decodeMap(response, InstagramAccountStatus.fromMap);
   });
 
   Future<void> revokeAccount() => unwrapApi(() async {
@@ -123,7 +123,7 @@ final class InstagramMigrationApiClient {
       data: request.toMap(),
     );
     _requireStatus(response, 201);
-    return await _decodeMap(response.data, InstagramImportCreateResult.fromMap);
+    return await _decodeMap(response, InstagramImportCreateResult.fromMap);
   });
 
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) =>
@@ -133,7 +133,7 @@ final class InstagramMigrationApiClient {
           queryParameters: {'limit': ?limit, 'cursor': ?cursor},
         );
         _requireStatus(response, 200);
-        return await _decodeMap(response.data, InstagramImportPage.fromMap);
+        return await _decodeMap(response, InstagramImportPage.fromMap);
       });
 
   Future<InstagramImportSummary> getImport(String importId) => unwrapApi(
@@ -142,7 +142,7 @@ final class InstagramMigrationApiClient {
         '/v1/migrations/instagram/imports/${Uri.encodeComponent(importId)}',
       );
       _requireStatus(response, 200);
-      return await _decodeMap(response.data, InstagramImportSummary.fromMap);
+      return await _decodeMap(response, InstagramImportSummary.fromMap);
     },
   );
 
@@ -155,7 +155,7 @@ final class InstagramMigrationApiClient {
       data: patch.toMap(),
     );
     _requireStatus(response, 200);
-    return await _decodeMap(response.data, InstagramImportSummary.fromMap);
+    return await _decodeMap(response, InstagramImportSummary.fromMap);
   });
 
   Future<void> deleteImport(String importId) => unwrapApi(() async {
@@ -180,13 +180,13 @@ final class InstagramMigrationApiClient {
         data: {'sourceKeys': requested.toList()},
       );
       _requireStatus(response, 200);
-      try {
-        final data = response.data;
-        if (data is! Map<String, dynamic> || data['items'] is! List<dynamic>) {
+      return await _decodeMap(response, (data) {
+        final responseItems = data['items'];
+        if (responseItems is! List<dynamic>) {
           throw const FormatException('invalid_instagram_import_lookup');
         }
         final items = <InstagramPublishedImport>[];
-        for (final entry in data['items'] as List<dynamic>) {
+        for (final entry in responseItems) {
           if (entry is! Map<String, dynamic>) {
             throw const FormatException('invalid_instagram_import_lookup_item');
           }
@@ -199,22 +199,7 @@ final class InstagramMigrationApiClient {
           items.add(item);
         }
         return List.unmodifiable(items);
-      } on Object catch (error, stack) {
-        Error.throwWithStackTrace(
-          ApiServerError(
-            'invalid_instagram_response',
-            details: ErrorMappingInterceptor.detailsFor(
-              DioException(
-                requestOptions: response.requestOptions,
-                response: response,
-                error: error,
-                stackTrace: stack,
-              ),
-            ),
-          ),
-          stack,
-        );
-      }
+      });
     });
   }
 
@@ -227,7 +212,7 @@ final class InstagramMigrationApiClient {
       queryParameters: {'limit': ?limit, 'cursor': ?cursor},
     );
     _requireStatus(response, 200);
-    return await _decodeMap(response.data, InstagramSuggestionPage.fromMap);
+    return await _decodeMap(response, InstagramSuggestionPage.fromMap);
   });
 
   Future<InstagramSuggestionActionResult> acceptSuggestion(
@@ -246,7 +231,7 @@ final class InstagramMigrationApiClient {
     );
     return await parsePdsMutationResponse(
       response,
-      accepted: (data) => _decode(() {
+      accepted: (data) => _decode(response, () {
         _requireStatus(response, 200);
         if (data is! Map<String, dynamic> ||
             data.length != 2 ||
@@ -283,20 +268,34 @@ final class InstagramMigrationApiClient {
     }
   }
 
-  T _decode<T>(T Function() decode) {
+  T _decode<T>(Response<Object?> response, T Function() decode) {
     try {
       return decode();
     } on ApiException {
       rethrow;
-    } on Object {
-      throw const ApiServerError('invalid_instagram_response');
+    } on Object catch (error, stack) {
+      Error.throwWithStackTrace(
+        ApiServerError(
+          'invalid_instagram_response',
+          details: ErrorMappingInterceptor.detailsFor(
+            DioException(
+              requestOptions: response.requestOptions,
+              response: response,
+              error: error,
+              stackTrace: stack,
+            ),
+          ),
+        ),
+        stack,
+      );
     }
   }
 
   T _decodeMap<T>(
-    Object? data,
+    Response<Object?> response,
     T Function(Map<String, dynamic>) decode,
-  ) => _decode(() {
+  ) => _decode(response, () {
+    final data = response.data;
     if (data is! Map<String, dynamic>) {
       throw const FormatException('invalid_instagram_response_map');
     }

@@ -40,6 +40,7 @@
 		path.includes('settings') ? path.slice(path.indexOf('settings') + 1) : path
 	);
 	let section = $derived(parts[0] || '');
+	let instagramView = $derived(section === 'instagram' ? parts[1] : undefined);
 	const menu = new Work('settings.SettingsWorkspace.action');
 	let restricted = $state(false),
 		profile = $state<Profile>(),
@@ -141,8 +142,12 @@
 
 <SettingsPageLayout
 	section={section || 'index'}
-	backHref={section ? '/settings' : undefined}
-	backLabel="Back to Settings"
+	backHref={instagramView
+		? '/settings/instagram'
+		: section
+			? '/settings'
+			: undefined}
+	backLabel={instagramView ? 'Back to Instagram' : 'Back to Settings'}
 >
 	{#key `${session.did}:${section}`}
 		{#if !section}
@@ -287,7 +292,11 @@
 				{api}
 				{session}
 			/>
-		{:else if section === 'instagram'}<Instagram {api} {session} />
+		{:else if section === 'instagram'}<Instagram
+				{api}
+				{session}
+				view={instagramView}
+			/>
 		{:else if ['business', 'products', 'events'].includes(section)}<Business
 				{api}
 				{session}

@@ -28,6 +28,7 @@ describe('supported Instagram export paths (UT-002)', () => {
 			'C:/your_instagram_activity/media/posts.json',
 			'a/b/your_instagram_activity/media/posts.json',
 			'your_instagram_activity/media/Posts.json',
+			'your_instagram_activity/media/posts.json\n',
 			'your_instagram_activity/media/posts.txt',
 			'your_instagram_activity/messages/posts.json'
 		]) {

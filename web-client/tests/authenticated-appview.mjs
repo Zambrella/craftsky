@@ -513,6 +513,8 @@ createServer(async (req, res) => {
 				settings.get(owners[name]).languages = flags.languages;
 			if (Object.hasOwn(flags, 'business'))
 				settings.get(owners[name]).business = flags.business;
+			if (Object.hasOwn(flags, 'instagram'))
+				settings.get(owners[name]).instagram = flags.instagram;
 		}
 		control = {
 			...control,
@@ -1334,6 +1336,14 @@ createServer(async (req, res) => {
 		return send(200, { integrationAvailable: true, account: state.instagram });
 	}
 	if (
+		pathname === '/v1/migrations/instagram/post-imports/lookup' &&
+		method === 'POST'
+	) {
+		if (state.instagram?.state !== 'active' || !state.instagram.verifiedAt)
+			return send(403, { error: 'instagram_verification_required' });
+		return send(200, { items: [] });
+	}
+	if (
 		pathname === '/v1/migrations/instagram/verifications' &&
 		method === 'POST'
 	) {
@@ -1348,14 +1358,20 @@ createServer(async (req, res) => {
 			dmUrl: 'https://www.instagram.com/direct/t/fixture'
 		});
 	}
-	if (pathname === '/v1/migrations/instagram/verifications/current') {
+	if (pathname === '/v1/migrations/instagram/verifications/current')
+		return send(200, { verification: state.verification });
+	if (pathname === '/v1/migrations/instagram/verifications/verify-1') {
+		if (method === 'DELETE') {
+			state.verification = null;
+			return send(204);
+		}
 		if (state.verification?.state === 'pendingDm')
 			state.verification = {
 				...state.verification,
 				state: 'pendingConfirmation',
 				candidateUsername: 'alice_makes'
 			};
-		return send(200, { verification: state.verification });
+		return state.verification ? send(200, state.verification) : send(404);
 	}
 	if (pathname.endsWith('/verifications/verify-1/confirm')) {
 		state.instagram = {
@@ -1373,6 +1389,11 @@ createServer(async (req, res) => {
 	}
 	if (pathname === '/v1/migrations/instagram/imports') {
 		if (method === 'POST') {
+			if (body.sourceType !== 'instagramJson')
+				return send(400, {
+					error: 'invalid_request',
+					message: 'Choose an Instagram export.'
+				});
 			const item = {
 				importId: 'import-1',
 				state: 'active',
@@ -1389,6 +1410,14 @@ createServer(async (req, res) => {
 						handle: 'bob.test',
 						displayName: 'Bob Maker'
 					}
+				},
+				{
+					suggestionId: 'suggestion-2',
+					target: {
+						did: 'did:plc:carol',
+						handle: 'carol.test',
+						displayName: 'Carol Maker'
+					}
 				}
 			];
 			return send(201, {
@@ -1398,13 +1427,34 @@ createServer(async (req, res) => {
 		}
 		return send(200, { items: state.imports });
 	}
+	if (
+		method === 'DELETE' &&
+		pathname === '/v1/migrations/instagram/imports/import-1'
+	) {
+		state.imports = state.imports.filter(
+			(item) => item.importId !== 'import-1'
+		);
+		state.suggestions = [];
+		return send(204);
+	}
 	if (pathname === '/v1/migrations/instagram/suggestions')
 		return send(200, { items: state.suggestions });
 	if (pathname === '/v1/migrations/instagram/suggestions/suggestion-1/accept') {
 		if (!req.headers['idempotency-key'])
 			return send(400, { error: 'missing_key', message: 'Key required' });
-		state.suggestions = [];
+		state.suggestions = state.suggestions.filter(
+			(suggestion) => suggestion.suggestionId !== 'suggestion-1'
+		);
 		return send(200, { suggestionId: 'suggestion-1', state: 'followed' });
+	}
+	if (
+		method === 'DELETE' &&
+		pathname === '/v1/migrations/instagram/suggestions/suggestion-2'
+	) {
+		state.suggestions = state.suggestions.filter(
+			(suggestion) => suggestion.suggestionId !== 'suggestion-2'
+		);
+		return send(204);
 	}
 	if (pathname === '/v1/feed/extended-network') return send(200, { items: [] });
 	if (pathname === '/v1/feed/timeline')

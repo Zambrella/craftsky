@@ -25,7 +25,7 @@ describe('error parity and diagnostic evidence', () => {
 		[
 			403,
 			'instagram_verification_required',
-			'Verify or reactivate your Instagram account in Settings before importing posts.'
+			'Verify or reactivate your Instagram account in Settings before importing.'
 		],
 		[
 			409,
